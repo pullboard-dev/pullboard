@@ -405,7 +405,8 @@ export async function digestCommand(io, { first, second, rest, values }, ctx, po
     } finally { process.off('SIGINT', stop); process.off('SIGTERM', stop); }
     return 0;
   }
-  const result = readDigest(ctx.file, { name, root: ctx.info.root, config: ctx.config, healthReport }, ports);
+  // The command's clock is the reading time, so a fixture that holds the clock reads the window it set up.
+  const result = readDigest(ctx.file, { name, now: io.clock?.now?.() ?? new Date(), root: ctx.info.root, config: ctx.config, healthReport }, ports);
   const path = out === undefined ? undefined : writeDigest(out, result.markdown, ctx.info.commonDir);
   io.result?.({ capacityForecast: result.capacity, markdown: result.markdown, bytes: result.bytes, sequence: result.sequence, sections: result.sections, ...(path ? { path } : {}) });
   io.say(path ? `wrote the briefing to ${path}; share that file with any chat assistant` : result.markdown.trimEnd());

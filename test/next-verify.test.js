@@ -83,8 +83,9 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(early.code, 1, 'nothing is reserved, so the command still exits 1');
   const said = early.stdout + early.stderr;
   assert.match(said, new RegExp(`nothing to review yet; the builder is still working on #${id}`, 'u'));
-  assert.match(said, /pullboard watch/u, 'the next step names pullboard watch');
-  assert.match(said, /check back: pullboard next --verify/u, 'or check back with the same command');
+  // Since 4657576b18 (#2777) next steps never suggest a wait: the step is the same command, not pullboard watch.
+  assert.match(said, /next: check pullboard next --verify for a ready review/u, 'the next step checks back with the same command');
+  assert.doesNotMatch(said, /pullboard watch/u, 'the next step suggests no wait');
   assert.doesNotMatch(said, /NOTHING_FREE/u, 'no NOTHING_FREE when work is in progress');
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'nothing is reserved');
 
@@ -137,7 +138,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(startup, /--family "<vendor family>"/u);
   const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
   const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
-    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture' }, encoding: 'utf8' });
+    // The fixture model name maps to no tier, so join would default to mid; item #1 needs a strong verifier [V4].
+    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' }, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);
   assert.match(independent.stdout, /next to verify: #1 Ready for review/u,
     'the printed line reserves the submitted item from the new independent fixture session');

@@ -545,6 +545,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   DIAGNOSIS_ROUTE: "record the diagnosis from a mid or strong seat; from a light seat, release the item with --reason DIAGNOSIS_WRONG --note \"<what was wrong>\" if it is wrong",
   DIAGNOSIS_HELD: "diagnose an open item or your own claim; ask the holder to release other work first, as pullboard show <id> names",
   DIAGNOSIS_WRONG: "claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note \"<what was wrong>\"",
+  JOIN_IN_ITEM_FOLDER: "leave this item folder and run pullboard from the lane worktree the message names; join only from a worktree made with git worktree add ../<repo>-<lane>",
   ITEM_MARKER_MISSING: "renew the claim from the seat worktree the message names: pullboard claim <id>",
   SUBMIT_RED_LOOP: "change the failing code before another submit: fix the red tests the message names, commit, then submit again",
   LAND_MODULE_PARSE: "fix the module that does not parse in the composed tree, commit, then resubmit the item",

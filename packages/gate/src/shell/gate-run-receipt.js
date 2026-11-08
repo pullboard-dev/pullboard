@@ -132,5 +132,3 @@ export function landingShardProfile(output) {
   return shards.length ? { balance, floor, quarantined, unverified, shards, files } : null;
 }
 
-
-export { sealKnownMainAutofile } from './known-main-autofile-receipts.js';

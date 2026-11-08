@@ -1,4 +1,5 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importStyleViolations } from './static-import-style.js';
@@ -11,6 +12,9 @@ import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
+import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
+import { loadBearingFailures } from '../core/load-bearing.js';
+import { loadBearingJudged } from '../core/load-bearing.js';
 import { gitSpawnSync } from '../../../git/index.js';
 
 /**
@@ -70,6 +74,7 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
       failures.push(...current.slice(baseline.length).map(row => `${row.path}:${row.line}: ${row.text}`));
     }
   }
+  failures.push(...loadBearingCheck(root, files, { staged, text, previous }));
   const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
   for (const file of files) {
     if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) {
@@ -79,6 +84,31 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
     }
   }
   return failures;
+}
+
+/**
+ * The load-bearing process check over the changed files: new detached children, unrefs, daemon loops and state files
+ * outside the drive, transport, jobs and pin cells, against the ceilings file, which may only fall against main's.
+ * A checkout with no ceilings file (a project that is not this repository) has nothing to judge.
+ *
+ * @param {string} root
+ * @param {string[]} files
+ * @param {{ staged: boolean, text: (file: string) => string, previous: (file: string) => string }} readers
+ * @returns {string[]}
+ */
+function loadBearingCheck(root, files, { staged, text, previous }) {
+  const present = staged
+    ? gitSpawnSync(['cat-file', '-e', `:${LOAD_BEARING_CEILINGS}`], { cwd: root, stdio: 'ignore' }).status === 0
+    : existsSync(join(root, LOAD_BEARING_CEILINGS));
+  if (!present) return [];
+  const ceilings = JSON.parse(text(LOAD_BEARING_CEILINGS));
+  const changed = files.filter(loadBearingJudged).map(file => ({ file, source: text(file) }));
+  let accepted = null;
+  if (files.includes(LOAD_BEARING_CEILINGS)) {
+    const main = previous(LOAD_BEARING_CEILINGS);
+    if (main) accepted = JSON.parse(main);
+  }
+  return loadBearingFailures(changed, ceilings, accepted);
 }
 
 /** Judge the actual index whenever the explicit staged checker is invoked. */

@@ -69,6 +69,19 @@ function checkerFingerprint(toolRoot = TOOL_ROOT) {
  */
 export function pinnedCheckerFingerprint(root, commit) {
   if (!HASH.test(commit ?? '')) throw new TypeError('accepted cells inventory needs an exact commit');
+  const memo = `${root}\0${commit}`;
+  if (PINNED_CHECKERS.has(memo)) return PINNED_CHECKERS.get(memo);
+  const fingerprint = pinnedCheckerFingerprintFromGit(root, commit);
+  if (PINNED_CHECKERS.size >= 64) PINNED_CHECKERS.delete(PINNED_CHECKERS.keys().next().value);
+  PINNED_CHECKERS.set(memo, fingerprint);
+  return fingerprint;
+}
+
+/** Pinned checker fingerprints by repository and commit; a commit's blobs never change, so a hit is always exact. */
+const PINNED_CHECKERS = new Map();
+
+/** Fold a commit's tooling blobs from Git into the checker fingerprint, in the same order a disk walk visits them. */
+function pinnedCheckerFingerprintFromGit(root, commit) {
   const env = gitChildEnv(root);
   const listing = git(root, ['ls-tree', '-r', '-z', '--full-tree', commit, '--', ...TOOLING_PATHS], { env }).split('\0').filter(Boolean);
   const rows = [];
@@ -118,10 +131,17 @@ export function acceptedCellsIdentity(root, commit, { pinned = false } = {}) {
 /** True when the running tooling is byte-identical to the pinned commit's own, so a producer here records the pinned checker. */
 export function toolingIsPinned(root, commit) { return checkerFingerprint() === pinnedCheckerFingerprint(root, commit); }
 
-/** Read only a complete matching artifact; missing or invalid evidence never runs analysis. */
+/**
+ * Read only a complete matching artifact; missing or invalid evidence never runs analysis.
+ * Why the pinned identity: the accepted inventory of a commit is produced only by that commit's own tooling, so its
+ * identity is a function of the commit. A reader running other tooling (a hand-off worker in a candidate that changes
+ * the checker's files) used to look under its own checker key, found nothing the producer had published, and every
+ * gate on that candidate ended CELLS_INVENTORY_PENDING (#3439, 7 Nov). The trusted checker that consumes the artifact
+ * still compares the descriptor with its own identity before using it.
+ */
 export function readAcceptedCells(root, commit) {
   try {
-    const identity = acceptedCellsIdentity(root, commit);
+    const identity = acceptedCellsIdentity(root, commit, { pinned: true });
     const found = readAcceptedInventory(identity);
     if (!found.available && found.cause !== 'missing-artifact') {
       try { rmSync(join(identity.directory, `${acceptedInventoryKey(identity)}.ready.json`), { force: true }); } catch { /* Next nudge may retry. */ }
@@ -143,8 +163,9 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock }
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'bin/cells-plan.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
-  // The running tooling is the checker recorded here; bin/main-audit.js re-runs itself from the pinned checkout so that is the pinned one.
-  const identity = acceptedCellsIdentity(root, commit), key = acceptedInventoryKey(identity);
+  // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
+  // the pinned one and otherwise re-runs bin/main-audit.js from the pinned checkout, so readers find it by the commit alone.
+  const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   let prior;
   const ancestors = git(root, ['log', '--first-parent', '--max-count=201', '--format=%H %T', commit], { env: gitChildEnv(root) }).split('\n').slice(1);
   for (const row of ancestors) {

@@ -1,3 +1,4 @@
+import { sealOwnershipWait } from '../shell/ownership-wait-seal.js';
 import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
 import { claimedItemRoot } from '../../../../packages/items/index.js';
@@ -39,6 +40,10 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
 import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
+import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/index.js';
+import { renewReview } from '../../../../packages/jobs/index.js';
+import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
+import { releaseReview } from '../../../../packages/jobs/index.js';
 import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
 import {
@@ -311,6 +316,7 @@ export function nativeBoardPorts() {
   });
   const enginePorts = boardEnginePorts({
     shadowJob: shadowSubmitHandoff,
+    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
@@ -321,7 +327,7 @@ export function nativeBoardPorts() {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealOwnershipWait, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,

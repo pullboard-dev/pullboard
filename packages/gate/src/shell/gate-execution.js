@@ -331,7 +331,8 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
         ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}),
         ...(context.submitReuse ? { submitReuse: true, submitReusePlan: context.submitReusePlan } : {}),
-        ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}) } });
+        ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}),
+        ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
@@ -398,6 +399,24 @@ export async function runProfiledShellAsync(root, command, options) {
       ? await gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions)
       : await runShellAsync(root, command, plan.localOptions);
     return execution.next(run).value;
+  } finally { execution.return(); }
+}
+
+/**
+ * Run one profiled plan whose execution the caller supplies: the plan names the whole command, so its profile, source
+ * checks and one proof receipt are the same as runProfiledShellAsync's, while `execute` may run that command as shards
+ * across several runner slots and hand back their merged run [C7].
+ *
+ * @param {string} root
+ * @param {string} command - The whole command the receipt records.
+ * @param {object} options - runProfiledShellAsync's options.
+ * @param {(plan: object) => Promise<object>} execute - Runs the plan and returns its one run.
+ */
+export async function runProfiledShardsAsync(root, command, options, execute) {
+  const execution = profiledExecution(root, command, options);
+  try {
+    const { value: plan } = execution.next();
+    return execution.next(await execute(plan)).value;
   } finally { execution.return(); }
 }
 

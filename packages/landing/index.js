@@ -29,6 +29,7 @@ export * from "./src/shell/landing-worker.js";
 export * from "./src/shell/landing-worktree-prune.js";
 export * from "./src/shell/main-failure-matches.js";
 export * from "./src/shell/main-red.js";
+export * from "./src/shell/main-red-receipt.js";
 export * from "./src/shell/main-red-passing.js";
 export * from "./src/shell/release-queue.js";
 export * from "./src/shell/land-envelope.js";

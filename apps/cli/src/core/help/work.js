@@ -67,6 +67,7 @@ export const workHelp = `Work
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
   pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>] [--out <directory>]
+  pullboard patch object <item> <key> --note "why"
                                         format-patch or plain diff; mixed lanes report owners and write drafts for confirmation
                                         coordinator: bind a companion patch to the exact submitted source
   pullboard patch list <item>            read its ordered native patches and patch-set digest
@@ -112,7 +113,7 @@ export const workHelp = `Work
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
-  pullboard submit <id> [--wait] [--no-next]        needs a clean tree; --wait ends at the final gate result, never a review verdict (alias: done)
+  pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
