@@ -9,6 +9,7 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { COMPARISON_WORKER_RECORD } from './comparison-worker.js';
 
 export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
 /** A comparison whose worker died is started again this many times before it is recorded unavailable [C7]. */
@@ -38,7 +39,7 @@ export function comparisonRestartPlan({ commonDir, item, thread, alive = process
   const base = join(commonDir, 'pullboard', 'review-comparisons');
   let names = [];
   try { names = readdirSync(base); } catch { return { action: 'none' }; }
-  const jobs = names.map(name => ({ request: readJson(join(base, name, 'request.json')), worker: readJson(join(base, name, 'worker.json')) }))
+  const jobs = names.map(name => ({ request: readJson(join(base, name, 'request.json')), worker: readJson(join(base, name, COMPARISON_WORKER_RECORD)) }))
     .filter(({ request }) => request && request.item === item.item_id && request.source === item.item_commit && request.digest === item.item_frozen_digest);
   // A job with no worker record is still being launched; a worker with a result file has already finished.
   if (!jobs.length || jobs.some(({ worker }) => !worker || alive(worker.pid))) return { action: 'none' };
