@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -81,6 +82,20 @@ export const SOURCED = {
     { key: '2', title: 'No function exceeds its deadline', cites: ['EA2'], criterion: 'A test fails when a function exceeds its deadline.', check: 'true' },
   ],
 };
+
+/** Per-command telemetry the CLI writes under .git/pullboard: its trace, seat timing and the log of refused commands; not a board. */
+export const TELEMETRY = /(?:^|[\\/])(?:trace[\\/][^\\/]+\.jsonl|seat-timing\.jsonl|blocks\.jsonl)$/u;
+
+/**
+ * Whether a command left a board in the repository: anything under .git/pullboard besides its telemetry. Why: the CLI
+ * now records a trace of every command there, so the folder's existence no longer means a board was created [S1,I1].
+ */
+export function boardCreated(repo) {
+  const folder = join(repo, '.git', 'pullboard');
+  let entries;
+  try { entries = readdirSync(folder, { recursive: true, withFileTypes: true }); } catch { return false; }
+  return entries.some(entry => entry.isFile() && !TELEMETRY.test(join(entry.parentPath, entry.name).slice(folder.length + 1)));
+}
 
 /** A Git repository with history but no Pullboard yet, using the same private homes as freshBoard. */
 export function emptyRepo() {

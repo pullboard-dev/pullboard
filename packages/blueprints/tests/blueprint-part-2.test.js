@@ -25,6 +25,8 @@ import { emptyRepo } from './blueprint-fixture.js';
 import { bundled } from './blueprint-fixture.js';
 import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
+import { boardCreated } from './blueprint-fixture.js';
+import { TELEMETRY } from './blueprint-fixture.js';
 
 test('infrastructure loads as architecture [S1]', async () => {
   const { BLUEPRINT_KINDS } = await import('../index.js');
@@ -150,12 +152,12 @@ test('bundled blueprint rows carry their checks [S1,I1]', async () => {
 });
 
 test('blueprint commands say what they did [S1,I1]', () => {
-  // Every file's bytes outside Git's object store (seat-timing.jsonl is per-command telemetry, not board state), and every board event, so a repeat add is proven to change nothing.
+  // Every file's bytes outside Git's object store (seat timing and the command trace are per-command telemetry, not board state), and every board event, so a repeat add is proven to change nothing.
   const snapshot = (box) => {
     const files = readdirSync(box.repo, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => join(entry.parentPath, entry.name))
-      .filter((path) => !path.includes(`${join('.git', 'objects')}`) && !/board\.sqlite/u.test(path) && !/seat-timing\.jsonl$/u.test(path))
+      .filter((path) => !path.includes(`${join('.git', 'objects')}`) && !/board\.sqlite/u.test(path) && !TELEMETRY.test(path))
       .sort()
       .map((path) => [path, readFileSync(path).toString('base64')]);
     return { files, events: json(box, 'log').events };
@@ -326,12 +328,12 @@ test('clause 1: init --blueprint starts a board from a blueprint [I1,S1]', () =>
   assert.equal(refusal.code, 'NO_BLUEPRINT');
   assert.match(refusal.message, /web-app/u, 'the refusal lists the bundled blueprints');
   assert.deepEqual(readdirSync(unknown.repo).filter((name) => name !== '.git'), [], 'nothing is written');
-  assert.equal(existsSync(join(unknown.repo, '.git', 'pullboard')), false, 'no board is created');
+  assert.equal(boardCreated(unknown.repo), false, 'no board is created');
   const fetched = unknown.run('init', '--blueprint', 'https://example.invalid/web-app.json', '--json');
   assert.notEqual(fetched.status, 0);
   assert.equal(JSON.parse(fetched.stdout).error.code, 'BLUEPRINT_URL');
   assert.deepEqual(readdirSync(unknown.repo).filter((name) => name !== '.git'), [], 'a URL writes nothing');
-  assert.equal(existsSync(join(unknown.repo, '.git', 'pullboard')), false, 'a URL creates no board');
+  assert.equal(boardCreated(unknown.repo), false, 'a URL creates no board');
 
   // Run from a subdirectory, a relative path names a file there: init reads it once, before
   // writing anything, and adds that very blueprint.

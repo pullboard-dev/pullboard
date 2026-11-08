@@ -23,6 +23,7 @@ import { bundled } from './blueprint-fixture.js';
 import { draftedTexts } from './blueprint-fixture.js';
 import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
+import { boardCreated } from './blueprint-fixture.js';
 
 test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1,I1]', () => {
   // A starter's check is stored on the item, but no check baseline starts: add executes nothing
@@ -254,7 +255,7 @@ test('a second blueprint of the same kind is refused [S1,I1]', () => {
     assert.equal(error.code, 'BLUEPRINT_KIND_TAKEN');
     assert.match(error.message, new RegExp(`${first} and ${second} are both ${kind} blueprints`, 'u'), 'the refusal names both');
     assert.deepEqual(readdirSync(box.repo).filter((name) => name !== '.git'), [], 'nothing is written');
-    assert.equal(existsSync(join(box.repo, '.git', 'pullboard')), false, 'no board is created');
+    assert.equal(boardCreated(box.repo), false, 'no board is created');
   }
 
   // blueprint add refuses the same way and leaves SPEC.md as it was.
