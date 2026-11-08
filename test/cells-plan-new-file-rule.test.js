@@ -37,7 +37,7 @@ function fixture(t, added) {
   git(root, 'checkout', '-q', '-b', 'fixture-item');
   for (const file of added) put(file, 'export const demo = 1;\n');
   git(root, 'add', '-A');
-  git(root, 'commit', '-q', '-m', 'fixture item');
+  git(root, 'commit', '-q', '--allow-empty', '-m', 'fixture item');
   git(root, 'checkout', '-q', 'main');
   git(root, 'merge', '-q', '--no-ff', 'fixture-item', '-m', 'fixture landing');
   return { root, merge: git(root, 'rev-parse', 'HEAD') };
