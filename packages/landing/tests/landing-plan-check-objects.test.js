@@ -21,7 +21,7 @@ test('clause 1: the landing plan check refuses an unplaced bin path and passes a
   const { root, put } = fixture(t);
   writePlan(root, computePlan(root));
   const base = commitAll(root, 'plan the fixture');
-  const worktrees = git(root, 'worktree', 'list');
+  const worktrees = git(root, 'worktree', 'list').split('\n').map(line => line.split(' ')[0]);
   assert.doesNotThrow(() => requireLandingPlanCheck(root, base), 'a fully placed tree passes');
   put('bin/added-tool.js', 'export const tool = true;\n');
   const bad = commitAll(root, 'add an unplaced bin path');
@@ -29,5 +29,5 @@ test('clause 1: the landing plan check refuses an unplaced bin path and passes a
   placePath(root, 'bin/added-tool.js', { stay: true });
   const good = commitAll(root, 'place the bin path');
   assert.doesNotThrow(() => requireLandingPlanCheck(root, good), 'the placed commit passes');
-  assert.equal(git(root, 'worktree', 'list'), worktrees, 'git worktree list is unchanged');
+  assert.deepEqual(git(root, 'worktree', 'list').split('\n').map(line => line.split(' ')[0]), worktrees, 'git worktree list is unchanged');
 });
