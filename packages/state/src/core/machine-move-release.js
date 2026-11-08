@@ -11,6 +11,7 @@ export const MOVES = [
     verb: 'release', from: ['open', 'claimed'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
     // Exit handoff appends its summary through the ordinary fact guards in this atomic release.
     alsoRefuses: [
+      { code: 'S10', rule: 'a per-item criterion never requires the full suite or CI to pass', next: 'remove the full-suite or CI sentence from the criterion: pullboard edit <id> --criterion "<per-item outcome>"' },
       { code: 'DIAGNOSIS_WRONG', rule: 'a wrong-diagnosis release names what was wrong and returns a diagnosed claim the caller holds', next: 'claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note "<what was wrong>"' },
       { code: 'BAD_DEPENDENCIES', rule: 'release dependency ids are valid local item identifiers before the release is recorded', next: 'pass one or more existing local item ids with --on, or omit --on' },
       { code: "EXIT_CONTINUATION", rule: "an exit handoff retains a known native original session and honest declared family", next: "read the item summary, then continue from a fresh native session of its reserved model family" },
