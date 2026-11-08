@@ -14,7 +14,7 @@ import { runFixtureChild } from '../../../test/fixture-child.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { landProject } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const SECOND_MS = 1_000;
 
 /**
@@ -48,12 +48,12 @@ function landOnce(box, { defect }) {
     '  const spans = [];',
     '  const write = async (operation, args) => { const start = performance.now(); try { return board.enginePorts.store[operation](board, ...args); } finally { spans.push({ operation, ms: performance.now() - start }); } };',
     '  let error = null, lines = [];',
-    '  try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile: "unused", root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); }',
+    '  try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile: process.argv[4], root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); }',
     '  catch (caught) { error = { code: caught.code }; }',
     '  console.log(JSON.stringify({ error, lines, spans, writes: rows().slice(before) }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, home, defect ? '1' : '0'],
+  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, home, defect ? '1' : '0', join(import.meta.dirname, '../../../bin/landing-candidate.js')],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_MACHINE_HOME: home }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
   return JSON.parse(run.stdout.trim().split('\n').at(-1));
@@ -78,5 +78,26 @@ test('clause 2: a landing refused by LAND_TEST_DEFECT writes nothing and holds t
   assert.equal(result.error?.code, 'LAND_TEST_DEFECT', JSON.stringify(result));
   assert.deepEqual(result.spans.filter(span => span.ms >= SECOND_MS), [], 'no write span reaches a second');
   assert.deepEqual(result.spans, [], 'the refusal is decided before any board write');
+  assert.deepEqual(result.writes.filter(row => row.heldMs >= SECOND_MS), [], 'no recorded hold reaches a second');
+});
+
+test('clause 1: a real landing that selects, admits and records its batch opens its board writes only to record, each under a second [C7,#3333]', () => {
+  const box = emptyProject();
+  // The item's own check passed with the fixture's red suppressed; main then moves, so the landing runs its real gate.
+  box.env.LAND_SUPPRESS_RED = '1';
+  let entry;
+  try {
+    entry = itemWorktree(box, 1);
+    submitItem(box, entry, '// PASS\n');
+    acceptItem(box, entry);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
+  moveMainPastSubmit(box, 1);
+  const result = landOnce(box, { defect: false });
+  assert.equal(result.error, null, `${JSON.stringify(result.error)}\n${result.lines.join('\n')}`);
+  const operations = result.spans.map(span => span.operation);
+  assert.ok(operations.length > 0 && operations.includes('recordLandingBatch'), `the landing records its batch: ${operations.join(', ')}`);
+  assert.equal(operations[0], 'recordLandingBatch', 'selection, test-defect checks, admission and the gate ran before the first board write, which is the batch record');
+  assert.deepEqual(result.spans.filter(span => span.ms >= SECOND_MS), [], 'no write span of a landing that records reaches a second');
+  assert.ok(result.writes.length > 0, 'the machine write log recorded this landing\'s holds');
   assert.deepEqual(result.writes.filter(row => row.heldMs >= SECOND_MS), [], 'no recorded hold reaches a second');
 });
