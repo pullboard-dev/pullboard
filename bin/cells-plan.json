@@ -234,9 +234,6 @@
       "file": "bin/cells-plan/43-app-relay.json"
     }
   ],
-  "allowedEdges": [
-    "codemap->git"
-  ],
   "stays": [
     {
       "path": "src/index.js",
@@ -3460,6 +3457,7 @@
     }
   ],
   "allowedEdges": [
+    "codemap->git",
     "runners->config",
     "runners->kernel",
     "runners->resources",
