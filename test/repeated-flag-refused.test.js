@@ -21,7 +21,11 @@ test('clause 1: add and edit refuse a repeated --criterion with a code that name
   assert.equal(store.getItem(box.board, id).item_criterion, criterion, 'the criterion is unchanged');
 });
 
-for (const flag of ['title', 'brief', 'note', 'lane', 'specs', 'check']) {
+for (const flag of [
+  // Every single-value text flag the add and edit readers consume (apps/cli/src/shell/commands/add.js and edit.js, the textArg helper in cli/add.js).
+  'title', 'brief', 'brief-file', 'note', 'note-file', 'lane', 'specs', 'check', 'route', 'parent', 'after', 'check-timing',
+  'expected-minutes', 'force-size', 'review-family', 'reason', 'review-tier', 'machine-verified', 'machine-commands-file',
+]) {
   test(`clause 2: add and edit refuse a repeated --${flag} and name it [C7]`, async t => {
     const box = await fixture(t);
     const id = box.add('Existing item');
