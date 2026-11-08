@@ -47,3 +47,35 @@ export function classifyTestFiles(tracked, inventory, plan) {
   return [...new Set(tracked)].filter(file => file.startsWith('test/') || /^docs\/.*\.test\.[cm]?js$/u.test(file))
     .sort().map(file => classify(file, inventory, plan));
 }
+
+/** Name a classified row's home: its cell, its journey's cells, or why it is unknown. */
+function home(row) {
+  if (row.kind === 'cell') return `cell ${row.cell}`;
+  if (row.kind === 'journey') return `journey ${row.cells.join(',')}`;
+  return `unknown ${row.reason}`;
+}
+
+/** Compare two strings by code unit so the report never depends on the locale. */
+function byCodeUnit(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Render the --place-tests report: one line per test file or docs check with its home, in path order,
+ * then how many files each plan cell gets (zero included), the journey count and the unknown count [C7,CD64].
+ */
+export function placementReport(rows, cellNames = []) {
+  const lines = [...rows].sort((a, b) => byCodeUnit(a.file, b.file)).map(row => `${row.file}\t${home(row)}`);
+  const perCell = new Map([...new Set(cellNames)].map(name => [name, 0]));
+  for (const row of rows) if (row.kind === 'cell') perCell.set(row.cell, (perCell.get(row.cell) ?? 0) + 1);
+  for (const [name, count] of [...perCell].sort(([a], [b]) => byCodeUnit(a, b))) lines.push(`files for cell ${name}: ${count}`);
+  lines.push(`journeys: ${rows.filter(row => row.kind === 'journey').length}`);
+  lines.push(`unknown: ${rows.filter(row => row.kind !== 'cell' && row.kind !== 'journey').length}`);
+  lines.push(`total: ${rows.length}`);
+  return lines;
+}
+
+/** Classify every tracked test file and docs check in a checkout and render the placement report. */
+export function placeTests(tracked, inventory, plan) {
+  return placementReport(classifyTestFiles(tracked, inventory, plan), plan.cells.map(cell => cell.name));
+}
