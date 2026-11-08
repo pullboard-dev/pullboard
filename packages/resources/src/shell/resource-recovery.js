@@ -7,6 +7,51 @@ import { probeStanding } from '../../../transport/index.js';
 /** Doubts about a runner that only its transport probe settles: one good probe lifts them, two failures 30 s apart quarantine. */
 export const PROBE_DOUBTS = ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'];
 
+/**
+ * How long one confirming ssh and Node probe may take. Why: at load 3-5 the M4 runners answered ssh in about a second
+ * minutes later, yet a 2 s connect and 3 s answer budget timed out and quarantined three healthy runners on 7 Nov [C7].
+ */
+export const CONFIRM_PROBE_MS = 15_000;
+/** Retries after a failed confirming probe; only a probe that fails every retry marks the runner unavailable. */
+export const CONFIRM_PROBE_RETRIES = 3;
+/** A quarantined runner is probed again at most this long after a failed pass, so one that answers heals inside 2 minutes. */
+export const RECOVERY_RETRY_MAX_MS = 30_000;
+/** How long a recovery pass reserves its row: covers a retried transport probe so two passes do not probe one host at once. */
+const RECOVERY_RESERVE_MS = 45_000;
+
+/** Wait the given milliseconds without holding the event loop. */
+function pause(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+/**
+ * Run a confirming runner probe with a load-tolerant budget: each attempt gets `timeoutMs`, and a failed attempt is
+ * retried up to `retries` times. The runner is confirmed healthy when any attempt answers healthy; the returned
+ * observation carries every attempt's outcome and duration so a quarantine names what was tried.
+ * @param {(runner: object, options: { timeoutMs: number }) => Promise<object>} probe a probe answering `{ healthy }` or `{ ok }`
+ * @param {object} runner the configured runner
+ * @param {{ timeoutMs?: number, retries?: number, pauseMs?: number, wait?: (ms: number) => Promise<void> }} [options]
+ * @returns {Promise<object>} the healthy attempt's observation, or the last failed one, with `attempts`
+ */
+export async function confirmRunnerProbe(probe, runner, { timeoutMs = CONFIRM_PROBE_MS, retries = CONFIRM_PROBE_RETRIES, pauseMs = 1_000, wait = pause } = {}) {
+  const attempts = [];
+  let observation = { healthy: false, reason: 'confirming probe not run' };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0 && pauseMs > 0) await wait(pauseMs);
+    const started = Date.now();
+    let timer;
+    try {
+      // The probe bounds itself; this guard only keeps a probe that ignores its budget from stalling the requeue.
+      observation = await Promise.race([probe(runner, { timeoutMs }),
+        new Promise(resolve => { timer = setTimeout(() => resolve({ healthy: false, timedOut: true, reason: 'confirming probe exceeded its budget' }), timeoutMs + 2_000); })]);
+    } catch (error) {
+      observation = { healthy: false, reason: 'confirming probe threw: ' + String(error?.message ?? error).slice(0, 200) };
+    } finally { clearTimeout(timer); }
+    const healthy = observation?.healthy === true || observation?.ok === true;
+    attempts.push({ healthy, ms: Date.now() - started, ...(observation?.timedOut === true ? { timedOut: true } : {}) });
+    if (healthy) return { ...observation, healthy: true, attempts };
+  }
+  return { ...observation, healthy: false, attempts };
+}
+
 /** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
 export function recoveryIdentity(value) {
   return value?.version === 1 && (value.launchFence === undefined || value.launchFence === 1) && /^[A-Za-z0-9_-]{1,100}$/u.test(value.request ?? '')
@@ -135,7 +180,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     let claimed;
     try {
       claimed = db.prepare(`UPDATE runner_unavailable SET probe_token=?,probe_until=? WHERE host=? AND since=?
-        AND probe_until<=? AND probe_after<=?`).run(token, now + 10_000, row.host, row.since, now, now).changes;
+        AND probe_until<=? AND probe_after<=?`).run(token, now + RECOVERY_RESERVE_MS, row.host, row.since, now, now).changes;
     } catch (error) {
       // Recovery is best effort: a locked slot database skips this round with the row unchanged, and the next pass
       // retries. A thrown lock ended the landing worker mid-gate three times in 30 minutes on 5 Nov [C7].
@@ -149,10 +194,10 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     let result;
     // A doubt is settled by the transport probe alone: one good answer puts the runner back in service [C7,P7].
     if (typeof transportProbe === 'function' && PROBE_DOUBTS.includes(row.detail)) {
-      let answer;
-      try { answer = await transportProbe(configured.get(row.host)); } catch { answer = { ok: false }; }
-      try { recordRunnerProbe(db, row.host, answer?.ok === true, now); } catch { /* A locked probe history skips this record; the next pass probes again. */ }
-      if (answer?.ok === true) result = { healthy: true, step: 'transport probe', reason: 'the runner answered its transport probe' };
+      // One retry: a single slow answer under load is not a failed probe, so it neither counts toward quarantine nor keeps the doubt.
+      const answer = await confirmRunnerProbe(transportProbe, configured.get(row.host), { retries: 1 });
+      try { recordRunnerProbe(db, row.host, answer.healthy, now); } catch { /* A locked probe history skips this record; the next pass probes again. */ }
+      if (answer.healthy) result = { healthy: true, step: 'transport probe', reason: 'the runner answered its transport probe', attempts: answer.attempts };
     }
     const legacy = !pending.length || !pending.every(recoveryIdentity);
     if (result?.healthy === true) { /* Lifted by the transport probe. */ }
@@ -207,9 +252,11 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       return recovered;
     }
     const attempts = Math.min(16, row.probe_attempts + 1);
-    // A cleanup re-check is cheap and the runner keeps its other slots, so it comes round every minute; a no-holder runner is healed twice as fast.
-    const delay = row.detail === 'CLEANUP_UNVERIFIED' ? healDelay(db, row, leakProbe) : row.detail === 'WORKER_UNRESPONSIVE'
-      ? 300_000 : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
+    // Every quarantine is re-probed within 30 s of a failed pass, so a runner that answers again heals inside 2 minutes
+    // without the coordinator; a cleanup doubt re-verifies its job's cleanup on each of those passes. Five minutes for a
+    // hung worker and a minute for a busy cleanup left answering runners dark for up to 172 s on 7 Nov [C7].
+    const delay = Math.min(RECOVERY_RETRY_MAX_MS, row.detail === 'CLEANUP_UNVERIFIED' ? healDelay(db, row, leakProbe)
+      : row.detail === 'WORKER_UNRESPONSIVE' ? RECOVERY_RETRY_MAX_MS : 1_000 * 2 ** Math.min(6, attempts));
     db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,healing=0,probe_after=?,probe_attempts=?,failure=?
       WHERE host=? AND since=? AND probe_token=?`)
       .run(now + delay, attempts, JSON.stringify({ ...retained, latestProbe: result }), row.host, row.since, token);
