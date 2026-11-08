@@ -26,7 +26,7 @@ function nodeGate(box) {
     "const args = process.argv.slice(2); const alone = args.includes('--alone'); const files = args.filter(arg => arg !== '--alone');",
     "if (!files.length) files.push(...fs.readdirSync(path.join(process.cwd(), 'web')).filter(file => /^land-\\d+\\.test\\.js$/.test(file)).map(file => 'web/' + file));",
     "const collectAll = process.env.PULLBOARD_LANDING_COLLECT_ALL === '1'; const selected = collectAll || alone ? files : files.slice(0, 1);",
-    "const run = spawnSync(process.execPath, ['--test', ...selected], { cwd: process.cwd(), env: process.env, encoding: 'utf8' }); process.stdout.write(run.stdout || ''); process.stderr.write(run.stderr || '');",
+    "const run = spawnSync(process.execPath, ['--test', ...selected], { cwd: process.cwd(), env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')), encoding: 'utf8' }); process.stdout.write(run.stdout || ''); process.stderr.write(run.stderr || '');",
     "if ((run.status ?? 1) !== 0 && !collectAll && !alone && files.length > selected.length) process.stdout.write('Interrupted test files: ' + files.slice(selected.length).join(', ') + '\\n');",
     "process.exitCode = run.status ?? 1;",
   ].join('\n'));
