@@ -53,7 +53,7 @@ const TOUR_STEPS = [
   '8  The coordinator merges it. The ledger is the receipt.',
 ];
 
-test('the coordinator declares its model [O8,O3]', async (t) => {
+test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   const box = sandbox();
   delete box.env.PULLBOARD_MODEL;
 
