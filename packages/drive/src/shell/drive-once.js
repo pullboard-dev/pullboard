@@ -1,14 +1,18 @@
 /** driveOnce: continue one gate job from its last written step by exactly one transition [C7]. */
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { bundleFor } from '../../../pin/index.js';
 import { toolingFor } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
 import { receiptKey } from '../../../receipt/index.js';
 import { settle } from '../../../receipt/index.js';
+import { ensureTooling } from '../../../transport/index.js';
 import { fetchResult } from '../../../transport/index.js';
 import { sharedTransport } from '../../../transport/index.js';
 import { startShard } from '../../../transport/index.js';
@@ -19,6 +23,9 @@ import { phaseOf } from '../core/drive-phase.js';
 import { shardSections } from '../core/drive-phase.js';
 import { stepPayload } from '../core/drive-phase.js';
 import { queueFlakeDiagnoses } from './flake-diagnose.js';
+
+/** Where tooling tar bundles are written before they are sent; keyed by tree id, so every gate reuses one. */
+const BUNDLE_FOLDER = join(tmpdir(), 'pullboard-tooling-bundles');
 
 /** How often a driver renews its lease while a whole gate runs in-process; the lease lapses after 2 minutes. */
 const GATE_RENEW_MS = 5_000;
@@ -80,20 +87,31 @@ async function startOwed(db, view, channel, owner, now) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {ReturnType<typeof jobView>} view
- * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number, gate?: Function }} options
+ * Why: before the shards start, the runner is asked for the captured tooling pin's tree. A runner that holds it is
+ * sent zero tooling bytes and the shard commands read the pinned copy at `captured.toolingPath`; only a runner
+ * without it is sent the bundle once. The outcome is written into the running step as `tooling` [C7].
+ *
+ * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number, gate?: Function, repo?: string, tooling?: boolean, bundles?: string }} options
  */
-async function send(db, view, { runner, plan, transport, owner, now, gate }) {
+async function send(db, view, { runner, plan, transport, owner, now, gate, repo, tooling = true, bundles = BUNDLE_FOLDER }) {
   if (gate) {
     writeStep(db, view.id, 'running', { gate: true, shards: [] }, { now });
     return;
   }
   if (typeof runner?.host !== 'string') throw new Refused('DRIVE_RUNNER', 'driveOnce needs a runner to send a job to: pass { runner: { host } }.');
-  const shards = typeof plan === 'function' ? plan(stepPayload(view, 'captured')) : plan;
+  const where = runner.root === undefined ? { host: runner.host } : { host: runner.host, root: runner.root };
+  const captured = stepPayload(view, 'captured');
+  let pinned;
+  if (repo && tooling !== false && captured.tooling) {
+    pinned = await ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
+  }
+  const shards = typeof plan === 'function' ? plan(pinned ? { ...captured, toolingPath: pinned.path } : captured) : plan;
   if (!Array.isArray(shards) || !shards.length || shards.some(s => typeof s?.shard !== 'string' || typeof s?.command !== 'string')) {
     throw new Refused('DRIVE_PLAN', 'driveOnce needs a shard plan to send: pass { plan: [{ shard, command }] } with the project\'s own test command.');
   }
-  const where = runner.root === undefined ? { host: runner.host } : { host: runner.host, root: runner.root };
-  writeStep(db, view.id, 'running', { runner: where, shards: shards.map(({ shard, command }) => ({ shard, command })) }, { now });
+  const step = { runner: where, shards: shards.map(({ shard, command }) => ({ shard, command })) };
+  if (pinned) step.tooling = { tree: pinned.tree, path: pinned.path, held: pinned.held, bytesSent: pinned.bytesSent };
+  writeStep(db, view.id, 'running', step, { now });
   await startOwed(db, jobView(db, view.id), transport.connect(where), owner, now);
 }
 
@@ -229,10 +247,10 @@ function decide(db, view, { sections, failures, owner, now }) {
  *   plan?: { shard: string, command: string }[] | ((captured: object) => { shard: string, command: string }[]),
  *   gate?: (observe: (stages: object[]) => object[]) => Promise<object>,
  *   transport?: { connect: Function }, sections?: (collected: object) => object,
- *   failures?: (collected: object) => { file: string, case: string }[], now?: () => number }} options
+ *   failures?: (collected: object) => { file: string, case: string }[], tooling?: boolean, bundles?: string, now?: () => number }} options
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, bundles, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
   const view = jobView(db, job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
@@ -243,7 +261,7 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
   const channels = transport ?? sharedTransport();
   let owed;
   if (before === 'queued') capture(db, view, repo, at);
-  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at, gate });
+  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, bundles });
   else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(db, view, { gate, owner, now });
   else if (before === 'running') owed = await collect(db, view, { transport: channels, owner, now: at });
   else decide(db, view, { sections, failures, owner, now: at });
