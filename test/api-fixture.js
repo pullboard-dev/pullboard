@@ -209,3 +209,31 @@ export async function apiHttpBox(t, { includeMissing = false, onStateBuild, addi
   return { ...box, api, origin, key, id, call, path: '/api/v1/boards/' + id };
 }
 
+/** Commit work citing the item in the builder's checkout, so its submit carries a change against main. */
+export function commitWork(box, seat, id) {
+  // Each item builds on accepted main, never on an earlier unverified item's commit in the same checkout.
+  runFixtureGit(['switch', '--detach', 'main'], { cwd: seat.path, env: box.env, stdio: 'pipe' });
+  mkdirSync(join(seat.path, 'app'), { recursive: true });
+  writeFileSync(join(seat.path, 'app', 'work-' + id + '.txt'), 'work for #' + id + '\n');
+  runFixtureGit(['add', '-A'], { cwd: seat.path, env: box.env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', 'feat: fixture work [G1]\n\nPullboard-Item: #' + id], { cwd: seat.path, env: box.env, stdio: 'pipe' });
+}
+
+/** Put the reviewer's checkout on the builder's submitted commit, as a review requires. */
+export function checkOutSubmitted(box, builder, verifier) {
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: builder.path, env: box.env, stdio: 'pipe' }).toString().trim();
+  runFixtureGit(['switch', '--detach', head], { cwd: verifier.path, env: box.env, stdio: 'pipe' });
+}
+
+/**
+ * The full item without claimHealth, which the full state carries but neither the summary nor the detail does yet:
+ * #3482 puts claimHealth in both, and this comparison then drops the helper.
+ */
+export function withoutClaimHealth({ claimHealth, ...rest }) {
+  return rest;
+}
+
+/** A build brief a mid-route fixture item needs: the paths to touch and what the test asserts. */
+export const FIXTURE_BRIEF = 'Files:\n- app/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- the fixture case passes';
+/** The brief the summary case checks stays out of summaries and shows in the detail. */
+export const DETAIL_BRIEF = 'Files:\n- app/fixture.js\nTest:\n- A brief only the detail carries';
