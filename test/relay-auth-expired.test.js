@@ -212,7 +212,7 @@ test('moves stay local while the machine credential expires, then replay after s
   writeFileSync(box.linkFile, orderedLink, { mode: 0o600 });
 
   const next = await box.cliAt(agentRoot, 'next', '--build');
-  assert.equal(next.code, 0, next.failure ?? JSON.stringify(next.document?.error ?? null));
+  assert.equal(next.code, 0, `${next.failure ?? 'next queues its claim locally while the sender cannot authenticate'}; ${JSON.stringify(next.document?.error ?? null)}`);
   // the claim comes first: it names the seeded item the relay already knows; a claim naming an item added while the relay is down is refused RELAY_OUTBOX_UNBOUND by design
   const claimId = next.document.item.item_id;
 
