@@ -180,7 +180,8 @@ export function proofFields(value) {
   const hasTestRuntimes = Object.hasOwn(value, 'testRuntimes');
   const testRuntimes = hasTestRuntimes ? testRuntimeRows(value.testRuntimes) : null;
   if (hasTestRuntimes && value.testRuntimes !== null && testRuntimes === null) return null;
-  const actualEnvironment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
+  // Captured test workers outrank the executor; a run with none (testRuntimes null) keeps the observed executor [C7,#2662].
+  const actualEnvironment = testRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
   const hasShards = Object.hasOwn(value, 'shards');
   const shards = hasShards ? shardRows(value.shards) : null;
   if (hasShards && !shards) return null;

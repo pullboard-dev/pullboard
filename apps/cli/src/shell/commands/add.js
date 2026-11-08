@@ -88,25 +88,30 @@ export async function run(io, args) {
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
   const title = [second, ...rest].filter(Boolean).join(' ');
+  const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
+  // With --split-coordinator the coordinator-owned part of the bar leaves for its own item, filed after this one [C7,#3246].
+  const split = values['split-coordinator'] === true ? splitBar(ctx.config, wholeBar) : null;
+  if (split?.paths.length && !split.lane.criterion.trim()) throw new Refused('CROSS_OWNERSHIP', `every clause of the bar names ${split.paths.join(', ')}, which no lane owns, so lane ${first} has nothing to build`,
+    splitAdvice(first, title, split.paths));
+  const laneBar = split ? split.lane : wholeBar;
   // Before the brief's own lane check, so a coordinator-owned path gets the cross-ownership code and the split, not a bare lane refusal [C7,#2650].
-  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title,
-    criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' });
+  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title, ...laneBar });
   let item = {
     by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id,
     lane: first,
     title,
-    criterion: values.criterion ?? '',
+    criterion: laneBar.criterion,
     specIds,
     parentId,
     after,
-    brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
+    brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
     route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
-    check: values.check,
+    check: laneBar.check,
     ...(values['check-timing'] === undefined ? {} : { checkTiming: parseCheckTiming(values['check-timing']) }),
   };
   const sealed = executingBarEffect(ctx, board, 'add');
@@ -139,6 +144,7 @@ export async function run(io, args) {
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
+  const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
   if (item.checkBaseline?.result === 'pending') {
@@ -152,12 +158,80 @@ export async function run(io, args) {
       await exited;
     }
   }
-  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
+  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
   for (const warning of evidenceWarnings) io.err(warning.message);
   io.say(`#${id}`);
+  if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;
 });
+}
+
+/**
+ * File the coordinator piece of a split add: the clauses, check and files no lane owns, waiting on the lane item.
+ * Why: the lane item is already filed when this runs, so a seat whose grant cannot file into the coordinator lane gets the
+ * exact command that finishes the split instead of a bare grant refusal and a lane item with no partner [C7,#3246].
+ *
+ * @returns {Promise<number>} The coordinator piece's item id.
+ */
+async function fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) {
+  const piece = { ...item, lane: COORDINATOR, title: `${title}: coordinator piece`, criterion: split.coordinator.criterion, check: split.coordinator.check,
+    brief: split.coordinator.brief, after: [id], specIds, route: 'strong' };
+  delete piece.checkBaseline;
+  const { command, brief } = store.validateItemAddition(board, piece);
+  piece.brief = brief;
+  if (command) refuseCheckSyntax(command);
+  if (command) piece.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  try { return await ordered(ctx, board, 'addItem', [piece]); }
+  catch (error) {
+    if (!String(error?.code).startsWith('AGENT_GRANT_')) throw error;
+    throw new Refused('CROSS_OWNERSHIP', `#${id} is filed with the lane part of the bar, but this seat cannot file the coordinator piece (${error.code})`,
+      `claim #${id}, then run: pullboard add coordinator "${piece.title}" --after ${id} with the coordinator part of the bar naming ${split.paths.join(', ')}`);
+  }
+}
+
+/** Split a criterion into its numbered clauses; text before the first number is a preamble kept on both sides. */
+function criterionClauses(criterion) {
+  const text = String(criterion ?? '');
+  const marks = [...text.matchAll(/(?:^|\s)\d+\.\s/gu)];
+  if (!marks.length) return { preamble: '', clauses: [text.trim()].filter(Boolean), numbered: false };
+  const clauses = marks.map((mark, at) => text.slice(mark.index + mark[0].length, at + 1 < marks.length ? marks[at + 1].index : undefined).trim());
+  return { preamble: text.slice(0, marks[0].index).trim(), clauses, numbered: true };
+}
+
+/** Join clauses back into a criterion, numbering them again when the original was numbered. */
+function joinClauses({ preamble, numbered }, clauses) {
+  if (!clauses.length) return '';
+  const body = numbered ? clauses.map((clause, at) => `${at + 1}. ${clause}`).join(' ') : clauses.join(' ');
+  return preamble ? `${preamble} ${body}` : body;
+}
+
+/**
+ * Divide a bar between the lane and the coordinator: clauses, brief lines and the check that name a coordinator-owned
+ * path go to the coordinator piece, everything else stays with the lane item. A brief line under a section other than
+ * Files (Test, notes) is kept by the coordinator piece too, so it still shows how the piece is proved.
+ *
+ * @param {object} config - The frozen policy with its lanes.
+ * @param {{ criterion: string, check?: string, brief: string }} bar - The whole bar as given.
+ * @returns {{ paths: string[], lane: object, coordinator: object }}
+ */
+export function splitBar(config, bar) {
+  const owned = text => coordinatorPaths(config, { criterion: text }).length > 0;
+  const parts = criterionClauses(bar.criterion);
+  const checkOwned = bar.check !== undefined && coordinatorPaths(config, { check: bar.check }).length > 0;
+  let section = '';
+  const laneLines = [];
+  const pieceLines = [];
+  for (const line of String(bar.brief ?? '').split('\n')) {
+    const header = /^(\w[\w ]*):/u.exec(line);
+    if (header) { section = header[1].toLowerCase(); laneLines.push(line); pieceLines.push(line); continue; }
+    if (section === 'files' && owned(line)) { pieceLines.push(line); continue; }
+    laneLines.push(line);
+    if (section !== 'files') pieceLines.push(line);
+  }
+  return { paths: coordinatorPaths(config, { criterion: bar.criterion, check: bar.check, brief: bar.brief }),
+    lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
+    coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
 }
 
 /** Cross-ownership: a bar that names a coordinator-owned path cannot be built by a lane seat, so add and claim refuse it up front [C7,#2650]. */

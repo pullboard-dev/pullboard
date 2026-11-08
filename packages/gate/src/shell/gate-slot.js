@@ -228,7 +228,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     }
   }
   const settingsProvider = () => loadMachineSettings();
-  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => machineSlots(settingsProvider()).gate;
   // A pinned source is an exact commit read from the object store, so a runner may take it from a busy checkout [C7].
@@ -285,7 +285,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     beforeAdmission,
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
     onWait: async state => {
-      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
       return onWait?.(state);
     },
   });

@@ -7,6 +7,7 @@ import { reviewEligibility } from '../packages/verify/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../packages/store/index.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { RELEASE_REASONS } from '../src/release-reasons.js';
 import { effectiveAgentParent } from '../packages/seats/index.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
@@ -141,21 +142,24 @@ test('computed parent identity rejects the builder pool across native review pat
 
 test('CLI next and verify reject the original building session through its real local ledger [C7,V1,B3]', t => {
   const box = crossLaneFixture(t);
+  // The kit joins box.web as an ordinary seat; the original session builds in its own fresh worktree instead (#3103).
+  const built = join(box.dir, 'original-session-build');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/original-session', built, 'main');
   const original = 'routing-ledger-original-session', other = 'routing-ledger-independent-session';
-  const builder = box.json(box.runAs(original, box.web, 'join', 'web', '--family', 'codex',
-    '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--json')).agent;
+  const builder = box.json(box.runAs(original, built, 'join', 'web', '--family', 'codex',
+    '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   const id = box.add('web', 'Session independence through the local ledger');
-  box.json(box.runAs(original, box.web, 'claim', String(id), '--json'));
-  const commit = helpers.commitFile(box, box.web, 'web/session.txt', 'built by the original session\n',
+  box.json(box.runAs(original, built, 'claim', String(id), '--json'));
+  const commit = helpers.commitFile(box, built, 'web/session.txt', 'built by the original session\n',
     'test(web): build the private session fixture [G1]');
   assert.equal(commit.status, 0, commit.stdout + commit.stderr);
-  box.json(box.runAs(original, box.web, 'submit', String(id), '--no-next', '--json'));
+  box.json(box.runAs(original, built, 'submit', String(id), '--no-next', '--json'));
   const review = join(box.dir, 'original-session-review');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
   const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
-    '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--json')).agent;
+    '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   assert.notEqual(reviewer, builder, 'the review seat is not the building seat');
-  const builtBinding = box.binding(box.web), reviewBinding = box.binding(review);
+  const builtBinding = box.binding(built), reviewBinding = box.binding(review);
   assert.equal(builtBinding.agent, builder);
   assert.equal(reviewBinding.agent, reviewer);
   assert.match(builtBinding.digest, /^[a-f0-9]{64}$/u);
@@ -261,4 +265,21 @@ test('computed review filtering preserves native urgency, skip and omit ordering
   assert.equal(next({ skipIds: [first] }).item?.item_id, second);
   assert.equal(next({ omitIds: [first] }).item?.item_id, second);
   assert.deepEqual(store.events(f.board), before, 'all ordering probes remain read-only');
+});
+
+test('clause 1 and clause 2: a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', t => {
+  const f = fixture(t), waiting = f.add(), own = f.add();
+  f.submit(waiting);
+  store.claim(f.board, own, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });
+  const claimed = store.getItem(f.board, own);
+  /** Record the claim's own queued gate in the given terminal state, as the handoff worker does. */
+  const gate = (state, code) => recordSubmitHandoff(f.board.db, own, { id: `fixture-job-${state}`, commit: 'c'.repeat(40), agentId: 'core-2', digest: claimed.item_frozen_digest, state, at: '2026-11-04T19:32:13.780Z', error: { code, message: 'fixture', next: 'fixture' } });
+  const seat = store.agentById(f.board, 'core-2');
+  assert.deepEqual([dispatchWork(f.board, seat).item?.item_id, dispatchWork(f.board, seat).held], [own, true], 'with no gate the claim is held');
+  gate('red', 'GATE_RED');
+  assert.equal(dispatchWork(f.board, seat).item?.item_id, own, 'a red gate returns the claim to its builder');
+  gate('infrastructure', 'GATE_INFRA_EXHAUSTED');
+  const offered = dispatchWork(f.board, seat);
+  assert.deepEqual([offered.item?.item_id, offered.review], [waiting, true], 'an infrastructure stop frees the seat for the waiting review');
+  assert.notEqual(dispatchWork(f.board, store.agentById(f.board, 'core-1')).item?.item_id, waiting, 'its builder is still never offered its own review');
 });

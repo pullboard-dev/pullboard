@@ -12,6 +12,7 @@ import { writeTestTiers } from '../packages/gate/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { executionServices } from './gate-execution-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 /** Demand a real successful private CLI document. */
 function json(box, root, ...args) {
@@ -76,7 +77,7 @@ function build(box, name, value, { second = false } = {}) {
   if (second) {
     root = join(box.dir, `builder-${name}`);
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/${name}`, root, 'main');
-    json(box, root, 'join', 'web');
+    joinFixtureSeat(box, root, 'web', { route: 'strong' });
   }
   const id = json(box, box.repo, 'add', 'web', `Change ${name}`, '--specs', 'G1', '--criterion', `The ${name} package remains present and its unit contract holds.`, '--check', `node check.cjs ${name}`, '--route', 'strong').item.item_id;
   json(box, root, 'claim', String(id));
@@ -89,7 +90,7 @@ function build(box, name, value, { second = false } = {}) {
 function accept(box, entry) {
   const root = join(box.dir, `review-${entry.id}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, entry.head);
-  json(box, root, 'join', 'api');
+  joinFixtureSeat(box, root, 'api', { route: 'strong' });
   const result = box.run(root, 'verify', String(entry.id), 'accept', '--note', 'The private frozen check and changed package units passed.');
   assert.equal(result.code, 0, result.out + result.err);
   assert.match(result.out, /T1 unit tests/u);
@@ -101,7 +102,8 @@ test('submit and review run only the changed package units and frozen check [C7,
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // Deliberate inherited context must not skip the selected units.
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js']);
-  assert.deepEqual(submitted.gate.testTiers.packages, ['packages/alpha']);
+  // RFC 0006 A3: the repository root imports alpha's front door, so its hash changes and it runs beside alpha.
+  assert.deepEqual(submitted.gate.testTiers.packages, ['.', 'packages/alpha']);
   assert.deepEqual(submitted.gate.testTiers.journeys, ['test/journey.test.js']);
   assert.equal(submitted.gate.check.checked, true);
   assert.deepEqual(submitted.gate.phasePlan.map(phase => phase.role), ['criterion', 'proof']);
@@ -109,7 +111,7 @@ test('submit and review run only the changed package units and frozen check [C7,
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
   accept(box, entry);
-  assert.deepEqual(calls(box, 'alpha'), ['alpha:2', 'alpha:2'], 'review also executes the package unit');
+  assert.deepEqual(calls(box, 'alpha'), ['alpha:2'], 'review reuses the submit proof of the package unit instead of running it again');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
 });
@@ -182,13 +184,16 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
-  const landed = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(landed.landed, [good.id], JSON.stringify(landed));
+  const landing = box.run(box.repo, 'land', '--max', '2', '--json');
+  assert.equal(landing.code, 0, landing.out + landing.err);
+  const landed = JSON.parse(landing.out);
+  const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
+  assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${gateLogs}\n${JSON.stringify(landed)}`);
   assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
   assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
   const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
   assert.ok(logs.length > 1, 'the original batch and split trees have actual gate results');
-  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')));
+  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')), logs.join('\n--- next gate log ---\n'));
   assert.ok(json(box, box.repo, 'show', String(good.id)).item_merged_commit);
   assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
 });

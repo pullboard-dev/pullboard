@@ -1,17 +1,23 @@
 import { submitReusePlanDigest } from '../core/submit-reuse-plan.js';
 import { createHash } from 'node:crypto';
 
+/** The main commit the last submission was gated against, or null without one [C7]. */
+export function submittedPolicyCommit(events) {
+  const submission = [...events].sort((a, b) => a.event_id - b.event_id).findLast(row => row.event_kind === 'submit');
+  try { return submission ? JSON.parse(submission.event_detail).policyCommit ?? null : null; } catch { return null; }
+}
+
 /**
  * Accept only both origin-sealed submit phases from the exact admission and source [C7,H16]. The key is the candidate
  * tree, the composed main and, when the caller names one, the tooling tree (RFC 0007 SC7): a submit that recorded other
- * tooling, or none, is never reused.
+ * tooling, or none, is never reused. With `allowDeferred` a deferred full suite does not refuse a sealed receipt (#2939).
  *
  * @param {object[]} events - The item's board events.
  * @param {{ item: object, commit: string, tree: string, main: string, tooling?: string | null, check: string,
- *   affectedTests: string, gate: string, supplement?: string, expectedPlan?: object }} input
+ *   affectedTests: string, gate: string, supplement?: string, expectedPlan?: object, allowDeferred?: boolean }} input
  * @returns {{ ids: string[], environment: object | null } | { reason: string }} The reused receipt ids, or why not.
  */
-export function reusableSubmitProof(events, { item, commit, tree, main, tooling, check, affectedTests, gate, supplement, expectedPlan }) {
+export function reusableSubmitProof(events, { item, commit, tree, main, tooling, check, affectedTests, gate, supplement, expectedPlan, allowDeferred = false }) {
   const rows = [...events].sort((a, b) => a.event_id - b.event_id);
   const submission = rows.findLast(row => row.event_kind === 'submit');
   if (!submission) return { reason: 'no recorded submission' };
@@ -21,7 +27,7 @@ export function reusableSubmitProof(events, { item, commit, tree, main, tooling,
   if (tooling !== undefined && (!tooling || detail.tooling !== tooling)) return { reason: 'tooling tree changed' };
   if (detail.criterionDigest !== item.item_frozen_digest) return { reason: 'frozen criterion changed' };
   const proof = detail.submissionProof;
-  if (detail.gateGreen !== true || !proof || proof.deferred && expectedPlan?.tiered !== true || proof.knownMainFailures || detail.companion) return { reason: 'submission proof is incomplete or not green' };
+  if (detail.gateGreen !== true || !proof || proof.deferred && expectedPlan?.tiered !== true && !allowDeferred || proof.knownMainFailures || detail.companion) return { reason: 'submission proof is incomplete or not green' };
   if (expectedPlan && (proof.full !== expectedPlan.full || proof.deferred !== expectedPlan.deferred
     || JSON.stringify([...proof.files].sort()) !== JSON.stringify([...expectedPlan.files].sort()))) return { reason: 'submit selection changed' };
   const admissionEvent = rows.findLast(row => row.event_id < submission.event_id && row.event_by === submission.event_by

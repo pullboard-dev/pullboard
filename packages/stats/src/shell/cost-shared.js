@@ -2,7 +2,7 @@
 import { COST_ENGINE } from '../../../../src/cost-engine.js';
 import { sanitizedUsage } from './cost.js';
 import { sumUsage } from './cost-read.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Read only sanitized public aliases and numeric counters, never private native session data. */

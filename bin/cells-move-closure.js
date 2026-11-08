@@ -77,6 +77,7 @@ function urlSpecifiers(source) {
 function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, extra = () => []) {
   const allowed = new Set(files);
   const reached = new Set();
+  const via = new Map();
   let bytes = 0;
   while (pending.length) {
     const level = [...new Set(pending)].filter(file => !reached.has(file));
@@ -94,7 +95,12 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, 
       if (isBuiltin(specifier)) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
-      if (!/\.[cm]?js$/u.test(target)) throw new Error(`unproven executable ${label} dependency`);
+      if (!/\.[cm]?js$/u.test(target)) {
+        const chain = [level[index]];
+        for (let at = via.get(chain[0]); at && chain.length < 12; at = via.get(at)) chain.unshift(at);
+        throw new Error(`unproven executable ${label} dependency ${specifier} imported through ${chain.join(' > ')}`);
+      }
+      if (!via.has(target)) via.set(target, level[index]);
       pending.push(target);
     }
   }

@@ -83,3 +83,31 @@ test('clause 1: a lane seat files the coordinator piece --after its own claimed 
   const shown = JSON.parse(box.run(box.repo, 'show', String(filed.item_id), '--json').out);
   assert.match(JSON.stringify(shown), new RegExp(String(laneId)), 'the piece waits on the lane item');
 });
+
+test('clause 1: add --split-coordinator files the lane item and a coordinator piece --after it, and the piece takes only the coordinator-owned part of the bar [C7,#3246]', () => {
+  const box = fixture();
+  const criterion = '1. It works [test]. 2. The hook .githooks/pre-commit refuses it [test].';
+  const split = fixtureAdd(box.run, box.repo, 'web', 'Cross item', '--route', 'strong', '--specs', 'G1', '--criterion', criterion, '--brief',
+    'Files:\n- web/a.js\n- .githooks/pre-commit\nTest:\n- web/a.test.js', '--split-coordinator', '--json');
+  assert.equal(split.code, 0, split.out + split.err);
+  const doc = JSON.parse(split.out);
+  const laneItem = doc.item;
+  const piece = doc.coordinatorPiece;
+  assert.equal(laneItem.item_lane, 'web');
+  assert.equal(laneItem.item_criterion, '1. It works [test].');
+  assert.equal(piece.item_lane, 'coordinator');
+  assert.match(piece.item_criterion, /\.githooks\/pre-commit/u);
+  assert.doesNotMatch(piece.item_criterion, /It works/u);
+  assert.doesNotMatch(laneItem.item_brief, /\.githooks/u, 'the lane brief names only lane paths');
+  const shown = JSON.parse(box.run(box.repo, 'show', String(piece.item_id), '--json').out);
+  assert.match(JSON.stringify(shown), new RegExp(String(laneItem.item_id)), 'the coordinator piece waits on the lane item');
+  const claimed = box.run(box.web, 'claim', String(laneItem.item_id), '--json');
+  assert.equal(claimed.code, 0, 'the lane item is claimable: ' + claimed.out + claimed.err);
+});
+
+test('clause 1: add --split-coordinator on a bar that names only coordinator paths refuses CROSS_OWNERSHIP and files nothing [C7,#3246]', () => {
+  const box = fixture();
+  const refused = fixtureAdd(box.run, box.web, 'web', 'Cross item', '--route', 'strong', '--specs', 'G1', '--criterion', HOOK, '--brief', LANE_BRIEF, '--split-coordinator', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.equal(JSON.parse(refused.out).error.code, 'CROSS_OWNERSHIP');
+});

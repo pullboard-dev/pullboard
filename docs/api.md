@@ -232,6 +232,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `seats` | `version:number`, `seats:array` |
+| `stats disk` | `version:number`, `disk:object` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
 | `stats time` | `version:number`, `time:object` |

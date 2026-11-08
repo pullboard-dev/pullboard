@@ -246,6 +246,10 @@ if (!isAbsolute(root ?? '') || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u
   throw new Error('automatic landing requires its registered root, token and wake time');
 }
 for (const key of [...AGENT_SESSION_IDS, ...AGENT_SHELL_MARKERS, 'PULLBOARD_AGENT', 'PULLBOARD_AGENT_ID', 'PULLBOARD_PARENT_SESSION']) delete process.env[key];
-await resumeAutomaticLanding(root, token, dueAt, runLandingWake, { marks: landingWakeMarks });
+await resumeAutomaticLanding(root, token, dueAt, async (wakeRoot, wake, adopted) => {
+  // The replacement records which dead worker's batch it took and how long that batch sat unattended (#2912).
+  if (adopted) process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(adopted);
+  return runLandingWake(wakeRoot, wake);
+}, { marks: landingWakeMarks });
 
 }

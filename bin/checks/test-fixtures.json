@@ -579,9 +579,9 @@
   },
   "test/api-http.test.js": {
     "tempdir": 4,
-    "hand-policy": 6,
-    "model": 13,
-    "raw-board": 12
+    "hand-policy": 5,
+    "model": 8,
+    "raw-board": 6
   },
   "test/api-requests.test.js": {
     "tempdir": 1,
@@ -3922,5 +3922,10 @@
   },
   "test/worktree-start.test.js": {
     "model": 8
+  },
+  "test/api-http-events.test.js": {
+    "model": 5,
+    "raw-board": 6,
+    "hand-policy": 1
   }
 }

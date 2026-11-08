@@ -1,4 +1,4 @@
-/** driveOnce: continue one gate job from its last written step by exactly one transition [C7]. */
+/** driveOnce: continue one gate job from its last written step by exactly one transition, on the board or over job rows a recorder writes [C7]. */
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
@@ -34,6 +34,58 @@ const BUNDLE_FOLDER = join(tmpdir(), 'pullboard-tooling-bundles');
 const GATE_RENEW_MS = 5_000;
 
 /**
+ * @typedef {{ name: string, seq: number, payload: any, at: number }} JobStep
+ * @typedef {ReturnType<typeof jobView>} JobView
+ * @typedef {{ type: 'step', job: string, name: string, seq: number, payload: any, at: number }} StepRow
+ * @typedef {{ type: 'ticket', job: string, action: 'take' | 'renew' | 'release', owner: string, at: number }} TicketRow
+ * @typedef {{ type: 'verdict', job: string, name: string, payload: any, owner: string, at: number,
+ *   flakes: { tree: string, failures: { file: string, case: string }[] } | null }} VerdictRow
+ * @typedef {StepRow | TicketRow | VerdictRow} JobRow
+ * @typedef {{ rows: true, view: (job: string) => JobView | null, step: (job: string, name: string, payload: any, options: { seq?: number, now: number }) => { written: boolean, payload: any },
+ *   ticket: (job: string, action: 'take' | 'renew' | 'release', owner: string, now: number) => boolean,
+ *   verdict: (job: string, step: { name: string, payload: any }, owner: string, now: number, flakes: VerdictRow['flakes']) => void }} JobRows
+ */
+
+/**
+ * True when `target` is a JobRows object rather than a board SQLite handle.
+ *
+ * @param {any} target
+ * @returns {boolean}
+ */
+export function isJobRows(target) {
+  return target?.rows === true;
+}
+
+/**
+ * Apply one row a driver emitted to the board: the only board write a sink-driven gate makes. A step row appends a
+ * step (a repeat writes nothing), a ticket row takes, renews or frees the lease and answers whether it held, and a
+ * verdict row writes the verdict, frees the lease and queues the red verdict's flake diagnoses.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The coordinator's board handle.
+ * @param {JobRow} row
+ * @returns {any} The step write's result, or the ticket's answer.
+ */
+export function recordJobRow(db, row) {
+  if (row.type === 'step') return writeStep(db, row.job, row.name, row.payload, { seq: row.seq, now: row.at });
+  if (row.type === 'ticket') {
+    if (row.action === 'take') return takeJob(db, row.job, row.owner, { now: row.at }).taken;
+    if (row.action === 'renew') return renewLease(db, row.job, row.owner, { now: row.at });
+    return releaseLease(db, row.job, row.owner, { now: row.at });
+  }
+  if (row.type === 'verdict') {
+    writeStep(db, row.job, row.name, row.payload, { now: row.at });
+    releaseLease(db, row.job, row.owner, { now: row.at });
+    // Bookkeeping after the verdict: a diagnosis that cannot be queued never undoes the recorded verdict.
+    if (row.flakes) {
+      try { queueFlakeDiagnoses(db, jobView(db, row.job), row.flakes.tree, row.flakes.failures, { now: row.at }); }
+      catch { /* the verdict stands; no diagnosis is queued */ }
+    }
+    return true;
+  }
+  throw new Refused('JOB_ROW', `a driver emitted a row of unknown type ${/** @type {any} */ (row).type}`);
+}
+
+/**
  * How long a whole gate may run with no step written before the drive cell ends that run. Why: a renewed lease
  * proves the driver is alive, not that it progresses; #2828's driver renewed its lease for 2 h 10 min after its
  * last step (7 Nov) and nothing ended it.
@@ -54,17 +106,81 @@ function stalledRefusal(error) {
 }
 
 /**
- * Hold the job's lease for this driver: renew it when the driver already holds it, else take it if it lapsed.
+ * The job rows of a board SQLite handle: each read and write goes straight to the board, as every driver did before
+ * rows existed. driveOnce uses this when it is handed a board handle.
  *
  * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {JobRows}
+ */
+export function boardRows(db) {
+  return {
+    rows: true,
+    view: job => jobView(db, job),
+    step: (job, name, payload, { seq = 0, now }) => recordJobRow(db, { type: 'step', job, name, seq, payload, at: now }),
+    ticket: (job, action, owner, now) => recordJobRow(db, { type: 'ticket', job, action, owner, at: now }),
+    verdict: (job, step, owner, now, flakes) => { recordJobRow(db, { type: 'verdict', job, name: step.name, payload: step.payload, owner, at: now, flakes }); },
+  };
+}
+
+/**
+ * Job rows that hold no board handle: the driver reads its job from a copy taken when the drive began and kept up to
+ * date by its own writes, and every write is emitted as a step, ticket or verdict row to `sink`. The sink (a
+ * coordinator-side recorder) is the only board writer; a ticket row's answer is the sink's return value.
+ *
+ * Why: a runner holds no board.sqlite, so the drive loop must run on rows alone; the coordinator records them.
+ *
+ * @param {JobView} start - The job as the recorder read it before the drive began.
+ * @param {(row: JobRow) => any} sink - Records one row and answers a ticket row.
+ * @returns {JobRows}
+ */
+export function rowSink(start, sink) {
+  if (!start) throw new Refused('JOB_MISSING', 'a row-driven drive needs its job: create it before the drive begins.');
+  const copy = { ...start, steps: start.steps.map(step => ({ ...step })) };
+  /** Append a step to the driver's own copy. */
+  const append = (name, seq, payload, at) => {
+    copy.steps.push({ name, seq, payload, at });
+    copy.step = name;
+    copy.updated = at;
+  };
+  /** The copy as a fresh view, so a caller never mutates the driver's state. */
+  const snapshot = () => ({ ...copy, steps: copy.steps.map(step => ({ ...step })) });
+  return {
+    rows: true,
+    view: job => (job === copy.id ? snapshot() : null),
+    step: (job, name, payload = {}, { seq = 0, now }) => {
+      const stored = copy.steps.find(step => step.name === name && step.seq === seq);
+      if (stored) return { written: false, payload: stored.payload };
+      sink({ type: 'step', job, name, seq, payload: payload ?? {}, at: now });
+      append(name, seq, payload ?? {}, now);
+      return { written: true, payload: payload ?? {} };
+    },
+    ticket: (job, action, owner, now) => {
+      const held = sink({ type: 'ticket', job, action, owner, at: now }) === true;
+      if (action === 'release' && held) copy.leaseOwner = null;
+      else if (held) copy.leaseOwner = owner;
+      return held;
+    },
+    verdict: (job, step, owner, now, flakes) => {
+      sink({ type: 'verdict', job, name: step.name, payload: step.payload, owner, at: now, flakes });
+      append(step.name, 0, step.payload, now);
+      copy.leaseOwner = null;
+    },
+  };
+}
+
+/**
+ * Hold the job's lease for this driver: renew it when the driver already holds it, else take it if it lapsed. Both
+ * are ticket rows, so a row-driven driver asks its recorder and holds no board handle.
+ *
+ * @param {JobRows} rows
  * @param {{ id: string, leaseOwner: string | null }} view
  * @param {string} owner
  * @param {number} now
  * @returns {boolean} True when this driver holds a live lease on the job.
  */
-function holdLease(db, view, owner, now) {
-  if (view.leaseOwner === owner && renewLease(db, view.id, owner, { now })) return true;
-  return takeJob(db, view.id, owner, { now }).taken;
+function holdLease(rows, view, owner, now) {
+  if (view.leaseOwner === owner && rows.ticket(view.id, 'renew', owner, now)) return true;
+  return rows.ticket(view.id, 'take', owner, now);
 }
 
 /**
@@ -73,34 +189,34 @@ function holdLease(db, view, owner, now) {
  * Why: the tooling comes from packages/pin's toolingFor(repo, seatCommit), the tree of the last landing when one
  * is pinned, never from whichever seat checkout runs the driver, so a seat on an older tree runs main's tooling.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {string} repo
  * @param {number} now
  */
-function capture(db, view, repo, now) {
+function capture(rows, view, repo, now) {
   if (!repo) throw new Refused('DRIVE_REPO', 'driveOnce needs the repository to capture a job: pass { repo }.');
   if (!view.candidate) throw new Refused('DRIVE_CANDIDATE', `Job ${view.id} names no candidate commit: create it with { candidate }.`);
   const pin = toolingFor(repo, view.candidate);
   const base = view.base ? treeOf(repo, view.base) : null;
-  writeStep(db, view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base }, { now });
+  rows.step(view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base }, { now });
 }
 
 /**
  * Start every planned shard that has no done step, writing a `shard.started` step for each. Starting is idempotent
  * on the runner, so a resumed driver may call it for a shard it already started.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {object} channel
  * @param {string} owner
  * @param {number} now
  */
-async function startOwed(db, view, channel, owner, now) {
+async function startOwed(rows, view, channel, owner, now) {
   const { runner } = stepPayload(view, 'running');
   for (const shard of owedShards(view)) {
     await startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
-    writeStep(db, view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
+    rows.step(view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
   }
 }
 
@@ -108,7 +224,7 @@ async function startOwed(db, view, channel, owner, now) {
  * captured → running: write the shard plan and the runner, then start the shards. A whole-gate job (`gate`) writes
  * a running step with no shards, since its gate runs in-process at the next transition.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * Why: before the shards start, the runner is asked for the captured tooling pin's tree. A runner that holds it is
  * sent zero tooling bytes and the shard commands read the pinned copy at `captured.toolingPath`; only a runner
@@ -119,9 +235,9 @@ async function startOwed(db, view, channel, owner, now) {
  *
  * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number, gate?: Function, repo?: string, tooling?: boolean, source?: boolean, bundles?: string }} options
  */
-async function send(db, view, { runner, plan, transport, owner, now, gate, repo, tooling = true, source = true, bundles = BUNDLE_FOLDER }) {
+async function send(rows, view, { runner, plan, transport, owner, now, gate, repo, tooling = true, source = true, bundles = BUNDLE_FOLDER }) {
   if (gate) {
-    writeStep(db, view.id, 'running', { gate: true, shards: [] }, { now });
+    rows.step(view.id, 'running', { gate: true, shards: [] }, { now });
     return;
   }
   if (typeof runner?.host !== 'string') throw new Refused('DRIVE_RUNNER', 'driveOnce needs a runner to send a job to: pass { runner: { host } }.');
@@ -141,39 +257,39 @@ async function send(db, view, { runner, plan, transport, owner, now, gate, repo,
   const step = { runner: where, shards: shards.map(({ shard, command }) => ({ shard, command })) };
   if (pinned) step.tooling = { tree: pinned.tree, path: pinned.path, held: pinned.held, bytesSent: pinned.bytesSent };
   if (sourced) step.source = { tree: sourced.tree, path: sourced.path, held: sourced.held, total: sourced.total, sent: sourced.sent, reused: sourced.reused, bytesSent: sourced.bytesSent };
-  writeStep(db, view.id, 'running', step, { now });
-  await startOwed(db, jobView(db, view.id), transport.connect(where), owner, now);
+  rows.step(view.id, 'running', step, { now });
+  await startOwed(rows, rows.view(view.id), transport.connect(where), owner, now);
 }
 
 /**
  * running → collected: read each shard that has no done step, record what finished, restart what was invalid or
  * lost, and write `collected` once every shard is done. Shards with a done step are never started or read again.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {{ transport: object, owner: string, now: number }} options
  * @returns {Promise<number>} How many shards are still owed.
  */
-async function collect(db, view, { transport, owner, now }) {
+async function collect(rows, view, { transport, owner, now }) {
   const channel = transport.connect(stepPayload(view, 'running').runner);
   let invalid = view.steps.filter(step => step.name === 'shard.invalid').length;
   for (const shard of owedShards(view)) {
     const result = await fetchResult(channel, { job: view.id, shard: shard.shard });
     if (result.state === 'done') {
-      writeStep(db, view.id, 'shard.done', { shard: shard.shard, status: result.status, digest: result.digest }, { seq: shard.seq, now });
+      rows.step(view.id, 'shard.done', { shard: shard.shard, status: result.status, digest: result.digest }, { seq: shard.seq, now });
     } else if (result.state === 'import.invalid') {
-      writeStep(db, view.id, 'shard.invalid', { shard: shard.shard, reason: result.reason, digest: result.digest ?? null }, { seq: invalid, now });
+      rows.step(view.id, 'shard.invalid', { shard: shard.shard, reason: result.reason, digest: result.digest ?? null }, { seq: invalid, now });
       invalid += 1;
     }
   }
-  const after = jobView(db, view.id);
+  const after = rows.view(view.id);
   const owed = owedShards(after);
   if (owed.length) {
-    await startOwed(db, after, channel, owner, now);
+    await startOwed(rows, after, channel, owner, now);
     return owed.length;
   }
   const shards = Object.fromEntries([...doneShards(after)].map(([id, done]) => [id, { status: done.status, digest: done.digest }]));
-  writeStep(db, view.id, 'collected', { shards }, { now });
+  rows.step(view.id, 'collected', { shards }, { now });
   return 0;
 }
 
@@ -181,13 +297,13 @@ async function collect(db, view, { transport, owner, now }) {
  * Wrap a gate's stages so each records a `section.done` step with its outcome as it settles, keeping the stages'
  * own functions, order and values. A stage stopped by another stage's red is recorded as skipped, never failed.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {string} job
  * @param {{ order: string[], sections: Record<string, object>, seq: number }} seen - This run's record, filled in place.
  * @param {() => number} now
  * @returns {(stages: { name: string, run: (signal: AbortSignal) => unknown }[]) => { name: string, run: (signal: AbortSignal) => Promise<unknown> }[]}
  */
-function observeStages(db, job, seen, now, ended = null) {
+function observeStages(rows, job, seen, now, ended = null) {
   return stages => {
     seen.order = stages.map(stage => stage.name);
     seen.sections = {};
@@ -195,7 +311,7 @@ function observeStages(db, job, seen, now, ended = null) {
     const record = (index, name, outcome, code) => {
       if (ended?.aborted) return;
       seen.sections[name] = { outcome, code };
-      writeStep(db, job, 'section.done', { section: name, index, outcome, code }, { seq: seen.seq, now: now() });
+      rows.step(job, 'section.done', { section: name, index, outcome, code }, { seq: seen.seq, now: now() });
       seen.seq += 1;
     };
     return stages.map((stage, index) => ({ ...stage, run: async signal => {
@@ -216,12 +332,12 @@ function observeStages(db, job, seen, now, ended = null) {
  * result, or as stalled once no step was written for `stallMs`. A stalled run's stages get its signal and it records
  * nothing more, so a stage that never settles cannot hold the gate.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {{ gate: Function, owner: string, now: () => number, seen: object, stallMs: number, checkMs: number }} options
  * @returns {Promise<{ result: object } | { stalled: { idleMs: number, lastStep: string | null } }>}
  */
-async function attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs }) {
+async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs }) {
   const ended = new AbortController();
   const startedAt = now();
   let watch;
@@ -229,13 +345,13 @@ async function attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs 
   const stalled = new Promise(resolvePromise => {
     watch = setInterval(() => {
       const at = now();
-      renewLease(db, view.id, owner, { now: at });
-      const steps = jobView(db, view.id).steps;
+      rows.ticket(view.id, 'renew', owner, at);
+      const steps = rows.view(view.id).steps;
       const last = steps.reduce((latest, step) => (step.at > latest.at ? step : latest), { at: startedAt, name: null });
       if (at - last.at >= stallMs) resolvePromise({ stalled: { idleMs: at - last.at, lastStep: last.name } });
     }, checkMs);
   });
-  const run = Promise.resolve().then(() => gate(observeStages(db, view.id, seen, now, ended.signal), { signal: ended.signal }))
+  const run = Promise.resolve().then(() => gate(observeStages(rows, view.id, seen, now, ended.signal), { signal: ended.signal }))
     .then(result => ({ result }));
   try {
     const outcome = await Promise.race([run, stalled]);
@@ -258,22 +374,22 @@ async function attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs 
  * order; the driver only records it, so a gate driven here runs exactly the worker's sections and result.
  * Why its own watch: lease renewal proves the driver is alive, not that it progresses (#2828, 7 Nov).
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal }) => Promise<object>, owner: string, now: () => number,
  *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object }} options
  * @returns {Promise<number>} Always 0: a gate owes nothing once its result is written.
  */
-async function runGate(db, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal }) {
+async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal }) {
   if (typeof gate !== 'function') throw new Refused('DRIVE_GATE', `Job ${view.id} runs a whole gate: pass { gate } to driveOnce.`);
   const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length };
   let stalls = view.steps.filter(step => step.name === 'gate.stalled').length;
   let result;
   for (;;) {
-    const outcome = await attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs: stallCheckMs });
+    const outcome = await attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs: stallCheckMs });
     if (!outcome.stalled) { result = outcome.result; break; }
     const retry = stalls < GATE_STALL_RETRIES;
-    writeStep(db, view.id, 'gate.stalled', { attempt: stalls + 1, idleMs: outcome.stalled.idleMs, lastStep: outcome.stalled.lastStep, retry }, { seq: stalls, now: now() });
+    rows.step(view.id, 'gate.stalled', { attempt: stalls + 1, idleMs: outcome.stalled.idleMs, lastStep: outcome.stalled.lastStep, retry }, { seq: stalls, now: now() });
     stalls += 1;
     if (!retry) {
       result = stalled(new Refused('GATE_INFRA_EXHAUSTED',
@@ -282,7 +398,7 @@ async function runGate(db, view, { gate, owner, now, stallMs = GATE_STALL_MS, st
       break;
     }
   }
-  writeStep(db, view.id, 'collected', { gate: true, order: seen.order, sections: seen.sections, result, ...(stalls ? { stalls } : {}) }, { now: now() });
+  rows.step(view.id, 'collected', { gate: true, order: seen.order, sections: seen.sections, result, ...(stalls ? { stalls } : {}) }, { now: now() });
   return 0;
 }
 
@@ -292,23 +408,34 @@ async function runGate(db, view, { gate, owner, now, stallMs = GATE_STALL_MS, st
  *
  * Why: diagnostics never hold the gate's worker or delay its verdict; they are their own jobs, off the critical path.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
  * @param {{ sections?: (collected: object) => object, failures?: (collected: object) => { file: string, case: string }[], owner: string, now: number }} options
  */
-function decide(db, view, { sections, failures, owner, now }) {
+function decide(rows, view, { sections, failures, owner, now }) {
   const captured = stepPayload(view, 'captured');
   const collected = stepPayload(view, 'collected');
   const receipt = receiptKey(captured.tree, captured.base ?? captured.tree);
   settle((sections ?? (collected.gate ? gateSections : shardSections))(collected), receipt, {
-    record: step => {
-      writeStep(db, view.id, step.name, step.payload, { now });
-      releaseLease(db, view.id, owner, { now });
-    },
-    bookkeeping: step => {
-      if (step.payload.verdict === 'red' && failures) queueFlakeDiagnoses(db, view, captured.tree, failures(collected), { now });
-    },
+    record: step => rows.verdict(view.id, step, owner, now, flakeTargets(step, captured, collected, failures)),
   });
+}
+
+/**
+ * The flake diagnoses a red verdict queues, as bookkeeping carried on its verdict row: the failing cases
+ * `failures(collected)` names under the captured tree, or null for a green verdict, no `failures`, or a `failures`
+ * that throws, since bookkeeping never holds back the verdict.
+ *
+ * @param {{ payload: { verdict: string } }} step - The verdict step.
+ * @param {{ tree: string }} captured
+ * @param {object} collected
+ * @param {((collected: object) => { file: string, case: string }[]) | undefined} failures
+ * @returns {{ tree: string, failures: { file: string, case: string }[] } | null}
+ */
+function flakeTargets(step, captured, collected, failures) {
+  if (step.payload.verdict !== 'red' || !failures) return null;
+  try { return { tree: captured.tree, failures: failures(collected) }; }
+  catch { return null; }
 }
 
 /**
@@ -323,7 +450,8 @@ function decide(db, view, { sections, failures, owner, now }) {
  * Why: the job row, not this process, holds the state, so any driver can call this after any other died, and a
  * repeat of a step it already wrote is a no-op in the job store.
  *
- * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
+ * @param {import('node:sqlite').DatabaseSync | JobRows} db - The board's SQLite handle, or job
+ *   rows (rowSink) whose writes a coordinator-side recorder applies, so the driver holds no board handle.
  * @param {string} job - The job id.
  * @param {{ owner: string, repo?: string, runner?: { host: string, root?: string },
  *   plan?: { shard: string, command: string }[] | ((captured: object) => { shard: string, command: string }[]),
@@ -336,20 +464,21 @@ function decide(db, view, { sections, failures, owner, now }) {
  */
 export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
-  const view = jobView(db, job);
+  const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (db));
+  const view = rows.view(job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
   const before = phaseOf(view);
   if (before === 'verdict') return { transition: null, phase: before, job: view };
   const at = now();
-  if (!holdLease(db, view, owner, at)) return { transition: null, phase: before, job: jobView(db, job), code: 'JOB_LEASED' };
+  if (!holdLease(rows, view, owner, at)) return { transition: null, phase: before, job: rows.view(job), code: 'JOB_LEASED' };
   const channels = transport ?? sharedTransport();
   let owed;
-  if (before === 'queued') capture(db, view, repo, at);
-  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
-  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(db, view, { gate, owner, now, stallMs, stallCheckMs, stalled });
-  else if (before === 'running') owed = await collect(db, view, { transport: channels, owner, now: at });
-  else decide(db, view, { sections, failures, owner, now: at });
-  const after = jobView(db, job);
+  if (before === 'queued') capture(rows, view, repo, at);
+  else if (before === 'captured') await send(rows, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
+  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(rows, view, { gate, owner, now, stallMs, stallCheckMs, stalled });
+  else if (before === 'running') owed = await collect(rows, view, { transport: channels, owner, now: at });
+  else decide(rows, view, { sections, failures, owner, now: at });
+  const after = rows.view(job);
   const phase = phaseOf(after);
   const result = { transition: phase === before ? null : phase, phase, job: after };
   return owed === undefined ? result : { ...result, owed };

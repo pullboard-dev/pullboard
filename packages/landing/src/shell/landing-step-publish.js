@@ -6,8 +6,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
-import { refreshLandedMain } from './deferred-notices.js';
-import { postLandSuite } from './post-land-suite.js';
+import { finishLanding } from './landing-finish.js';
 import { mergeOnlyLandingProblem } from '../../../merge/index.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { existsSync } from 'node:fs';
@@ -171,6 +170,9 @@ export async function prepareFlakeLanding(state) {
   }
 }
 
+/** The finish steps the automatic lander has done before its finish runs: engines in each item merge, the gate, the audits at start, stale verdicts at selection. */
+const AUTOMATIC_EARLIER = ['amendLandingEngines', 'gate', 'activateMainAudits', 'returnStaleVerdicts'];
+
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
@@ -204,10 +206,7 @@ export async function publish(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
-  refreshPublishedMainReds(state, batch.base);
-  await refreshLandedMain(state);
-  await postLandSuite(state, state.landingPorts?.postLandSuite);
+  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
 }
@@ -225,6 +224,40 @@ function requireLandingCarries(state, batch) {
   }
 }
 
+/**
+ * Move the trunk ref from the batch base to its tip with a compare-and-swap, then bring the primary checkout's index and tracked files along [C7].
+ * Why: a merge guarded on a clean tree skipped silently when a stray file sat in the checkout while the log claimed success, so five landed items never reached main.
+ * The ref moves whatever the working tree holds; untracked files are left alone; a ref that is no longer at the base records the batch blocked and refuses aloud.
+ */
+export async function moveTrunkRef(state) {
+  const { base, tip } = state.batch;
+  const branch = (mainCheckout(state.root)?.branch ?? 'main').replace(/^refs\/heads\//u, '');
+  const ref = `refs/heads/${branch}`;
+  const current = tryGit(state.root, ['rev-parse', '--verify', '-q', ref]).stdout.trim();
+  if (current === tip) {
+    state.say?.(`finish: ${branch} already at ${tip}; refreshing the code map`);
+    return;
+  }
+  const swapped = tryGit(state.root, ['update-ref', ref, tip, base]);
+  if (swapped.status !== 0) {
+    const found = tryGit(state.root, ['rev-parse', '--verify', '-q', ref]).stdout.trim() || 'missing';
+    const message = `${branch} is at ${found}, no longer the batch base ${base}; the batch tip ${tip} did not land on it, so rebuild the batch on the new ${branch}`;
+    await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...state.batch, state: 'blocked',
+      refusal: { code: 'LAND_MAIN_MOVED', message, at: state.board.clock.now().toISOString() } }, revision: state.batch.revision ?? 0 }]);
+    state.say?.(`finish: ${ref} not moved: ${message}`);
+    throw new Refused('LAND_MAIN_MOVED', message);
+  }
+  const head = tryGit(state.root, ['symbolic-ref', '-q', 'HEAD']).stdout.trim();
+  if (head !== ref) {
+    state.say?.(`finish: ${ref} moved from ${base} to ${tip}; the primary checkout is on another branch, so its files stay as they are; refreshing the code map`);
+    return;
+  }
+  const tree = tryGit(state.root, ['read-tree', '-m', '-u', base, tip]);
+  state.say?.(tree.status === 0
+    ? `finish: ${ref} moved from ${base} to ${tip}; tracked files updated, untracked files untouched; refreshing the code map`
+    : `finish: ${ref} moved from ${base} to ${tip}; the primary checkout's tracked files did not follow (${(tree.stderr || tree.stdout).trim().split('\n')[0]}); run git reset --keep ${tip} there; refreshing the code map`);
+}
+
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
@@ -237,13 +270,6 @@ export async function finishTrunk(state) {
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
-  const main = mainCheckout(state.root);
-  await timedPhase(state.say, 'push', () => {
-    if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
-  });
-  state.say?.('finish: main fast-forwarded; refreshing the code map');
-  refreshPublishedMainReds(state, state.batch.base);
-  await refreshLandedMain(state);
-  await postLandSuite(state, state.landingPorts?.postLandSuite);
+  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => timedPhase(state.say, 'push', () => moveTrunkRef(state)) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
 }

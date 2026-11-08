@@ -103,24 +103,78 @@ export const MACHINE_CALLBACKS = {
   },
 };
 
+/**
+ * The source with the text inside template and quoted string literals blanked, so import-looking text inside generated code is never read as a real import.
+ * Why: apps/cli builds analysis-job modules in template strings; their import lines named files that do not exist beside the builder [#3758].
+ * A string that directly follows `from` or `import` is a real specifier and stays.
+ *
+ * @param {string} source
+ * @returns {string}
+ */
+export function withoutStringText(source) {
+  let out = '';
+  const nest = [];
+  /** Copy a blanked run of text, keeping its newlines. */
+  const blank = (text) => text.replace(/[^\n]/gu, ' ');
+  for (let at = 0; at < source.length;) {
+    const ch = source[at];
+    if (ch === '/' && source[at + 1] === '/') { const end = source.indexOf('\n', at); const stop = end < 0 ? source.length : end; out += source.slice(at, stop); at = stop; continue; }
+    if (ch === '/' && source[at + 1] === '*') { const end = source.indexOf('*/', at + 2); const stop = end < 0 ? source.length : end + 2; out += source.slice(at, stop); at = stop; continue; }
+    if (ch === '`') {
+      out += ch; at += 1;
+      for (; at < source.length; ) {
+        if (source[at] === '\\') { out += blank(source.slice(at, at + 2)); at += 2; continue; }
+        if (source[at] === '`') break;
+        if (source[at] === '$' && source[at + 1] === '{') { nest.push(true); out += '${'; at += 2; break; }
+        out += blank(source[at]); at += 1;
+      }
+      if (source[at] === '`') { out += '`'; at += 1; }
+      continue;
+    }
+    if (ch === '}' && nest.length) {
+      // Close of a template substitution: resume the template text.
+      const resumes = nest.pop(); out += '}'; at += 1;
+      if (!resumes) continue;
+      for (; at < source.length; ) {
+        if (source[at] === '\\') { out += blank(source.slice(at, at + 2)); at += 2; continue; }
+        if (source[at] === '`') { out += '`'; at += 1; break; }
+        if (source[at] === '$' && source[at + 1] === '{') { nest.push(true); out += '${'; at += 2; break; }
+        out += blank(source[at]); at += 1;
+      }
+      continue;
+    }
+    if (ch === '{' && nest.length) { nest.push(false); out += ch; at += 1; continue; }
+    if (ch === '"' || ch === "'") {
+      let end = at + 1;
+      while (end < source.length && source[end] !== ch && source[end] !== '\n') end += source[end] === '\\' ? 2 : 1;
+      const literal = source.slice(at, end + 1);
+      out += /(?:\bfrom|\bimport)\s*$/u.test(out) ? literal : ch + blank(literal.slice(1, -1)) + (source[end] === ch ? ch : '');
+      at = end + 1; continue;
+    }
+    out += ch; at += 1;
+  }
+  return out;
+}
+
 /** Parse actual source bytes and preserve named import/re-export and public star-provider edges. */
 export function sourceFacts(source, file) {
   const named = new Map();
+  const text = withoutStringText(source);
   // Match the move check's closed shim grammar; mixed implementation modules keep their existing audit semantics.
   const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
   const facade = /^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code);
   /** Resolve literal relative operands against the actual provider's repository layout. */
   const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
-  for (const [, kind, names, , specifier] of source.matchAll(/(import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\3/g)) {
+  for (const [, kind, names, , specifier] of text.matchAll(/(import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\3/g)) {
     if (kind === 'export' && !facade) continue;
     for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
       const [original, local = original] = part.split(/\s+as\s+/);
       named.set(local, `${under(specifier)}#${original}`);
     }
   }
-  const spaces = new Map([...source.matchAll(/import \* as (\w+) from (['"])(\.{1,2}\/[^'"]+\.js)\2/g)]
+  const spaces = new Map([...text.matchAll(/import \* as (\w+) from (['"])(\.{1,2}\/[^'"]+\.js)\2/g)]
     .map(([, space, , specifier]) => [space, under(specifier)]));
-  const stars = facade ? [...source.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)]
+  const stars = facade ? [...text.matchAll(/export\s*\*\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\1/g)]
     .map(([, , specifier]) => under(specifier)) : [];
   return { bodies: functionsIn(source), named, spaces, source, stars };
 }

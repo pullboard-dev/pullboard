@@ -1,6 +1,6 @@
 /** Shared numeric usage summaries: raw native sessions never enter the board [N2]. */
 import { COST_ENGINE } from '../../../../src/cost-engine.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from '../../../kernel/index.js';
 import { COUNTS } from './cost-read.js';

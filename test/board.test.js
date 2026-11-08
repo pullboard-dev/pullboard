@@ -1271,7 +1271,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   finally { if (savedWorktreeModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = savedWorktreeModel; }
   assert.equal(missingWorktreeModel.code, 1);
   assert.equal(JSON.parse(missingWorktreeModel.stdout).error.code, 'MODEL_REQUIRED', 'worktree without a flag or model environment refuses');
-  const made = await runMain(repo, ['worktree', 'web', '--family', 'Family Alpha', '--json']);
+  const made = await runMain(repo, ['worktree', 'web', '--family', 'Family Alpha', '--route', 'strong', '--json']);
   assert.equal(made.code, 0, made.stderr || made.stdout);
   const worktree = JSON.parse(made.stdout);
   assertJsonShape(worktree, 'worktree');
@@ -1362,7 +1362,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta', 'a refused declaration preserves the immutable family');
   assert.deepEqual(store.verdictsFor(persistent, id), [recorded], 'a refused declaration preserves the complete old verdict');
   assert.equal(store.verdictsFor(persistent, id)[0].verdict_verifier_family, 'Family Beta', 'a refused declaration leaves the old verdict family unchanged');
-  const sameFamily = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  const sameFamily = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--route', 'strong', '--json']);
   assert.equal(sameFamily.code, 0, sameFamily.stderr || sameFamily.stdout);
   assert.equal(JSON.parse(sameFamily.stdout).agent, 'review-1', 'the same family rejoins with the stable agent id');
   assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta');

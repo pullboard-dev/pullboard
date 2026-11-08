@@ -13,7 +13,7 @@ import { preserveInvariantEvidence } from "../../../items/index.js";
 import { validateLandingBatch } from "../../../items/index.js";
 import { validateLandingRevision } from "../../../items/index.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.js";
-import { landingBatches } from "../../../git/index.js";
+import { latestLandingBatch } from "../../../git/index.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { carriesFlakeDiagnostics } from "../../../../src/flake-engine.js";
 import { coordinatorOnly } from "./board.js";
@@ -43,7 +43,7 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
   }
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
-    const previous = landingBatches(board).find((entry) => entry.id === batch.id);
+    const previous = latestLandingBatch(board, batch.id);
     if (previous?.flakeRatchet && (!batch.flakeRatchet || ['pushed', 'trunk'].includes(previous.state) && JSON.stringify(previous.flakeRatchet) !== JSON.stringify(batch.flakeRatchet))) throw new Refused('LAND_BATCH', 'preserve the published flake ratchet snapshot');
     if (batch.flakeRatchet && !(batch.state === 'trunk' && batch.owner === 'coordinator-train' && !previous)
       && JSON.stringify(previous?.flakeRatchet ?? null) !== JSON.stringify(batch.flakeRatchet)) {

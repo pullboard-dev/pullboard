@@ -1,6 +1,7 @@
 import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
 import { heldClaim } from "./held-claim.js";
+import { submitHandoff } from "./submit-handoff-read.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -18,7 +19,10 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const claim = heldClaim(board, agentId);
+  const held = heldClaim(board, agentId);
+  // A claim whose own gate stopped on infrastructure waits on the machine, so the seat reviews meanwhile (#3103).
+  const stopped = held && stoppedOnInfrastructure(board, held) ? held : null;
+  const claim = stopped ? null : held;
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
 
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
@@ -28,9 +32,24 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   if (review.item) {
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
+  if (stopped) return { item: stopped, review: false, held: true, reasons: [] };
 
   // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
   const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles },
     releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
   return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { skips: [...(review.skips ?? []), ...(build.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3), idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
+}
+
+/**
+ * Whether this claim's own queued gate, for its frozen bar, ended GATE_INFRA_EXHAUSTED: the work is done and only
+ * the machine owes a rerun, so holding the claim must not keep its seat from reviewing [C7,#3103].
+ *
+ * @param {any} board
+ * @param {any} item - A claimed item.
+ * @returns {boolean}
+ */
+function stoppedOnInfrastructure(board, item) {
+  const job = submitHandoff(board, item.item_id);
+  return Boolean(job && job.agentId === item.item_owner && job.digest === item.item_frozen_digest
+    && job.state === 'infrastructure' && job.error?.code === 'GATE_INFRA_EXHAUSTED');
 }

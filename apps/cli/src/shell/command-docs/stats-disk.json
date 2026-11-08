@@ -1,0 +1,5 @@
+{
+  "name": "stats disk",
+  "help": "  pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives\n",
+  "required": { "disk": "object" }
+}

@@ -121,7 +121,12 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   // Landed 1c6a65659d adds idle-filter seat minutes; a fresh machine reports no skipped rows.
   const idleSkips = { rows: [], since: boardHolds.since, until };
   const coordinator = coordinatorActions(board, { until });
-  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], idleSkips, testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
+  // The disk use under .git/pullboard is measured live, so check its shape here and the rest exactly [C7].
+  const { disk, ...rest } = json.data;
+  assert.equal(disk.total, disk.stores.reduce((sum, row) => sum + row.bytes, 0));
+  assert.ok(disk.stores.some(row => row.name === 'board database'));
+  assert.equal(disk.warning, null);
+  assert.deepEqual(rest, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], idleSkips, testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
     'a fresh private machine reports no invented holds, usage or gated runs (#836,#1875,#1056)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 import { json } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { landingHost } from '../packages/landing/index.js';
@@ -46,7 +47,7 @@ function waitingItem(t) {
   commit(box, box.repo, 'chore: configure held landing');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', 'Fixture Model', '--route', 'strong');
+  assert.equal(joinFixtureSeat(box, reviewer, 'api').code, 0, 'the reviewer joins on the strong route the items need');
   const first = acceptItem(box, reviewer, 'first.txt', 'First result');
   assert.equal(first.verify.code, 0, first.verify.out + first.verify.err);
   config.landing.manualOverride = false;
@@ -92,6 +93,19 @@ test('the next accept resumes a merging batch whose landing process died and lan
   const landed = json(box, box.repo, 'show', String(first.id));
   assert.ok(landed.item_merged_commit, 'the waiting item lands without a person');
   assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
+});
+
+test('an adopted dead worker batch persists the dead pid and the gap on the batch [C7,#2912]', t => {
+  const { box, reviewer, first, trunk } = waitingItem(t);
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
+  const note = { pid: stuck.pid, gapSeconds: 97, at: new Date().toISOString() };
+  box.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(note);
+  try {
+    const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
+    assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
+  } finally { delete box.env.PULLBOARD_LANDING_ADOPTION; }
+  const resumed = batchById(box, stuck.id);
+  assert.deepEqual(resumed.adoptedFrom, note, 'the stored batch names the dead pid and the gap in seconds');
 });
 
 test('a gating batch whose worker died before its gate log existed resumes and lands [B35,B3,C7,#3013]', t => {

@@ -31,7 +31,7 @@ function gateHeads(box) {
   return box.readGateCalls().trim().split('\n').map(line => JSON.parse(line).head);
 }
 
-test("publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3]", async t => {
+test("clause 1: publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3,C7]", async t => {
   const box = bridgeProject(t);
   const entries = landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
@@ -131,7 +131,7 @@ test('a pull request carries a verified-by-a-second-agent status and an outside 
   assert.ok(JSON.parse(discovered.out).verification.find(entry => entry.number === 70).intake.includes('pullboard intake'));
   collision.state = 'closed';
   const filed = await runBridgeCLI(proven, 'intake', 'https://github.com/fixture/repository/pull/70',
-    '--lane', 'web', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
+    '--lane', 'web', '--route', 'strong', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
   assert.equal(filed.code, 0, filed.err);
   const intake = JSON.parse(filed.out).item;
   assert.equal(intake.item_status, 'submitted', 'the bridge files outside work for another agent, without certifying it');
@@ -175,10 +175,12 @@ test('publication modes are opt-in and invalid values refuse before a push [B3,R
   for (const mode of [false, 'release', 'item']) {
     assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: mode } })).publish.pullRequest, mode);
   }
-  for (const value of [true, 'auto-merge', null, { pullRequest: 'release', merge: true }]) {
+  for (const value of [true, 'auto-merge', null]) {
     const publish = value && typeof value === 'object' ? value : { pullRequest: value };
     assert.throws(() => configFromSource(JSON.stringify({ publish })), { code: 'BAD_CONFIG' });
   }
+  // An unknown publish key is ignored with a note, not refused, since the forward-compatible reader of N26 landed (21798c7218 lineage).
+  assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: 'release', merge: true } })).publish.pullRequest, 'release');
 });
 
 test('CI findings preserve the merged item and create one linked repair, then update the same PR [B2,R3]', async t => {

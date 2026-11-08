@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -128,4 +129,45 @@ function derivePackage(root, entry, previous, parse) {
     }
   }
   return { runtime: { entry, files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))) }, analyses };
+}
+
+
+/** The gate-policy loader the runner controller loads; it and its static imports are fingerprinted for a warmed controller (#1510). */
+const POLICY_ROOT = 'packages/gate/src/core/gate-policy-load.js';
+
+/**
+ * Fingerprint the gate-policy modules a warmed controller has loaded: the policy loader and every module it statically
+ * imports. These bytes never enter the worker transfer payload. A module whose imports cannot be read statically (a
+ * computed import) is still fingerprinted; only the walk past it stops, so one dynamic module never disables the guard.
+ */
+export function controllerPolicyFingerprints(root) {
+  const allowed = new Set(packageFiles(root));
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const fingerprints = new Map();
+  const parser = createRunnerModuleParser();
+  let bytes = 0;
+  let pending = allowed.has(POLICY_ROOT) ? [POLICY_ROOT] : [];
+  try {
+    while (pending.length) {
+      const level = [...new Set(pending)].filter(file => !fingerprints.has(file)).sort();
+      pending = [];
+      for (const file of level) {
+        if (!allowed.has(file)) unavailable(file, 'the gate policy import leaves package.json files');
+        const source = readFileSync(join(root, file));
+        bytes += source.length;
+        // This is a bounded local fingerprint, independent of the unchanged 1 MiB worker capsule ceiling.
+        if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local policy fingerprint exceeds its source bound');
+        fingerprints.set(file, createHash('sha256').update(source).digest('hex'));
+        if (!/\.[cm]?js$/u.test(file)) continue;
+        let imports;
+        try { [imports] = importsIn([source.toString('utf8')], parseWithPaths(parser.parse, [join(root, file)])); }
+        catch { continue; } // computed or opaque imports end the walk at this module
+        for (const specifier of imports) {
+          const target = dependency(file, specifier, manifest);
+          if (target !== null) pending.push(target);
+        }
+      }
+    }
+    return Object.freeze(Object.fromEntries([...fingerprints].sort(([a], [b]) => a.localeCompare(b))));
+  } finally { parser.close(); }
 }

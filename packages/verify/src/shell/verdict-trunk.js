@@ -6,6 +6,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { Refused } from '../../../kernel/index.js';
+import { literalShellWords } from '../../../kernel/core.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {
@@ -66,4 +67,28 @@ export async function judgeTrunkMove(root, { from, to, item, checkedCommit, chec
     if (test && found(`${path}, which ${test} reads`)) return result();
   }
   return result();
+}
+
+/**
+ * Name the first file that stops a sealed submit receipt from standing after main moved from `from` to `to` (#2939):
+ * a file the item changed, or a file its check names. Unlike judgeTrunkMove it does not need the check to be an
+ * explicit runner call, so the usual `node --test <file>` check can reuse its receipt; what other moved files could
+ * reach is the landing gate's proof. Returns null when the move leaves the receipt standing.
+ *
+ * @param {string} root
+ * @param {{ from: string, to: string, commit: string, check: string }} move
+ * @returns {string|null}
+ */
+export function sealedMoveOverlap(root, { from, to, commit, check }) {
+  if (from === to) return null;
+  try { git(root, ['merge-base', '--is-ancestor', from, to]); } catch { return `main was rewound since submit (${from.slice(0, 12)} is not in ${to.slice(0, 12)})`; }
+  const itemFiles = new Set(changedBetween(root, git(root, ['merge-base', from, commit]), commit));
+  // Quoted paths keep their spaces; a check the literal parser refuses falls back to whitespace words.
+  const words = literalShellWords(String(check ?? '')) ?? String(check ?? '').split(/\s+/).map(word => word.replace(/^['"]|['"]$/g, ''));
+  const named = new Set(words.map(word => word.replace(/^\.\//, '')));
+  for (const path of changedBetween(root, from, to)) {
+    if (itemFiles.has(path)) return `${path}, a file this item changed`;
+    if (named.has(path)) return `${path}, a file the check names`;
+  }
+  return null;
 }

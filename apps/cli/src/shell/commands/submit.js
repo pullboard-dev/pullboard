@@ -27,6 +27,9 @@ import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
+import { clauseTicks } from '../../../../../packages/state/index.js';
+import { criterionClauses } from '../../../../../packages/state/index.js';
+import { gateNamedFile } from '../../../../../packages/state/index.js';
 import { checkRunTickNotes } from '../../../../../packages/state/index.js';
 import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
@@ -50,6 +53,7 @@ import {
 } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
+import { gateClauseTickNotes } from '../gate-clause-ticks.js';
 import { sealQuarantineVerdict } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { withImportParseCache } from '../../../../../packages/gate/index.js';
@@ -543,10 +547,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return warning;
   });
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
-  if (inspectClauses) await withBoard(ctx, async board => {
-    const summary = clauseInspectionSummary(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
-    if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
-  });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
@@ -581,7 +581,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -1008,6 +1008,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         ...(gate.deferred ? [gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate'] : []),
         ...(mechanicalFlag ? [mechanicalFlag] : []),
       ].map(part => part.replace(/[\r\n\u2028\u2029]/gu, ' ')).join('; ') } : {}) }]);
+    if (inspectClauses) {
+      // The gate ticks the clauses that name a test file it ran green, from its own receipt; a red gate ticks none (#3697).
+      if (gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen)) {
+        const outcomes = submissionReceiptIds.flatMap(receiptId => boundProofReceipt(board, { receiptId }).testOutcomes ?? []);
+        for (const text of gateClauseTickNotes(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held), outcomes, head: submitted }, { clauseTicks, criterionClauses, gateNamedFile })) {
+          await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+        }
+      }
+      const summary = clauseInspectionSummary(store.getItem(board, id), store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
+      if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: summary }]);
+    }
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
     if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
     // One decision shout (a lane question, routed to the lead or coordinator because a builder cannot send kind decision) asks the coordinator to own the repair; it is sent only once the submission is recorded.

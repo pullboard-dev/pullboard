@@ -302,7 +302,11 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     if (!store) return null;
     const sourceClean = cleanProofSource(root, before, run, lease, Boolean(context.commit));
     const testRuntimes = run.testRuntimes ?? run.profile?.testRuntimes ?? null;
-    const environment = testRuntimeEnvironment(testRuntimes);
+    // A run with no captured test workers still observed its executor: record that host, never an invented one [C7,#2662].
+    const executor = run.environment;
+    const executorKnown = executor && ['node', 'platform', 'arch'].every(key => typeof executor[key] === 'string' && executor[key]);
+    const environment = testRuntimes ? testRuntimeEnvironment(testRuntimes)
+      : executorKnown ? { node: executor.node, platform: executor.platform, arch: executor.arch } : null;
     const remote = run.executionRunner ?? run.profile?.executionRunner;
     const localLoad = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
     // A submit's pinned main (lease.pinnedMain) is the only main its phases may record (#1777).
