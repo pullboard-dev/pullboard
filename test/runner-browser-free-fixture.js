@@ -109,6 +109,8 @@ export async function browserRefusalRetriesRunner(t, helpers) {
     const record = JSON.parse(result.stdout.split('\n').findLast(line => line.startsWith('PULLBOARD_RUN_RESULT ')).slice('PULLBOARD_RUN_RESULT '.length));
     assert.equal(record.runner, HOST);
     assert.equal(record.runnerAttempt.host, HOST);
+    // The stand-in marks returned when its worker closes, which can trail the result the controller read.
+    await until(() => fixture.phases().returned === 2, 'the retried runner run closes');
     assert.deepEqual(fixture.phases(), { dispatched: 2, returned: 2 });
   }, 1);
 }
@@ -166,6 +168,7 @@ export async function browserRefusalTextStaysRed(t, helpers) {
     assert.match(red.stdout, /^not ok 1 - marker file ran/mu, show(red));
     assert.match(red.stdout, /\[BROWSER_SLOT_REQUIRED\] thrown by a test/u, show(red));
     assert.doesNotMatch(red.stderr, /RUNNER_BROWSER_SLOT_REQUIRED|rerunning it locally/u, show(red));
+    await until(() => fixture.phases().returned === 1, 'the runner run closes');
     assert.deepEqual(fixture.phases(), { dispatched: 1, returned: 1 }, 'the red came from the runner, once');
   });
 }
