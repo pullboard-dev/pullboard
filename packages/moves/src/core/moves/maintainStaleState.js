@@ -1,4 +1,4 @@
-import { STRANDED_DEPENDENCY_ENGINE } from '../../../../state/index.js';
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../../../src/stranded-dependency-engine.js';
 /** Coordinator maintenance is a versioned native operation, never a direct housekeeping write [B4,C7]. */
 import { LEASE_LAPSE_ENGINE } from "../../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../../src/stale-state-engine.js";
