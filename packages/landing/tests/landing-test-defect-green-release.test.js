@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import { fixtureOpenBoard } from '../../../test/testkit-fixture.js';
 import { closeBoard } from '../../store/index.js';
 import { heldTestDefects } from '../src/shell/landing-step-selection.js';
 
@@ -26,7 +26,7 @@ function repo() {
 
 test('clause 1: a defect is released by a recorded green run of its test at the trunk tip, and only by a run naming its cases passing [C7]', t => {
   const { root, blob, trunkB } = repo();
-  const board = openBoard(join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite'));
+  const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite') });
   t.after(() => closeBoard(board));
   const ports = { quarantineWaivers: () => [] };
   const trunk = { branch: 'refs/heads/main', commit: trunkB };
@@ -43,7 +43,7 @@ test('clause 1: a defect is released by a recorded green run of its test at the 
 test('clause 2: defect recorded at trunk A, code fix lands as trunk B without touching the test: a green run at B lifts the hold, none keeps it [C7]', async t => {
   const { root, blob, trunkA, trunkB } = repo();
   const { MAIN_FAILURE_SIGNATURE_VERSION } = await import('../src/shell/main-failure-matches.js');
-  const board = openBoard(join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite'));
+  const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite') });
   t.after(() => closeBoard(board));
   const ports = { quarantineWaivers: () => [] };
   const defect = { branch: 'refs/heads/main', test: TEST, blob, trunkBlob: blob, names: ['case one'] };
