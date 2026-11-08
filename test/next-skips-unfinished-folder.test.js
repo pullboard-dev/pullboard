@@ -79,7 +79,7 @@ test('clause 1: next for another seat names ITEM_FOLDER_UNFINISHED for the mid-m
   const next = as(box, 'session-b', () => box.run(claimer.root, 'next'));
   const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
-  assert.match(next.out, new RegExp(`skipped #${a}: ITEM_FOLDER_UNFINISHED: item folder .*web-a-item-${a} for #${a} holds an unfinished merge`, 'u'), all);
+  assert.match(next.out, new RegExp(`skipped #${a}: \\[ITEM_FOLDER_UNFINISHED\\] item folder .*web-a-item-${a} for #${a} holds an unfinished merge`, 'u'), all);
   assert.match(next.out, new RegExp(`claimed #${b}:`, 'u'), all);
   assert.match(box.run(box.repo, 'show', a).out, new RegExp(`^#${a}\\s+open\\b`, 'mu'), 'A stays open');
   assert.ok(existsSync(join(folder, '.git')), 'the folder stays');
