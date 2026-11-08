@@ -10,7 +10,7 @@ import {
   submitHandoff,
   pendingSubmitHandoff,
 } from "./submit-handoff-read.js";
-export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from "./submit-handoff-read.js";
+export { submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from "./submit-handoff-read.js";
 /** Durable queue observations do not grant submission or review authority [C7,V4,H16]. */
 import {
   atomic,
@@ -51,6 +51,8 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 ]));
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { PIPELINE_CAUSE_ENGINE } from "../../../../src/pipeline-cause-engine.js";
+import { pipelineCause } from "../../../kernel/index.js";
 import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
 
 const PREPARED = new WeakMap();
@@ -279,7 +281,11 @@ function returnToBuilder(board, id, job, error) {
   const leaseUntil = new Date(board.clock.now().getTime() + job.leaseMs).toISOString();
   setItem(board, id, { item_lease_until: leaseUntil });
   // The fresh deadline is lease evidence like any renewal, so lapsed-claim maintenance can free it once it ends.
-  logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
+  // From the typed-cause engine the same renew event names why the gate came back red: the refusal code and its cause (#3071).
+  const text = String(error.message ?? '').slice(0, 4000);
+  const outcome = (board.executionEngineVersion ?? ENGINE_VERSION) >= PIPELINE_CAUSE_ENGINE && text.trim()
+    ? { submitOutcome: { code: error.code, text, digest: job.digest, pipelineCause: pipelineCause({ code: error.code, note: text }) } } : {};
+  logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true, ...outcome });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
 }
