@@ -4,8 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
+import { privateRepo } from '../../../test/submit-gate-fixture.js';
 import { appendDeferredNotice } from '../src/shell/deferred-notices.js';
 import { deferredNoticesFile } from '../src/shell/deferred-notices.js';
 import { refreshLandedMain } from '../src/shell/deferred-notices.js';
@@ -18,10 +17,7 @@ import { replayDeferredNotices } from '../src/shell/deferred-notices.js';
  * @returns {string}
  */
 function scratch(t) {
-  const fixture = privateFixtureFiles('pullboard-deferred-notices-');
-  t.after(() => fixture.cleanup?.());
-  assert.equal(runFixtureGit(['init', '-q', '-b', 'main'], { cwd: fixture.root }).status, 0);
-  return fixture.root;
+  return privateRepo(t).root;
 }
 
 /**
