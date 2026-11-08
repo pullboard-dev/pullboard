@@ -8,4 +8,5 @@
  */
 export { SECTIONS, OUTCOMES, judge, verdictStep, settle } from './src/core/judge.js';
 export { receiptKey, reusable, receiptByKey } from './src/core/reuse.js';
+export { mainRedKey, mainReceiptByKey, mainRedStatus, classifyMainRed, comparisonStatus, MAIN_TEST_JOB, mainTestJobId } from './src/core/main-red.js';
 export { resultStatement, runnerKeyId, checkSignedResult } from './src/core/signed-result.js';

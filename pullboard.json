@@ -67,7 +67,8 @@
     "handoff": true
   },
   "claim": {
-    "reopenFirstRefusalMinutes": 30
+    "reopenFirstRefusalMinutes": 30,
+    "returnToBoard": true
   },
   "submitInvariants": [
     "test/refusal-next-steps.test.js",

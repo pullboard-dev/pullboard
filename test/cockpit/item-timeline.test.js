@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real private native board and HTTP/Chrome timeline presentation journey [N26,B23]. */
 import assert from 'node:assert/strict';

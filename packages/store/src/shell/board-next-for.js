@@ -26,6 +26,8 @@ import { lineOrderEnabled } from "../../../seats/index.js";
 import { reviewerScarcity } from "../../../seats/index.js";
 import { current } from "./board-query.js";
 import { itemById } from "./board-query.js";
+import { itemThread } from "./board-query.js";
+import { verdictsFor } from "./board-query.js";
 import { listItems } from "./board-query.js";
 import { listAgents } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
@@ -41,6 +43,7 @@ import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../state/index.js";
 import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
+import { cappedRoute } from "../../../seats/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
@@ -117,7 +120,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -135,7 +138,8 @@ export function nextFor(board, options) {
     const item = nextFor(board, { ...options, verify: !verify, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
-  const route = routeOf(board, agentId);
+  // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
+  const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
@@ -435,4 +439,28 @@ function claimWaitingOn(board, id) {
 function waitingOn(item) {
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ', rejected' : '';
   return `#${item.item_id} (${item.item_status}${rejected}, ${item.item_lane} lane)`;
+}
+
+/**
+ * What a returned item hands its next builder: the red gate receipt, the latest reject note and the
+ * builder's last facts, or null when the item was never returned red, rejected or refused [C7].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {{ gate: any, reject: any, facts: string[] } | null}
+ */
+export function returnedRecord(board, id) {
+  const item = itemById(board, id);
+  const job = submitHandoff(board, id);
+  const redGate = job && !['queued', 'running', 'green'].includes(job.state) && job.gateGreen !== true && item.item_status !== 'submitted';
+  const verdict = item.item_verdict === 'REJECT' ? verdictsFor(board, id).filter(row => row.verdict_decision === 'REJECT').at(-1) : null;
+  if (!redGate && !verdict) return null;
+  const builder = item.item_built_by ?? item.item_owner;
+  const thread = itemThread(board, id), replaced = new Set(thread.map(row => row.supersedes).filter(Boolean));
+  const facts = thread.filter(row => row.type === 'fact' && !replaced.has(row.id) && (!builder || row.by === builder)).slice(-3).map(row => `${row.kind}: ${row.text}`);
+  return {
+    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null } : null,
+    reject: verdict ? { reason: verdict.verdict_reason, note: verdict.verdict_note, by: verdict.verdict_by, commit: verdict.verdict_commit } : null,
+    facts,
+  };
 }

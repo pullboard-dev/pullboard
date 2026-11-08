@@ -208,28 +208,39 @@ function cpuLiteral(text, cache) {
   try { value = look([`import ${text};`])[0].imports[0] ?? null; } catch { value = null; }
   // Compilation is pure for these exact bytes. Keep both successful and unknown results bounded
   // to this caller's analysis, never retaining repository source in a process-global cache.
-  if (cache && cache.size < 1024) cache.set(text, value);
+  if (cache && cache.size < 2 * LITERAL_LIMIT) cache.set(text, value);
   return value;
 }
 
-/** Decode module literals once; property decoding is needed only at actual registration calls. */
+/** Most module literals one CPU classification decodes up front, in batches of LITERAL_BATCH per V8 child. */
+const LITERAL_LIMIT = 8192;
+const LITERAL_BATCH = 512;
+
+/**
+ * Decode module literals once; property decoding is needed only at actual registration calls.
+ *
+ * Every literal of the bounded graph is batched: a literal left out was compiled in its own V8 child on every
+ * fixed-point pass, about 500 children and a minute for one named test file (#2425).
+ */
 export function cpuLiteralCache(sources) {
   const literals = new Set();
   for (const source of sources) {
     for (const match of source.matchAll(/(?:\bfrom\s*|\b(?:import|require)\s*\(\s*)/gu)) {
       const literal = /^(?:"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')/u.exec(source.slice(match.index + match[0].length))?.[0];
       if (literal) literals.add(literal);
-      if (literals.size >= 512) break;
+      if (literals.size >= LITERAL_LIMIT) break;
     }
-    if (literals.size >= 512) break;
+    if (literals.size >= LITERAL_LIMIT) break;
   }
   const cache = new Map();
-  if (!literals.size) return cache;
-  try {
-    const texts = [...literals];
-    const parsed = look(texts.map(text => `import ${text};`));
-    for (const [index, text] of texts.entries()) cache.set(text, parsed[index].imports[0] ?? null);
-  } catch { /* Optional batching cannot replace the existing exact per-literal compilation. */ }
+  const texts = [...literals];
+  for (let at = 0; at < texts.length; at += LITERAL_BATCH) {
+    const batch = texts.slice(at, at + LITERAL_BATCH);
+    try {
+      const parsed = look(batch.map(text => `import ${text};`));
+      for (const [index, text] of batch.entries()) cache.set(text, parsed[index].imports[0] ?? null);
+    } catch { /* Optional batching cannot replace the existing exact per-literal compilation. */ }
+  }
   return cache;
 }
 

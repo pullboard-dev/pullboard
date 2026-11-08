@@ -34,6 +34,7 @@ import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
+import { processEntry } from './cells-plan-cuts.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import {
   frontDoorBypasses,
@@ -123,8 +124,24 @@ function approvedStay(after, row, candidateRoot, criterion) {
   return !existsSync(join(candidateRoot, to));
 }
 
+/**
+ * An accepted process entry may leave the plan's entries only when the item's frozen criterion, written by the coordinator,
+ * names it exactly as `plan retire entry <path>` and its file is absent (ENOENT) or readable and no longer runs as a process (#3519).
+ * The candidate's own plan never authorizes itself; a file that still runs as a process keeps its ownership.
+ */
+function approvedEntryRetirement(entry, candidateRoot, criterion, map) {
+  const named = new RegExp(`(?:^|[^\\w./-])plan retire entry ${entry.path.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
+  if (!named.test(criterion)) return false;
+  const file = join(candidateRoot, mappedPath(map, entry.path));
+  // Only a path that is genuinely absent (ENOENT) or readable source that no longer runs as a process retires; any other failure refuses.
+  try {
+    if (!lstatSync(file).isFile()) return false;
+    return !processEntry(entry.path, readFileSync(file, 'utf8'));
+  } catch (error) { return error?.code === 'ENOENT'; }
+}
+
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
-function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
+export function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
   const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
   problems.push(...engineStays.problems);
@@ -133,7 +150,7 @@ function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainR
   const afterEntries = Array.isArray(after.entries) ? after.entries : [];
   const entries = new Set(entryProblems.length ? [] : afterEntries.map(row => row.path));
   for (const entry of before.entries ?? []) {
-    if (!afterEntries.some(row => row.path === entry.path && row.cell === entry.cell)) problems.push(`accepted process entry ownership changed: ${entry.path}`);
+    if (!afterEntries.some(row => row.path === entry.path && row.cell === entry.cell) && !(!afterEntries.some(row => row.path === entry.path) && approvedEntryRetirement(entry, candidateRoot, criterion, afterMap))) problems.push(`accepted process entry ownership changed: ${entry.path}`);
   }
   const rows = new Map(), targets = new Set(), orders = new Set(), roots = new Set();
   const relative = value => typeof value === 'string' && value.length > 0 && !/[\\:\x00-\x1f]/u.test(value)
