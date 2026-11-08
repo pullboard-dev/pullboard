@@ -211,16 +211,18 @@ test('moves stay local while the machine credential expires, then replay after s
   assert.equal(relayOutboxSetting(box.root), true, 'restoring the original config restores its default-on policy');
   writeFileSync(box.linkFile, orderedLink, { mode: 0o600 });
 
+  const next = await box.cliAt(agentRoot, 'next', '--build');
+  assert.equal(next.code, 0, next.failure ?? JSON.stringify(next.document?.error ?? null));
+  // the claim comes first: it names the seeded item the relay already knows; a claim naming an item added while the relay is down is refused RELAY_OUTBOX_UNBOUND by design
+  const claimId = next.document.item.item_id;
+
   const queued = await box.cli('add', box.lane, 'local work waits for machine sign-in');
-  assert.equal(queued.code, 0, JSON.stringify(queued.document?.error ?? queued.document) + ' ' + (queued.failure ?? '') + ' ' + 'the expired relay credential does not block the local move');
+  assert.equal(queued.code, 0, queued.failure ?? 'the expired relay credential does not block the local move');
   assert.equal(queued.document.item.item_title, 'local work waits for machine sign-in');
   const queuedId = queued.document.item.item_id;
   const locallyRecorded = (await box.cli('export')).document.tables;
   assert.equal(locallyRecorded.event.filter(event => event.item_id === queuedId && event.event_kind === 'add').length, 1,
     'the local add is durable exactly once while machine authorization is unavailable');
-  const next = await box.cliAt(agentRoot, 'next', '--build');
-  assert.equal(next.code, 0, JSON.stringify(next.document?.error ?? next.document) + ' ' + (next.failure ?? 'next queues its claim locally while the sender cannot authenticate'));
-  const claimId = next.document.item.item_id;
   const pending = await box.cli('status');
   assert.equal(pending.code, 0);
   assert.ok(pending.document.relay.outbox.some(move => move.operation === 'addItem'), 'the local add remains queued for ordered delivery');
