@@ -9,6 +9,7 @@ const BODY_BYTES = 100_000;
 
 /** Keep unexpected internal failures out of the public refusal document; the caller supplies the renderer. */
 function refusalFor(refusalDocument, error) {
+  if (!(error instanceof Refused)) console.error("DEBUG3709", error && error.stack);
   const document = refusalDocument(error instanceof Refused ? error : new Refused('SERVICE_ERROR', 'the board service could not complete the call; retry or check the service'));
   const storage = error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT' ? relayStorage(error.storage) : null;
   if (storage) document.error.storage = storage;
