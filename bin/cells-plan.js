@@ -24,6 +24,7 @@ import { cellLintGrowth } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
+import { moveHistoryPlacement } from '../packages/codemap/index.js';
 import { engineLeafPlacement } from '../packages/codemap/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
@@ -55,6 +56,7 @@ import { receiptDigest } from '../packages/git/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { cellsCacheDirectory } from './cells-inventory-cache.js';
 import { publishCacheEntry } from './cells-inventory-cache.js';
+import { placeTests } from './cells-test-placement.js';
 
 /** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
 function fixtureAnalyzerDigest() {
@@ -252,7 +254,7 @@ export function unplanned(root, plan, inventory) {
   for (const row of plan.stays) known.add(row.path);
   const listed = tryGit(root, ['ls-files']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
-  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && !engineLeafPlacement(file));
+  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && moveHistoryPlacement(file) === null && !engineLeafPlacement(file));
 }
 
 /**
@@ -607,7 +609,15 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
+  if (mode === '--place-tests') {
+    if (rest.length) throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests (no arguments)');
+    const listed = tryGit(root, ['ls-files', '-z']);
+    if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --place-tests');
+    const tracked = listed.stdout.split('\0').filter(Boolean);
+    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root)).join('\n'));
+    return 0;
+  }
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

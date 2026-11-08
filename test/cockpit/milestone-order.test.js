@@ -71,7 +71,7 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
   box.run(demo.web, 'claim', '5');
   box.run(demo.repo, 'hold', 'ops', '--reason', 'Waiting for the person to approve the operational change.');
   // IDs and creation order intentionally disagree with the milestone queue's same-state tie.
-  box.run(demo.repo, 'milestone', 'add', 'State order', '--items', '7,8,1,3,5,6,4,2');
+  box.run(demo.repo, 'milestone', 'add', 'State order', '--reason', 'Arrange fixture release', '--items', '7,8,1,3,5,6,4,2');
   box.run(demo.repo, 'milestone', 'pin', 'State order', '8', '--reason', 'Prioritize this unclaimed item within its group.');
   const before = nativeMilestone(box, demo);
   const queue = JSON.parse(box.run(demo.repo, 'queue', '--json'));
@@ -89,7 +89,7 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
     await chrome.waitFor('data?.project?.milestones?.some(row => row.name === "State order")');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await settled(chrome, "!document.querySelector('[data-pane=roadmap]').hidden && !!document.querySelector('#roadmap-list > [data-key=\"m:State order\"]')");
-    const heading = "document.querySelector('#roadmap-list > [data-key=\"m:State order\"] > .milestone-head')";
+    const heading = "document.querySelector('#roadmap-list > [data-key=\"m:State order\"] .milestone-head')";
     if (await chrome.stable(`${heading}.getAttribute('aria-expanded')`) !== 'true') await press(chrome, heading);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });

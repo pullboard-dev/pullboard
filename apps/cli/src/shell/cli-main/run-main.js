@@ -266,7 +266,8 @@ async function runMain(argv, streams) {
       try {
         const worker = await import('../../../../../packages/landing/index.js');
         const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot);
+        // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics: automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set() });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
