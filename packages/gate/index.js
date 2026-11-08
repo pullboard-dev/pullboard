@@ -91,3 +91,4 @@ export { STATIC_CHECKS, runStaticRegistry } from './src/shell/static-check-regis
 export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
+export { freeRunnerSlots } from "./src/shell/proof-shards.js";

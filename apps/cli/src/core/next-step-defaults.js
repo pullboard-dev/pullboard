@@ -36,6 +36,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   DRIVE_OWNER: 'pass a driver id as { owner } to the drive call so the lease has a holder',
   SUBMIT_HANDOFF_STOPPED: 'no action needed: the next gate driver resumes the job; run pullboard next to see it',
   ITEM_FOLDER_SESSION_LIVE: 'ask the named agent to finish with the folder or end its session, then claim the item again; build another item meanwhile',
+  ITEM_FOLDER_UNFINISHED: 'shout the coordinator to finish or abort the operation in that item folder, and build another item meanwhile',
+  BROWSER_UNDECLARED: 'make the first line of the named test file // pullboard: browser, then run it again',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
