@@ -37,7 +37,7 @@ test('clause 1: next prints a red-returned item with its gate failure, the build
   assert.match(text.text, /returned red at [0-9a-f]{12}: GATE_RED: Fixture gate is red on the zebra case\./u);
   assert.match(text.text, /builder fact, note: the zebra case fails because the stripe is missing/u);
   const json = await next(box, '--json');
-  const result = JSON.parse(json.out.trim().split('\n').at(-1));
+  const result = JSON.parse(json.out.slice(json.out.indexOf('{')));
   assert.equal(result.returned.gate.code, 'GATE_RED');
   assert.equal(result.returned.gate.commit, commit);
   assert.ok(result.returned.facts.some(fact => fact.includes('the zebra case fails')));
