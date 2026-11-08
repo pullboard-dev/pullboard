@@ -10,7 +10,9 @@ import { resumeAutomaticLanding } from '../packages/landing/index.js';
 import { scheduleAutomaticLanding } from '../packages/landing/index.js';
 import { automaticLandingDirectory } from '../packages/landing/index.js';
 import { retryableLandingRefusal, HELD_TRUNK_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff, testBlob } from '../packages/landing/index.js';
-import { mainCheckout, invalidateGitFacts } from '../packages/git/index.js';
+import { defectStillHolds } from '../packages/landing/index.js';
+import { mainCheckout, invalidateGitFacts, tryGit } from '../packages/git/index.js';
+import { stopLandingWaits } from '../packages/landing/index.js';
 import { listItems } from '../packages/store/index.js';
 import { landingBatches, landingTestDefects } from '../packages/store/index.js';
 import { readMainAudit } from '../packages/gate/index.js';
@@ -25,6 +27,33 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const FILE = fileURLToPath(import.meta.url);
+
+/** The paths whose change at main makes a running lander's code old (#3467). */
+const LANDER_CODE = ['bin/automatic-landing.js', 'packages/landing'];
+
+/**
+ * The newest commit at main that changed the lander's own code, or null when this process does not run root's main
+ * checkout code or Git cannot say. Why: the scheduler starts root's own bin/automatic-landing.js, which reads its code
+ * from that checkout once, so a later main commit there is code this process never loaded (#3467).
+ *
+ * @param {string} root - The main checkout.
+ * @returns {string | null}
+ */
+export function landerCodeCommit(root) {
+  if (FILE !== join(root, 'bin', 'automatic-landing.js')) return null;
+  const commit = mainCheckout(root)?.commit;
+  const result = commit ? tryGit(root, ['log', '-1', '--format=%H', commit, '--', ...LANDER_CODE]) : null;
+  return result?.status === 0 ? result.stdout.trim() || null : null;
+}
+
+/** Why a lander that loaded the code of commit `loaded` is older than main's `current`, or null when it is not. */
+export function staleLanderReason(loaded, current) {
+  return loaded && current && loaded !== current
+    ? `lander code ${loaded.slice(0, 12)} is older than main's ${current.slice(0, 12)} (bin/automatic-landing.js, packages/landing)` : null;
+}
+
+/** The lander code commit this process loaded, read on its first wake. */
+let loadedCode;
 
 /**
  * The scheduled wake's own io: the outbox, the native board and the board openers the relay path asks for.
@@ -57,9 +86,11 @@ function landingObservation(root, ioOptions = {}) {
 
 /**
  * What a backed-off landing watches: each verified, unlanded item with its commit, and the trunk blob of every test file
- * that holds the trunk (a landing test defect or a flaky batch on the trunk branch).
- * Why: an accept, a green gate that verifies an item, or a commit correcting the held test is exactly what can change a
- * held or empty landing's outcome, so each one ends the back-off at once [C7].
+ * that holds the trunk (a landing test defect whose repair item is still open, claimed or submitted, or a flaky batch on
+ * the trunk branch).
+ * Why: an accept, a green gate that verifies an item, a commit correcting the held test, or withdrawing or landing the
+ * defect's repair item is exactly what can change a held or empty landing's outcome, so each one ends the back-off at
+ * once: a defect that stops holding drops its file from the marks, which the wake reads as a held-file change [C7,#3761].
  *
  * @param {string} root - The repository's main checkout.
  * @param {{ schemaDiagnostics?: Set<string> }} [ioOptions]
@@ -75,7 +106,7 @@ export function landingWakeMarks(root, ioOptions = {}) {
     const verified = listItems(board, { all: true })
       .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort();
     const files = new Set([
-      ...landingTestDefects(board).filter(defect => defect.branch === trunk.branch).map(defect => defect.test),
+      ...landingTestDefects(board).filter(defect => defect.branch === trunk.branch && defectStillHolds(board, defect)).map(defect => defect.test),
       ...landingBatches(board).filter(batch => batch.state === 'flaky' && batch.branch === trunk.branch).flatMap(batch => (batch.flakes ?? []).map(flake => flake.test)),
     ]);
     const held = Object.fromEntries([...files].sort().map(file => [file, testBlob(root, trunk.commit, file)]));
@@ -131,7 +162,28 @@ export async function bootstrapLandingWake(root, { schedule = scheduleAutomaticL
  * Why: on 6 Nov a held trunk restarted a crashing lander on every command, 124 landing leases in 10 minutes [C7].
  */
 export async function runLandingWake(root, { land = landAfterAcceptance, wait = pause, pollMs = 5000, now = Date.now, backoff = null,
-  onBackoff = async () => {}, marks = landingWakeMarks } = {}) {
+  onBackoff = async () => {}, marks = landingWakeMarks, codeCommit = landerCodeCommit, loaded, watchMs = 30_000 } = {}) {
+  // A lander whose code is older than main's hands over to a fresh one whenever it holds no landing lease: its lease
+  // wait releases its place naming the change, and the reload below starts a new worker on main's code (#3467).
+  const code = loaded !== undefined ? loaded : (loadedCode ??= codeCommit(root));
+  let stale = null;
+  let checkedAt = -Infinity;
+  const staleCode = () => {
+    if (!stale && now() - checkedAt >= watchMs) {
+      checkedAt = now();
+      try { stale = staleLanderReason(code, codeCommit(root)); } catch { stale = null; }
+    }
+    return stale;
+  };
+  // The lease wait asks on each of its own polls, so no timer is needed to see the change while blocked in line.
+  stopLandingWaits(staleCode);
+  const handover = () => ({ reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic-landing.js', import.meta.url), handover: stale });
+  try { return await wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, marks, staleCode, handover }); }
+  finally { stopLandingWaits(null); }
+}
+
+/** One wake of runLandingWake, which owns the code watch; `staleCode` and `handover` come from it. */
+async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, marks, staleCode, handover }) {
   // The lease the landing takes names the back-off that delayed it.
   if (backoff?.backoffMs) process.env.PULLBOARD_LANDING_BACKOFF_MS = String(backoff.backoffMs);
   else delete process.env.PULLBOARD_LANDING_BACKOFF_MS;
@@ -141,11 +193,17 @@ export async function runLandingWake(root, { land = landAfterAcceptance, wait = 
   let held = null, refused = false;
   try { await land(context(wakeIo(root))); }
   catch (error) {
-    if (HELD_TRUNK_REFUSALS.has(error.code)) held = error.code;
+    if (error.code === 'LAND_CODE_STALE') return handover();
+    if (HELD_TRUNK_REFUSALS.has(error.code)) {
+      held = error.code;
+      // The held refusal names what holds the trunk, so a stale hold reads back from worker.log (#3761).
+      console.log(new Date().toISOString(), `landing held: ${error.message}`);
+    }
     else if (retryableLandingRefusal(error.code)) refused = true;
     else throw error;
   }
   finally { delete process.env.PULLBOARD_LANDING_BACKOFF_MS; }
+  if (staleCode()) return handover();
   observed = landingObservation(root);
   if (!observed.waiting) return;
   const moved = observed.main !== before.main || observed.branch !== before.branch
@@ -160,6 +218,7 @@ export async function runLandingWake(root, { land = landAfterAcceptance, wait = 
     await onBackoff(next);
     while (now() < until) {
       await wait(Math.min(pollMs, until - now()));
+      if (staleCode()) return handover();
       // The lander's own look comes first: a trigger it sees wakes the next attempt even when a command already rescheduled it.
       if (landingWakeTrigger(next.marks, marks(root))) {
         return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic-landing.js', import.meta.url) };
@@ -172,6 +231,7 @@ export async function runLandingWake(root, { land = landAfterAcceptance, wait = 
   while (observed.main === before.main && observed.branch === before.branch) {
     if (observed.pending !== before.pending) return;
     await wait(pollMs);
+    if (staleCode()) return handover();
     observed = landingObservation(root);
     if (!observed.waiting) return;
   }
