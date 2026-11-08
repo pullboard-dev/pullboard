@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real person actions keep revision proposals distinct from their approved source rows [P6,B23,N39]. */
 import assert from 'node:assert/strict';
