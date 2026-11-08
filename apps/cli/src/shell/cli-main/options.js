@@ -37,6 +37,7 @@ const OPTIONS = {
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },
   infra: { type: 'string' },
+  preflight: { type: 'boolean' },
   companion: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
