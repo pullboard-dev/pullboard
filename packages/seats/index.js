@@ -35,6 +35,8 @@ export {
   localSeatSessionDigest,
   localSessionMatches,
   bindLocalSession,
+  endedFolderSession,
+  adoptLocalSession,
   localSessionSeats,
   parentSessionFile,
   recordParentSession,
