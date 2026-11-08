@@ -27,7 +27,7 @@ function closureOf(graph, start) {
   return seen;
 }
 
-test('doctrine-fast declares and imports only scan.js and its listed @file-local checks [C7]', () => {
+test('clause 1: doctrine-fast declares and imports only scan.js and its listed @file-local checks [C7,#3808]', () => {
   const header = readFileSync(join(ROOT, FAST), 'utf8').split('\n')[0];
   const declared = /^\/\*\* @pullboard-module-loads (.+) \*\/$/u.exec(header)?.[1].split(' ');
   assert.deepEqual(declared, ['bin/checks/scan.js', ...FAST_CHECK_SCRIPTS]);
@@ -37,7 +37,7 @@ test('doctrine-fast declares and imports only scan.js and its listed @file-local
   assert.deepEqual(marked.sort(), [...FAST_CHECK_SCRIPTS].sort(), 'every @file-local check is listed, so none silently loses the fast path');
 });
 
-test('doctrine-fast refuses an unlisted @file-local script and keeps a listed one [C7]', t => {
+test('clause 1: doctrine-fast refuses an unlisted @file-local script and keeps a listed one [C7,#3808]', t => {
   const { root, write } = privateFixtureFiles('pb-fast-list-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write('bin/checks/other.js', '/** @file-local reads only its files */\n');
@@ -46,7 +46,7 @@ test('doctrine-fast refuses an unlisted @file-local script and keeps a listed on
   assert.equal(fastCheckScript(root, 'node bin/checks/empty-catch.js'), 'bin/checks/empty-catch.js');
 });
 
-test('in the selection graph doctrine-fast reaches neither static-tree-registry.js nor apps/cli/index.js [C7]', () => {
+test('clause 1: in the selection graph doctrine-fast reaches neither static-tree-registry.js nor apps/cli/index.js [C7,#3808]', () => {
   const graph = codeMapGraph(ROOT, 'HEAD');
   const reached = closureOf(graph, FAST);
   assert.ok(reached.has('bin/checks/empty-catch.js'), 'the declared checks stay in its closure');
@@ -78,7 +78,7 @@ function check(root) {
   return { status: result.status, stderr: result.stderr };
 }
 
-test('cell-lints --check refuses a package module that newly reaches apps/cli/index.js, naming it and its path [C7]', t => {
+test('clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/index.js, naming it and its path [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', "import { run } from '../../../../apps/cli/index.js';\nexport const leaf = () => run();\n");
   box.commit();
@@ -89,7 +89,7 @@ test('cell-lints --check refuses a package module that newly reaches apps/cli/in
   assert.doesNotMatch(stderr, /cliReach:packages\/beta/u, 'reach main already had is not refused');
 });
 
-test('cell-lints --check refuses a package module that newly reaches bin/main-audit.js [C7]', t => {
+test('clause 2: cell-lints --check refuses a package module that newly reaches bin/main-audit.js [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', "import { beta } from '../../../beta/index.js';\nexport const leaf = () => beta();\n");
   box.commit();
@@ -98,7 +98,7 @@ test('cell-lints --check refuses a package module that newly reaches bin/main-au
   assert.match(stderr, /cliReach:packages\/alpha\/src\/shell\/leaf\.js: reaches bin\/main-audit\.js through packages\/alpha\/src\/shell\/leaf\.js -> packages\/beta\/index\.js -> bin\/main-audit\.js/u);
 });
 
-test('cell-lints --check passes a change that adds no package reach into the CLI [C7]', t => {
+test('clause 2: cell-lints --check passes a change that adds no package reach into the CLI [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', 'export const leaf = () => 3;\n');
   box.commit();
