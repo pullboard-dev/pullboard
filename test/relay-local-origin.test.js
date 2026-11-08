@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A hosted WebKit page opens an authenticated loopback board without a mixed-content fetch [H5,N26]. */
 import assert from 'node:assert/strict';

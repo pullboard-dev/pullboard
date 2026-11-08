@@ -17,6 +17,7 @@ import { sealOf } from './seals.js';
 import { sealStoreFile } from './seals.js';
 import { sealsExist } from './seals.js';
 import { checkSkippedSeals } from './seals.js';
+import { refusalFloor } from './refusal-floor.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -135,6 +136,10 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // A test file the change itself adds or edits runs at submit whatever its tier, so a builder's own new test is
   // proved in minutes rather than first at review or landing (4 Nov: 2 of 2 audited rejects were such tests).
   const authored = new Set((actual ?? []).filter(file => after.rows.has(file)));
+  // A floor invariant runs at submit when the change reaches its inputs: refusal codes reach the declaration audit through
+  // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
+  for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
+    read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
