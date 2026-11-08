@@ -6,6 +6,7 @@ import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -71,6 +72,15 @@ function inboxReasons(ctx) {
   });
 }
 
+/**
+ * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
+ * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
+ */
+function ownWaitingLines(board, me) {
+  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
+    .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
+}
+
 /** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
 function answerFirstReasons(reasons) {
   return ['no item is free', ...heldCounted(reasons)];
@@ -78,9 +88,12 @@ function answerFirstReasons(reasons) {
 
 /** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
 function heldCounted(reasons) {
+  // The review-cover pause explains why new builds stop, so it leads every count line and is never folded away [#3741].
+  const paused = reasons.filter(reason => reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
+  reasons = reasons.filter(reason => !reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...paused, ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
 }
 
 /**
@@ -243,7 +256,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
-      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...inboxReasons(ctx)];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;

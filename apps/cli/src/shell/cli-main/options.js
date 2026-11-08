@@ -37,6 +37,7 @@ const OPTIONS = {
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },
   infra: { type: 'string' },
+  precheck: { type: 'boolean' },
   preflight: { type: 'boolean' },
   companion: { type: 'string' },
   'note-file': { type: 'string' },
@@ -188,7 +189,28 @@ export function parseCommandArgs(argv) {
   };
   // Flow consumes a history file; show retains its existing boolean --history switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : options;
-  return parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
+  return parsed;
+}
+
+/**
+ * Refuse a single-value text flag given more than once, so add and edit never keep the last value and silently drop
+ * the earlier ones (#3743). A flag declared repeatable keeps every value and is left alone.
+ *
+ * @param {string[]} argv
+ * @param {Record<string, { type: string, multiple?: boolean }>} options
+ */
+function refuseRepeatedFlags(argv, options) {
+  const counts = new Map();
+  for (const token of argv) {
+    if (token === '--') break;
+    const name = /^--([^=]+)(?:=|$)/u.exec(token)?.[1];
+    if (name && options[name]?.type === 'string' && !options[name].multiple) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  for (const [name, count] of counts) {
+    if (count > 1) throw Object.assign(new Error(`--${name} was given ${count} times and only one value is kept (REPEATED_FLAG --${name}); give it once, with every clause numbered inside that one value`), { refusalCode: 'REPEATED_FLAG' });
+  }
 }
 
 /** Whether a parsed command line only prints version or help, which asks Git nothing. */
