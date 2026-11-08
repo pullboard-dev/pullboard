@@ -26,7 +26,7 @@ const HEALTH_WAITS = 20;
  * Lock stops: the board or a slot database was busy for a moment. They wait with backoff and never spend a retry.
  * Why: on 4 Nov 51 of 80 gates ended GATE_INFRA_EXHAUSTED after four lock stops alone (#3087); a lock always frees.
  */
-export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED', 'RESOURCE_LEASE_LOST']));
+export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED']));
 /** Lock waits one candidate may spend before the stop is an infrastructure stop, never a red (#3101). */
 export const LOCK_WAIT_LIMIT = 60;
 const LOCK_PAUSE_MS = 1_000;
