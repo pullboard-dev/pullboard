@@ -101,9 +101,11 @@ export const RESCOPE_REASONS = Object.freeze(['BLOCKED', 'ROUTED_ELSEWHERE', 'IN
  * @param {any} board
  * @param {string} lane
  * @param {string} route
+ * @param {{ maxAgeMinutes?: number | null }} [options] - maxAgeMinutes: count only releases this recent, as next does (#3742)
  * @returns {{id: number, reasons: string[]}[]}
  */
-export function itemsNeedingRescope(board, lane, route) {
+export function itemsNeedingRescope(board, lane, route, { maxAgeMinutes = null } = {}) {
+  const oldest = maxAgeMinutes > 0 ? new Date(board.clock.now().getTime() - maxAgeMinutes * 60_000).toISOString() : null;
   const rows = board.db.prepare(`SELECT e.event_id, e.event_at, e.item_id, e.event_by, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
     JOIN agent a ON a.agent_id = e.event_by
     WHERE e.event_kind = 'release' AND i.item_status = 'open' AND a.agent_lane = ? AND a.agent_route = ? ORDER BY e.event_id`).all(lane, route);
@@ -112,6 +114,8 @@ export function itemsNeedingRescope(board, lane, route) {
     let detail = {};
     try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
     if (detail?.review === true || !RESCOPE_REASONS.includes(detail?.reasonCode)) continue;
+    // A release older than the window no longer hides the item from next; status and health still list it (#3742).
+    if (oldest && row.event_at < oldest) continue;
     const changed = board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_id > ? AND event_kind IN ('edit','refreeze','route','reroute') LIMIT 1").get(row.item_id, row.event_id);
     if (changed) { byItem.delete(row.item_id); continue; }
     const open = detail.reasonCode === 'BLOCKED' && Array.isArray(detail.blockedOn) && detail.blockedOn.length
@@ -124,10 +128,13 @@ export function itemsNeedingRescope(board, lane, route) {
   return [...byItem.values()];
 }
 
-/** The items to leave out of one seat's next: those needing re-scope for its own lane and route. */
+/** How long a release hides an item from next: after this the exclusion expires and next offers the item again (#3742). */
+export const RESCOPE_EXCLUSION_MINUTES = 60;
+
+/** The items to leave out of one seat's next: those released for re-scope for its own lane and route within the exclusion window. */
 function scopedOutFor(board, agentId) {
   const seat = board.db.prepare('SELECT agent_lane, agent_route FROM agent WHERE agent_id=?').get(agentId);
-  return seat ? itemsNeedingRescope(board, seat.agent_lane, seat.agent_route) : [];
+  return seat ? itemsNeedingRescope(board, seat.agent_lane, seat.agent_route, { maxAgeMinutes: RESCOPE_EXCLUSION_MINUTES }) : [];
 }
 
 /**
