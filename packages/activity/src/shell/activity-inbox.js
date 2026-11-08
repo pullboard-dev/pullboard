@@ -1,6 +1,5 @@
 /** Local delivery state and real Git observations for the existing inbox [R2,N26]. */
 import { randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import {
   readFileSync,
   renameSync,
@@ -9,6 +8,7 @@ import {
 } from 'node:fs';
 import { gitPath } from '../../../../src/git.js';
 import { checkoutHead } from '../../../git/index.js';
+import { gitExecFileSync } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
@@ -42,7 +42,7 @@ export function saveActivityCursor(state, cursor) {
 
 /** Read NUL-delimited paths without trimming or interpreting quoted/newline file names. */
 function gitPaths(root, args) {
-  return execFileSync('git', ['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', ...args],
+  return gitExecFileSync(['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', ...args],
     { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\0').filter(Boolean);
 }
 
@@ -52,7 +52,7 @@ function gitPaths(root, args) {
  * Returns every path in Git's order with the per-pair header (the first tree-ish's id) removed; a pair Git cannot read throws.
  */
 function diffTreePaths(root, pairs, ...flags) {
-  const out = execFileSync('git', ['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', 'diff-tree', '--stdin', '-r',
+  const out = gitExecFileSync(['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', 'diff-tree', '--stdin', '-r',
     '--no-ext-diff', '--no-textconv', '--name-only', '-z', ...flags],
   { cwd: root, encoding: 'utf8', input: pairs.map(pair => pair.join(' ')).join('\n') + '\n', stdio: ['pipe', 'pipe', 'pipe'] });
   const headers = new Set(pairs.map(pair => pair[0]));
@@ -77,7 +77,7 @@ export function batchMainFiles(root, pairs) {
   if (unique.length < 2) return found;
   let out;
   try {
-    out = execFileSync('git', ['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', 'diff-tree', '--stdin', '-r',
+    out = gitExecFileSync(['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', 'diff-tree', '--stdin', '-r',
       '--no-ext-diff', '--no-textconv', '-M', '--name-only', '-z'],
     { cwd: root, encoding: 'utf8', input: unique.map(pair => `${pair.base} ${pair.commit}`).join('\n') + '\n', stdio: ['pipe', 'pipe', 'pipe'] }).split('\0');
   } catch { return found; }
@@ -143,7 +143,7 @@ export function activityMainFiles(root, commit, detail, { rowFiles = [], batch =
 function committedRows(root, commit, file) {
   const args = ['--no-optional-locks', '--no-replace-objects', 'show', `${commit}:${file}`];
   let source;
-  try { source = execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
+  try { source = gitExecFileSync(args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch {
     // A deleted/new configured file has no rows on that side; other read failures remain unknown.
     const listing = gitPaths(root, ['ls-tree', '-z', '--name-only', commit, '--', file]);
