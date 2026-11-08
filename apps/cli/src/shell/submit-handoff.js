@@ -18,6 +18,8 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../packages/drive/index.js';
+/** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
+export { stalledGateDriveFindings } from '../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
 import { openBoard as openRawBoard } from '../../../../apps/lib/index.js';
 import { closeBoard as closeRawBoard } from '../../../../apps/lib/index.js';

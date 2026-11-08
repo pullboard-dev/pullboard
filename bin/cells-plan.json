@@ -1736,6 +1736,14 @@
     {
       "path": "src/move-history/245.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/246.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -3454,6 +3462,11 @@
   ],
   "allowedEdges": [
     "activity->store",
+    "apps/cli->doctrine",
+    "apps/cli->gate",
+    "apps/cli->items",
+    "apps/cli->landing",
+    "apps/cli->apps/runner",
     "apps/cli->pin",
     "api->store",
     "apps/lib->store",
