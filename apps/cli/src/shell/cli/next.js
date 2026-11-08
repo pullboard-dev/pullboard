@@ -145,8 +145,8 @@ export async function nextOnce(ctx, values) {
       catch (error) {
         // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
         // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
-        if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_SESSION_LIVE') throw error;
-        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder held by another live session: ${error.message}`, 'OTHER']);
+        if (!(error instanceof Refused) || !['ITEM_FOLDER_SESSION_LIVE', 'ITEM_FOLDER_UNFINISHED'].includes(error.code)) throw error;
+        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder cannot be used: ${error.message}`, 'OTHER']);
         return { retry: true, retryDetail: { phase: 'held folder', item: item.item_id, code: error.code, message: error.message } };
       }
       return { item, held, shared, reviewSkipped, reasons,
