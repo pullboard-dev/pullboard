@@ -55,7 +55,7 @@ function runnerProject() {
   return { box, requests };
 }
 
-test('pullboard test runs the folder commit on a free runner and prints pass/fail and failing cases [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for a stand-in runner run plus its main comparison; not a speed target.
+test('clause 1: pullboard test runs the folder commit on a free runner and prints pass/fail and failing cases [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for a stand-in runner run plus its main comparison; not a speed target.
   const { box } = runnerProject();
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   const ran = box.run(box.web, 'test', 'test/mixed.test.js');
@@ -70,7 +70,7 @@ test('pullboard test runs the folder commit on a free runner and prints pass/fai
   assert.ok(received, 'the runner was sent the folder commit');
 });
 
-test('pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling; the speed bar is the assertion below.
+test('clause 2: pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling; the speed bar is the assertion below.
   const { box } = runnerProject();
   const own = Date.now();
   const alone = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/timed.test.js'], { cwd: box.web, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
