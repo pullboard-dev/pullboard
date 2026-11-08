@@ -227,6 +227,12 @@ test("clause 1: observeWorkers counts a build only when nextFor would offer it t
   board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, '50');
   assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 29, 'an item over the 30-minute build budget is not a build next would offer');
   board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_expected_build_minutes:${ids[0]}`);
+  for (const [minutes, budget, expected] of [['20', 15, 29], ['20', 60, 30], ['50', 15, 29], ['50', 60, 30], ['70', 60, 29]]) {
+    board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, minutes);
+    const offered = observeWorkers(board, { lane: 'web', managed: [], now: at, buildBudgetMinutes: budget }).builds;
+    assert.equal(offered, expected, `a ${minutes}-minute estimate at a ${budget}-minute budget`);
+    board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_expected_build_minutes:${ids[0]}`);
+  }
   const commit = id => String(id).padStart(40, 'c');
   for (const id of ids) {
     board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(commit(id), id);
