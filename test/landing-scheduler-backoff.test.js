@@ -22,7 +22,8 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 
 /** The test file whose recorded defect holds the fixture trunk. */
 const HELD = 'web/held.test.js';
-const HELD_TEXT = "import test from 'node:test'; test('held case', () => {});\n";
+// The fixture runner reads RED and NAME: from the file text, so the held case is red for real when landing measures it (#3719).
+const HELD_TEXT = "// RED NAME:held-case\nimport test from 'node:test'; test('held case', () => {});\n";
 
 /** Read one of the fixture's private wake records, or null. */
 function record(box, name = 'pending.json') {
@@ -70,7 +71,7 @@ function heldTrunk(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the fixture test the defect holds');
   const blob = box.git(box.repo, 'rev-parse', `HEAD:${HELD}`);
   onBoard(box, board => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: HELD,
-    hash: createHash('sha256').update(HELD_TEXT).digest('hex'), blob, trunkBlob: blob, names: ['held case'], lane: 'web',
+    hash: createHash('sha256').update(HELD_TEXT).digest('hex'), blob, trunkBlob: blob, names: ['held-case'], lane: 'web',
     batchId: randomUUID(), branch: box.git(box.repo, 'symbolic-ref', 'HEAD') }));
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -80,13 +81,20 @@ function heldTrunk(t) {
   return { box, entry };
 }
 
+/** What the wake left behind, so a lander that never backs off names the record, the timer and its own log. */
+function wakeState(box) {
+  const log = join(automaticLandingDirectory(box.repo), 'worker.log');
+  return JSON.stringify({ pending: record(box), timer: record(box, 'timer.json'), leases: leaseRequests(box).length,
+    log: existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : null });
+}
+
 /** Let a real command wake the real lander on the held trunk, and wait until it refuses and backs off. */
 async function backingOff(box) {
   command(box, 'list');
   // One read per poll: the lander and the commands rewrite the record, so a second read can see a newer one.
   let pending = null;
   await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'LAND_TEST_DEFECT' && leaseRequests(box).length > 0,
-    'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => record(box) });
+    'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => wakeState(box) });
   return { pending, requests: leaseRequests(box).length };
 }
 
