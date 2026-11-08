@@ -64,12 +64,13 @@ function seatUsage(box, cwd, identity) {
 /**
  * A project whose web seat joins with the model the case attributes usage to.
  * Why: the shared project already joins web-1 with the fixture model, and rejoining one seat with another model is refused ALREADY_JOINED (04384c0971).
+ * The seat joins on the strong route: the model table maps these fixture names to mid, and the fixture items need strong (b95e1aa538).
  */
 function costProject(model) {
   const box = helpers.project('true', undefined, { withWorktree: false });
   const web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--model', model).code, 0);
+  assert.equal(fixtureJoin(box.run, web, 'web', '--model', model, '--route', 'strong').code, 0);
   return { ...box, web };
 }
 
