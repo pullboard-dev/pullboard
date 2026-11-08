@@ -2,7 +2,7 @@
 export { activityDeliveryLines, deliverActivity } from './src/shell/activity-delivery-cli.js';
 export { readActivityDelivery } from './src/shell/activity-delivery-read.js';
 export { CLAIM_INTERRUPT_WINDOW_MS, classifyActivityDelivery } from './src/core/activity-delivery.js';
-export { readActivityCursor, saveActivityCursor, activityWorkingFiles, activityMainFiles } from './src/shell/activity-inbox.js';
+export { readActivityCursor, saveActivityCursor, activityWorkingFiles, activityMainFiles, batchMainFiles } from './src/shell/activity-inbox.js';
 export { budgetInbox } from './src/core/inbox-budget.js';
 export { claimWorktrees, claimOverlapLines } from './src/shell/claim-worktrees.js';
 export { recordClaimWorktrees } from './src/shell/worktree-observations.js';

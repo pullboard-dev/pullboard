@@ -138,7 +138,7 @@ import {failureSignatures} from ${JSON.stringify(signaturesModule)};
 import {takeResource} from ${JSON.stringify(resourcesModule)};
 ${executionServicesSource(gateModule)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const result=await runTestFiles(process.cwd(),config,['test/ordinary.test.js'],{executionServices,withMainCheckout,failureSignatures,
+const result=await runTestFiles(process.cwd(),config,['test/ordinary.test.js'],{compareMain:true,executionServices,withMainCheckout,failureSignatures,
   compareMainFailures:async (...args)=>{
     const held=await takeResource({name:'gate',scope:'machine',root:process.cwd(),capacity:1,
       browserCapacityProvider:()=>1,browser:true,remote:true,runnerOnly:true,

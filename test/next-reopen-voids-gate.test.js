@@ -1,6 +1,7 @@
 /** A reopen or reject after an item's green gate sends it back to work, so next offers it again [C7,#2955]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { addItem, nextFor } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
@@ -9,8 +10,7 @@ const HEAD = 'a'.repeat(40);
 /** Record a green submit job at the item's head the way the submit queue does, finished at the given time. */
 function green(board, id, at) {
   board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(HEAD, id);
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(`submit_handoff:${id}`, JSON.stringify({ commit: HEAD, agentId: 'web-1', state: 'green', at }));
+  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: HEAD, agentId: 'web-1', state: 'green', at });
 }
 
 /** Append one board event of the given kind for the item at the given time. */
