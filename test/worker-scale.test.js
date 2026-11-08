@@ -10,6 +10,7 @@ import * as store from '../src/board.js';
 import { parseWorkerBudget } from '../packages/config/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { fixtureAddItem, fixtureRegister, openGatedWebBoard } from './worker-scale-fixture.js';
 import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 import { planWorkerScale } from '../apps/cli/src/shell/worker-scale.js';
 import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
@@ -189,12 +190,12 @@ test('an unreadable or malformed ledger refuses instead of granting a fresh budg
 test('the board observation counts every live local seat and held claims and reviews as busy [B26,C7]', t => {
   let at = Date.parse('2026-10-28T12:00:00Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
-  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
-  const builder = store.register(board, { lane: 'web', path: '/fixture/builder' });
-  const reviewer = store.register(board, { lane: 'web', path: '/fixture/reviewer' });
-  const idle = store.register(board, { lane: 'web', path: '/fixture/idle' });
+  fixtureRegister(board, { lane: 'coordinator', path: '/fixture/main' });
+  const builder = fixtureRegister(board, { lane: 'web', path: '/fixture/builder' });
+  const reviewer = fixtureRegister(board, { lane: 'web', path: '/fixture/reviewer' });
+  const idle = fixtureRegister(board, { lane: 'web', path: '/fixture/idle' });
   const freeze = item => ({ text: item.item_title, digest: `synthetic:${item.item_id}` });
-  const add = title => store.addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files: web/${title}.js` });
+  const add = title => fixtureAddItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files: web/${title}.js` });
   const claimed = add('claimed');
   store.claim(board, claimed, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
   const reviewed = add('reviewed');
@@ -215,6 +216,62 @@ test('the board observation counts every live local seat and held claims and rev
   assert.equal(observed.builds, 1, 'the open ready item waits for a build');
   const plan = planWorkerScale({ ...observed, worth: 2, budget: parseWorkerBudget('40/day'), usedSpend: 0, cycleHours: 1 });
   assert.deepEqual(plan.stop, [idle], 'K below the busy seats stops the idle seat only');
+});
+
+/** Queue a gate job at an item's head the way the jobs cell stores it: a job row and a step carrying the hand-off record. */
+function queueGate(board, id, commit, at) {
+  const record = { id: `job-${id}`, commit, state: 'queued', at: new Date(at).toISOString() };
+  board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_candidate, job_created, job_updated, job_step) VALUES (?, ?, ?, ?, ?, ?, ?)').run(record.id, 'gate', id, commit, at, at, 'queued');
+  board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)').run(record.id, 'queued', 0, JSON.stringify({ commit, record }), at);
+}
+
+test("clause 1: observeWorkers counts a build only when nextFor would offer it to a fresh seat on the scaler's lane and route: holds, dependencies, collisions and queued or green gates excluded [B26,C7]", t => {
+  const at = Date.parse('2026-10-28T12:00:00Z');
+  const { board, ids } = openGatedWebBoard(t, at, 30);
+  const seat = fixtureRegister(board, { lane: 'web', path: '/fixture/web' });
+  const seatId = typeof seat === 'string' ? seat : seat.agent_id ?? seat.id;
+  /** The items a real fresh seat is offered by nextFor itself, one ask after another, each answer left out of the next. */
+  const offeredByNextFor = budget => {
+    const omitIds = [];
+    for (;;) {
+      const { item } = store.nextFor(board, { agentId: seatId, lane: 'web', buildBudgetMinutes: budget, omitIds });
+      if (!item || omitIds.includes(item.item_id)) return omitIds.length;
+      omitIds.push(item.item_id);
+    }
+  };
+  const scaled = budget => observeWorkers(board, { lane: 'web', managed: [], now: at, buildBudgetMinutes: budget }).builds;
+  assert.equal(scaled(30), 30, 'ungated open items are builds');
+  assert.equal(scaled(30), offeredByNextFor(30));
+  for (const [minutes, budget, expected] of [['20', 15, 29], ['20', 60, 30], ['50', 15, 29], ['50', 60, 30], ['70', 60, 29]]) {
+    board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, minutes);
+    assert.equal(scaled(budget), offeredByNextFor(budget), `the scaler's count equals what nextFor offers for a ${minutes}-minute estimate at a ${budget}-minute budget`);
+    assert.equal(scaled(budget), expected, `a ${minutes}-minute estimate at a ${budget}-minute budget`);
+    board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_expected_build_minutes:${ids[0]}`);
+  }
+  store.holdItem(board, ids[1], { agentId: 'coordinator', reason: 'held for the clause 1 case' });
+  assert.equal(scaled(30), offeredByNextFor(30), 'a held item is no build for either');
+  assert.equal(scaled(30), 29);
+  const commit = id => String(id).padStart(40, 'c');
+  for (const id of ids) {
+    board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(commit(id), id);
+    queueGate(board, id, commit(id), at - 1000);
+  }
+  assert.equal(scaled(30), 0, 'a queued gate at the head leaves nothing to build');
+  assert.equal(offeredByNextFor(30), 0, 'and nextFor offers nothing either');
+});
+
+test('clause 2: With 30 open items that are all gated or held, one cycle plans 0 launches [B26,C7]', t => {
+  const at = Date.parse('2026-10-28T12:00:00Z');
+  const { board, ids } = openGatedWebBoard(t, at, 30);
+  assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
+  const commit = id => String(id).padStart(40, 'c');
+  for (const id of ids) {
+    board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(commit(id), id);
+    queueGate(board, id, commit(id), at - 1000);
+  }
+  const observed = observeWorkers(board, { lane: 'web', managed: [], now: at });
+  const plan = planWorkerScale({ ...observed, worth: 5, budget: parseWorkerBudget("40/day"), usedSpend: 0, cycleHours: 1 });
+  assert.equal(plan.launch, 0, 'one cycle plans 0 launches');
 });
 
 test('clause 1: workers.budget parses and stores spend per day, and the scaler ledger records spend instead of usedHours [C7]', t => {

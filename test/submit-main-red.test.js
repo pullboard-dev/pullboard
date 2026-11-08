@@ -26,7 +26,7 @@ import { cli } from './submit-main-red-fixture.js';
 import { submittedProof } from './submit-main-red-fixture.js';
 import { source } from './submit-main-red-fixture.js';
 
-test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3]', t => {
+test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3,C7] clause 1', t => {
   const known = fixture(t);
   const cache = join(known.root, '.git/pullboard/main-red.json');
   writeFileSync(cache, JSON.stringify({ version: 1, entries: { [known.main]: { 'test/inherited.test.js': { result: 'red' } } } }), { mode: 0o600 });
@@ -40,7 +40,9 @@ test('submit accepts a test that fails the same way on main and refuses one red 
   assert.equal(report.gate.knownMainFailures.main, known.main);
   assert.deepEqual(report.gate.knownMainFailures.failures.map(({ file, name }) => ({ file, name })),
     [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }]);
-  assert.deepEqual(submittedProof(known).submissionProof.knownMainFailures, report.gate.knownMainFailures);
+  // The receipt keeps a display-only firstError the board record does not store: compare the stored fields.
+  const stored = ({ main, failures }) => ({ main, failures: failures.map(({ file, name, item, signature }) => ({ file, name, item, signature })) });
+  assert.deepEqual(stored(submittedProof(known).submissionProof.knownMainFailures), stored(report.gate.knownMainFailures));
   const changed = fixture(t, { candidate: source('shared failure [G1]') + source('new item failure [G1]').split('\n').slice(2).join('\n') });
   const refused = cli(changed, changed.builder, 'submit', String(changed.item));
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
@@ -208,9 +210,10 @@ test('an exact main red with an open repair retains its reviewer repair link [V4
 
 test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', t => {
   for (const options of [
-    { candidate: source('shared failure [G1]', 3) },
+    // The check names the case's file, so it is the item's own and keeps the exact signature (neighbouring cases pass by name).
+    { candidate: source('shared failure [G1]', 3), mainRed: false, check: 'node test/runner.js test/inherited.test.js' },
     { gateSuffix: '; exit 7' },
-    { check: 'node test/runner.js', candidate: source('shared failure [G1]', 3) },
+    { check: 'node test/runner.js', candidate: source('shared failure [G1]', 3), mainRed: false },
   ]) {
     const box = fixture(t, options);
     const result = cli(box, box.builder, 'submit', String(box.item));

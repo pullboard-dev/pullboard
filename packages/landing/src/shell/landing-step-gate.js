@@ -12,6 +12,7 @@ import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { reusableSubmitFiles } from './landing-receipt-reuse.js';
 import { gateVerdictOf } from './main-red-receipt.js';
 import { toolingFor } from '../../../pin/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
@@ -80,7 +81,11 @@ function batchAffectedTests(state, readEvents, readItem) {
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
-    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit }) : { files: submitted };
+    // The README badge files the landing itself writes select nothing; counted as changes they sent the whole batch to
+    // the full gate, which runs every unit the submits already proved [C7].
+    const badges = new Set((state.landingWrites ?? []).filter(file => /^docs\/badges\/[^/]+\.json$/u.test(file)));
+    const changed = badges.size ? git(root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, commit]).split('\0').filter(file => file && !badges.has(file)) : undefined;
+    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, ...(changed ? { changed } : {}) }) : { files: submitted };
     if (affected.full && affected.reason !== 'the change reaches every test file') return { full: true, fullGate: true, reason: affected.reason, mandatory, files: [] };
     const named = new Set(affected.files);
     // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
@@ -103,11 +108,21 @@ function batchAffectedTests(state, readEvents, readItem) {
 /**
  * The project's own full configured gate, used when no narrower plan can be established [#2897].
  * Why no VALUE_GATE mark: the command is the unchanged configured gate, so its green run stamps the tree and the
- * landing's own pre-push reads that stamp instead of running the whole gate a second time (#3137).
+ * landing's own pre-push reads that stamp instead of running the whole gate a second time (#3137). With owed files the
+ * command is no longer the configured gate, so it carries the mark like any affected plan.
+ *
+ * @param {any} state
+ * @param {string[]} [owed] - deferred and invariant test files the plan must still run after the configured gate
  */
-function fullGatePlan(state) {
+function fullGatePlan(state, owed = []) {
   const config = { ...state.config };
-  return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+  const runner = state.config.affectedTests?.trim();
+  if (!runner || !owed.length) return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+  // Files a submit deferred to landing, and the submit invariants, are owed whatever the plan: a configured gate such
+  // as `true` runs none of them, so an unselectable merged change (a badge file) landed with no deferred test run [C7].
+  const files = [...new Set(owed)].sort();
+  const command = `(\n${config.gate}\n) && ${runner} ${files.map(file => quote('./' + file)).join(' ')}`;
+  return { config: { ...config, gate: command, [VALUE_GATE]: true }, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
@@ -156,7 +171,9 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
     // for the project and already includes the item check (the source-matched proof was checked at submit).
     return { ...fullGatePlan(state), files: selection.files };
   }
-  if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
+  if (selection.full && selection.reason !== 'the change reaches every test file') {
+    return deferred.length ? fullGatePlan(state, auditOnlySplit(state.config, [...selection.mandatory, ...deferred]).files) : fullGatePlan(state);
+  }
   const { files, left } = auditOnlySplit(state.config, [...new Set([...selection.files, ...deferred])]);
   if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
   const affectedCommand = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
@@ -391,14 +408,15 @@ function submittedUnits(state, commit, readEvents = id => store.events(state.boa
   for (const entry of state.batch.items) {
     const event = readEvents(entry.id).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
-    const files = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof?.files ?? [] : [];
-    if (!files.length) continue;
+    const proof = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof : null;
+    if (!proof?.files?.length) continue;
     const [then, now] = packageHashesAt(root, [entry.commit, commit]);
-    for (const file of files) {
+    const { reuse } = reusableSubmitFiles({ proof, closureUnchanged: file => {
       const row = rows.get(file);
-      if (!row || proven.has(file) || blob(entry.commit, file) === null || blob(entry.commit, file) !== blob(commit, file)) continue;
-      if (row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash)) proven.add(file);
-    }
+      return Boolean(row) && blob(entry.commit, file) !== null && blob(entry.commit, file) === blob(commit, file)
+        && row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash);
+    } });
+    for (const file of reuse) proven.add(file);
   }
   return proven;
 }

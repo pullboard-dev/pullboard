@@ -15,6 +15,14 @@ import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
 import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
 import { admitGateDrive } from '../../../packages/drive/index.js';
+import { drainLoop } from '../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../packages/drive/index.js';
+import { recordJobRow } from '../../../packages/drive/index.js';
+import { rowSink } from '../../../packages/drive/index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { Refused } from '../../../packages/kernel/index.js';
+import { drivenHandoffGate } from '../src/shell/submit-handoff-worker.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
@@ -29,14 +37,13 @@ function document(result) {
 }
 
 /**
- * Queue one real gate for a committed fixture item and launch the real gate driver for it, as the dispatcher does.
- * With `leak`, the driver process loads a module that keeps a handle open forever, the way a leaked board socket did
- * on 4 Nov (#3108), so only an explicit exit ends it.
+ * A fixture project whose claimed item has a committed page and one native queued submit admitted to a gate driver,
+ * as the dispatcher leaves it just before it starts the driver [C7].
  *
- * @param {any} t - The running test, for cleanup.
- * @param {{ leak?: boolean }} [options]
+ * @param {import('node:test').TestContext} t
+ * @returns {{ box: any, board: any, id: number, commit: string, directory: string, request: string, owner: string, job: string, boardFile: string }}
  */
-async function launchQueuedGate(t, { leak = false } = {}) {
+function admittedGate(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
@@ -56,7 +63,8 @@ async function launchQueuedGate(t, { leak = false } = {}) {
   const built = helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready page [G1]');
   assert.equal(built.status, 0, built.stderr);
   const commonDir = join(box.repo, '.git');
-  const board = openBoard(join(commonDir, 'pullboard/board.sqlite'), undefined, { gitRoot: box.web });
+  const boardFile = join(commonDir, 'pullboard/board.sqlite');
+  const board = openBoard(boardFile, undefined, { gitRoot: box.web });
   t.after(() => board.db.close());
   const item = getItem(board, id);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
@@ -73,6 +81,31 @@ async function launchQueuedGate(t, { leak = false } = {}) {
   // The dispatcher admits the gate to a driver id on the board, then starts the gate driver under it [C7].
   const owner = `test-driver:${queued.job.id}`;
   admitGateDrive(board.db, queued.job.id, { owner });
+  return { box, board, id, commit, directory, request, owner, job: queued.job.id, boardFile };
+}
+
+/** Submit's own stage names, in the order canonical Submit hands them to its stage runner. */
+const SUBMIT_STAGES = ['preflight', 'selection', 'cells', 'doctrine', 'static', 'tests'];
+
+/**
+ * The step log a drive job holds as plain data: each step's name, sequence and payload, in the order written.
+ *
+ * @param {ReturnType<typeof jobView>} view
+ */
+function stepLog(view) {
+  return view.steps.map(({ name, seq, payload }) => ({ name, seq, payload }));
+}
+
+/**
+ * Queue one real gate for a committed fixture item and launch the real gate driver for it, as the dispatcher does.
+ * With `leak`, the driver process loads a module that keeps a handle open forever, the way a leaked board socket did
+ * on 4 Nov (#3108), so only an explicit exit ends it.
+ *
+ * @param {any} t - The running test, for cleanup.
+ * @param {{ leak?: boolean }} [options]
+ */
+async function launchQueuedGate(t, { leak = false } = {}) {
+  const { box, board, id, commit, directory, request, owner } = admittedGate(t);
   const env = { ...box.env };
   if (leak) {
     const leakModule = join(directory, 'leaked-handle.mjs');
@@ -96,6 +129,110 @@ test('launched gate driver completes a native queued request without unsettled a
   assert.equal(getItem(board, id).item_commit, commit);
   assert.equal(JSON.parse(readFileSync(join(directory, 'submission.json'), 'utf8')).commit, commit);
   assert.equal(existsSync(join(directory, 'source')), false, 'the launched supervisor removes its owned source');
+});
+
+/**
+ * The gate driver process with two seams: Submit is a stand-in that runs Submit's stage names through the driver
+ * (its last stage refuses as a gate red), and the recorder is the real boardRecorder, after which the board file is
+ * made unreadable until the recorder closes. Each stage tries to read the board file and reports what it met.
+ */
+const UNREADABLE_DRIVE = `
+const a = JSON.parse(process.env.GATE_ROWS_TEST);
+const nativeBoard = await import(a.native);
+const worker = await import(a.worker);
+const { Refused } = await import(a.kernel);
+const { chmodSync, readFileSync } = await import('node:fs');
+const files = [a.board, a.board + '-wal', a.board + '-shm'];
+const mode = bits => { for (const file of files) { try { chmodSync(file, bits); } catch {} } };
+const seen = [];
+const record = (board, file) => {
+  const recorder = worker.boardRecorder(board, file);
+  mode(0);
+  return { ...recorder, close: () => { try { recorder.close(); } finally { mode(0o600); } } };
+};
+const submit = async ctx => {
+  await ctx.runGateStages(a.stages.map(name => ({ name, run: async () => {
+    try { readFileSync(a.board); seen.push(name + ':readable'); } catch (error) { seen.push(name + ':' + error.code); }
+    if (name === 'tests') throw new Refused('GATE_RED', 'the stand-in tests stage is red');
+  } })));
+};
+await worker.driveSubmitHandoff(a.request, { nativeBoard, owner: a.owner, record, submit });
+process.stdout.write(JSON.stringify({ seen }));
+`;
+
+test('clause 1: a drive run through driveSubmitHandoff holds no board handle: with the board file unreadable to the drive, its step, ticket and verdict rows reach the board through the coordinator-side recorder [C7]', async t => {
+  const { box, board, id, request, owner, job, boardFile } = admittedGate(t);
+  const env = { ...box.env, GATE_ROWS_TEST: JSON.stringify({ request, owner, board: boardFile, stages: SUBMIT_STAGES,
+    native: new URL('../src/core/native-board.js', import.meta.url).href,
+    worker: new URL('../src/shell/submit-handoff-worker.js', import.meta.url).href,
+    kernel: new URL('../../../packages/kernel/index.js', import.meta.url).href }) };
+  // budget: the existing owned-worker hang ceiling; assertions concern the recorded rows, not elapsed time.
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', UNREADABLE_DRIVE],
+    { cwd: box.web, env, encoding: 'utf8', timeout: 120_000 });
+  assert.equal(result.status, 0, result.context);
+  const { seen } = JSON.parse(result.stdout.trim().split('\n').at(-1));
+  assert.deepEqual(seen, SUBMIT_STAGES.map(name => `${name}:EACCES`), 'every stage ran while the board file was unreadable to the drive');
+  const drive = jobView(board.db, gateDriveJobId(job));
+  assert.deepEqual(drive.steps.map(step => step.name),
+    ['admitted', 'captured', 'running', ...SUBMIT_STAGES.map(() => 'section.done'), 'collected', 'verdict'],
+    'after the dispatcher\'s admission, the recorder wrote every step row the drive emitted, in order');
+  assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => [step.payload.section, step.payload.outcome]),
+    SUBMIT_STAGES.map(name => [name, name === 'tests' ? 'fail' : 'pass']));
+  const verdict = drive.steps.find(step => step.name === 'verdict').payload;
+  assert.equal(verdict.verdict, 'red', 'the verdict row reached the board');
+  assert.equal(drive.leaseOwner, null, 'the verdict row freed the lease the drive took by its ticket rows');
+  assert.equal(drive.step, 'done', 'the coordinator finished the drive job after the verdict');
+  const handoff = submitHandoff(board, id);
+  assert.equal(handoff.state, 'red', JSON.stringify(handoff));
+});
+
+test('clause 2: a real queued gate on a fixture board records its job steps and verdict in order [C7]', async t => {
+  const { box, board, id, request, owner, job } = admittedGate(t);
+  // budget: the existing owned-worker hang ceiling; assertions concern the recorded steps, not elapsed time.
+  const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
+    { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
+  assert.equal(result.status, 0, result.context);
+  assert.equal(submitHandoff(board, id).state, 'green');
+  const drive = jobView(board.db, gateDriveJobId(job));
+  const collected = drive.steps.find(step => step.name === 'collected').payload;
+  assert.ok(collected.order.length > 0, 'the gate ran its sections');
+  assert.deepEqual(drive.steps.map(step => step.name),
+    ['admitted', 'captured', 'running', ...collected.order.map(() => 'section.done'), 'collected', 'verdict'],
+    'the dispatcher\'s admission, then captured, running, one section step per section, collected and the verdict');
+  // Section steps are written as each stage settles, so their sequence is settlement order; each names its place in the gate's order.
+  const sections = drive.steps.filter(step => step.name === 'section.done');
+  assert.deepEqual(sections.map(step => step.payload.section).sort(), [...collected.order].sort(), 'one section step per gate section');
+  assert.deepEqual(sections.map(step => step.payload.index), sections.map(step => collected.order.indexOf(step.payload.section)),
+    'each section step names its place in the gate\'s own section order');
+  assert.deepEqual(sections.map(step => step.seq), collected.order.map((_, index) => index), 'section steps are numbered in the order written');
+  assert.equal(collected.result.code, 0);
+  assert.equal(drive.steps.at(-1).payload.verdict, 'green');
+  assert.equal(drive.step, 'done');
+});
+
+test('clause 2: a gate driven over rows to the recorder writes the same job steps and verdict, in order, as a gate driven on the board handle [C7]', async t => {
+  const { box, board, commit } = admittedGate(t);
+  /** A stand-in for canonical Submit whose stages run in Submit's order and whose tests stage is red. */
+  const submit = async ctx => {
+    await ctx.runGateStages(SUBMIT_STAGES.map(name => ({ name, run: async () => {
+      if (name === 'tests') throw new Refused('GATE_RED', 'the stand-in tests stage is red');
+    } })));
+  };
+  /** Drive one whole-gate job to its verdict, on the board handle or over rows. */
+  const drive = async (id, rows) => {
+    createJob(board.db, { id, kind: 'gate', item: 1, candidate: commit, base: commit, now: 1 });
+    const gate = drivenHandoffGate({}, { item: 1 }, { waitInventory: async () => null, submit });
+    const target = rows ? rowSink(jobView(board.db, id), row => recordJobRow(board.db, row)) : board.db;
+    const last = await drainLoop(target, id, { owner: 'driver-rows', repo: box.web, gate, intervalMs: 0, now: () => 5_000 });
+    assert.equal(last.phase, 'verdict');
+    return stepLog(jobView(board.db, id));
+  };
+  const before = await drive('gate-board-handle', false);
+  const after = await drive('gate-row-sink', true);
+  assert.deepEqual(before.map(step => step.name), ['captured', 'running', ...SUBMIT_STAGES.map(() => 'section.done'), 'collected', 'verdict']);
+  assert.deepEqual(after, before, 'the same steps, sequences and payloads, in the same order');
+  assert.equal(after.at(-1).payload.verdict, 'red');
+  assert.equal(jobView(board.db, 'gate-row-sink').leaseOwner, null, 'the verdict row frees the lease as the board-handle verdict does');
 });
 
 test('clause 1: a gate driver that recorded its terminal result exits within 30 s despite a leaked handle, freeing its slot [C7]', async t => {
