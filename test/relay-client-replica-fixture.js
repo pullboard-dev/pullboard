@@ -125,6 +125,24 @@ export async function assertOriginalOutcomeDelivery(uploads, key, boardId, submi
   assert.equal(moves[0].recipient, submitter);
 }
 
+/**
+ * Count the relay uploads once earlier commands have finished sending. A detached sender can land a
+ * move from an earlier command (for example the review comparison fact `pullboard verify` appends,
+ * apps/cli/src/shell/commands/verify.js) inside a later window, so the count is taken only after
+ * status round trips find the outbox empty and the upload count unchanged twice in a row [H16,C7].
+ */
+export async function settledUploadCount(relay, status) {
+  let stable = 0;
+  let seen = -1;
+  for (let attempt = 0; attempt < 40 && stable < 2; attempt += 1) {
+    const { relay: link } = await status();
+    stable = (link?.outbox ?? []).length === 0 && relay.uploads.length === seen ? stable + 1 : 0;
+    seen = relay.uploads.length;
+  }
+  assert.equal(stable, 2, 'the relay outbox settles');
+  return relay.uploads.length;
+}
+
 /** Make a submitted commit locally verifiable by the other replica's real Git history. */
 export function mergeCandidateForReview(root, env, sourceRoot, commit, gitAt) {
   gitAt(root, env, 'fetch', sourceRoot, commit);
