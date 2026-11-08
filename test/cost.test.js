@@ -18,6 +18,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';
+import { budgetState } from '../packages/stats/index.js';
+import { DatabaseSync } from 'node:sqlite';
 import { replayHistory } from '../packages/stats/index.js';
 import { projectAgentActivity } from '../src/board-activity-feed.js';
 import { activityInterests } from '../src/board-activity-feed.js';
@@ -477,4 +479,33 @@ test('clause 1: a budget setting is optional, off by default and validated [N2]'
   } finally {
     if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
   }
+});
+
+const model = 'm';
+
+test('a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  const now = Date.parse('2026-11-08T12:00:00Z');
+  const put = (key, observedAt, outputTokens) => db.prepare('INSERT INTO board_meta VALUES(?,?)').run(key,
+    JSON.stringify({ observedAt, shared: false, records: [{ model, inputTokens: 0, outputTokens }] }));
+  // One dollar per output token, so spend reads straight off the token counts.
+  const prices = { [model]: { output: 1_000_000 } };
+  const board = { db };
+  const board_ = (budget) => budgetState(board, prices, budget, now);
+  put('cost:1:a', now - 86_400_000 * 2, 50);
+  put('cost:2:a', now - 1000, 7);
+  assert.deepEqual(board_({ dailyUsd: 10 }), { state: 'ok', spend: 7, limit: 10, which: 'dailyUsd' }, 'old days stay out of the daily spend');
+  assert.equal(board_({ dailyUsd: 8 }).state, 'warn', '7 of 8 is above 80 percent');
+  assert.equal(board_({ dailyUsd: 7 }).state, 'stop', 'spend at the limit stops');
+  assert.deepEqual(board_({ dailyUsd: 100, totalUsd: 60 }), { state: 'warn', spend: 57, limit: 60, which: 'totalUsd' }, 'the total counts every day');
+  assert.equal(board_({ dailyUsd: 7, totalUsd: 1000 }).state, 'stop', 'either limit stops');
+});
+
+test('clause 2: with no budget set budgetState returns ok with no limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: 0, records: [{ model, inputTokens: 0, outputTokens: 5 }] }));
+  assert.deepEqual(budgetState({ db }, { [model]: { output: 1_000_000 } }, undefined, Date.now()), { state: 'ok', spend: 5, limit: null, which: null });
+  assert.equal(budgetState({ db }, { [model]: { output: 1_000_000 } }, {}, Date.now()).limit, null);
 });
