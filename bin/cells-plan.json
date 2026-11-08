@@ -3454,6 +3454,7 @@
   ],
   "allowedEdges": [
     "activity->store",
+    "apps/cli->pin",
     "api->store",
     "apps/lib->store",
     "blueprints->store",
@@ -3462,6 +3463,7 @@
     "github->store",
     "items->store",
     "keys->store",
+    "landing->pin",
     "landing->store",
     "link->store",
     "outbox->store",
