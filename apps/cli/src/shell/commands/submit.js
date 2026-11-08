@@ -16,6 +16,8 @@ import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
+import { checkRunTickNotes } from '../../../../../packages/state/index.js';
+import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
 import { redGateReport } from '../../../../../packages/gate/index.js';
 import { runGateStages } from '../../../../../packages/gate/index.js';
@@ -207,6 +209,7 @@ import {
   claimOrdered,
   claimFreezer,
   withBoard,
+  actOn,
 } from '../cli.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
@@ -1004,6 +1007,32 @@ async function preflightHere(ctx) {
 }
 
 /** Run `pullboard submit` and return its exit code. */
+/**
+ * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ */
+export async function recordClauseTicks(io, itemId, files) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
+/**
+ * Tick the claimed item's test clauses after a green `pullboard check` run of its frozen check, a test file or a shell command.
+ * Why: a check such as `test ! -e src/x.js` names no file `pullboard test` could run, yet proves its clauses [C7].
+ */
+export async function recordCheckTicks(io, itemId) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of checkRunTickNotes(found, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
 export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
