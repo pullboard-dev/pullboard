@@ -18,7 +18,8 @@ test('runner add observes a desktop before the first GUI-marked gate runs [C7,V4
   assert.equal(box.result(run.stdout).isGreen, true);
   assert.equal(existsSync(box.marker), true, 'the GUI-marked file actually executed on the first job');
   assert.equal(box.trace('').length, 1);
-  assert.equal(box.trace('.gui-probes').length, 1, 'a completed job was not needed to discover the initial desktop');
+  // Live-load dispatch is on by default (811f916bc2), so the job's own admission refreshes the measurement with a second probe.
+  assert.equal(box.trace('.gui-probes').length, 2, 'only the dispatch load refresh probed after registration; no completed job was needed to discover the initial desktop');
 });
 
 test('registration records known absence and refreshes a previous desktop observation [C7,V4]', t => {
@@ -43,9 +44,14 @@ test('an inconclusive desktop probe remains unknown rather than inventing absenc
 test('failed registration transport replaces a stale desktop positive with unknown [C7,V4]', t => {
   const box = registrationGuiFixture(t);
   assert.equal(box.register().gui, true);
+  const before = box.list()[0];
   box.transportDown();
-  assert.equal(box.register().gui, null);
-  assert.equal(box.list()[0].gui, null, 'a failed probe cannot retain a stale positive admission fact');
+  // Registration now enrolls the runner's signing key in the same probe (RUNNER_SETUP), so a failed probe refuses instead of recording unknown.
+  const failed = box.registerRaw();
+  assert.equal(failed.status, 1, failed.context);
+  assert.match(`${failed.stdout}${failed.stderr}`, /"code": "RUNNER_SETUP"[\s\S]*did not complete its registration probe/u);
+  const after = box.list()[0];
+  assert.equal(after.guiObservedAt, before.guiObservedAt, 'a failed probe never refreshes the desktop observation, so the stale positive keeps its old observation time');
   assert.equal(box.trace('').length, 0);
   const probes = box.trace('.gui-probes');
   assert.equal(probes.length, 2);

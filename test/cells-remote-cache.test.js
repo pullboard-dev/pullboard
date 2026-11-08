@@ -16,6 +16,7 @@ import { createFixtureMemo } from '../packages/codemap/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { submitCellsRemoteCommand } from '../apps/cli/src/shell/submit-cells-remote.js';
+import { produceAcceptedCells } from '../apps/lib/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -64,6 +65,16 @@ test('main moved by one changed file: a fresh job updates the cached ancestor in
   assert.deepEqual(canonical(base), canonical(cellInventory(job, parsers)), 'the updated inventory equals a full census of main B');
 });
 
+/**
+ * Make a synthetic commit the job's main and run the real background producer for it, as main's audit does after a
+ * landing; the cells stage reads only a completed accepted inventory and never builds one inline.
+ */
+async function producedMain(job, main) {
+  git(job, 'branch', '-f', 'main', main);
+  const produced = await produceAcceptedCells(job, randomUUID(), main);
+  assert.ok(produced?.available === true || produced?.status === 0, `the accepted inventory producer completed for ${main}`);
+}
+
 /** Run the runner's actual remote cells command in a job checkout, timing its whole cells stage. */
 function remoteCells(job, main, source) {
   const command = submitCellsRemoteCommand({ main, source, criterion: 'one cell file changes', title: 'probe', cutRows: [], node: process.execPath });
@@ -76,11 +87,12 @@ function remoteCells(job, main, source) {
   return seconds;
 }
 
-test('on this repository, a runner job whose main moved since the cached one runs the cells stage in under 30 s [C7]', { timeout: 590_000 }, t => {
+test('clause 1: on this repository, a runner job whose main moved since the cached one runs the cells stage in under 30 s [C7]', { timeout: 590_000 }, async t => {
   const repository = fileURLToPath(new URL('..', import.meta.url));
   const cellFile = 'packages/landing/src/shell/landing-step-failures.js';
   const first = freshJob(t, repository), mainA = git(first, 'rev-parse', 'HEAD').trim();
   const sourceA = commitOn(first, mainA, cellFile, `${readFileSync(join(first, cellFile), 'utf8')}// probe ${randomUUID()}\n`, 'a cell changes');
+  await producedMain(first, mainA);
   const warmup = remoteCells(first, mainA, sourceA);
   t.diagnostic(`main A job: ${warmup.toFixed(1)} s`);
 
@@ -88,6 +100,7 @@ test('on this repository, a runner job whose main moved since the cached one run
   const later = freshJob(t, repository);
   const mainB = commitOn(later, mainA, 'test/cells-probe-main.test.js', `export const moved = '${randomUUID()}';\n`, 'main moves by one file');
   const sourceB = commitOn(later, mainB, cellFile, `${readFileSync(join(later, cellFile), 'utf8')}// probe ${randomUUID()}\n`, 'a cell changes');
+  await producedMain(later, mainB);
   const moved = remoteCells(later, mainB, sourceB);
   t.diagnostic(`main B job: ${moved.toFixed(1)} s`);
   assert.ok(moved < 30, `the cells stage took ${moved.toFixed(1)} s, over 30 s`); // budget: approved bar, cells stage under 30 s after main moves

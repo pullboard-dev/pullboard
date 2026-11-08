@@ -29,14 +29,14 @@ export async function run(io, { first, values }) {
   if (historical && me.id === COORDINATOR) {
     const item = store.getItem(board, idArg(first));
     if (['verified', 'submitted'].includes(item.item_status) && item.item_commit && !item.item_merged_commit) {
-      inferred = requireTrunkConflict(commit => trunkMerge(ctx.info.root, commit), item.item_commit, historical.files);
+      inferred = requireTrunkConflict(commit => trunkMerge(ctx.info.root, commit, undefined, { raw: true }), item.item_commit, historical.files);
     }
   }
   const result = await ordered(ctx, board, 'reopen', [idArg(first), { agentId: me.id, note,
     ...(inferred ? { conflict: inferred } : {}),
     ...(values['withdraw-verdict'] === undefined ? {} : { withdrawVerdict: values['withdraw-verdict'] }),
     ...(values.cause !== undefined ? { cause: values.cause } : {}),
-    ...(values.conflict === undefined ? {} : { conflict: reopenConflict({ item: store.getItem(board, idArg(first)), coordinator: me.id === COORDINATOR, values: values.conflict, trunkMerge: (commit) => trunkMerge(ctx.info.root, commit) }) }) }]);
+    ...(values.conflict === undefined ? {} : { conflict: reopenConflict({ item: store.getItem(board, idArg(first)), coordinator: me.id === COORDINATOR, values: values.conflict, trunkMerge: (commit) => trunkMerge(ctx.info.root, commit, undefined, { raw: true }) }) }) }]);
   io.result?.(result);
   io.say(reopenedLine(first, result));
   return 0;

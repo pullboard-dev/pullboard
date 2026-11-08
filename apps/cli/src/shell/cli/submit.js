@@ -7,6 +7,7 @@ import { withBoard } from '../cli-context.js';
 import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../../packages/verify/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
@@ -24,6 +25,34 @@ export function dirtyFiles(root) {
 }
 
 /**
+ * The test files from `candidates` that the selected gate runs: all of them when no tier plan applies, otherwise only
+ * the plan's units, since journeys are deferred to the landing batch and nothing ticks a clause for a file never run [C7].
+ *
+ * @param {Iterable<string>} candidates
+ * @param {string[] | null} units the tier plan's units, or null when the repository has no tier plan
+ * @returns {Set<string>}
+ */
+export function selectedGateFiles(candidates, units) {
+  const allowed = units ? new Set(units) : null;
+  return new Set([...candidates].filter(file => /\.test\.js$/u.test(file) && (!allowed || allowed.has(file))));
+}
+
+/**
+ * The test files the gate will run for this item: test files committed since the claim plus the files its brief lists
+ * under "Test:" that exist at HEAD, kept to the gate's tier selection. A [test] clause naming one is ticked by the gate
+ * run, not by a builder fact [C7]. A selection that cannot be read names no file, so the clause stays unticked.
+ */
+export function gateTestFiles(root, item) {
+  const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
+  const listed = /(?:^|\n)Test:\s*\n?((?:\s*-?\s*\S+\.test\.js\s*\n?)+)/u.exec(item.item_brief ?? '')?.[1] ?? '';
+  const declared = listed.split('\n').map(line => line.replace(/^\s*-?\s*/u, '').trim()).filter(Boolean)
+    .filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
+  let units = null;
+  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return new Set(); }
+  return selectedGateFiles([...changed, ...declared], units);
+}
+
+/**
  * The files an item's own commits changed since its claim (N21). First parents only, so main merged
  * into a lane branch is not counted as the item's work; and nothing another item submitted, such as
  * a verified dependency fast-forwarded in, which merges no commit to skip.
@@ -37,7 +66,7 @@ export function dirtyFiles(root) {
 export function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 
@@ -71,6 +100,34 @@ export function refuseUnverifiedStack(root, board, item, commit, trunk) {
   }
 }
 
+/**
+ * Refuse a head whose new commits since main all belong to another item, so a branch is never gated as the wrong item [V1].
+ *
+ * Why: #2512 was once submitted from #2344's worktree and #2344's branch was gated as #2512. Commits with no
+ * trailer, and branches with no trailers at all, stay allowed; every new source commit counts, also those a --no-ff merge brings in; only another item's trailer with none of this item's refuses.
+ *
+ * @param {string} root
+ * @param {any} item - The item being submitted.
+ * @param {string} commit - The head being submitted.
+ * @param {{ commit: string } | null} trunk - Current accepted main.
+ * @returns {void}
+ */
+export function refuseWrongBranch(root, item, commit, trunk) {
+  if (!trunk?.commit) return;
+  const log = tryGit(root, ['log', '--no-merges', '--format=%(trailers:key=Pullboard-Item,valueonly,separator=%x2C)%x01', `${trunk.commit}..${commit}`]);
+  if (log.status !== 0) return;
+  const named = new Set(log.stdout.split('\x01').flatMap((entry) => entry.split(',')).map((value) => Number(value.trim().replace(/^#/u, ''))).filter((value) => Number.isSafeInteger(value) && value > 0));
+  if (!named.size || named.has(item.item_id)) return;
+  const other = [...named].sort((a, b) => a - b)[0];
+  throw new Refused('WRONG_BRANCH', `this head's new commits belong to item #${other}, not #${item.item_id}; submit #${other} from here, or switch to the branch built for #${item.item_id}`);
+}
+
+/** Run every stack refusal a submit owes: another item's unverified commits, then a head built for another item [V1]. */
+export function refuseUnsubmittableStack(root, board, item, commit, trunk) {
+  refuseWrongBranch(root, item, commit, trunk);
+  refuseUnverifiedStack(root, board, item, commit, trunk);
+}
+
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
 export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   const { root } = ctx.info;
@@ -87,8 +144,8 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
     submission.activity = { receipt: { recorded: false, code: error.code ?? 'ACTIVITY_DELIVERY_FAILED', message: error.message } };
     ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
   }
-  // A green gate stores the review packet for this head now, from what the gate just recorded (#2451).
-  if (gate.green) await recordReviewPacket(ctx, id, (work) => withBoard(ctx, (board) => work(board, store)), { errors: gate.failures ?? [] });
+  // A green gate, or one red only in main's named cases, stores the review packet for this head now (#2451, #3449).
+  if (gate.green || gate.knownMainFailures) await recordReviewPacket(ctx, id, (work) => withBoard(ctx, (board) => work(board, store)), { errors: gate.failures ?? [], mainReceiptIds: gate.mainReceiptIds ?? [] });
   ctx.io.result?.(submission);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);

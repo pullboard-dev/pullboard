@@ -30,17 +30,17 @@ function project(t, shards) {
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 5, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
-  // test/e.test.js passes slowly, so it is still running when the hung file times out.
+  // test/e.test.js passes slowly and keeps writing, so it is still running, and never idle, when the hung file times out.
   for (const name of PASSING) {
-    writeFileSync(join(repo, 'test', `${name}.test.js`), `import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => setTimeout(done, 6000))' : '() => {}'});\n`);
+    writeFileSync(join(repo, 'test', `${name}.test.js`), `import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => { const tick = setInterval(() => process.stdout.write("# still running\\n"), 200); setTimeout(() => { clearInterval(tick); done(); }, 6000); })' : '() => {}'});\n`);
   }
-  // Busy enough never to look idle, and never done: only the whole-file wall can stop it.
-  writeFileSync(join(repo, 'test', 'c.test.js'), "import { test } from 'node:test';\n"
-    + "test('case c hangs [C7]', () => new Promise(() => { setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5); }));\n");
+  // Busy enough never to look idle, and never done, in file setup where no case runs: an active case keeps its own
+  // per-test budget past the wall (250bc82d2c, #2827), so only the whole-file wall can stop a file stuck outside a case.
+  writeFileSync(join(repo, 'test', 'c.test.js'), "setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5);\nawait new Promise(() => {});\n");
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: shards }));
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
-    GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1', PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'test/c.test.js': 2000 }) };
+    GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1', PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'test/c.test.js': 2000 }), PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000' };
   for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING_SHARD|LANDING_COLLECT)/u.test(key) || key === 'NODE_TEST_CONTEXT') delete env[key];
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: hung-file fixture']]) execFileSync('git', args, { cwd: repo, env });
   return { repo, env };
@@ -52,7 +52,7 @@ function gate(box) {
 }
 
 for (const shards of [1, 5]) {
-  test(`clause 1 and clause 3: a hung file in a ${shards}-shard landing gate times out alone and every other file runs [C7,#3167]`, t => {
+  test(`clause 1: a hung file in a ${shards}-shard landing gate times out alone and every other file runs [C7,#3167]`, t => {
     const run = gate(project(t, shards));
     const output = run.stdout + run.stderr;
     assert.notEqual(run.status, 0, 'the hung file keeps the gate red');

@@ -1,3 +1,5 @@
+import { tabTitle } from "./tab-title.js";
+
 /** Shorten a displayed project path; keep the original root for tooltips and native actions. */
 export function compactProjectPath(root) {
   const path = String(root).replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)(?=[\\/]|$)/u, '~');
@@ -8,6 +10,7 @@ export function compactProjectPath(root) {
 export function cockpitSidebar(sections) {
   const { COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml } = sections;
   return `const compactProjectPath = ${compactProjectPath.toString()};
+const tabTitle = (${tabTitle.toString()});
 /**
  * The sidebar: every project, the one shown, and what needs the person elsewhere. A switch draws only
  * this until the new board arrives, so the main column never mixes the old board with the new pick.
@@ -44,11 +47,19 @@ function renderSide() {
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
-  // Other tabs retain the machine-wide person-call count. Roadmap rendering supplies its own exact remaining total.
-  const needs = data.projects.reduce((n, x) => n + needCount(x), 0);
-  document.title = p || selectedGroup ? (view.tab === 'roadmap' && !selectedGroup
-    ? $('proj-name').textContent + ' · Roadmap · Pullboard'
-    : (needs ? '(' + needs + ') ' : '') + $('proj-name').textContent + ' · Pullboard') : 'Pullboard';
+  writeTabTitle(p, selectedGroup);
+}
+
+/**
+ * Build the tab title once for this draw and write it only when it differs, so a refresh that changes nothing
+ * leaves the tab alone (#3200). Roadmap counts the releases it shows; other tabs keep the machine-wide call count.
+ */
+function writeTabTitle(p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root)) {
+  const roadmap = view.tab === 'roadmap' && p && !selectedGroup;
+  const next = tabTitle({ shown: Boolean(p || selectedGroup), name: $('proj-name').textContent, tab: view.tab, group: Boolean(selectedGroup),
+    needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? roadmapRemainingCount(roadmapReads(p)) : null,
+    cost: privateCost && !snapshot && !hosted.local && !readOnly && !data.group });
+  if (document.title !== next) document.title = next;
 }
 
   /** Escape plain text while preserving safe item and code-preview links.

@@ -1,5 +1,6 @@
 import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
+import './next-wait-race-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
 import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI } from './main-red-build-routing-fixture.js';
@@ -54,6 +55,38 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(offered.document.item.item_id, review);
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
+});
+
+/** Keep an existing claim's lease and event history intact when ordinary next resumes it. */
+test('default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Claim already held by this seat');
+  box.claim(id, box.seats.actor);
+  const before = store.events(box.board, { itemId: id });
+  const lease = store.getItem(box.board, id).item_lease_until;
+
+  const resumed = await cli(box, box.seats.actor.path, ['next']);
+
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, id);
+  assert.equal(resumed.document.held, true);
+  assert.equal(store.getItem(box.board, id).item_lease_until, lease, 'resuming work does not extend its lease');
+  assert.deepEqual(store.events(box.board, { itemId: id }), before, 'resuming work adds no renew or refreeze event');
+});
+
+/** A current spec correction must not force an existing holder through a fresh claim freeze. */
+test('default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Claim with a retired cited row');
+  box.claim(id, box.seats.actor);
+  writeFileSync(join(box.root, 'SPEC.md'), '# Dispatch fixture\n## G\n');
+
+  const resumed = await cli(box, box.seats.actor.path, ['next']);
+
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, id);
+  assert.equal(resumed.document.held, true);
+  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
 });
 
 test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {

@@ -1,4 +1,5 @@
 /** The pullboard claim command, in its own module so an item adding another command never edits these lines. */
+import { Refused } from '../../../../../packages/kernel/index.js';
 import {
   headCommit,
 } from '../../../../../packages/git/index.js';
@@ -11,6 +12,7 @@ import {
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
+import { requireNoCoordinatorPath } from './add.js';
 import { cleanItemFolders } from '../item-folder.js';
 import { openItemFolder } from '../item-folder.js';
 import {
@@ -31,6 +33,9 @@ export async function run(io, { first }) {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
   cleanItemFolders(ctx, board, me);
+  const filed = getItem(board, id);
+  if (filed) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
+    check: filed.item_check, brief: filed.item_brief });
   let result;
   for (;;) {
     try {
@@ -43,11 +48,18 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
-  const itemFolder = await openItemFolder(ctx, me, id, { board,
-    onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
-      text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
-      ref: null }]),
-  });
+  let itemFolder = null;
+  try {
+    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed,
+      onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+        text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
+        ref: null }]),
+    });
+  } catch (error) {
+    // The claim is already recorded; a stale unregistered prior folder is reported in one line, not a crash [C7].
+    if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_UNREGISTERED') throw error;
+    io.say(`warning: ${error.code}: ${error.message}; claim recorded`);
+  }
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
   io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);

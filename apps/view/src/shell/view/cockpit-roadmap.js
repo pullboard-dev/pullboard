@@ -160,15 +160,24 @@ function nextMilestone(p) {
   return { ...next, done: read.done, total: read.total };
 }
 
+/** The release focused on, if the person picked one that is still on the board. */
+function roadmapFocus(p) {
+  return view.roadmapOnly && (p.milestones || []).some(m => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
+}
+
+/** One exact set of release reads for both Roadmap HTML and its browser-title count. */
+function roadmapReads(p) {
+  const only = roadmapFocus(p);
+  return (p.milestones || []).filter(m => !only || m.name === only).map(m => readMilestone(m, p));
+}
+
 /**
  * The Roadmap (N26, N38) opens releases with work left in board order and folds shipped or finished ones into Shipped.
  * Headers show the backend's summary; accepted and landed rows stay distinct; shipped history carries its commit; old
  * exports keep their legacy completion rule; each part keeps the person's disclosure choice for this visit.
  */
-/** Prepare one exact set of release reads for both Roadmap HTML and its browser-title count. */
 function roadmapCards(p, titles) {
-  const only = view.roadmapOnly && (p.milestones || []).some(m => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
-  const reads = (p.milestones || []).filter(m => !only || m.name === only).map(m => readMilestone(m, p));
+  const only = roadmapFocus(p), reads = roadmapReads(p);
   const targetLabels = new Map(), addresses = new Map(), headers = new Map(), headings = new Map(), rows = new Map(), notes = new Map(), targets = new Map();
   const observedAt = Date.parse(p.observedAt), now = Number.isFinite(observedAt) ? observedAt : Date.now();
   const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
@@ -183,8 +192,7 @@ function roadmapCards(p, titles) {
     headings.set(read, linked(read.milestone.name, titles));
     if (read.milestone.note) notes.set(read, rich(read.milestone.note, titles));
   }
-  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }),
-    remaining: roadmapRemainingCount(reads) };
+  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }) };
 }
 
 `;

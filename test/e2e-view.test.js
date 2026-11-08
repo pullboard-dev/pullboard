@@ -31,6 +31,7 @@ import { openBoardForRead } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -218,7 +219,7 @@ test('a person running view with JSON in a terminal keeps the server in that ter
 
 test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   box.run(box.repo, 'shout', 'web-1', 'the heading is in G1');
   const registry = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8'));
   assert.deepEqual(registry.projects.map((entry) => entry.root), [box.repo]);
@@ -326,7 +327,7 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
 
 test('the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');

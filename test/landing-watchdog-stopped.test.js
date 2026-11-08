@@ -51,3 +51,24 @@ test('red only in stopped files is a landing proof; one named red voids it [C7,#
   assert.equal(watchdogProof(state, { failures: [], tree: 'tree', logPath: 'log' }), null);
   assert.equal(watchdogProof(state, { failures: failures.slice(0, 2), tree: 'tree', requiresGreen: true }), null);
 });
+
+test('a nested case with no location fails in its outer case\u2019s file [C7]', () => {
+  const output = `TAP version 13
+# Subtest: outer case [C7]
+    # Subtest: inner one
+    not ok 1 - inner one
+      ---
+      error: 1 !== 0
+      ...
+not ok 1 - outer case [C7]
+  ---
+  error: |-
+  location: ${JOB}/test/move-registry-merge-cases.js:10
+  ...
+`;
+  const failures = landingFailures(output, '/elsewhere');
+  assert.deepEqual(failures.map(row => [row.file, row.name]), [
+    ['test/move-registry-merge-cases.js', 'inner one'],
+    ['test/move-registry-merge-cases.js', 'outer case [C7]'],
+  ]);
+});

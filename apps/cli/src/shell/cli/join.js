@@ -8,12 +8,15 @@ import * as store from '../../../../../packages/store/index.js';
 import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
+import { withBoardRead } from '../cli-context.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { displayAgentName } from '../../../../../packages/seats/index.js';
 import { bindLocalSession } from '../../../../../packages/seats/index.js';
 import { HOOK_CHECKOUT_WAIT_MS } from '../../../../../packages/seats/index.js';
 import { localSessionMatches } from '../../../../../packages/seats/index.js';
+import { endedFolderSession } from '../../../../../packages/seats/index.js';
+import { adoptLocalSession } from '../../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { seatAt } from '../item-folder-identity.js';
 import { itemFolderRenewalRefusal } from '../item-folder-identity.js';
@@ -35,7 +38,7 @@ export async function bindWriteSession(io, positionals, values) {
     // Acceptance follows its person-channel path; it does not renew a build claim.
     if (first === 'accept') return;
     const ctx = context(io);
-    const renewsOwnClaim = withBoard(ctx, (board) => {
+    const renewsOwnClaim = withBoardRead(ctx, (board) => {
       const agentId = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id;
       const item = first ? store.getItem(board, idArg(first)) : store.listItems(board)
         .find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
@@ -50,9 +53,9 @@ export async function bindWriteSession(io, positionals, values) {
   if (!info.isMain) {
     const ctx = context(io);
     const ownsLandingRoot = command === 'hook' ? (await import('../../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
-    agent = withBoard(ctx, (board) => seatAt(board, info.root)?.agent_id
+    agent = withBoardRead(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
-    if (!agent && command !== 'join') throw withBoard(ctx, (board) =>
+    if (!agent && command !== 'join') throw withBoardRead(ctx, (board) =>
       (command === 'hook' ? itemFolderRenewalRefusal(board, info.root) : null)
       ?? unjoinedRefusal(info, store.listAgents(board), agentSessionDigest));
   }
@@ -62,6 +65,8 @@ export async function bindWriteSession(io, positionals, values) {
     CHECKOUT_BOARD_ONLY.set(io, boardOnly);
     return;
   }
+  // The commit hooks only read: a checkout already bound to this session needs no lease, so they never queue for a slot.
+  if (command === 'hook' && ['pre-commit', 'commit-msg'].includes(first) && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) return;
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next', 'land'].includes(command), waitLimitMs: command === 'hook' ? HOOK_CHECKOUT_WAIT_MS : 0,
     /** Record the takeover; a linked main checkout takes the board's coordinator before its receipt shout, which the hold would refuse (#347). */
     recordTakeover: async () => (await import('../commands/takeover.js')).recordCheckoutTakeover(io, info),
@@ -73,6 +78,35 @@ export async function bindWriteSession(io, positionals, values) {
     const me = withBoard(ctx, (board) => whoAmI(ctx, board));
     lease.updateAgent(me.id);
   } };
+}
+
+/**
+ * The ended session an item folder is bound to, or null when the claiming session has nothing to take over. Refuses
+ * ITEM_FOLDER_SESSION_LIVE, naming the seat, when another live session still holds the folder (#3679).
+ *
+ * @param {any} board
+ * @param {{ id: string }} me the claiming seat
+ * @param {string} folder the item folder about to be adopted
+ * @returns {{ digest: string, binding: { agent: string, digest: string } } | null}
+ */
+export function endedItemFolderSession(board, me, folder) {
+  const digest = agentSessionDigest();
+  if (!digest || !board) return null;
+  const binding = endedFolderSession(repoInfo(folder), { agent: me.id, digest,
+    liveSeats: () => store.listAgents(board).filter(seat => seat.presence === 'live') });
+  return binding ? { digest, binding } : null;
+}
+
+/**
+ * Bind an adopted item folder to the claiming session so its commit hooks accept the claimer's commits (#3679).
+ * Why: the folder kept the ended seat's binding, and every commit there was refused NOT_YOUR_CHECKOUT.
+ *
+ * @param {string} folder the adopted item folder, at its new path
+ * @param {{ id: string }} me the claiming seat
+ * @param {{ digest: string, binding: { agent: string, digest: string } } | null} prior what endedItemFolderSession returned
+ */
+export async function adoptItemFolderSession(folder, me, prior) {
+  if (prior) await adoptLocalSession(repoInfo(folder), { agent: me.id, digest: prior.digest, from: prior.binding });
 }
 
 /** Choose an explicitly supplied model or the standard environment fallback, refusing an unknown identity. */

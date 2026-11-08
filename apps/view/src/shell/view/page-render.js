@@ -159,7 +159,6 @@ function render() {
   if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
     $('cost').innerHTML = costPaneHtml(history, p);
-    document.title = $('proj-name').textContent + ' · Cost · Pullboard';
   }
   if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
@@ -168,8 +167,6 @@ function render() {
   roadmapAhead.clear();
   roadmapDetails.clear();
   const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
-  document.title = (roadmap.remaining === null ? '' : '(' + roadmap.remaining + ' remaining) ')
-    + $('proj-name').textContent + ' · Roadmap · Pullboard';
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
   if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
     $('roadmap').innerHTML = roadmapHtml;
@@ -422,7 +419,7 @@ function render() {
       + (item.check ? '<details class="item-panel-command"><summary>Show the command</summary><pre>' + esc(item.check) + '</pre></details>' : '') + '</div></div>';
     const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="false">Show all ' + historyCount + '</button>' : '';
     /** Render one accessible tab with the selected tab's native count. */
-    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '</button>';
+    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
     $('detail').innerHTML = '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
       + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
       + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'

@@ -23,19 +23,21 @@ function real(path) {
 /**
  * Decide whether this entry hands the command to the main checkout's entry: { target } to hand
  * over, { why } when it should but cannot, or null when this entry is the right code to run.
- * Silent cases: the opt-out, a cwd outside this entry's own checkout (another repo, as test fixtures
- * use), and the main checkout itself, whose .git is a directory, so the main entry never recurses.
+ * Silent cases: the opt-out, a cwd in another repository (as test fixtures use), and the main checkout
+ * itself, whose .git is a directory, so the main entry never recurses. A cwd in another checkout of the
+ * same repository (an item folder run with its seat's entry) is no excuse to run stale code [#3164].
  * A checkout whose .git is a file is a linked worktree; there one rev-parse and one ancestry check
  * run, and any failure keeps this worktree's code with a reason.
  */
 export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   if (env.PULLBOARD_OWN_CLI === '1') return null;
   const own = real(dirname(dirname(entry))), here = real(cwd);
-  if (!own || !here || (here !== own && !here.startsWith(own + sep))) return null;
+  if (!own || !here) return null;
+  if (here !== own && !here.startsWith(own + sep) && !sameRepository(own, here)) return null;
   let marker;
   try { marker = statSync(join(own, '.git')); } catch { return null; }
   if (!marker.isFile()) return null;
-  const located = git(cwd, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
+  const located = git(own, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
   if (located.status !== 0) return { why: 'git could not locate the main checkout' };
   const [top, gitDir, commonDir] = located.stdout.trim().split('\n');
   if (!top || !gitDir || !commonDir || real(top) !== own || real(gitDir) === real(commonDir)
@@ -44,9 +46,19 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   const target = join(mainRoot, 'bin', 'pullboard.js');
   if (real(mainRoot) === own) return null;
   try { accessSync(target, constants.R_OK); } catch { return { why: `${target} is missing or unreadable` }; }
-  const ancestry = git(cwd, ['merge-base', '--is-ancestor', 'main-worktree/HEAD', 'HEAD']);
+  const ancestry = git(own, ['merge-base', '--is-ancestor', 'main-worktree/HEAD', 'HEAD']);
   if (ancestry.status === 0) return null;
   return ancestry.status === 1 ? { target } : { why: 'git could not compare this worktree with main' };
+}
+
+/** Whether two checkouts share one Git common directory, so they are checkouts of the same repository. */
+function sameRepository(own, here) {
+  const common = cwd => {
+    const result = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    return result.status === 0 ? real(result.stdout.trim()) : null;
+  };
+  const mine = common(own);
+  return Boolean(mine) && mine === common(here);
 }
 
 /** Say in one stderr line why this worktree runs its own code; the command itself never fails for it. */

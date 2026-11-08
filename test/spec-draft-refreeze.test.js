@@ -63,7 +63,7 @@ const order = { sequence: 1, at: '2026-10-27T00:00:00.000Z', kind: 'move',
 test('draft omissions replay identically while ordinary and frozen citations refreeze [S1,V2,H16]', t => {
   const box = setup(t), replica = receiver(t, box.prefix);
   const beforeClaim = store.getItem(replica, box.claimed);
-  assert.equal(box.move.engine, SPEC_DRAFT_REFREEZE_ENGINE);
+  assert.ok(box.move.engine >= SPEC_DRAFT_REFREEZE_ENGINE, 'the move carries at least the draft refreeze engine');
   const local = applyRelayMove(box.board, box.move, order);
   assert.equal(local.error, undefined, JSON.stringify(local));
   assert.deepEqual(applyRelayMove(replica, box.move, order), local);

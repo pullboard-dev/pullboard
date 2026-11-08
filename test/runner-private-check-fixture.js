@@ -8,6 +8,8 @@ import { submitFixture } from './board-submit-fixture.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { awaitRoundTrip, phaseCounts, startToolingCli } from './runner-tooling-fixture.js';
 import { once } from 'node:events';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require public setup to succeed before interpreting any review behavior. */
 function document(result) {
@@ -58,7 +60,7 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   const commit = e2e.attackCommit(box, box.web);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
-  document(box.run(reviewer, 'join', 'api', '--json'));
+  document(fixtureJoin(box.run, reviewer, 'api', '--json'));
   const bin = join(box.dir, 'ssh-bin');
   const worker = join(box.dir, 'worker');
   const remoteHome = join(box.dir, 'worker-home');
@@ -74,7 +76,7 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   const expectedHosts = [HOST, HOST + '-setup'];
   for (const [index, suffix] of ['', ' large'].entries()) {
     const id = index + 1;
-    document(box.run(box.repo, 'add', 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--json'));
+    document(fixtureAdd(box.run, box.repo, 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--route', 'strong', '--json'));
     document(box.run(box.web, 'claim', String(id), '--json'));
     historicalSubmission(box, id, commit);
     const before = phaseCounts(requests + '.phases');
@@ -137,7 +139,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     const commit = e2e.attackCommit(box, box.web);
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
-    document(box.run(reviewer, 'join', 'api', '--json'));
+    document(fixtureJoin(box.run, reviewer, 'api', '--json'));
     const bin = join(box.dir, 'ssh-bin');
     const worker = join(box.dir, 'worker');
     const home = join(box.dir, 'worker-home');
@@ -151,7 +153,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
   document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
     const criterion = 'the private runner preserves trusted phase behavior' + (edge.guard ? '; guard: ' + edge.guard : '');
-    document(box.run(box.repo, 'add', 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--json'));
+    document(fixtureAdd(box.run, box.repo, 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--route', 'strong', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     historicalSubmission(box, 1, commit);
     const before = phaseCounts(requests + '.phases');

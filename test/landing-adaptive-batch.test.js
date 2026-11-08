@@ -10,15 +10,19 @@ import { landingMaximum } from '../packages/landing/src/shell/landing-step-selec
 const landed = { state: 'trunk' };
 const blocked = { state: 'blocked' };
 
-test('clause 1: the adaptive size starts at 4, halves after a blocked or bisected batch and doubles after a landed one, within 1-16 [C7,H24]', () => {
+test('clause 1: the adaptive size starts at 4, halves after a blocked or bisected batch and doubles after three landed in a row, within 1-16 [C7,H24]', () => {
   assert.equal(landingBatchSize([]), 4);
   assert.equal(landingBatchSize([blocked]), 2);
   assert.equal(landingBatchSize([blocked, blocked]), 1);
   assert.equal(landingBatchSize([blocked, blocked, blocked, blocked]), 1, 'never below 1');
-  assert.equal(landingBatchSize([landed]), 8);
-  assert.equal(landingBatchSize([landed, landed]), 16);
-  assert.equal(landingBatchSize([landed, landed, landed, landed]), 16, 'never above 16');
-  assert.equal(landingBatchSize([landed, landed, blocked]), 8, 'half the last size after a red');
+  assert.equal(landingBatchSize([landed]), 4, 'one green does not grow the size');
+  assert.equal(landingBatchSize([landed, landed]), 4, 'nor two');
+  assert.equal(landingBatchSize([landed, landed, landed]), 8, 'three landed in a row double it');
+  assert.equal(landingBatchSize([landed, landed, landed, landed, landed]), 8, 'the next run of three starts after a step');
+  assert.equal(landingBatchSize(Array(6).fill(landed)), 16);
+  assert.equal(landingBatchSize(Array(9).fill(landed)), 16, 'never above 16');
+  assert.equal(landingBatchSize([landed, landed, blocked]), 2, 'a red halves at once and ends the green run');
+  assert.equal(landingBatchSize([landed, landed, blocked, landed, landed, landed]), 4, 'three greens after a red grow again');
   assert.equal(landingBatchSize([{ state: 'pushed', culprits: [{ id: 7 }] }]), 2, 'a batch that bisected out a culprit counts as red');
   assert.equal(landingBatchSize([blocked, { state: 'blocked', dropped: 'every item already landed another way' },
     { state: 'blocked', supersededByMain: 'a'.repeat(40) }, { state: 'gating' }]), 2, 'drops, superseded batches and unfinished ones say nothing about redness');
@@ -41,7 +45,7 @@ test('clause 2: line.landingBatchSize overrides the adaptive size for real landi
 
 test('clause 1: the size folds every recorded batch, so a long run of red/green pairs never resets it [C7]', () => {
   const pairs = Array.from({ length: 8 }, () => [blocked, landed]).flat();
-  assert.equal(landingBatchSize([landed, landed, ...pairs]), 16, 'two greens then eight red/green pairs stays at 16');
+  assert.equal(landingBatchSize([...Array(6).fill(landed), ...pairs]), 1, 'six greens reach 16; eight red/green pairs then halve it to 1, since a single green never grows it');
 });
 
 test('clause 1: at a cap of 1, items that stay red take turns, a third still lands, and one that turns green lands [C7]', () => {
@@ -72,24 +76,47 @@ test('clause 1: a repeated selection folds only new batches and matches a full f
   const history = Array.from({ length: 40 }, (_, index) => ({ id: `b${index}`, state: index % 3 ? 'landed' : 'blocked' }));
   const full = landingBatchSize(history);
   assert.equal(landingBatchSize([...history, { id: 'live', state: 'gating' }]), full, 'an unfinished batch says nothing');
-  assert.equal(landingBatchSize([...history, { id: 'new', state: 'landed' }]), Math.min(16, full * 2), 'a new landed batch folds onto the cached size');
+  assert.equal(landingBatchSize([...history, { id: 'new', state: 'landed' }]), full, 'a new landed batch folds onto the cached size; one green after a red does not grow it');
   assert.equal(landingBatchSize([{ id: 'other', state: 'blocked' }]), 2, 'a different history folds afresh');
 });
 
 test('clause 1: a revised earlier batch refolds the size and the failure turns, never a stale cached result [C7]', () => {
   const history = Array.from({ length: 10 }, (_, index) => ({ id: `b${index}`, state: index === 2 ? 'blocked' : 'landed', items: [{ id: index + 1 }] }));
-  assert.equal(landingBatchSize(history), 16);
+  assert.equal(landingBatchSize(history), 8, 'two greens, a red to 2, then seven greens: 4 at the third, 8 at the sixth');
   assert.deepEqual([...roundFailures(history)], [[3, 1]]);
   // The earlier blocked batch is rewritten under its id: every item already landed another way, so it says nothing.
   const dropped = history.map(batch => batch.id === 'b2' ? { ...batch, dropped: 'every item already landed another way' } : batch);
-  assert.equal(landingBatchSize(dropped), 16, 'still 16, and from a refold');
+  assert.equal(landingBatchSize(dropped), 16, 'nine greens with no red: 8, then 16, from a refold');
   assert.deepEqual([...roundFailures(dropped)], [], 'a dropped batch no longer stamps a failure');
   // An earlier landed batch is revised to blocked with a culprit while the last batch keeps its id and state.
   const revised = history.map(batch => batch.id === 'b0' ? { ...batch, state: 'blocked', culprits: [{ id: 1 }] } : batch);
   const short = [{ id: 's0', state: 'landed' }, { id: 's1', state: 'blocked' }, { id: 's2', state: 'gating' }];
-  assert.equal(landingBatchSize(short), 4, 'green then red: 8 then 4');
+  assert.equal(landingBatchSize(short), 2, 'green then red: 4 then 2');
   assert.equal(landingBatchSize([{ ...short[0], state: 'blocked' }, ...short.slice(1)]), 1, 'the earlier batch turned red under the same last batch: 2 then 1');
   assert.deepEqual([...roundFailures(revised)].sort((a, b) => a[0] - b[0]), [[1, 1], [3, 2]], 'the revised batch stamps its item first');
   const items = history.map(batch => batch.id === 'b2' ? { ...batch, items: [{ id: 30 }] } : batch);
   assert.deepEqual([...roundFailures(items)], [[30, 1]], 'a changed item list moves the failure to the new item');
+});
+
+test('clause 1: a batch stopped by a refusal that names no failing test never shrinks the next batch [C7]', () => {
+  const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
+    refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
+  assert.equal(landingBatchSize([locked, locked, locked]), 4, 'infrastructure refusals keep the starting size');
+  assert.equal(landingBatchSize([landed, landed, landed, locked]), 8, 'and keep a grown size');
+});
+
+test('clause 2: a blocked batch with a named failing test or a culprit still halves the next batch [C7]', () => {
+  const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
+    refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
+  const testRed = { state: 'blocked', failures: [{ file: 'test/a.test.js', name: 'case' }], refusal: { code: 'LAND_DIAGNOSTIC', message: 'red', at: '2026-11-05T16:00:00.000Z' } };
+  assert.equal(landingBatchSize([testRed]), 2, 'a refusal over a named failing test still halves it');
+  assert.equal(landingBatchSize([{ ...locked, culprits: [{ id: 3 }] }]), 2, 'a culprit still halves it');
+});
+
+test('clause 3: revising a blocked batch from an infrastructure refusal to a named red refolds the size [C7]', () => {
+  const id = 'b-1';
+  const first = [{ id, state: 'blocked', failures: [{ file: null, name: 'locked' }], refusal: { code: 'SLOT_DB_LOCKED', message: 'x', at: 'a' } }];
+  assert.equal(landingBatchSize(first), 4);
+  const revised = [{ id, state: 'blocked', failures: [{ file: 'test/a.test.js', name: 'case' }], refusal: { code: 'SLOT_DB_LOCKED', message: 'x', at: 'a' } }];
+  assert.equal(landingBatchSize(revised), 2, 'the same id and state with a named red is red, never the cached infrastructure result');
 });

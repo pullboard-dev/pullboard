@@ -1,4 +1,5 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
+import { builderFamilyProblem } from './builder-family-required.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
@@ -46,21 +47,24 @@ import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
+import { cappedRoute } from "../../../seats/index.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
+import { seatGone } from "./seat-presence.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { claimProblem } from "../../../seats/index.js";
+import { randomUUID } from 'node:crypto';
 import {
   atomic,
   logEvent,
 } from "./board-event-log.js";
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30 }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -78,11 +82,12 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
   let reworkRouting = null;
   let frozen = null;
+  let policyRefreeze = null;
   let prepared = false;
   const how = {
     checks: {
       joined: null, checkProvesSomething: null,
-      barReady: found => barReadyProblem(board, found),
+      barReady: found => builderFamilyProblem(board, found, agentId, familyPolicy) ?? barReadyProblem(board, found),
       [IN_STATE]: (found) => new Refused('NOT_CLAIMABLE', `item #${id} is ${found.item_status}`),
       inLane: (found) => {
         const outside = outsideBuildProblem(board, found);
@@ -96,11 +101,12 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         );
       },
       routeAllows: (found) => {
-        const route = routeOf(board, agentId);
+        // The CLI caps the route by the model this session declared (#3678); the cap only narrows the joined route.
+        const route = cappedRoute(routeOf(board, agentId), routeCap);
         // Only light work needs a diagnosis; a light seat reaching above its route is refused ROUTE (#2886).
         const diagnosisProblem = route === 'light' && found.item_route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
         if (diagnosisProblem) return diagnosisProblem;
-        return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
+        return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; ${route === routeOf(board, agentId) ? 'you joined on' : 'the model this session declared serves'} the ${route} route. Take your next item: pullboard next`);
       },
       buildScopeFits: found => isRenewal(found) || (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE ? null : expectedBuildProblem(found, buildBudgetMinutes),
       dependenciesVerified: (found) => {
@@ -147,20 +153,20 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
             return null;
           }
         }
-        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null;
+        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal, seatGone }) : null;
       },
       correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
       laneOpen: (found) => {
         // Declared: not checked when the caller renews its own live claim.
         const paused = laneHold(board, found.item_lane);
         return paused && !isRenewal(found)
-          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`)
+          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}; take other available work with pullboard next, or end your turn if none is offered`)
           : null;
       },
       itemNotHeld: (found) => {
         const held = itemHold(board, found.item_id);
         return held && !isRenewal(found)
-          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
+          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; take another eligible item with pullboard next, or end your turn if none is offered`)
           : null;
       },
       lineCapacity: found => claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
@@ -189,6 +195,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (found.item_frozen_digest !== null && !adopts && !refreshes) return null;
         try {
           if (!prepared) { frozen = freeze(found); prepared = true; }
+          policyRefreeze = frozen?.policyRefreeze ?? null;
           return null;
         } catch (error) {
           if (error instanceof Refused) return error;
@@ -203,7 +210,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen, reworkRouting: () => reworkRouting };
+  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -288,6 +296,12 @@ export function claim(board, id, options, ports) {
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    const policyRefreeze = plan.policyRefreeze();
+    if (!renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
+      id: randomUUID(), kind: 'note',
+      text: `policy re-frozen automatically: ${policyRefreeze.before} -> ${policyRefreeze.after}; only ${policyRefreeze.changed.join(', ')} changed`,
+      ref: null, supersedes: null,
+    });
     const route = plan.reworkRouting();
     if (!renewed && route?.applies && route.mode === 'fallback') {
       const factId = prepared.reworkRoutingPolicy?.factId;

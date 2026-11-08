@@ -1,4 +1,4 @@
-import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../state/index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../src/two-tier-diagnosis-engine.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 /** Item conversation labels and context-pack presentation, without board-wide messages [B29,B31,B32,N14]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';

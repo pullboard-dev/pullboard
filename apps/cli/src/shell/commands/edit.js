@@ -1,3 +1,6 @@
+import { requireOwnLaneCheck } from '../lane-check.js';
+import { readFileSync } from 'node:fs';
+import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
@@ -56,8 +59,12 @@ export async function run(io, args) {
   }
   const sealed = executingBarEffect(ctx, board, 'edit', id);
   const brief = sealed ? sealed.brief : briefArg(io, values);
+  if (values['machine-verified'] !== undefined && !['on', 'off'].includes(values['machine-verified'])) throw new Refused('USAGE', '--machine-verified on|off');
+  if (values['machine-commands-file'] !== undefined && me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator marks machine verification');
   let change = {
     agentId: me.id,
+    ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
+    ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
@@ -82,6 +89,7 @@ export async function run(io, args) {
     const authors = referenceAuthors(ctx.info.root, change.brief, { githubPullClient });
     if (authors.length) change.referenceAuthors = authors;
   }
+  requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;

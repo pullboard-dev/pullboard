@@ -10,6 +10,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 for (const scenario of ['deleted source', 'terminal item', 'unreadable item status']) {
 test(scenario === 'unreadable item status'
@@ -19,7 +20,7 @@ test(scenario === 'unreadable item status'
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   if (scenario !== 'deleted source') {
-    const added = box.run(box.repo, 'add', 'web', 'Controller lifecycle witness', '--specs', 'G1', '--criterion', 'a withdrawn item stops its admitted controller', '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', 'Controller lifecycle witness', '--specs', 'G1', '--criterion', 'a withdrawn item stops its admitted controller', '--json');
     assert.equal(added.code, 0, added.err || added.out);
   }
   let sourceRoot = box.repo;

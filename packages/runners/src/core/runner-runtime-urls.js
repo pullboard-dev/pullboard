@@ -1,6 +1,6 @@
 /** Find executable source-relative runtime files without treating generated programs as dependencies [C7,P3]. */
 import { lex } from '../../../kernel/index.js';
-import { importsIn } from '../../../gate/index.js';
+import { importsWithCompiler } from '../../../kernel/index.js';
 
 /** Return literal runtime edges, or null when a two-argument URL cannot be resolved safely. */
 export function runtimeUrls(source, parse) {
@@ -27,7 +27,7 @@ export function runtimeUrls(source, parse) {
     spellings.push(source.slice(literal.start, literal.end));
   }
   const paths = [];
-  const decodedImports = spellings.length ? importsIn(spellings.map(spelling => `import ${spelling};`), parse) : [];
+  const decodedImports = spellings.length ? importsWithCompiler(spellings.map(spelling => `import ${spelling};`), parse) : [];
   for (const decoded of decodedImports) {
     if (decoded.length !== 1 || !decoded[0].startsWith('.')) return null;
     paths.push(decoded[0]);

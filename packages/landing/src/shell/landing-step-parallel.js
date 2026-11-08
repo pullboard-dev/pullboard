@@ -22,6 +22,7 @@ import { liveWaiverProjection } from './landing-step-failures.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { waivedProof } from './landing-step-failures.js';
 import { bisect } from './landing-step-diagnose.js';
+import { returnCulprits } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { publish } from './landing-step-publish.js';
@@ -32,7 +33,9 @@ import { landOnTrunk } from './landing-step-trunk.js';
 /** Read a completed speculative result from its immutable raw log, without another execution. */
 function savedCandidateResult(state, candidate) {
   if (!candidate.complete) return null;
-  if (candidate.error) throw new Refused(candidate.error.code, candidate.error.message);
+  // A prefix whose merge or docs step refused is a red prefix with no gate, never a refusal replayed on every adoption:
+  // rethrowing it ended each adopting worker and left the batch "gating" for good [C7].
+  if (candidate.error) return { batch: candidate.snapshot, gate: null, error: candidate.error };
   const gate = candidate.gate;
   if (gate?.blockingVerdict) {
     try { state.landingPorts.validateQuarantineGate(state.board, gate); } catch { return null; }
@@ -240,6 +243,19 @@ export async function parallelLanding(state, initialItems) {
       return;
     }
     const boundary = results[green + 1];
+    if (!boundary.gate) {
+      // The first non-green prefix refused before its gate: its last item's own content stopped the merge (docs
+      // regeneration, a header, placement), so that item goes back with the refusal and the rest go on [C7].
+      const refused = remaining[green + 1];
+      state.culprits.push({ id: refused.id, commit: refused.commit, ...(refused.reviewedCommit ? { reviewedCommit: refused.reviewedCommit } : {}),
+        mergeCommit: boundary.batch.tip, tests: [{ file: 'landing', name: boundary.error?.code ?? 'LAND_MERGE', assertion: boundary.error?.message ?? '' }] });
+      await save(state, { culprits: state.culprits });
+      await returnCulprits(state);
+      state.say(`culprit #${refused.id}: ${boundary.error?.code ?? 'LAND_MERGE'} ${String(boundary.error?.message ?? '').slice(0, 160)}`);
+      remaining = withoutParallelBlocker(state, remaining, refused);
+      await save(state, { parallelRemaining: remaining });
+      continue;
+    }
     await promoteCandidate(state, boundary);
     const gate = boundary.gate;
     const flakyFiles = await diagnose(state, gate.failures, gate);

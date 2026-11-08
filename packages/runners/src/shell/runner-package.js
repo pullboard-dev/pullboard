@@ -9,11 +9,12 @@ import {
 import { packageFiles } from './package-files.js';
 import { runtimeUrls } from '../core/runner-runtime-urls.js';
 import { createRunnerModuleParser } from './runner-module-parser.js';
+import { parseWithPaths } from './runner-module-parser.js';
 import {
-  commonJsIn,
-  importsIn,
-} from '../../../gate/index.js';
-import { Refused } from '../../../kernel/index.js';
+  commonJsWithCompiler as commonJsIn,
+  importsWithCompiler as importsIn,
+  Refused,
+} from '../../../kernel/index.js';
 
 /** Name the exact path that cannot safely enter the trusted runtime; never expand transfer limits. */
 function unavailable(file, reason) {
@@ -109,12 +110,12 @@ function derivePackage(root, entry, previous, parse) {
     // importsIn still compiles every changed module; potential loader text keeps the full V8 probe.
     const suspects = changed.filter(file => files[file].includes('require')
       || files[file].includes('createRequire') || files[file].includes('\\u'));
-    const findings = suspects.length ? commonJsIn(suspects.map(file => files[file]), parse) : [];
+    const findings = suspects.length ? commonJsIn(suspects.map(file => files[file]), parseWithPaths(parse, suspects.map(file => join(root, file)))) : [];
     const common = new Set(suspects.filter((_file, index) => findings[index]));
-    const imports = sources.length ? importsIn(sources, parse) : [];
+    const imports = sources.length ? importsIn(sources, parseWithPaths(parse, changed.map(file => join(root, file)))) : [];
     for (const [index, file] of changed.entries()) {
       if (common.has(file)) unavailable(file, 'an opaque CommonJS loader prevents a complete import closure');
-      const runtime = runtimeUrls(sources[index], parse);
+      const runtime = runtimeUrls(sources[index], parseWithPaths(parse, [join(root, file)]));
       if (runtime === null) unavailable(file, 'an opaque runtime URL prevents a complete import closure');
       analyses.set(file, Object.freeze({ source: files[file], edges: Object.freeze([...imports[index], ...runtime]) }));
     }

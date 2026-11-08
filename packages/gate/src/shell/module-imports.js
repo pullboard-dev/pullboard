@@ -4,6 +4,7 @@ import { importParseScopes } from './module-import-cache-state.js';
 import { storedCompilations } from './parse-result-store.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -49,7 +50,9 @@ function compileSources(sources) {
 /** Compile in a child Node, with no stored result consulted. */
 function compileFresh(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
+  const cacheDirectory = importParseScopes.getStore()?.directory;
+  if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
+  const directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
   try {
     writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
@@ -76,7 +79,7 @@ function copyCompilation(row) { return { compiles: row.compiles, imports: [...ro
  */
 export function withParseScope(work) {
   if (process.env.NODE_OPTIONS) return work();
-  return importParseScopes.run({ epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
+  return importParseScopes.run({ directory: importParseScopes.getStore()?.directory, epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
 }
 
 /** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
@@ -205,28 +208,39 @@ function cpuLiteral(text, cache) {
   try { value = look([`import ${text};`])[0].imports[0] ?? null; } catch { value = null; }
   // Compilation is pure for these exact bytes. Keep both successful and unknown results bounded
   // to this caller's analysis, never retaining repository source in a process-global cache.
-  if (cache && cache.size < 1024) cache.set(text, value);
+  if (cache && cache.size < 2 * LITERAL_LIMIT) cache.set(text, value);
   return value;
 }
 
-/** Decode module literals once; property decoding is needed only at actual registration calls. */
+/** Most module literals one CPU classification decodes up front, in batches of LITERAL_BATCH per V8 child. */
+const LITERAL_LIMIT = 8192;
+const LITERAL_BATCH = 512;
+
+/**
+ * Decode module literals once; property decoding is needed only at actual registration calls.
+ *
+ * Every literal of the bounded graph is batched: a literal left out was compiled in its own V8 child on every
+ * fixed-point pass, about 500 children and a minute for one named test file (#2425).
+ */
 export function cpuLiteralCache(sources) {
   const literals = new Set();
   for (const source of sources) {
     for (const match of source.matchAll(/(?:\bfrom\s*|\b(?:import|require)\s*\(\s*)/gu)) {
       const literal = /^(?:"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*')/u.exec(source.slice(match.index + match[0].length))?.[0];
       if (literal) literals.add(literal);
-      if (literals.size >= 512) break;
+      if (literals.size >= LITERAL_LIMIT) break;
     }
-    if (literals.size >= 512) break;
+    if (literals.size >= LITERAL_LIMIT) break;
   }
   const cache = new Map();
-  if (!literals.size) return cache;
-  try {
-    const texts = [...literals];
-    const parsed = look(texts.map(text => `import ${text};`));
-    for (const [index, text] of texts.entries()) cache.set(text, parsed[index].imports[0] ?? null);
-  } catch { /* Optional batching cannot replace the existing exact per-literal compilation. */ }
+  const texts = [...literals];
+  for (let at = 0; at < texts.length; at += LITERAL_BATCH) {
+    const batch = texts.slice(at, at + LITERAL_BATCH);
+    try {
+      const parsed = look(batch.map(text => `import ${text};`));
+      for (const [index, text] of batch.entries()) cache.set(text, parsed[index].imports[0] ?? null);
+    } catch { /* Optional batching cannot replace the existing exact per-literal compilation. */ }
+  }
   return cache;
 }
 

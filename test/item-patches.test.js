@@ -24,6 +24,8 @@ import {
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
 } from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const COMMIT = 'a'.repeat(40);
 const PATCH = 'diff --git a/src/example.js b/src/example.js\n--- a/src/example.js\n+++ b/src/example.js\n@@ -1 +1 @@\n-old\n+new\n';
@@ -245,7 +247,7 @@ function intakeFixture(t) {
     assert.equal(result.code, 0, result.err + result.out);
     return JSON.parse(result.out);
   };
-  const item = run(box.repo, 'add', 'web', 'Patch intake case', '--specs', 'G1').item.item_id;
+  const item = fixtureAdd(run, box.repo, 'web', 'Patch intake case', '--specs', 'G1').item.item_id;
   const author = run(box.web, 'whoami').id;
   run(box.web, 'claim', String(item));
   const source = box.git(box.web, 'rev-parse', 'HEAD');
@@ -285,7 +287,7 @@ test('patch attach accepts real format-patch headers and trailer without changin
 test('mixed-lane attach reports three owners and writes only unconfirmed per-lane drafts [V4,H16]', t => {
   const box = intakeFixture(t), api = join(box.dir, 'api-owner');
   box.git(box.repo, 'worktree', 'add', '--detach', api, 'main');
-  box.run(api, 'join', 'api');
+  fixtureJoin(box.run, api, 'api');
   const apiOwner = box.run(api, 'whoami').id;
   submitFixture(box.board, box.item, { agentId: box.author, commit: box.source,
     tree: box.git(box.web, 'rev-parse', box.source + '^{tree}') });

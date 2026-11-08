@@ -30,6 +30,7 @@ import { findChromeExecutable, startChrome } from '../../chrome-fixture.js';
 import { press, stableChrome } from '../stable.js';
 import { generateStressBoard, removeStressBoard } from './generate.mjs';
 import { runFixtureChild, runFixtureGit } from '../../fixture-child.js';
+import { executionServices } from '../../gate-execution-fixture.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const BIN = join(ROOT, 'bin', 'pullboard.js');
@@ -38,11 +39,13 @@ const VIEW_START_TIMEOUT_MS = 30_000;
 const VIEW_STOP_TIMEOUT_MS = 5_000;
 const LANES = ['core', 'view', 'coordinator', 'docs'];
 const VIEWER_ACTIONS = [
-  ['tab:shouts', 'shouts', '#feed .shout'],
+  // Shouts opens on its conversation list since 3a98fbee36; a thread's shouts show only after a press.
+  ['tab:shouts', 'shouts', '#feed .conversation-row, #feed .shout'],
   ['tab:spec', 'spec', '#spec-list .row'],
   ['tab:doctrine', 'doctrine', '#doctrine-list .row'],
   ['tab:activity', 'activity', '#activity > *'],
-  ['tab:roadmap', 'roadmap', '#roadmap-list > [data-key] > .milestone-head'],
+  // Release milestones nest their head in the shared release header since 0ab202b994.
+  ['tab:roadmap', 'roadmap', '#roadmap-list > [data-key] .milestone-head'],
   ['tab:items', 'items', '#chain .row'],
 ];
 
@@ -76,7 +79,7 @@ export async function withPerfSlot(action) {
       throw new Error('the performance harness needs a live browser-capable shared gate slot');
     }
     return action((options) => runPerfHarnessInSlot(options, lease));
-  }, { browser: true, item: '606', kind: 'cockpit-performance' });
+  }, { executionServices, browser: true, item: '606', kind: 'cockpit-performance' });
 }
 
 /** Install page-side input timestamps, Long Task observation and safe request-size collection. */
@@ -439,7 +442,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     await chrome.send('Network.setCacheDisabled', { cacheDisabled: true }, 'disable the fresh profile cache', ACTION_TIMEOUT_MS);
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: timingScript() }, 'install performance observers', ACTION_TIMEOUT_MS);
     const browserVersion = await chrome.send('Browser.getVersion', {}, 'pin the isolated browser runtime', ACTION_TIMEOUT_MS);
-    await chrome.navigate(view.link.href);
+    // The board lands on the dashboard since 0531f8f686 retired Home; the first load measures the Items address.
+    const itemsLink = new URL(view.link.href);
+    itemsLink.pathname = '/items';
+    await chrome.navigate(itemsLink.href);
     actions.push(await waitPaintedAndStable(chrome, network, 'firstLoad', '#chain .row',
       `document.readyState === 'complete' && !document.body.classList.contains('loading') && view.root === ${JSON.stringify(measuredRoot)}`, true));
 
@@ -480,14 +486,15 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     const smallRow = `document.querySelector('#chain .row[data-item="${board.smallItemId}"]')`;
     await beginAction(chrome, 'openSmallItem', 'mousedown');
     await press(chrome, smallRow);
-    actions.push(await waitPaintedAndStable(chrome, network, 'openSmallItem', '#detail .stack',
-      `view.item === ${board.smallItemId} && document.querySelector('#detail .stack h2')?.textContent.includes(${JSON.stringify(board.smallItemTitle)})`));
+    // An item opens in the redesigned item panel since 639c16dbb5.
+    actions.push(await waitPaintedAndStable(chrome, network, 'openSmallItem', '#detail .item-panel',
+      `view.item === ${board.smallItemId} && document.querySelector('#detail .item-panel-head h2')?.textContent.includes(${JSON.stringify(board.smallItemTitle)})`));
 
     const longRow = `document.querySelector('#chain .row[data-item="${board.longestHistoryItemId}"]')`;
     await beginAction(chrome, 'openLongestHistoryItem', 'mousedown');
     await press(chrome, longRow);
-    actions.push(await waitPaintedAndStable(chrome, network, 'openLongestHistoryItem', '#detail .stack',
-      `view.item === ${board.longestHistoryItemId} && document.querySelector('#detail .stack h2')?.textContent.includes(${JSON.stringify(board.longestHistoryTitle)})`));
+    actions.push(await waitPaintedAndStable(chrome, network, 'openLongestHistoryItem', '#detail .item-panel',
+      `view.item === ${board.longestHistoryItemId} && document.querySelector('#detail .item-panel-head h2')?.textContent.includes(${JSON.stringify(board.longestHistoryTitle)})`));
 
     await press(chrome, "document.querySelector('#q')");
     await beginAction(chrome, 'search', 'keydown');
@@ -500,7 +507,8 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
 
     await beginAction(chrome, 'idleSetup', 'mousedown');
     await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
-    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .shout',
+    // A live shout updates its conversation row's preview, so the feed's text still shows each write as it lands.
+    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .conversation-row, #feed .shout',
       `document.querySelector('.tab.on')?.dataset.tab === 'shouts'`);
     const liveMessages = Array.from({ length: Math.ceil(idleMs / liveEveryMs) }, (_, index) =>
       `Live stress update ${index + 1} for seed ${board.seed}, run ${runIndex + 1}.`);
@@ -521,10 +529,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       if ([...window.__pb606IdleExpected.values()].some(at => at !== null)) {
         throw new Error('a live update marker was already present before this idle sample');
       }
-      })()`, "document.querySelector('#feed .shout')");
+      })()`, "document.querySelector('#feed .conversation-row, #feed .shout')");
     let liveBoard = null;
     let liveWrites = 0;
-    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#feed .shout')");
+    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#feed .conversation-row, #feed .shout')");
     const wallStart = nodePerformance.now();
     const liveWriteOffsetsMs = [];
     try {
@@ -550,7 +558,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       report.renderedWrites = renderedAtMs.filter(({ at }) => Number.isFinite(at) && at <= endAt).length;
       report.renderedAtMs = renderedAtMs.map(({ at }) => Number.isFinite(at) ? at - ${idleStart} : null);
       return report;
-    })()`, "document.querySelector('#feed .shout')");
+    })()`, "document.querySelector('#feed .conversation-row, #feed .shout')");
     idle.liveWriteOffsetsMs = liveWriteOffsetsMs;
     Object.assign(idle, network.snapshot('idleWithLiveWrites', idleStart, idle.endMs, idle.timeOrigin));
     idle.liveWrites = liveWrites;

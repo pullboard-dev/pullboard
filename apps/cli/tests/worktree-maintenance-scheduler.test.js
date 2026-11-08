@@ -48,7 +48,7 @@ test('actual CLI keeps a live timer silently and health names its exact key pid 
   const { box, common, directory } = enabledProject(t);
   writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
   const started = execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
-    { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
+    { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim().split(/\s+/u).join(' ');
   const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
     dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: box.repo, common };
   const key = createHash('sha256').update(owner.token).digest('hex');

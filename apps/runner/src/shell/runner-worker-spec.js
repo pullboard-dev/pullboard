@@ -1,7 +1,9 @@
 import { processCensus } from './runner-custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
 import { runnerPolicyRecord } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
+import { runnerPublicKeyProblem } from '../../../../packages/runners/src/core/runner-signature.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
+import { analysisArtifactDescriptor } from '../../../../packages/resources/index.js';
 import { recoveryIdentity } from '../../../../packages/resources/index.js';
 import { claimRunnerWorker } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { createHash } from 'node:crypto';
@@ -79,13 +81,18 @@ export async function readSpec(S) {
     process.stdin.resume();
   });
   const value = spec;
+  if (Number.isSafeInteger(value?.version) && value.version >= 0 && value.version !== 1) S.workSpecVersion = value.version;
   const rule = firstBrokenRule(value);
   if (rule) throw new Error(rule);
   if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');
+  if (value.runnerPublicKey !== undefined && runnerPublicKeyProblem(value.runnerPublicKey)) throw new Error('invalid runner signing key identity');
   if (value.trustedMode !== undefined) {
     const mode = privateCheckEnvelope(value.trustedMode);
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
     value.trustedMode = mode;
+  }
+  if (value.analysisArtifact !== undefined) {
+    value.analysisArtifact = analysisArtifactDescriptor(value.analysisArtifact, value.trustedMode?.sha256);
   }
   if (value.trunk !== undefined) {
     if (value.trustedMode) throw new Error('ambiguous runner policy context');

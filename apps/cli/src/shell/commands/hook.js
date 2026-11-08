@@ -1,10 +1,9 @@
 import { stagedShimImportProblems } from '../../../../../packages/codemap/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
+import { itemFolderPath } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../../../../../packages/landing/index.js';
-import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
 /**
  * Claims that may stamp trailers: the live ones, or the submitted item's own claim when only its gate handoff remains,
  * so a fix commit still cites the item while the gate runs [C7,#2882].
@@ -23,14 +22,13 @@ import { boardBusyError } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { rowDecisions } from '../../../../../packages/spec/index.js';
 import { checkLoosening } from '../../../../../packages/doctrine/index.js';
-import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
-import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../../../../packages/commits/src/core/board-format.js';
 import * as store from '../../../../../packages/store/index.js';
 import { pendingCommitSignoffProblem } from '../../../../../packages/commits/index.js';
 import { prepareCommitMetadata } from '../../../../../packages/commits/index.js';
+import { landingBatchItemsAtRoot } from '../../../../../packages/landing/index.js';
 import { landingBatchOwnsRoot } from '../../../../../packages/landing/index.js';
 import { fixStagedImportBindings } from '../../../../../packages/commits/index.js';
 import { landingRows } from '../../../../../packages/commits/src/core/landing-rows.js';
@@ -41,13 +39,10 @@ import {
 import {
 } from '../../../../../packages/gate/index.js';
 import {
-  gateReport,
-  runGate,
-} from '../../../../../packages/gate/index.js';
-import {
   headTree,
   headCommit,
   tryGit,
+  withGitCommandMemo,
   isClean,
   repoInfo,
   untracked,
@@ -92,6 +87,23 @@ import {
  * @param {any} args
  * @returns {Promise<number>}
  */
+/**
+ * Refuse a commit of item work in a seat checkout, naming the item folder to use (#3691).
+ * Why: builders committed on <lane>/item-<id> inside their seat checkout, which left the seat on an item branch and
+ * blocked every other seat from that item with ITEM_FOLDER_PROTECTED. Item work belongs in the seat's item folder.
+ *
+ * @param {string} root the committing checkout
+ * @param {{ agent_id: string, agent_path: string } | null | undefined} seat the seat whose own checkout this is, if any
+ */
+export function refuseSeatItemWork(root, seat) {
+  if (!seat?.agent_path) return;
+  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim());
+  if (!match) return;
+  const folder = itemFolderPath(seat.agent_path, Number(match[1]));
+  throw new Refused('ITEM_WORK_IN_SEAT', `item work for #${match[1]} is committed in the seat checkout ${root}; item work is built in its item folder ${folder}`,
+    `move the change to ${folder} (pullboard claim ${match[1]} opens it), commit there, and switch this seat checkout off the item branch`);
+}
+
 export async function hookCommand(io, { first, second }) {
   const info = repoInfo(io.cwd);
   let ctx;
@@ -109,6 +121,7 @@ export async function hookCommand(io, { first, second }) {
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+    if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
     const criterion = agent ? hookRead(ctx, board => {
@@ -120,7 +133,7 @@ export async function hookCommand(io, { first, second }) {
     }) ?? '' : '';
     const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
-    problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    problems = withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }));
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -133,7 +146,8 @@ export async function hookCommand(io, { first, second }) {
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
         claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
           item => pendingSubmitHandoff(board, item)),
-        landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
+        landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
+          : landingBatchItemsAtRoot(store.landingBatches(board), info.root, items, item => store.checkedLandingCommit(board, item)),
       };
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
@@ -149,13 +163,16 @@ export async function hookCommand(io, { first, second }) {
         item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
     }) ?? []);
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
-    const rowlessLandings = hookRead(ctx, (board) => (info.isMain || store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root))
-      ? store.listItems(board, { all: true }).filter((item) => item.item_status === 'verified' && !item.item_merged_commit && !landingRows(item).length).map((item) => item.item_id)
-      : [])) ?? [];
+    const rowlessLandings = (metadataContext.landings ?? []).filter(item => !landingRows(item).length).map(item => item.item_id);
     problems = [...prepared.problems, ...commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine, claimedItems, rowlessLandings })];
     if (!problems.length && message !== originalMessage) writeFileSync(second, message);
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
+    // Only a push runs the gate, so the gate, runner, landing and flake graphs load here and never for a commit hook [C7,#3250].
+    const { gateReport, runGate } = await import('../../../../../packages/gate/index.js');
+    const { runnerExecutionServices } = await import('../../../../../packages/runners/index.js');
+    const { landingExecutionServices, waivedLandingProof: nativeWaivedLandingProof } = await import('../../../../../packages/landing/index.js');
+    const { quarantineWaivers } = await import('../../../../../packages/flakes/index.js');
     if (gitBoardDataPush(info.root, refsText)) {
       io.say('pre-push: validated append-only board data; no code refs are updated');
       return 0;

@@ -1,4 +1,4 @@
-import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../state/index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../src/two-tier-diagnosis-engine.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../../src/queue-preempt-engine.js';
 import { ITEM_NOTES_ENGINE } from "../../../../../src/item-notes-engine.js";
 import { ITEM_NOTE_KINDS } from "../../../../items/core.js";

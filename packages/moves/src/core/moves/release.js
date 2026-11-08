@@ -1,4 +1,4 @@
-import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../state/index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../src/two-tier-diagnosis-engine.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../../src/blocked-dependencies-engine.js';
 import { TAKEN_OVER_RELEASE_ENGINE } from '../../../../../src/taken-over-release-engine.js';
 import { EXIT_RULES_ENGINE } from "../../../../../src/exit-rules-engine.js";

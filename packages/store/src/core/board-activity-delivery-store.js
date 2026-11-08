@@ -1,5 +1,7 @@
 /** Canonical interrupt acknowledgements are recipient-owned ordered records, never local cursors [R2,N26,H16]. */
 import { Refused } from "../../../kernel/core.js";
+import { submitHandoff } from "../shell/submit-handoff-read.js";
+import { submitHandoffFailure } from "../shell/submit-handoff-read.js";
 
 /** Address one recipient's indexed derived state without sharing another seat's acknowledgement. */
 function prefix(agentId, state) { return `activity:${agentId}:${state}:`; }
@@ -30,6 +32,12 @@ export function activityDeliveryState(board, agentId) {
   const pending = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
     .all(start, `${start}\uffff`).map(row => JSON.parse(row.meta_value));
   return { ...(value(board, prefix(agentId, 'cursor')) ?? { through: 0, digestThrough: 0 }), pending };
+}
+
+/** Whether this seat has already received or explicitly acted on one exact interrupt [R2,N26,H16]. */
+export function activityInterruptWasDelivered(board, agentId, id) {
+  recipient(board, agentId);
+  return Boolean(value(board, prefix(agentId, 'pending') + id) || value(board, prefix(agentId, 'acted') + id));
 }
 
 /** Resolve a rejection's original recipient from immutable receipts, not the item's later builder. */
@@ -71,6 +79,15 @@ function canonicalInterrupt(board, agentId, input, observedThrough) {
     const answer = board.db.prepare('SELECT * FROM shout WHERE shout_id=?').get(detail.shout);
     const question = answer && board.db.prepare('SELECT * FROM shout WHERE shout_id=?').get(answer.shout_answers);
     if (question?.shout_from === agentId && question.shout_decision) text = `question #${question.shout_id} was answered; read answer #${answer.shout_id}`;
+  } else if (input.reason === 'queued-red') {
+    const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(input.item);
+    const job = item && submitHandoff(board, item.item_id);
+    const latest = item && board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(item.item_id)?.id;
+    if (!item || item.item_owner !== agentId || !submitHandoffFailure(board, item) || job?.commit !== input.commit
+      || event?.item_id !== item.item_id || event.event_id !== latest) {
+      throw new Refused('STALE_ACTIVITY_RECEIPT', 'the queued red changed; read next again before recording its delivery');
+    }
+    text = `#${item.item_id} queued submit red at ${job.commit}; fix it, commit and resubmit`;
   } else if (input.reason === 'files-changed' && event?.event_kind === 'main-moved') {
     const files = input.files ?? [];
     if (!Array.isArray(files) || !files.length && input.unknownFiles !== true && input.unknownAdditionalFiles !== true

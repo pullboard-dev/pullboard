@@ -32,8 +32,8 @@ finish();
 async function fixture(t, count) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-slots-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
-  writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);
+  mkdirSync(join(tools, 'bin'), { recursive: true });
+  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, log: process.env.HANDOFF_TEST_LOG };
@@ -59,8 +59,9 @@ async function fixture(t, count) {
 /** How many workers have started so far, read from the real workers' shared log. */
 function startedCount(log) { return readFileSync(log, 'utf8').split('\n').filter(line => line.startsWith('start ')).length; }
 
-test('with runnersOnly the worker cap is the total runner slots, 63 for 7 runners of 9 [C7,#3061]', () => {
-  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63, runnersOnly: true }), 63);
+test('with runnersOnly the worker cap follows the runner slots up to the machine bound: 9 for one runner of 9, 16 for 7 of them [C7,#3061]', () => {
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 9, runnersOnly: true }), 9);
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63, runnersOnly: true }), 16, 'each worker holds a process pair on this machine for its gate, so the fleet never raises it past the bound');
   assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63 }), 12, 'without runnersOnly one per five slots still applies');
   assert.equal(handoffWorkerCapacity({ env: {}, cores: 4, runnerSlots: 0, runnersOnly: true }), 4, 'no runners leaves the local cap');
   assert.equal(handoffWorkerCapacity({ env: { PULLBOARD_HANDOFF_WORKERS: '5' }, cores: 10, runnerSlots: 63, runnersOnly: true }), 5, 'the override still wins');

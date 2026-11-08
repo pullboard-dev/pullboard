@@ -6,6 +6,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { shoutMatchesAudience } from '../src/board-shout-audience.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Independent SQLite participants, including a helper whose parent is not its own session. */
 function participants(t) {
@@ -138,7 +139,7 @@ test('next and status surface directed instructions sent to another seat of this
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', api, 'main');
   const first = document(inSession(box, session, web, 'join', 'web', '--json'));
   document(inSession(box, session, api, 'join', 'api', '--json'));
-  document(box.run(box.repo, 'add', 'api', 'Read the worker instruction', '--specs', 'G2',
+  document(fixtureAdd(box.run, box.repo, 'api', 'Read the worker instruction', '--specs', 'G2',
     '--criterion', 'The result exists', '--check', 'test -f api/result.txt', '--wait', '--json'));
   document(box.run(box.repo, 'shout', first.agent, 'Shared worker instruction', '--json'));
   const status = document(inSession(box, session, api, 'status', '--json'));
