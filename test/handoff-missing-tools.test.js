@@ -9,6 +9,7 @@ import { HANDOFF_DISPATCHER_RESOURCE, drainHandoffQueue, handoffQueueDirectory, 
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { gateAdmission } from '../bin/handoff-worker-dispatcher.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 /** A real worker that records its own start and exits. */
@@ -32,8 +33,8 @@ test('a ticket whose tools folder is gone is ended as infrastructure and the dis
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   machineHome(t, join(dir, 'home'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
-  writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);
+  mkdirSync(join(tools, 'bin'), { recursive: true });
+  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   const jobs = ['lost', 'next'].map(id => {
     const directory = join(dir, 'jobs', id);
     mkdirSync(directory, { recursive: true });
@@ -42,13 +43,19 @@ test('a ticket whose tools folder is gone is ended as infrastructure and the dis
   });
   queueHandoffLaunch({ directory: jobs[0].directory, tools: join(dir, 'removed-by-temp-cleanup'), commonDir: dir, job: 'lost' }, await reserveHandoffTicket('lost'));
   queueHandoffLaunch({ directory: jobs[1].directory, tools, commonDir: dir, job: 'next' }, await reserveHandoffTicket('next'));
-  const { started } = await drainHandoffQueue({ capacity: 1, pollMs: 20 });
+  // The admission records each gate's driver on its board; here it records the calls the dispatcher made [C7].
+  const calls = [];
+  const admission = { admit: (launch, detail) => calls.push(['admit', launch.job, detail]), spawned: (launch, detail) => calls.push(['spawned', launch.job, detail]),
+    unstarted: (launch, detail) => calls.push(['unstarted', launch.job, detail]), entry: null };
+  const { started } = await drainHandoffQueue({ capacity: 1, pollMs: 20, admission });
   assert.deepEqual(started, ['next'], 'the dispatcher carried on past the lost ticket');
   assert.equal(readFileSync(join(jobs[1].directory, 'result.json'), 'utf8'), 'started');
-  const record = JSON.parse(readFileSync(join(jobs[0].directory, 'worker.json'), 'utf8'));
-  assert.equal(record.job, 'lost');
-  assert.equal(record.pid, null);
-  assert.equal(record.unstarted.code, 'ENOENT', 'the lost worker is recorded as never started');
+  const unstarted = calls.filter(([kind]) => kind === 'unstarted');
+  assert.equal(unstarted.length, 1);
+  assert.equal(unstarted[0][1], 'lost');
+  assert.equal(unstarted[0][2].code, 'ENOENT', 'the lost worker is recorded as never started');
+  assert.equal(unstarted[0][2].owner, calls.find(([kind, job]) => kind === 'admit' && job === 'lost')[2].owner, 'under the driver id it was admitted to');
+  assert.equal(existsSync(join(jobs[0].directory, 'worker.json')), false, 'nothing is written beside the hand-off');
   assert.deepEqual(tickets(), [], 'no ticket is left to block the queue');
 });
 
@@ -93,7 +100,8 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
     rmSync(request.tools, { recursive: true, force: true });
     assert.equal(existsSync(request.tools), false);
   } finally { lock.release(); }
-  await drainHandoffQueue({ capacity: 1, pollMs: 20 });
+  // The production admission: the gate's drive job records that its driver never started [C7].
+  await drainHandoffQueue({ capacity: 1, pollMs: 20, admission: gateAdmission });
   const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
   assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
   const after = state(box, id);
