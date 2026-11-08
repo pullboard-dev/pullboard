@@ -145,7 +145,7 @@ export function resultFrom(request, result, { privateCheckPhases }) {
       importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys, completion);
     } catch { /* Missing retained provenance forces fresh execution next time. */ }
   }
-  return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, phases: request.phaseAt ?? null, ...(receipt.timedOut ? { timedOut: true } : {}),
+  return { isGreen: receipt.code === 0 && !receipt.signal, output: text, stderr: String(result.stderr ?? ''), sandboxBlocked, phases: request.phaseAt ?? null, ...(receipt.timedOut ? { timedOut: true } : {}),
     environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
     ...(request.spec.stageMarker ? { stages: staged?.stages ?? null } : {}),
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,

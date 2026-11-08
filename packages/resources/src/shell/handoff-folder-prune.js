@@ -44,22 +44,15 @@ export function handoffRoots() {
   catch { return []; }
 }
 
-/** Whether a process id is alive. */
-function alive(pid) {
-  if (!Number.isSafeInteger(pid) || pid < 1) return false;
-  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
-}
-
-/** When the folder's gate ended (its result or unstarted record was written), or null while it may still be queued or running. */
+/**
+ * When the folder's gate ended (its result was written), or null while it may still be queued or running. A gate
+ * whose driver still runs is spared by the caller's protect set, which names every running and queued job [C7].
+ */
 function endedAt(directory) {
   let ended = null;
   for (const name of ['submission.json', 'refusal.json']) {
     try { ended = Math.max(ended ?? 0, statSync(join(directory, name)).mtimeMs); } catch { /* no such result */ }
   }
-  let worker;
-  try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); } catch { return ended; }
-  if (alive(worker.pid)) return null;
-  if (ended === null && worker.unstarted) { try { ended = statSync(join(directory, 'worker.json')).mtimeMs; } catch { return null; } }
   return ended;
 }
 

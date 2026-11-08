@@ -2,14 +2,14 @@
 /** next --take gives every eligible seat a green, unreserved review before any build [C7,#2992]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import * as store from '../packages/store/index.js';
 import { fixture, cli } from './next-take-fixture.js';
 
 /** Record a green gate at the item's submitted head, the way the submit queue does. */
 function green(box, id) {
   const head = store.getItem(box.board, id).item_commit;
-  box.board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(`submit_handoff:${id}`, JSON.stringify({ commit: head, agentId: box.seats.builder.id, state: 'green' }));
+  recordSubmitHandoff(box.board.db, id, { id: `fixture-${id}`, commit: head, agentId: box.seats.builder.id, state: 'green' });
 }
 
 test('a seat with a green unreserved submission reviews it before any build, with no starvation wait [C7,#2992]', async t => {

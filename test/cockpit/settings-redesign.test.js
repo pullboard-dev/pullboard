@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The Settings page is grouped cards of one-height rows in human units, with copyable commands, in real Chrome [O5,O6,N26]. */
 import assert from 'node:assert/strict';
