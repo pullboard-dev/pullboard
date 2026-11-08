@@ -46,7 +46,7 @@ test('clause 2: startSubmitHandoff stays refused once another seat has claimed t
   assert.throws(() => requireAgentGrant(board, start(builder), later), { code: /^AGENT_GRANT_/u });
 });
 
-test('clause 3: no board_meta hand-off row exists and the queued start reads the gate job on the real grant path [C7]', t => {
+test('clause 2: no board_meta hand-off row exists and the queued start reads the gate job on the real grant path [C7]', t => {
   const { board, builder, id, later, start } = queuedFixture(t);
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff*'").get().n, 0);
   assert.equal(board.db.prepare("SELECT job_item FROM job WHERE job_id='job-1'").get().job_item, id);
