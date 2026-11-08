@@ -4,6 +4,7 @@ import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from '../../../kernel/index.js';
 import { usageDollars } from '../../../config/index.js';
+import { loadMachineSettings } from '../../../config/index.js';
 import { COUNTS } from './cost-read.js';
 import { UNKNOWN_USAGE_REASONS } from './cost-read.js';
 import { sumUsage } from './cost-read.js';
@@ -86,6 +87,16 @@ export function storedSeatUsage(board, agent) {
     const value = JSON.parse(row.meta_value);
     return { agentId: value.agent, item: value.item, revision: value.revision, observedAt: value.observedAt, shared: value.shared ?? false, records: value.records };
   }).filter((value) => value.agentId === agent);
+}
+
+/**
+ * This machine's budget state for `board` at `now`, or null when no budget is set or the settings cannot be read [N2].
+ * Why: status, the view and the morning report read the budget through this one reader.
+ */
+export function machineBudgetState(board, now) {
+  let settings;
+  try { settings = loadMachineSettings(); } catch { return null; }
+  return settings.budget ? budgetState(board, settings.costPrices, settings.budget, now) : null;
 }
 
 /** Share of a limit at which a budget starts to warn. */
