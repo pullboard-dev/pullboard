@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { boardFixture } from './next-order-fixture.js';
+import { prepareFlakeLanding } from '../packages/landing/src/shell/landing-step-publish.js';
 import * as store from '../packages/store/index.js';
-import { flakeRatchetOrBlock } from '../packages/landing/src/shell/landing-step-trunk.js';
+import { flakeRatchetBeforeGate, flakeRatchetOrBlock } from '../packages/landing/src/shell/landing-step-trunk.js';
 
 /** A gating batch on a real board whose ratchet port answers as the test asks. */
 function gating(t, ratchet) {
@@ -29,4 +30,20 @@ test('an allowed ratchet binds its snapshot and lets the landing go on [C7]', as
   const { state, latest } = gating(t, { allowed: true, unprotected: [], malformed: [], unjustified: [], snapshot });
   assert.equal(await flakeRatchetOrBlock(state), true);
   assert.equal(latest().state, 'gating');
+});
+
+test('before its gate a refused ratchet blocks the batch FLAKE_RATCHET and starts no gate [C7]', async t => {
+  const { state, said, latest } = gating(t, { allowed: false, unprotected: [{ file: 'test/flaky.test.js', name: 'case' }], malformed: [], unjustified: [] });
+  await assert.rejects(() => flakeRatchetBeforeGate(state), { code: 'FLAKE_RATCHET', message: /test\/flaky\.test\.js :: case/ });
+  assert.deepEqual([latest().state, latest().refusal?.code], ['blocked', 'FLAKE_RATCHET']);
+  assert.deepEqual(said, []);
+  assert.equal(state.gates, undefined, 'no gate state was created');
+});
+
+test('before its gate an allowed ratchet changes nothing and the publish step keeps its own check [C7]', async t => {
+  const { state, latest } = gating(t, { allowed: true, unprotected: [], malformed: [], unjustified: [], snapshot: { version: 1, eventId: 0, count: 0, quarantines: [] } });
+  await flakeRatchetBeforeGate(state);
+  assert.equal(latest().state, 'gating');
+  assert.equal(latest().flakeRatchet, undefined, 'the snapshot binds later, after the gate');
+  await assert.rejects(() => prepareFlakeLanding({ ...state, landingPorts: { landingFlakeRatchet: () => ({ allowed: false, unprotected: [{ file: 'a.test.js', name: 'n' }], malformed: [], unjustified: [] }) } }), { code: 'FLAKE_RATCHET' });
 });

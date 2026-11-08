@@ -8,4 +8,5 @@ export { mintJobToken, readJobToken } from './src/core/pull-token.js';
 export { shellWord, channelKey } from './src/core/frames.js';
 export { resultDigest, parseResult } from './src/core/result-file.js';
 export { probeStanding, QUARANTINE_GAP_MS } from './src/core/quarantine.js';
+export { ensureSource } from './src/shell/tree-source.js';
 export { ensureTooling, toolingFolder } from './src/shell/tooling-send.js';

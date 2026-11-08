@@ -22,6 +22,7 @@ import {
   listResources,
   takeResource,
 } from './resources.js';
+import { reuseResourceConnections } from './resource-connections.js';
 import { machineHome } from './machine-home.js';
 import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -238,6 +239,22 @@ export function handoffTicketWaiting(job) {
 }
 
 /**
+ * Remove a job's place in line, reserved or filled, so the dispatcher never starts it.
+ *
+ * @param {string} job - The job id the place belongs to.
+ * @returns {number} How many place files were removed.
+ */
+export function dropHandoffTicket(job) {
+  let removed = 0;
+  for (const name of waitingTickets()) {
+    if (name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') !== job) continue;
+    rmSync(join(handoffQueueDirectory(), name), { force: true });
+    removed += 1;
+  }
+  return removed;
+}
+
+/**
  * Whether any place in line waits, reserved or filled, for any repository on this machine.
  * Why: a dispatcher that freed its board row after its last ticket check must look once more, because a submit that
  * saw the row still held queued its ticket without launching a dispatcher (#3495).
@@ -387,6 +404,7 @@ function endUnstarted(file, name, launch, error, admission = NO_ADMISSION) {
  *   dispatcher held the machine, which then drains every repository's tickets.
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {} } = {}) {
+  reuseResourceConnections(); // One connection per process for every slot call below, so passes never leak handles [C7,#3338].
   const started = [];
   const sweeps = repeatingSweep(sweep, sweepEveryMs);
   let existing;

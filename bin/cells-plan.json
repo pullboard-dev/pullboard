@@ -1,8 +1,5 @@
 {
   "version": 1,
-  "allowedEdges": [
-    "runners->transport"
-  ],
   "item": 1473,
   "rfc": "docs/rfcs/0006-cells.md",
   "base": "b068c560b665790d78507a0db598cf9d130e9232",
@@ -1731,6 +1728,22 @@
     {
       "path": "bin/checks/cells-edges.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/sync-spawn-in-leases.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/245.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/246.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -3446,5 +3459,37 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "runners->config",
+    "runners->kernel",
+    "runners->resources",
+    "runners->transport",
+    "activity->store",
+    "apps/cli->doctrine",
+    "apps/cli->gate",
+    "apps/cli->items",
+    "apps/cli->landing",
+    "apps/cli->apps/runner",
+    "apps/cli->pin",
+    "api->store",
+    "apps/lib->store",
+    "blueprints->store",
+    "doctrine->store",
+    "gate->store",
+    "github->store",
+    "items->store",
+    "keys->store",
+    "landing->pin",
+    "landing->store",
+    "link->store",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "sentinels->store",
+    "state->store",
+    "stats->store",
+    "sync->store"
   ]
 }
