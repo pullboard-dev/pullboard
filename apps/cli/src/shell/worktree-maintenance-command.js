@@ -31,6 +31,14 @@ export function maintenanceCommandPorts(ctx, agentId) {
           text: `Worktree work archived before maintenance cleanup: ${JSON.stringify(record.path)}; archive ${JSON.stringify(record.archive)}; retained HEAD ${record.head} at ${record.ref}; snapshot ${record.signature}.` }]);
       }
     }),
+    /** Name the kept folder and its dirty paths on every linked item, so the owner can find the unfinished work. */
+    recordDirty: record => withBoard(ctx, async board => {
+      const shown = record.paths.slice(0, 20).join(', ') + (record.paths.length > 20 ? `, and ${record.paths.length - 20} more` : '');
+      for (const item of [...new Set(record.items)]) {
+        await ordered(ctx, board, 'appendFact', [item, { agentId, kind: 'note',
+          text: `Worktree kept by maintenance because it holds uncommitted changes: ${JSON.stringify(record.path)}; dirty paths: ${shown}.` }]);
+      }
+    }),
   };
 }
 

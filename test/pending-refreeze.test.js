@@ -24,6 +24,7 @@ import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { unpackRelease } from './release-archive.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 
@@ -51,13 +52,13 @@ function refusal(result, code, itemId, pendingFields) {
   return document.error;
 }
 
-test("the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
+test("clause 1: the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
 
-  const added = box.run(box.repo, 'add', 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const claim = box.run(box.web, 'claim', String(id), '--json');
@@ -104,7 +105,7 @@ test("the coordinator corrects a claimed item's criterion without release [V2]",
   assert.equal(JSON.parse(finalItem.item_frozen).criterion, 'the corrected criterion');
   assert.equal(finalItem.item_commit, box.git(box.web, 'rev-parse', 'HEAD'));
 
-  const checkAdd = box.run(box.repo, 'add', 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
+  const checkAdd = fixtureAdd(box.run, box.repo, 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
   assert.equal(checkAdd.code, 0, checkAdd.err || checkAdd.out);
   const checkId = JSON.parse(checkAdd.out).item.item_id;
   const checkClaim = box.run(box.web, 'claim', String(checkId), '--json');
@@ -134,7 +135,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
   const add = (title, route = 'mid') => {
-    const result = box.run(box.repo, 'add', 'web', title, '--route', route, '--criterion', title,
+    const result = fixtureAdd(box.run, box.repo, 'web', title, '--route', route, '--criterion', title,
       '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
@@ -198,6 +199,12 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);
 });
 
+/** Drop the derived pipeline stage that executables before c85ddac55a never computed. */
+function withoutStage(row) {
+  const { item_stage: _stage, ...rest } = row;
+  return rest;
+}
+
 /** Exercise real older executables, rather than treating a retagged current move as an old client. */
 async function checkDependencyLegacyClients(cleanup, directory, snapshot, target, add, clear) {
   for (const [version, reference] of [[7, 'v0.8.4'], [8, 'v0.8.6'], [9, '314ef28751c44c96186b337cc4ace0fd8bf33d42'], [10, 'v0.8.23']]) {
@@ -223,7 +230,7 @@ async function checkDependencyLegacyClients(cleanup, directory, snapshot, target
     assert.equal(oldResult.error, undefined, JSON.stringify(oldResult));
     const result = applyRelayMove(current, ordinary, receipt);
     assert.equal(result.error, undefined, JSON.stringify(result));
-    assert.deepEqual(store.getItem(current, target), legacyStore.getItem(old, target), 'ordinary legacy edits retain their exact row');
+    assert.deepEqual(withoutStage(store.getItem(current, target)), legacyStore.getItem(old, target), 'ordinary legacy edits retain their exact row');
     assert.deepEqual(store.events(current), legacyStore.events(old), 'ordinary legacy edits retain their event history');
     const before = legacyExchange.exportBoard(old);
     for (const move of [add, clear]) {
@@ -240,7 +247,7 @@ async function checkDependencyLegacyClients(cleanup, directory, snapshot, target
         const currentFeature = applyRelayMove(current, engine10Move, engine10Receipt);
         assert.equal(oldFeature.error, undefined, JSON.stringify(oldFeature));
         assert.deepEqual(currentFeature, oldFeature, 'the current writer reproduces engine 10 dependency additions and clears');
-        assert.deepEqual(store.getItem(current, target), legacyStore.getItem(old, target));
+        assert.deepEqual(withoutStage(store.getItem(current, target)), legacyStore.getItem(old, target));
         assert.deepEqual(store.events(current), legacyStore.events(old), 'engine 10 and the current writer replay identical events');
         assert.equal(appliedSequence(current), legacyEngine.appliedSequence(old));
         assert.deepEqual(engineReceipt(current, engine10Move.id), legacyEngine.engineReceipt(old, engine10Move.id),

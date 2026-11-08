@@ -42,7 +42,7 @@ function deviceExpression() {
     request.onerror = () => reject(new Error('private fixture browser storage unavailable')); })`;
 }
 
-test('a second browser pairs with the command the page names after the first is paired [H15,H17]', async t => {
+test('clause 1: a second browser pairs with the command the page names after the first is paired [H15,H17]', async t => {
   assert.ok(findChromeExecutable(), 'the acceptance case requires the installed real browser');
   const box = await relayClientFixture(t);
   const browsers = [];
@@ -62,7 +62,9 @@ test('a second browser pairs with the command the page names after the first is 
   const firstDone = await firstCommand.closed;
   assert.equal(firstDone.code, 0, 'the first real enrollment completes');
   await first.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 1");
-  await first.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
+  await first.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('[data-tab=items]')");
+  await first.evaluate("document.querySelector('[data-tab=items]').click()");
+  await first.waitFor("document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
   const firstDevice = await first.evaluate(deviceExpression());
   assert.equal(firstDevice.extractable, false);
 
@@ -82,7 +84,9 @@ test('a second browser pairs with the command the page names after the first is 
   await second.navigate(box.origin + '/#device=' + secondPending.locator + '.' + secondPending.secret);
   assert.equal((await secondCommand.closed).code, 0, 'the second real enrollment completes');
   await second.waitFor("document.querySelectorAll('#proj-list .proj.repo').length === 1");
-  await second.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
+  await second.waitFor("data?.project?.items?.some(item => item.title === 'private cleanup fixture item') && document.querySelector('[data-tab=items]')");
+  await second.evaluate("document.querySelector('[data-tab=items]').click()");
+  await second.waitFor("document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')");
   const secondDevice = await second.evaluate(deviceExpression());
   assert.equal(secondDevice.extractable, false);
   assert.notEqual(secondDevice.id, firstDevice.id, 'independent browser profiles retain distinct keys');

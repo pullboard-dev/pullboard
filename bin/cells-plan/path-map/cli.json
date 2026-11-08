@@ -8,6 +8,7 @@
   "src/cli-main/run-command.js": "apps/cli/src/shell/cli-main/run-command.js",
   "src/cli-main/run-main.js": "apps/cli/src/shell/cli-main/run-main.js",
   "src/cli-main/session.js": "apps/cli/src/shell/cli-main/session.js",
+  "src/cli-trace.js": "apps/cli/src/shell/cli-trace.js",
   "src/cli-presence.js": "apps/cli/src/shell/cli-presence.js",
   "src/cli-read-context.js": "apps/cli/src/shell/cli-read-context.js",
   "src/cli-recorded-effects.js": "apps/cli/src/shell/cli-recorded-effects.js",

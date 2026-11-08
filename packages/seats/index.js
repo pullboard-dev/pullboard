@@ -35,6 +35,8 @@ export {
   localSeatSessionDigest,
   localSessionMatches,
   bindLocalSession,
+  endedFolderSession,
+  adoptLocalSession,
   localSessionSeats,
   parentSessionFile,
   recordParentSession,
@@ -114,6 +116,7 @@ export {
 export {
   ROUTES,
   canTake,
+  cappedRoute,
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/core/route-escalation.js';
@@ -169,6 +172,7 @@ export {
 export {
   originRepository,
 } from './src/core/github-origin.js';
+export { MODEL_TIERS, modelTier } from './src/core/model-tier.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,

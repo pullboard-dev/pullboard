@@ -2,7 +2,7 @@ import { archivedToolingSource } from './committed-tooling.js';
 import { committedRunnerController } from './committed-tooling.js';
 import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
-import { runnerSource } from '../../../gate/index.js';
+import { runnerSource } from '../../../gate/src/core/gate-policy-load.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -27,6 +27,9 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
+
+/** Whether any runners.js instance has pinned the loaded tooling in this process. */
+export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
 
 /**
  * Pin one runners.js instance's controller generation when it loads; the closure capture waits for first use.

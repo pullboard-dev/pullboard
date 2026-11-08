@@ -9,7 +9,7 @@ export function automaticLandingEnabled(config) {
 
 /** Refuse a coordinator command while the board owns landing. */
 export function requireManualLanding(config) {
-  if (automaticLandingEnabled(config)) throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items', 'wait for automatic landing; a person can enable landing.manualOverride in accepted trunk policy');
+  if (automaticLandingEnabled(config)) throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items', 'take other work with pullboard next; nothing for this seat: end your turn');
 }
 
 /** Return exact conflicting accepted heads before selecting the clean native batch. */

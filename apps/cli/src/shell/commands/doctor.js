@@ -3,7 +3,9 @@ import { checkAtCommit } from '../../../../runner/index.js';
 import {
   doctorProblems,
   doctrineProblems,
+  reviewFamilyCover,
 } from '../../../../../packages/health/index.js';
+import { withBoardRead } from '../cli-context.js';
 import {
   bareWorktreeFinding,
   tryGit,
@@ -36,6 +38,13 @@ export function run(io) {
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
   const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];
+  // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
+  const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
+  const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
+    : withBoardRead(ctx, board => reviewFamilyCover(ctx.info, board, ctx.config));
+  for (const family of cover.missingFamilies) problems.push({ code: 'REVIEW_FAMILY_COVER',
+    message: `${family} has no registered reviewer wake from another declared family`,
+    next: `enroll an independent reviewer from another family with pullboard join <lane> --family <vendor> --wake <executable>` });
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);

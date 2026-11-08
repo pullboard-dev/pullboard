@@ -26,6 +26,8 @@ export function gateWaitReporter(io) {
       return;
     }
     held = false;
+    // An inherited or handed-off slot reports { admitted: true } with no queue state: nothing to say.
+    if (!Array.isArray(holders)) return;
     const repos = holders.map(({ repo }) => repo).filter(Boolean);
     const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}; place ${position}`;
     if (message !== last) {

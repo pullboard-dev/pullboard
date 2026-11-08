@@ -14,6 +14,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { processCensus } from './runner-custody.js';
 import { acquireResourceApi } from './runner-worker-environment.js';
 import { DatabaseSync } from 'node:sqlite';
+import { maintainTestResults } from './runner-test-results-prune.js';
 
 const GIB = 1024 ** 3;
 export const DEFAULT_REPOS_BUDGET = 15 * GIB;
@@ -177,6 +178,7 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
   }
   const pins = pinnedRepos(jobs);
   if (!pins) { report.skipped = 'pin custody unavailable'; report.freeBytes = freeNow(); return report; }
+  report.testResults = maintainTestResults(root, { held: pins });
   const units = storeUnits(root, pins, live.length > 0, deadline);
   const total = kind => units.filter(unit => unit.kind === kind).reduce((sum, unit) => sum + unit.bytes, 0);
   const sizes = { repos: total('repos'), cache: total('cache') };

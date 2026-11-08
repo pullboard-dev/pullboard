@@ -106,7 +106,7 @@ export async function runShellAsync(root, command, options) {
   const execution = shellExecution(root, command, options);
   try {
     let step = execution.next();
-    while (!step.done) step = execution.next(await spawnCaptured(step.value.command, step.value.args, step.value.options));
+    while (!step.done) step = execution.next(await spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal: options?.signal }));
     return step.value;
   } finally { execution.return(); }
 }

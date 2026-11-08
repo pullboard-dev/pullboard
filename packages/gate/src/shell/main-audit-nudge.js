@@ -10,10 +10,14 @@ import { repoInfo } from '../../../git/index.js';
 import { mainAuditDirectory } from './main-audit-state.js';
 import { readMainAudit } from './main-audit-state.js';
 
-/** Call only after foreground checkout/landing leases release; never await an audit or gate admission. */
+/**
+ * Call only after foreground checkout/landing leases release; never await an audit or gate admission.
+ * The cells inventory is not produced here: the first gate that needs it gets it through its cells-inventory job.
+ */
 export async function nudgeMainAudit(root, workerUrl) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain()) return null;
+  if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('main audit nudge requires its actual process entry URL');
   // An unactivated repository has no audit work; avoid starting a detached no-op child.
   // Malformed/unreadable state still follows the worker's ordinary diagnostic path.
   try { if (!readMainAudit(join(mainAuditDirectory(info), 'activation.json'))) return null; }

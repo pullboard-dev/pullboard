@@ -13,6 +13,7 @@ import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
 import { criterionClauses } from '../packages/state/index.js';
 import { configFromSource } from '../packages/config/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -30,7 +31,7 @@ function fixture(t, criterion) {
   t.after(() => store.closeBoard(board));
   return { board, id };
 }
-const problem = ({ board, id }) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id));
+const problem = ({ board, id }, options = undefined) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id), options);
 const tick = ({ board, id }, text) => store.appendFact(board, id, { agentId: 'core-1', kind: 'note', text });
 
 test('inspection policy is a board setting that defaults on and validates booleans [V4,B3,C7]', () => {
@@ -109,7 +110,7 @@ test('a free-text criterion is unaffected [V4,B3]', t => {
 test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', () => {
   const box = e2e.project();
   const criterion = 'the page is right when:\n1. the heading renders [test]\n2. the footer shows the count [command]\n3. the page is clear at 375px [screenshot]';
-  const added = box.run(box.repo, 'add', 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
@@ -215,4 +216,12 @@ test('accepted board policy overrides a false caller flag at the store and move 
   const result = applyEngineMove(f.board, move, { sequence: 1, at: new Date().toISOString() });
   assert.equal(result.error?.code, 'CLAUSE_UNTICKED');
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
+});
+
+test('a test tick naming a file the commit\'s green proof ran is proven without the clause number in the case name [C7]', t => {
+  const f = fixture(t, '1. The outcome is verified [test]');
+  tick(f, 'clause 1 [test]: test/page.test.js the page renders');
+  assert.match(problem(f).message, /needs a named test case citing clause 1/u, 'no proof yet');
+  assert.equal(problem(f, { greenFiles: new Set(['test/page.test.js']) }), null, 'the green proof of this commit ran that file');
+  assert.match(problem(f, { greenFiles: new Set(['test/other.test.js']) }).message, /citing clause 1/u, 'another file proves nothing for it');
 });

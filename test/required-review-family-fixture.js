@@ -9,7 +9,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 export async function proveRequiredReviewFamily(t, { fixture, cli }) {
   const box = await fixture(t);
   const added = await cli(box, box.root, ['add', 'web', 'Review by a named family', '--criterion',
-    'Only the explicitly required declared family reviews this item.', '--specs', 'G1', '--check', 'true',
+    'Only the explicitly required declared family reviews this item.', '--specs', 'G1', '--route', 'strong', '--check', 'true',
     '--review-family', 'Family Alpha', '--wait']);
   assert.equal(added.code, 0, added.out + added.err);
   const id = added.document.item.item_id;

@@ -560,6 +560,27 @@ test('the stale CLI validates and retains an explicit maintenance reason overrid
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
 });
 
+test('clause 1: release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
+  const f = fixture(t);
+  store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Gone folder fixture' });
+  const gone = f.add('Claim whose seat folder was removed'), present = f.add('Claim whose seat folder exists');
+  const goneSeat = store.agentById(f.board, f.builder).agent_path;
+  const other = store.register(f.board, { lane: 'web', path: join(f.box.dir, 'present-builder') });
+  f.worktree(store.agentById(f.board, other).agent_path, 'private-present-builder');
+  store.claim(f.board, gone, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  store.claim(f.board, present, { agentId: other, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  f.advance(MINUTE);
+  const kept = await f.cli('release', String(present), '--stale', '--reason', 'OTHER', '--note', 'Folder still exists, so this must wait', '--json');
+  assert.notEqual(kept.status, 0, 'a present folder still needs the configured stale interval');
+  assert.equal(store.getItem(f.board, present).item_owner, other);
+  const result = await f.cli('release', String(gone), '--stale', '--reason', 'OTHER', '--note', 'Seat folder was removed', '--json');
+  assert.equal(result.status, 0, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
+  assert.equal(store.getItem(f.board, gone).item_status, 'open');
+  const detail = JSON.parse(store.events(f.board, { itemId: gone }).findLast(event => event.event_kind === 'release').event_detail);
+  assert.equal(detail.staleClaim.seatFolderMissing, goneSeat);
+  assert.ok(detail.reason.includes(goneSeat), 'the missing path is recorded as the reason');
+});
+
 /** Preserve historical release detail bytes while current automatic expiry uses a genuine coded reason. */
 test('automatic idle review release codes current maintenance without rewriting historical detail [B4,C7,H16]', t => {
   for (const historical of [false, true]) {

@@ -1,3 +1,4 @@
+import * as deferOwnership from './engine-move-defer-ownership.js';
 import * as queueSubmitHandoff from './engine-move-queue-submit-handoff.js';
 import * as applyRowDecisions from '../core/engine-move-apply-row-decisions.js';
 import * as advanceItemSource from '../core/engine-move-advance-item-source.js';
@@ -27,6 +28,7 @@ import * as verify from '../core/engine-move-verify.js';
  * (before replay installs its clock or records any receipt); an operation without a module seals its arguments as given.
  */
 export const ENGINE_MOVE_STEPS = Object.freeze({
+  deferOwnership,
   queueSubmitHandoff,
   advanceItemSource,
   answerDecision,

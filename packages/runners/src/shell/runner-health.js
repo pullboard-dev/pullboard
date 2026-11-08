@@ -1,5 +1,5 @@
 /** Probe a runner's pinned worker health and hand the canonical runner operations to the gate [C7]. */
-import { validateRunner } from '../../../gate/index.js';
+import { validateRunner } from '../../../config/index.js';
 import { runOnRunner } from './runner-dispatch.js';
 import { runOnRunnerAsync } from './runner-dispatch.js';
 import { ownedTransportCompletion } from './runner-dispatch.js';
@@ -65,9 +65,9 @@ export async function probeRunnerJob(runner, identity, { signal } = {}) {
 }
 
 /** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
-export async function probeRunnerHealth(runner, previous, { idle = false, restart = false, stopLeaked = false } = {}) {
+export async function probeRunnerHealth(runner, previous, { idle = false, restart = false, stopLeaked = false, liveJobs = [] } = {}) {
   runner = validateRunner(runner);
-  if (stopLeaked) return stopLeakedRunnerJobs(runner);
+  if (stopLeaked) return stopLeakedRunnerJobs(runner, { liveJobs });
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
   const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };

@@ -1,6 +1,6 @@
 /** A second cell entry may expose pure modules without admitting shell or opaque loading [C7,D3]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { lex } from '../packages/kernel/index.js';
