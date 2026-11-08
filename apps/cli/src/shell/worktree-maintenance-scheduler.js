@@ -15,6 +15,8 @@ import { realpathSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
@@ -55,6 +57,20 @@ function timerState(owner) {
   return current.zombie || current.started !== owner.started ? 'gone' : 'live';
 }
 
+/**
+ * The primary checkout path without listing every registered worktree [C7].
+ * A common directory named `.git` belongs to the checkout that contains it, so no `git worktree list` runs
+ * (94-144 ms with 458 worktrees); any other layout, such as a bare repository, still asks Git.
+ */
+function primaryCheckout(root, common) {
+  if (basename(common) === '.git') return dirname(common);
+  const first = git(root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() }).split('\0\0')[0].split('\0');
+  if (!first[0]?.startsWith('worktree ') || first.includes('bare')) throw new Error('maintenance needs the primary checkout');
+  const path = first[0].slice('worktree '.length);
+  if (!isAbsolute(path)) throw new Error('invalid primary maintenance checkout');
+  return path;
+}
+
 /** The accepted primary checkout and committed main policy are reread in a new Git fact scope. */
 async function canonical(ctx) {
   return withGitFacts(() => {
@@ -63,10 +79,7 @@ async function canonical(ctx) {
     if (common !== realpathSync(ctx.info.commonDir)) throw new Error('maintenance timer repository changed');
     const policy = mainPolicy(info.root);
     if (policy.config.worktreeMaintenance?.enabled !== true) return null;
-    const first = git(info.root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() }).split('\0\0')[0].split('\0');
-    if (!first[0]?.startsWith('worktree ') || first.includes('bare')) throw new Error('maintenance needs the primary checkout');
-    const root = first[0].slice('worktree '.length);
-    if (!isAbsolute(root)) throw new Error('invalid primary maintenance checkout');
+    const root = primaryCheckout(info.root, common);
     const primary = repoInfo(root, { env: cleanGitEnvironment() });
     if (!primary.isMain || realpathSync(primary.commonDir) !== common) throw new Error('maintenance primary repository changed');
     return { root: realpathSync(root), common, everyMs: maintenanceDurations(policy.config.worktreeMaintenance).everyMs };

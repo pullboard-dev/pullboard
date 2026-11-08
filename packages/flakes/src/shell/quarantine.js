@@ -149,7 +149,12 @@ function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLe
   const released = row => latest.get(testKey(row.file, row.name))?.status === 'lifted' && latest.get(testKey(row.file, row.name)).since >= row.lastEventId;
   const current = ledger.filter(row => !released(row));
   const observations = [...current, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
-  return flakeRatchet({ previous, eventId, observations, quarantines });
+  const result = flakeRatchet({ previous, eventId, observations, quarantines });
+  // The snapshot hides other connections' writes; a write through this connection mid-capture would mix two boundaries.
+  if (board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id !== eventId) {
+    throw new Refused('BOARD_BUSY', 'the board changed while capturing the flake ratchet; retry from its current state');
+  }
+  return result;
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */

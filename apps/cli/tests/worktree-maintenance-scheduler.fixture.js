@@ -15,6 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { copyCommittedPackageFiles } from '../../../test/package-copy-fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { isolateTestMachine } from '../../../packages/gate/index.js';
 import { processCensus } from '../../runner/index.js';
@@ -168,6 +169,29 @@ export function registerMaintenanceSchedulerTests() {
     const ctx = project(t, false);
     assert.deepEqual(await scheduleWorktreeMaintenance(ctx), { scheduled: false, reason: 'disabled-on-main' });
     assert.equal(fs.existsSync(join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance')), false);
+  });
+
+  test('clause 1: scheduling a timer asks Git for no worktree list when the common directory is the primary .git [C7]', async t => {
+    const ctx = project(t, true), shim = privateFixtureFiles('pullboard-git-shim-').root, log = join(shim, 'calls.log');
+    t.after(() => fs.rmSync(shim, { recursive: true, force: true }));
+    const real = cp.execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+    fs.writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "$@" >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
+    const directory = join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance');
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
+    const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
+      { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim().split(/\s+/u).join(' ');
+    fs.writeFileSync(join(directory, 'timer.json'), JSON.stringify({ version: 1, token: randomUUID(), pid: process.pid, started,
+      dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: ctx.info.root, common: ctx.info.commonDir }) + '\n', { mode: 0o600 });
+    const path = process.env.PATH;
+    process.env.PATH = `${shim}:${path}`;
+    try {
+      assert.equal((await scheduleWorktreeMaintenance(ctx)).reason, 'existing-timer');
+      assert.equal((await scheduleWorktreeMaintenance(ctx)).reason, 'existing-timer');
+    } finally { process.env.PATH = path; }
+    const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
+    assert.ok(calls.length > 0, 'the shim saw the scheduler run Git');
+    assert.doesNotMatch(calls, /worktree list/u, 'no worktree list ran');
   });
 
   test('native live and unknown timer process observations retain exact registration without another child [B3,C7,N26]', async t => {

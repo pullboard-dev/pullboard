@@ -7,8 +7,10 @@ import { PAIR_PACKAGE_BODY_BYTES } from '../../../link/index.js';
 
 const BODY_BYTES = 100_000;
 
-/** Keep unexpected internal failures out of the public refusal document; the caller supplies the renderer. */
+/** Keep unexpected internal failures out of the public refusal document, and write them to stderr; the caller supplies the renderer. */
 function refusalFor(refusalDocument, error) {
+  // The body stays generic, but whoever runs the service needs the cause: log the original message and stack before answering.
+  if (!(error instanceof Refused)) process.stderr.write(`pullboard service error: ${error?.stack ?? String(error)}\n`);
   const document = refusalDocument(error instanceof Refused ? error : new Refused('SERVICE_ERROR', 'the board service could not complete the call; retry or check the service'));
   const storage = error instanceof Refused && error.code === 'ACCOUNT_STORAGE_LIMIT' ? relayStorage(error.storage) : null;
   if (storage) document.error.storage = storage;
