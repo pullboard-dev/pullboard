@@ -234,10 +234,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   };
   // The registered worker returns the same complete stage/component accounting as a local run.
   gateLease?.tracker?.mark('runAt');
-  // A runner's shell inherits the controller's test context unless the command drops it, and a node --test child that
-  // finds the context skips its files and reports green with nothing run; selected tiers must always run [C7].
-  const collected = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
-  const remoteCommand = gateLease?.testTiers ? `unset NODE_TEST_CONTEXT\n${collected}` : collected;
+  const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = yield { root, command, remoteCommand, gateLease,
     remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,

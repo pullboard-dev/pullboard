@@ -124,7 +124,6 @@ function fullGatePlan(state, owed = []) {
 export function batchGatePlan(state, options = {}) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
-    throw new Refused('DBG_PLAN', `DBG caught ${error.code}: ${error.message} single=${singleItemLanding(state)}`);
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
     return fullGatePlan(state);
   }
@@ -152,7 +151,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
       affectedGate: createHash('sha256').update(`focus:${command}`).digest('hex') };
   }
   const selection = batchAffectedTests(state, readEvents, readItem);
-  if (selection.fullGate) throw new Refused('DBG_PLAN', `DBG fullGate: ${selection.reason}`);
+  if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
     // This repository plans by test tiers, so landing.auditOnly applies here too (it did not on 6 Nov's first batch).
     const { files, left } = auditOnlySplit(state.config, selection.files);

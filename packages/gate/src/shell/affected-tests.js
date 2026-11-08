@@ -24,6 +24,8 @@ import {
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
 const DOC = /^docs\/.+\.md$/u;
+/** The generated README badge files the board commits when it lands. */
+const GENERATED_BADGE = /^docs\/badges\/[^/]+\.json$/u;
 // A scanner declares this header rather than executing code while the graph is read.
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
@@ -530,7 +532,9 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     if (changed.includes('package.json') && !descriptionOnlyPackage(root, base, commit)) {
       return { full: true, reason: 'package.json changes implicit runtime or package effects', files };
     }
-    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
+    // The board writes the README badge files itself at landing; no module imports them, so they select nothing and
+    // must not turn a selectable batch into the full gate, which a test context can skip as a false green [C7].
+    const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path) && !GENERATED_BADGE.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
     // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
