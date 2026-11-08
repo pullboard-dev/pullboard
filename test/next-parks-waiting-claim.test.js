@@ -5,7 +5,7 @@ import { crossLaneFixture } from './e2e-helpers.js';
 import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 
-test('next parks a claimed item whose new wait is unmet and offers other work instead [N2,B5,B10]', t => {
+test('clause 1: next parks a claimed item whose new wait is unmet and offers other work instead [N2,B5,B10]', t => {
   const box = crossLaneFixture(t);
   joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL, run: (root, ...args) => box.runAs(box.session, root, ...args) });
   const blocker = box.add('web', 'Prerequisite');
@@ -24,7 +24,7 @@ test('next parks a claimed item whose new wait is unmet and offers other work in
 });
 
 /** A withdrawn prerequisite stands in for a landed one: both end the wait, and the fixture kit has no cheap way to verify an item. */
-test('once the wait is satisfied the parked item is offered first to the seat that built it [N2,B5,B10]', t => {
+test('clause 2: once the wait is satisfied the parked item is offered first to the seat that built it [N2,B5,B10]', t => {
   const box = crossLaneFixture(t);
   joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL, run: (root, ...args) => box.runAs(box.session, root, ...args) });
   const blocker = box.add('web', 'Prerequisite');
