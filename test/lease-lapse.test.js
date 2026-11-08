@@ -168,17 +168,20 @@ test('automatic claim expiry records current reason codes while prior lease-laps
   assert.equal(snapshot.claims[0].id, id);
   const before = exportBoard(box.board);
   const args = [{ agentId: box.seats.actor.id, snapshot, health: box.config.health ?? {}, claimsOnly: true }];
+  // A current capture carries the stranded-dependency limit, which raises the floor; a genuine lease-lapse envelope predates it.
+  const { dependency: _dependency, ...legacyLimits } = snapshot.limits;
+  const legacyArgs = [{ ...args[0], snapshot: { ...snapshot, limits: legacyLimits } }];
   const move = prepareEngineMove(box.board, 'maintainStaleState', args);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
   assert.ok(RELEASE_REASONS_ENGINE > LEASE_LAPSE_ENGINE);
-  assert.equal(minimumMoveEngine('maintainStaleState', args), LEASE_LAPSE_ENGINE,
+  assert.equal(minimumMoveEngine('maintainStaleState', legacyArgs), LEASE_LAPSE_ENGINE,
     'genuine accepted lease-lapse envelopes retain their original operation floor');
   const releaseRows = [];
   for (const [engine, coded] of [[move.engine, true], [LEASE_LAPSE_ENGINE, false]]) {
     const replica = openBoard(':memory:', box.clock);
     t.after(() => store.closeBoard(replica));
     importBoard(replica, before);
-    const applied = applyRelayMove(replica, { ...move, engine }, { sequence: appliedSequence(replica) + 1,
+    const applied = applyRelayMove(replica, { ...move, ...(coded ? {} : { args: legacyArgs }), engine }, { sequence: appliedSequence(replica) + 1,
       at: box.clock.now().toISOString(), kind: 'move',
       sender: { kind: 'agent', agent: box.seats.actor.id, userId: 'fixture-user' } });
     assert.equal(applied.error, undefined, JSON.stringify(applied));
@@ -212,7 +215,7 @@ test('clause 1: explicit stale CLI releases require a code before observation an
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|INFRA\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);

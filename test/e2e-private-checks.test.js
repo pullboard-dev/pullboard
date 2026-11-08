@@ -28,6 +28,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -327,7 +328,7 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
+test('clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.
@@ -337,7 +338,7 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');

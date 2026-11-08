@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { assertStartupBudgets } from './cli-startup-budget-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const REPO = resolve(import.meta.dirname, '..');
 const BIN = join(REPO, 'bin', 'pullboard.js');
@@ -125,7 +126,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   run('add', 'core', 'Show me', '--specs', 'C7', '--criterion', 'it shows', '--brief', 'Files: src/a.js\nTest: it shows.');
   const worktree = join(dir, 'core-1');
   git('worktree', 'add', '-q', '-b', 'core/one', worktree);
-  runIn(worktree, 'join', 'core', '--model', 'test-model');
+  fixtureJoin(runIn, worktree, 'core', '--model', 'test-model');
   return { run, runIn, worktree, repo, gitAt, facts };
 }
 

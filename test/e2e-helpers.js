@@ -18,15 +18,33 @@ import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
+/** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
+export const FIXTURE_MODEL = 'fixture-model';
+
+/**
+ * A copy of an environment with every PULLBOARD_ variable removed, so a fixture never inherits the
+ * agent's identity or home. Each fixture sets the PULLBOARD_ values it needs on top of this copy.
+ * @param {Record<string, string | undefined>} source The parent process environment.
+ * @returns {Record<string, string | undefined>} A new object without PULLBOARD_ keys.
+ */
+export function withoutPullboardEnv(source) {
+  return Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_')));
+}
+
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
-  /** Remove this test file's fixtures after its tests finish. */
+  /**
+   * Remove this test file's fixtures after its tests finish. A detached writer (a gate or board worker a
+   * fixture command started) can still be flushing into the tree on a loaded runner, so the removal waits up
+   * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
+   */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
+
 /**
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
  * git isolated from the machine's own config.
@@ -39,7 +57,7 @@ function sandbox({ declareFamilies = false } = {}) {
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(shims, 'pullboard'), 0o755);
   const env = {
-    ...process.env,
+    ...withoutPullboardEnv(process.env),
     PATH: `${shims}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -51,6 +69,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
+    // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
+    PULLBOARD_MODEL: FIXTURE_MODEL,
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
@@ -119,13 +139,13 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = joinFixtureSeat(box, web, 'web', { model: 'Fixture' });
-  assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
+  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model' });
+  assert.equal(joined.code, 0, `fixture join failed (code ${joined.code}): ${joined.err}\n${joined.out}`);
   const seat = JSON.parse(joined.out);
   assert.equal(seat.agent, 'web-1');
   assert.equal(seat.lane, 'web');
   assert.equal(seat.route, 'strong');
-  assert.equal(seat.model, 'Fixture');
+  assert.equal(seat.model, 'fixture-model');
   return { ...box, repo, web };
 }
 
@@ -351,11 +371,11 @@ export function crossLaneFixture(t) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
     return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
-  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row. */
+  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {
     return fileFixtureItem(box, box.repo, { lane, title, route,
-      criterion: 'The item can be built and checked from its brief.', check: 'true',
-      brief: `Files: ${lane}/${route}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
+      criterion: 'The item can be built and checked from its brief.', check: 'true', diagnose: false,
+      brief: `Files: ${lane}/${route}-${title.toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
       args: ['--specs', lane === 'api' ? 'G2' : 'G1'] }).item_id;
   }
   /** Keep the test's queue order explicit without touching a production board. */

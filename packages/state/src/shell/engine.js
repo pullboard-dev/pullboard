@@ -93,7 +93,7 @@ function validateMove(move, ports) {
   if (typeof move.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(move.id) || !ports.operations.includes(move.operation) || !Array.isArray(move.args)) throw new Refused('RELAY_MOVE', 'this sealed operation is invalid; use a supported board-engine operation');
   const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
   steps.validate?.(move.args);
-  const minimumEngine = ports.minimumOperationEngine(move.operation, move.args);
+  const minimumEngine = ports.minimumOperationEngine(move.operation, move.args, undefined, undefined, { replayEngine: move.engine });
   if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot be replayed from engine version ${move.engine}; it was introduced in engine ${minimumEngine}; restore a consistent relay prefix`);
 }
 
@@ -194,7 +194,7 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
     let outcome = previous?.outcome;
     if (!outcome) {
       // Existing receipts replay before consulting newer snapshot semantics.
-      const minimumEngine = measure('engine-minimum', () => Math.max(ports.minimumOperationEngine(move.operation, move.args, board, new Date(at)), agentGrantMinimum(board, move)));
+      const minimumEngine = measure('engine-minimum', () => Math.max(ports.minimumOperationEngine(move.operation, move.args, board, new Date(at), { replayEngine: move.engine }), agentGrantMinimum(board, move)));
       if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot act on a checked-composition snapshot from engine ${move.engine}; use engine ${minimumEngine} or newer`);
       // Missing immutable objects abort before a refusal receipt or cursor could make a fetch unrecoverable.
       const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};

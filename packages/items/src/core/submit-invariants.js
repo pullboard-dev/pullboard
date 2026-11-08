@@ -143,7 +143,10 @@ export function validateLandingRevision(previous, batch, revision) {
   if ((previous?.revision ?? 0) !== revision || previous?.state === 'landed') {
     throw new Refused('LAND_MOVED', 'the landing batch changed; read pullboard resume and adopt its current revision');
   }
-  if (previous && (previous.base !== batch.base || previous.root !== batch.root || previous.branch !== batch.branch)) {
+  // A batch rebuilt on a trunk that moved outside its files records the base it left; any other base change is a
+  // different batch. Why: the rebuild saved a new base, this guard refused it, and the worker crashed on 6 Nov [C7].
+  const rebased = previous && batch.base !== previous.base && batch.rebasedFrom === previous.base;
+  if (previous && ((previous.base !== batch.base && !rebased) || previous.root !== batch.root || previous.branch !== batch.branch)) {
     throw new Refused('LAND_BATCH', 'a batch keeps its original base and landing worktree; adopt it with pullboard land --adopt');
   }
 }

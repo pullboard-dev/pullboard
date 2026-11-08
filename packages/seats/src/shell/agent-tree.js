@@ -47,17 +47,18 @@ export function agentTree(info, config, board, store) {
  * @param {any[]} tree
  * @returns {string[]}
  */
-export function agentTreeLines(tree, indent = '') {
+export function agentTreeLines(tree, indent = '', { detail = true } = {}) {
   if (!indent && !tree.length) return ['no agents have joined'];
   return tree.flatMap((agent) => {
     const held = agent.holds.map((hold) => `#${hold.item} (${hold.status})`).join(', ');
-    return [`${indent}${agent.displayName} (${agent.lane}) parent ${agent.parentSession ?? 'unknown'} ${agent.path} ${agent.address}${held ? `: ${held}` : ''}`, ...agentTreeLines(agent.helpers, indent + '  ')];
+    const parent = ` parent ${agent.parentSession ?? (detail ? 'unknown' : '?')}`;
+    return [`${indent}${agent.displayName} (${agent.lane})${parent} ${agent.path} ${agent.address}${held ? `: ${held}` : ''}`, ...agentTreeLines(agent.helpers, indent + '  ', { detail })];
   });
 }
 
 /** Print the agents view, in text and as the stable agents:array JSON field. */
-export function agentsReport(io, tree) {
+export function agentsReport(io, tree, { detail = false } = {}) {
   io.result?.({ agents: tree });
-  for (const line of agentTreeLines(tree)) io.say(line);
+  for (const line of agentTreeLines(tree, '', { detail })) io.say(line);
   return 0;
 }

@@ -26,6 +26,7 @@ import { acceptedCutItems } from './cells-plan-fixture.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const ORDINARY = 'Health counts work-free claim releases';
 const MOVE = 'Cells move 1/1: kernel moves into packages/kernel behind shims';
@@ -182,7 +183,7 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', ORDINARY, '--specs', 'G1', '--criterion', 'An ordinary source lands.',
+  const added = fixtureAdd(box.run, box.repo, 'web', ORDINARY, '--specs', 'G1', '--criterion', 'An ordinary source lands.',
     '--check', 'node check.cjs', '--wait', '--no-next', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
