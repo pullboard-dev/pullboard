@@ -213,7 +213,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     }
   }
   const settingsProvider = () => loadMachineSettings();
-  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => machineSlots(settingsProvider()).gate;
   const source = runnerSource(root);
@@ -265,7 +265,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     releaseContext,
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
     onWait: async state => {
-      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
       return onWait?.(state);
     },
   });
