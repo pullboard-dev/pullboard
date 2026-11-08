@@ -509,7 +509,8 @@ test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q
 });
 
 test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
-  const box = fixture({ dropFirst: false });
+  // The private machine setting is the child's startup deadline; the 60 ms default expired under runner load (load average 19 on 12 CPUs).
+  const box = fixture({ dropFirst: false, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const gateUrl = pathToFileURL(join(process.cwd(), 'packages/gate/index.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}
