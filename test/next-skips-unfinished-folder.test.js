@@ -68,13 +68,16 @@ function unfinishedBoard() {
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
   return path;
   });
+  // A new session takes over the holder's seat, so the session that bound the folder has ended and does not hold it.
+  const taken = as(box, 'session-c', () => box.run(holder.root, 'takeover'));
+  assert.equal(taken.code, 0, `${taken.out}\n${taken.err}`);
   return { box, a, b, holder, claimer: seat(box, 'web-b', 'session-b'), folder, status: box.git(folder, 'status', '--porcelain') };
 }
 
 test('clause 1: next for another seat names ITEM_FOLDER_UNFINISHED for the mid-merge item, leaves its folder untouched and offers the free item [B3,C7]', () => {
   const { box, a, b, claimer, folder, status } = unfinishedBoard();
   const next = as(box, 'session-b', () => box.run(claimer.root, 'next'));
-  const all = `${next.out}\n${next.err}\nDEBUG ${box.git(box.repo, 'worktree', 'list')}\n${box.run(box.repo, 'show', a).out}\n${box.run(box.repo, 'list', 'web').out}`;
+  const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
   assert.match(next.out, new RegExp(`skipped #${a}: ITEM_FOLDER_UNFINISHED: item folder .*web-a-item-${a} for #${a} holds an unfinished merge`, 'u'), all);
   assert.match(next.out, new RegExp(`claimed #${b}:`, 'u'), all);
