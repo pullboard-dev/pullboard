@@ -50,7 +50,7 @@ function outcomeReporter(box) {
 }
 
 /** A claimed web item with the given criterion and a committed test file whose second case may fail. */
-function builderItem(criterion, { failing = false } = {}) {
+function builderItem(criterion, { failing = false, brief = 'Files:\n- web/page.html\nTest:\n- web/gate-ticks.test.js' } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   const configPath = join(box.repo, 'pullboard.json');
@@ -65,7 +65,7 @@ function builderItem(criterion, { failing = false } = {}) {
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/gate-ticks');
   joinFixtureSeat(box, builder, 'web');
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Gate ticks its own clauses', '--specs', 'G1', '--criterion', criterion,
-    '--check', RUN, '--route', 'strong', '--brief', 'Files:\n- web/page.html\nTest:\n- web/gate-ticks.test.js', '--json').out);
+    '--check', RUN, '--route', 'strong', '--brief', brief, '--json').out);
   const id = added.item.item_id;
   ok(box, builder, 'claim', String(id));
   mkdirSync(join(builder, 'web'), { recursive: true });
@@ -107,11 +107,11 @@ test('clause 2: a red gate leaves the clause unticked and returns the item [C7,V
   assert.notEqual(submitted.code, 0, 'a red gate does not submit');
   assert.doesNotMatch(submitted.err + submitted.out, /CLAUSE_UNTICKED/u);
   assert.deepEqual(tickNotes(box, id), [], 'a red gate ticks nothing');
-  assert.equal(JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).item.item_status, 'claimed', 'the item stays with its builder');
+  assert.equal(JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).item_status ?? JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).status, 'claimed', 'the item stays with its builder');
 });
 
 test('clause 3: a measurement clause and a test clause naming no file still refuse CLAUSE_UNTICKED until a fact is recorded [C7,V4]', { timeout: 300_000 }, () => {
-  const { box, builder, id } = builderItem('The page meets its bar:\n1) web/gate-ticks.test.js proves the heading [test]\n2) the page loads under 2 s [measurement]\n3) the count is right [test]');
+  const { box, builder, id } = builderItem('The page meets its bar:\n1) web/gate-ticks.test.js proves the heading [test]\n2) the page loads under 2 s [measurement]\n3) the count is right [test]', { brief: 'Files:\n- web/page.html\nChange:\n- Keep the page valid.' });
   const refused = box.run(builder, 'submit', String(id), '--no-next');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err, /CLAUSE_UNTICKED/u);
