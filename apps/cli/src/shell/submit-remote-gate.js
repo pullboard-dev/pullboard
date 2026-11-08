@@ -10,6 +10,10 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -58,7 +62,9 @@ try {
   run('tar', ['-xf', '-', '-C', directory], { input: archive });
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
-  const child = spawnSync(process.execPath, [entry, root], { cwd: root, env, input: JSON.stringify(request.data), stdio: ['pipe', 'inherit', 'inherit'] });
+  // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.
+  const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', entry, root], { cwd: root, env, input: JSON.stringify(request.data), maxBuffer: 256 * 1024 ** 2, stdio: ['pipe', 'inherit', 'pipe'] });
+  if (child.stderr?.length) process.stderr.write(child.stderr);
   status = child.status ?? 1;
 } finally { rmSync(directory, { recursive: true, force: true }); }
 process.exitCode = status;
@@ -223,6 +229,42 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   return { value, directory, sha256: phase.sha256 };
 }
 
+/** The tooling id: the name of the tools folder this gate runs from, a shared snapshot per tooling tree (#3339). */
+function runningToolingId() {
+  return basename(dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))).replace(/[^\w.-]/gu, '_');
+}
+
+/**
+ * The file that holds one analysis part's trusted result for one (main, source, tooling) key, inside the hand-off folder.
+ *
+ * @param {string} artifactDirectory
+ * @param {{ main: string, source: string, parts?: string[], tooling?: string }} request tooling defaults to the running tools folder.
+ * @returns {string}
+ */
+export function analysisResultFile(artifactDirectory, { main, source, parts, tooling = runningToolingId() }) {
+  return join(artifactDirectory, 'results', `${parts ? parts.join('+') : 'all'}-${main}-${source}-${tooling}.json`);
+}
+
+/**
+ * Read back a part result written by an earlier attempt, only when it binds all three keys, the same cut rows and no refusal.
+ *
+ * @param {string} file
+ * @param {{ main: string, source: string, tooling?: string }} keys
+ * @param {string} cuts JSON of the board's cut rows the result was computed against.
+ * @returns {object|null}
+ */
+function readAnalysisResult(file, { main, source, tooling = runningToolingId() }, cuts) {
+  try {
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    const value = saved?.value;
+    if (saved?.version !== 1 || saved.main !== main || saved.source !== source || saved.tooling !== tooling || saved.cuts !== cuts
+      || !value || value.main !== main || value.source !== source || value.refusal || value.infra || value.refused
+      || Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused)
+      || typeof saved.directory !== 'string' || typeof saved.sha256 !== 'string') return null;
+    return saved;
+  } catch { return null; }
+}
+
 /** How many times the runner analysis repeats when its Git read fails for infrastructure reasons. */
 const ANALYSIS_INFRA_ATTEMPTS = 3;
 
@@ -234,6 +276,11 @@ const ANALYSIS_INFRA_ATTEMPTS = 3;
 export async function remoteSubmitAnalysis(root, request, lease, artifactDirectory) {
   const { main, source, readCutItems } = request;
   const perPart = request.perPart === true;
+  const resultFile = artifactDirectory ? analysisResultFile(artifactDirectory, request) : null;
+  // A rerun of the same main, source and tooling reads the part's recorded result instead of admitting it again.
+  const cutKey = resultFile ? JSON.stringify(readCutItems()) : '';
+  const saved = resultFile ? readAnalysisResult(resultFile, request, cutKey) : null;
+  if (saved) return { ...saved.value, directory: saved.directory, sha256: saved.sha256, runner: saved.runner, reused: true };
   // A missing accepted inventory is produced on the runner, never on this machine (#2535).
   const { inventory, produce } = !request.parts || request.parts.includes('cells') ? await runnerCellsInventory(root, main, source) : { inventory: null, produce: [] };
   const cutRows = readCutItems();
@@ -258,6 +305,15 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const red = name => value.outcomes?.[name]?.refused;
   if (parts.includes('cells') && !red('cells') && !value.cells || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
+  }
+  // A part that refused is never recorded: its next attempt runs it fresh.
+  if (resultFile && !Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused)) {
+    try {
+      mkdirSync(dirname(resultFile), { recursive: true, mode: 0o700 });
+      const pending = `${resultFile}.${process.pid}.tmp`;
+      writeFileSync(pending, JSON.stringify({ version: 1, main, source, tooling: request.tooling ?? runningToolingId(), cuts: cutKey, value, directory, sha256, runner: lease.runner.host }) + '\n', { mode: 0o600 });
+      renameSync(pending, resultFile);
+    } catch { /* a result that cannot be recorded only means the next attempt runs the part again */ }
   }
   return { ...value, directory, sha256, runner: lease.runner.host };
 }

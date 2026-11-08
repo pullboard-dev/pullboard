@@ -1,6 +1,7 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
 
 /** Compare each recorded submission or live registered builder HEAD with one immutable landed tip. */
@@ -20,7 +21,7 @@ export function mainMovedWarnings({ root, board, trunk }, reads) {
       const path = agents.get(item.item_owner)?.agent_path;
       if (!path) { warnings.push({ item: item.item_id, unavailable: 'builder has no registered checkout' }); continue; }
       if (!observations.has(path)) {
-        try { observations.set(path, repoInfo(path).commonDir === common ? headCommit(path) : null); }
+        try { observations.set(path, sameCommonDir(repoInfo(path).commonDir, common) ? headCommit(path) : null); }
         catch { observations.set(path, null); }
       }
       head = observations.get(path);
