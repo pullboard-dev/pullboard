@@ -24,6 +24,11 @@ import { resolve } from 'node:path';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
+import { diskLines } from '../disk-use.js';
+import { diskUse } from '../disk-use.js';
+import { pruneDisk } from '../disk-use.js';
+import { pruneLines } from '../disk-use.js';
+import { refusingBadPolicy } from '../disk-use.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../../../../../packages/stats/index.js';
 import { boardHoldLines } from '../../../../../src/board-hold-log.js';
@@ -64,8 +69,19 @@ import {
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
-  if (first !== undefined && !['pipeline', 'moves', 'time'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
+  if (first !== undefined && !['pipeline', 'moves', 'time', 'disk'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats disk [--prune], pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
   if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
+  if (values.prune && first !== 'disk') throw new Refused('USAGE', '--prune belongs to pullboard stats disk');
+  if (first === 'disk') {
+    if (second !== undefined || rest?.length) throw new Refused('USAGE', 'show disk use with pullboard stats disk, or age out old raw logs and archives with pullboard stats disk --prune [--dry-run]');
+    const dir = join(ctx.info.commonDir, 'pullboard');
+    const pruned = values.prune ? refusingBadPolicy(() => pruneDisk(dir, { now: ctx.clock.now().getTime(), dryRun: Boolean(values['dry-run']) }), Refused) : null;
+    const disk = refusingBadPolicy(() => diskUse(dir, { now: ctx.clock.now().getTime() }), Refused);
+    io.result?.({ disk, ...(pruned ? { pruned } : {}) });
+    if (pruned) for (const line of pruneLines(pruned)) io.say(line);
+    for (const line of diskLines(disk)) io.say(line);
+    return 0;
+  }
   if (first === 'time') {
     if (second !== undefined || rest?.length || values.since !== undefined || values.compare) throw new Refused('USAGE', 'show where item time went with pullboard stats time --window 7d [--checkpoint weekly|release]');
     const kind = values.checkpoint;
@@ -147,7 +163,8 @@ export function run(io, { first, second, rest, values }) {
   boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'
     : boardHolds.todayCount > holdBaseline.allowancePerDay ? 'exceeded'
       : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
-  io.result?.({ stats, usage, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  const disk = refusingBadPolicy(() => diskUse(join(ctx.info.commonDir, 'pullboard'), { now, maxAgeMs: 5 * 60_000 }), Refused);
+  io.result?.({ stats, disk, usage, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   // First, so the 8192-byte human summary never withholds the answer a window was asked for.
   if (pipelineHour) for (const line of pipelinePerHourLines(pipelineHour)) io.say(line);
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
@@ -171,6 +188,7 @@ export function run(io, { first, second, rest, values }) {
   if (comparison) for (const line of comparisonLines(comparison)) io.say(line);
   for (const line of waits.lines) io.say(line);
   for (const line of boardHoldLines(boardHolds, holdBaseline)) io.say(line);
+  for (const line of diskLines(disk)) io.say(line);
   for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
     io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}`);

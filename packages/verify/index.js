@@ -56,4 +56,5 @@ export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
 export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/shell/review-packet.js';
 
-export { reusableSubmitProof } from './src/shell/submit-proof-reuse.js';
+export { reusableSubmitProof, submittedPolicyCommit } from './src/shell/submit-proof-reuse.js';
+export { sealedMoveOverlap } from './src/shell/verdict-trunk.js';
