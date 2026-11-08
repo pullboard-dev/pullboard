@@ -178,9 +178,12 @@ test('clause 2: a real queued gate on a fixture board records its job steps and 
   assert.deepEqual(drive.steps.map(step => step.name),
     ['admitted', 'captured', 'running', ...collected.order.map(() => 'section.done'), 'collected', 'verdict'],
     'the dispatcher\'s admission, then captured, running, one section step per section, collected and the verdict');
-  assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => step.payload.section), collected.order,
-    'section steps follow the gate\'s own section order');
-  assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => step.seq), collected.order.map((_, index) => index));
+  // Section steps are written as each stage settles, so their sequence is settlement order; each names its place in the gate's order.
+  const sections = drive.steps.filter(step => step.name === 'section.done');
+  assert.deepEqual(sections.map(step => step.payload.section).sort(), [...collected.order].sort(), 'one section step per gate section');
+  assert.deepEqual(sections.map(step => step.payload.index), sections.map(step => collected.order.indexOf(step.payload.section)),
+    'each section step names its place in the gate\'s own section order');
+  assert.deepEqual(sections.map(step => step.seq), collected.order.map((_, index) => index), 'section steps are numbered in the order written');
   assert.equal(collected.result.code, 0);
   assert.equal(drive.steps.at(-1).payload.verdict, 'green');
   assert.equal(drive.step, 'done');
