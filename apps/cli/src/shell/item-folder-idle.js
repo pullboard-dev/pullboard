@@ -2,7 +2,6 @@
 import { realpathSync } from 'node:fs';
 import { sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { tryGit } from '../../../../packages/git/index.js';
 
 /**
  * Whether any process has `folder` or a directory under it as its working directory.
@@ -27,9 +26,10 @@ export function processInside(folder) {
  * @param {any} board
  * @param {{ id: string }} me the claiming seat
  * @param {string} folder the item folder, named `<seat>-item-<id>`
+ * @param {(cwd: string, args: string[]) => { status: number|null, stdout: string }} tryGit the caller's Git runner, passed in so this file imports no other cell
  * @returns {boolean}
  */
-export function folderIdle(board, me, folder) {
+export function folderIdle(board, me, folder, tryGit) {
   const match = /-item-([1-9]\d*)$/u.exec(folder);
   if (!match || !board) return false;
   const item = board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id = ?').get(Number(match[1]));

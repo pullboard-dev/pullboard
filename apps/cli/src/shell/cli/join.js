@@ -19,6 +19,7 @@ import { localSessionMatches } from '../../../../../packages/seats/index.js';
 import { endedFolderSession } from '../../../../../packages/seats/index.js';
 import { adoptLocalSession } from '../../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import { seatAt } from '../item-folder-identity.js';
 import { itemFolderRenewalRefusal } from '../item-folder-identity.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -95,7 +96,7 @@ export function endedItemFolderSession(board, me, folder) {
   if (!digest || !board) return null;
   const binding = endedFolderSession(repoInfo(folder), { agent: me.id, digest,
     liveSeats: () => store.listAgents(board).filter(seat => seat.presence === 'live'),
-    idle: () => folderIdle(board, me, folder) });
+    idle: () => folderIdle(board, me, folder, tryGit) });
   return binding ? { digest, binding } : null;
 }
 
