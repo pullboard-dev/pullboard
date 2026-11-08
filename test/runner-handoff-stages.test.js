@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { HANDOFF_STAGES, failureAccount, runHandoffStages } from '../apps/runner/src/shell/runner-handoff-stages.js';
 import { handoffStageServices } from '../apps/cli/src/shell/runner-handoff-services.js';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
+import { temporaryRepository } from './board-submit-fixture.js';
 
 const IDENTITY = ['-c', 'user.name=Stage Test', '-c', 'user.email=stage@example.test', '-c', 'commit.gpgsign=false'];
 const SERVICES = handoffStageServices();
@@ -15,8 +16,7 @@ const JOB = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 function fixtureRunner(t) {
   const dir = privateFixtureFiles('pullboard-handoff-stages-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'runner-checkout');
-  runFixtureGit(['init', '-q', '-b', 'main', root]);
+  const root = temporaryRepository(t, 'pullboard-handoff-checkout-');
   writeFileSync(join(root, 'a.txt'), 'a\n');
   runFixtureGit(['add', '-A'], { cwd: root });
   runFixtureGit([...IDENTITY, 'commit', '-q', '-m', 'one'], { cwd: root });
