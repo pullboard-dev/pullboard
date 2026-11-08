@@ -1,6 +1,6 @@
 /** The pre-commit lane guard recognizes accepted-main changes staged without MERGE_HEAD [L3,C7]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -148,4 +148,20 @@ test('clause 1: a merge resolution that itself exceeds the scan limit is still r
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
   assert.notEqual(commit.status, 0);
   assert.match(commit.stdout + commit.stderr, /DIFF_TOO_LARGE/u);
+});
+
+test('clause 1: a merge whose trunk added past the scan limit to a file the lane also changed passes [L3,C7]', t => {
+  const box = fixture(t);
+  const laneFile = join(box.lane, 'core', 'file.js');
+  writeFileSync(laneFile, '// lane\n' + readFileSync(laneFile, 'utf8'));
+  assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);
+  for (const part of [1, 2, 3]) {
+    const file = join(box.main, 'core', 'file.js');
+    writeFileSync(file, readFileSync(file, 'utf8') + `part ${part}\n${'ordinary text\n'.repeat(250_000)}`);
+    assert.equal(box.git(box.main, 'commit', '-qam', 'chore: trunk grows the file [L3]').status, 0);
+  }
+  const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.equal(merge.status, 0, merge.stderr + merge.stdout);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
+  assert.equal(commit.status, 0, commit.stderr + commit.stdout);
 });
