@@ -5,6 +5,8 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -18,7 +20,7 @@ const trailerArg = (id) => `-m "$(printf '%s\\n' 'Pullboard-Item: #${id}' 'Pullb
 
 /** File, build, submit and accept one web item through the real CLI and hooks, returning the accept output. */
 function acceptedItem(box, file, { beforeVerify = () => {} } = {}) {
-  const added = box.run(box.repo, 'add', 'web', `Write ${file}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`, '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', `Write ${file}`, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f ${file}`, '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -39,7 +41,7 @@ function acceptedItem(box, file, { beforeVerify = () => {} } = {}) {
 function withReviewer(box) {
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'api/review');
-  assert.equal(box.run(review, 'join', 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
   return { ...box, review };
 }
 

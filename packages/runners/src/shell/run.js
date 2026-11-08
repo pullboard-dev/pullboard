@@ -21,7 +21,6 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
 import { briefFiles } from '../../../items/index.js';
 import {
   CONFIG_FILE,
@@ -32,12 +31,6 @@ import {
   doctrineText,
   loadDoctrine,
 } from '../../../../src/doctrine.js';
-import {
-  digestOf,
-  refuseSandboxBlocked,
-  sandboxBlockedOperation,
-  runGate,
-} from '../../../gate/index.js';
 import {
   contains,
   git,
@@ -52,7 +45,6 @@ import {
   outOfLane,
 } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { missingGate } from '../../../gate/index.js';
 
 /** Report changing machine queue state while an unattended item waits for a gate slot. */
 function gateWaitReporter(io) {
@@ -325,6 +317,7 @@ async function mergeDependencies(ctx, item, deps) {
  * @returns {Promise<{ green: boolean, digest: string, tries: number, seconds: number }>}
  */
 async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start, inScope, packs, earlier }) {
+  const { digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = await import('../../../gate/index.js');
   const { root } = ctx.info;
   const id = item.item_id;
   const tag = item.item_route;
@@ -430,6 +423,13 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
  * @returns {Promise<number>}
  */
 export async function runItems(io, values, deps) {
+  // Keep package import light; unattended work is the first point that needs board and gate machinery.
+  const [board, gate, gateConfig] = await Promise.all([
+    import('../../../store/index.js'), import('../../../gate/index.js'), import('../../../gate/src/shell/gate-config.js'),
+  ]);
+  store = board;
+  ({ digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = gate);
+  ({ missingGate } = gateConfig);
   const ctx = deps.context(io);
   if (ctx.info.isMain) {
     throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --model "<model name>" --route light, then run it there');
@@ -444,7 +444,10 @@ export async function runItems(io, values, deps) {
   const minutes = boundedInt(values.minutes ?? '15', 1, 240, '--minutes');
   const limit = values.items === undefined ? Infinity : boundedInt(values.items, 1, 1000, '--items');
   const waitMinutes = values.wait === undefined ? 0 : boundedInt(values.wait, 0, 240, '--wait');
-  if (!ctx.config.gate.trim()) throw missingGate(ctx.info.root);
+  if (!ctx.config.gate.trim()) {
+    const { missingGate } = await import('../../../gate/index.js');
+    throw missingGate(ctx.info.root);
+  }
   if (!isClean(ctx.info.root) || untracked(ctx.info.root).length) {
     throw new Refused('DIRTY', 'the runner starts from a clean worktree; commit or remove your changes first');
   }

@@ -75,7 +75,7 @@ function assertMeasured(run, box, output) {
 
 test('a direct full suite records one durable source-bound run, including a complete red run [C7,H16]', async t => {
   const box = timingProject(t);
-  const run = async red => runFixtureChildAsync(process.execPath, ['bin/run-tests.js'],
+  const run = async red => runFixtureChildAsync(process.execPath, ['bin/run-tests.js', '--all'],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: red }, encoding: 'utf8' });
   const green = await run('0');
   assert.equal(green.status, 0, green.stderr + green.stdout);
@@ -208,9 +208,9 @@ console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:rece
 test('an all-reused direct invocation preserves a receipt without inventing a fresh full suite [C7,H16]', async t => {
   const box = timingProject(t);
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '1' };
-  const first = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
+  const first = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js', '--all'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr + first.stdout);
-  const second = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
+  const second = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js', '--all'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(second.status, 0, second.stderr + second.stdout);
   assert.match(second.stdout, /# reused/u, 'the native cache really reused the seeded file results');
   const runs = recorded(box);

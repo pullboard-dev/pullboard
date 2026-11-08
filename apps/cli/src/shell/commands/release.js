@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
 import { prepareStaleObservation } from '../../../../../packages/health/index.js';
@@ -60,7 +61,10 @@ export async function run(io, args) {
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
-    args.push({ leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
+    // The holder's folder is gone: capture its path so the release needs no stale interval (#3223).
+    const seatPath = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
+    const observed = seatPath && !existsSync(seatPath) ? { ...row, seatFolderMissing: seatPath } : row;
+    args.push({ leaseLapse: true, staleClaim: observed, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
   } else {
     refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
     const missing = releaseReasonProblem(values.reason, args[2]);

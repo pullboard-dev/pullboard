@@ -43,3 +43,4 @@ export { stopReplacedWorker } from "./src/shell/submit-handoff.js";
 export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.js";
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';
+

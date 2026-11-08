@@ -1,0 +1,183 @@
+/** driveOnce: continue one gate job from its last written step by exactly one transition [C7]. */
+import { Refused } from '../../../kernel/index.js';
+import { jobView } from '../../../jobs/index.js';
+import { releaseLease } from '../../../jobs/index.js';
+import { renewLease } from '../../../jobs/index.js';
+import { takeJob } from '../../../jobs/index.js';
+import { writeStep } from '../../../jobs/index.js';
+import { toolingFor } from '../../../pin/index.js';
+import { treeOf } from '../../../pin/index.js';
+import { receiptKey } from '../../../receipt/index.js';
+import { settle } from '../../../receipt/index.js';
+import { fetchResult } from '../../../transport/index.js';
+import { sharedTransport } from '../../../transport/index.js';
+import { startShard } from '../../../transport/index.js';
+import { doneShards } from '../core/drive-phase.js';
+import { owedShards } from '../core/drive-phase.js';
+import { phaseOf } from '../core/drive-phase.js';
+import { shardSections } from '../core/drive-phase.js';
+import { stepPayload } from '../core/drive-phase.js';
+import { queueFlakeDiagnoses } from './flake-diagnose.js';
+
+/**
+ * Hold the job's lease for this driver: renew it when the driver already holds it, else take it if it lapsed.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ id: string, leaseOwner: string | null }} view
+ * @param {string} owner
+ * @param {number} now
+ * @returns {boolean} True when this driver holds a live lease on the job.
+ */
+function holdLease(db, view, owner, now) {
+  if (view.leaseOwner === owner && renewLease(db, view.id, owner, { now })) return true;
+  return takeJob(db, view.id, owner, { now }).taken;
+}
+
+/**
+ * queued → captured: resolve the candidate and base to tree ids and record the tooling pin.
+ *
+ * Why: the tooling comes from packages/pin's toolingFor(repo, seatCommit), the tree of the last landing when one
+ * is pinned, never from whichever seat checkout runs the driver, so a seat on an older tree runs main's tooling.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {string} repo
+ * @param {number} now
+ */
+function capture(db, view, repo, now) {
+  if (!repo) throw new Refused('DRIVE_REPO', 'driveOnce needs the repository to capture a job: pass { repo }.');
+  if (!view.candidate) throw new Refused('DRIVE_CANDIDATE', `Job ${view.id} names no candidate commit: create it with { candidate }.`);
+  const pin = toolingFor(repo, view.candidate);
+  const base = view.base ? treeOf(repo, view.base) : null;
+  writeStep(db, view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base }, { now });
+}
+
+/**
+ * Start every planned shard that has no done step, writing a `shard.started` step for each. Starting is idempotent
+ * on the runner, so a resumed driver may call it for a shard it already started.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {object} channel
+ * @param {string} owner
+ * @param {number} now
+ */
+async function startOwed(db, view, channel, owner, now) {
+  const { runner } = stepPayload(view, 'running');
+  for (const shard of owedShards(view)) {
+    await startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
+    writeStep(db, view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
+  }
+}
+
+/**
+ * captured → running: write the shard plan and the runner, then start the shards.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number }} options
+ */
+async function send(db, view, { runner, plan, transport, owner, now }) {
+  if (typeof runner?.host !== 'string') throw new Refused('DRIVE_RUNNER', 'driveOnce needs a runner to send a job to: pass { runner: { host } }.');
+  const shards = typeof plan === 'function' ? plan(stepPayload(view, 'captured')) : plan;
+  if (!Array.isArray(shards) || !shards.length || shards.some(s => typeof s?.shard !== 'string' || typeof s?.command !== 'string')) {
+    throw new Refused('DRIVE_PLAN', 'driveOnce needs a shard plan to send: pass { plan: [{ shard, command }] } with the project\'s own test command.');
+  }
+  const where = runner.root === undefined ? { host: runner.host } : { host: runner.host, root: runner.root };
+  writeStep(db, view.id, 'running', { runner: where, shards: shards.map(({ shard, command }) => ({ shard, command })) }, { now });
+  await startOwed(db, jobView(db, view.id), transport.connect(where), owner, now);
+}
+
+/**
+ * running → collected: read each shard that has no done step, record what finished, restart what was invalid or
+ * lost, and write `collected` once every shard is done. Shards with a done step are never started or read again.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {{ transport: object, owner: string, now: number }} options
+ * @returns {Promise<number>} How many shards are still owed.
+ */
+async function collect(db, view, { transport, owner, now }) {
+  const channel = transport.connect(stepPayload(view, 'running').runner);
+  let invalid = view.steps.filter(step => step.name === 'shard.invalid').length;
+  for (const shard of owedShards(view)) {
+    const result = await fetchResult(channel, { job: view.id, shard: shard.shard });
+    if (result.state === 'done') {
+      writeStep(db, view.id, 'shard.done', { shard: shard.shard, status: result.status, digest: result.digest }, { seq: shard.seq, now });
+    } else if (result.state === 'import.invalid') {
+      writeStep(db, view.id, 'shard.invalid', { shard: shard.shard, reason: result.reason, digest: result.digest ?? null }, { seq: invalid, now });
+      invalid += 1;
+    }
+  }
+  const after = jobView(db, view.id);
+  const owed = owedShards(after);
+  if (owed.length) {
+    await startOwed(db, after, channel, owner, now);
+    return owed.length;
+  }
+  const shards = Object.fromEntries([...doneShards(after)].map(([id, done]) => [id, { status: done.status, digest: done.digest }]));
+  writeStep(db, view.id, 'collected', { shards }, { now });
+  return 0;
+}
+
+/**
+ * collected → verdict: judge with the receipt cell, write the verdict step with the receipt id and free the lease.
+ * Only then, as bookkeeping, a red verdict queues one flake-diagnose job per failing case for any driver to run later.
+ *
+ * Why: diagnostics never hold the gate's worker or delay its verdict; they are their own jobs, off the critical path.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {{ sections: (collected: object) => object, failures?: (collected: object) => { file: string, case: string }[], owner: string, now: number }} options
+ */
+function decide(db, view, { sections, failures, owner, now }) {
+  const captured = stepPayload(view, 'captured');
+  const collected = stepPayload(view, 'collected');
+  const receipt = receiptKey(captured.tree, captured.base ?? captured.tree);
+  settle(sections(collected), receipt, {
+    record: step => {
+      writeStep(db, view.id, step.name, step.payload, { now });
+      releaseLease(db, view.id, owner, { now });
+    },
+    bookkeeping: step => {
+      if (step.payload.verdict === 'red' && failures) queueFlakeDiagnoses(db, view, captured.tree, failures(collected), { now });
+    },
+  });
+}
+
+/**
+ * Drive one gate job by one transition from its last written step, writing that step before returning:
+ * queued → captured → running → collected → verdict. A resumed job reads and starts only shards with no done step.
+ * A job at its verdict is terminal; a job whose live lease another driver holds is left alone. The verdict frees the
+ * lease; a red verdict then queues flake-diagnose jobs for the cases `failures(collected)` names (none by default).
+ *
+ * Why: the job row, not this process, holds the state, so any driver can call this after any other died, and a
+ * repeat of a step it already wrote is a no-op in the job store.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
+ * @param {string} job - The job id.
+ * @param {{ owner: string, repo?: string, runner?: { host: string, root?: string },
+ *   plan?: { shard: string, command: string }[] | ((captured: object) => { shard: string, command: string }[]),
+ *   transport?: { connect: Function }, sections?: (collected: object) => object,
+ *   failures?: (collected: object) => { file: string, case: string }[], now?: () => number }} options
+ * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
+ */
+export async function driveOnce(db, job, { owner, repo, runner, plan, transport, sections = shardSections, failures, now = Date.now } = {}) {
+  if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
+  const view = jobView(db, job);
+  if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
+  const before = phaseOf(view);
+  if (before === 'verdict') return { transition: null, phase: before, job: view };
+  const at = now();
+  if (!holdLease(db, view, owner, at)) return { transition: null, phase: before, job: jobView(db, job), code: 'JOB_LEASED' };
+  const channels = transport ?? sharedTransport();
+  let owed;
+  if (before === 'queued') capture(db, view, repo, at);
+  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at });
+  else if (before === 'running') owed = await collect(db, view, { transport: channels, owner, now: at });
+  else decide(db, view, { sections, failures, owner, now: at });
+  const after = jobView(db, job);
+  const phase = phaseOf(after);
+  const result = { transition: phase === before ? null : phase, phase, job: after };
+  return owed === undefined ? result : { ...result, owed };
+}

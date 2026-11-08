@@ -43,6 +43,7 @@ import { createFastPass } from './doctrine-fast.js';
 import { fastCheckScript } from './doctrine-fast.js';
 import { lex } from '../../../kernel/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import {
   checkFieldFindings,
   parseSpec,
@@ -94,13 +95,13 @@ export function checkLoosening(before, after) {
 
 /** Read one file's committed bytes at a revision, or null when the revision lacks it. */
 function gitShow(root, revision, file) {
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision}:${file}`], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const result = gitSpawnSync(['--no-replace-objects', 'show', `${revision}:${file}`], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   return result.status === 0 ? result.stdout : null;
 }
 
 /** Run git for a list of names or a commit id, or null when git refuses. */
 function gitOut(root, args) {
-  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', ...args], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.quotepath=false', ...args], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   return result.status === 0 ? result.stdout : null;
 }
 
@@ -296,8 +297,8 @@ function* checkAtCommitExecution(root, commit, command, timeoutMs) {
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
-    const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, stdio: 'ignore' });
-    const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', commit], { cwd: checkout, env, stdio: 'ignore' });
+    const clone = gitSpawnSync(['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, stdio: 'ignore' });
+    const selected = clone.status === 0 && gitSpawnSync(['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', commit], { cwd: checkout, env, stdio: 'ignore' });
     if (!selected || selected.status !== 0) return { problems: [], broken: 'could not check out the base commit', seconds: 0 };
     return yield { checkout, command, timeoutMs };
   } finally {
@@ -328,7 +329,7 @@ async function runAtCommitAsync(root, commit, command, timeoutMs) {
  * objects, never a checkout. Refuses MERGE_CONFLICT only when the two really conflict.
  */
 function composeMain(root, tip, commit) {
-  const merged = spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, commit], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, commit], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   const tree = merged.stdout?.split('\n')[0]?.trim() ?? '';
   if (merged.status === 1) throw new Refused('MERGE_CONFLICT', `the candidate ${commit.slice(0, 12)} conflicts with current main ${tip.slice(0, 12)}; merge main, resolve the conflicts, commit, and submit again`);
   if (merged.status !== 0 || !/^[a-f0-9]{40,64}$/u.test(tree)) throw new Refused('RATCHET_UNCOUNTED', 'cannot compose current main into the candidate for the doctrine hold');

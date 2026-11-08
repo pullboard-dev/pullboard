@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +17,35 @@ const TIMEOUT_MS = 10_000;
 const PARSER_PATH = fileURLToPath(import.meta.url);
 const WORKER_PATH = fileURLToPath(new URL('./runner-module-parser-worker.js', import.meta.url));
 const LOADED_COMPILER = captureCompiler();
+// Process-lifetime cache keyed by the content hash of each source; compile results depend only on source bytes.
+// Budget: at most 4 MiB/4096 entries for the life of the process; oversized misses still compile normally.
+const PROCESS_CACHE = new Map();
+let processCacheBytes = 0;
+let sourcesCompiled = 0;
+
+/** Count of sources sent to a compiler child in this process, so callers can prove a cache hit parsed nothing. */
+export function runnerModuleParserCompileCount() {
+  return sourcesCompiled;
+}
+
+/** Path plus content hash that keys the process cache, so a changed file is a different entry and is re-parsed. */
+function sourceKey(source, path = '') {
+  return `${path}\0${createHash('sha256').update(source).digest('hex')}`;
+}
+
+/**
+ * Bind a parser's `parse` to the files whose sources a caller passes first, so the process cache key is the
+ * real path plus content hash. The probe variants an import scan appends after those sources key on the whole
+ * path set, so they never fall back to the empty path; correctness still rests on the content hash.
+ *
+ * @param {(sources: string[], paths?: string[]) => Array<{compiles: boolean, imports: string[]}>} parse
+ * @param {string[]} files - One path per leading source, in order.
+ * @returns {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>}
+ */
+export function parseWithPaths(parse, files) {
+  const variantPath = `${files.join('\n')}#probe`;
+  return sources => parse(sources, sources.map((_source, index) => files[index] ?? variantPath));
+}
 
 /** Read exact owned compiler bytes; a symlink or unbounded entry cannot become a trusted parser. */
 function compilerBytes(file) {
@@ -78,23 +108,22 @@ export function createRunnerModuleParser() {
   let closed = false;
   let childFailed = false;
   let sequence = 0;
-  const compiled = new Map();
-  let compiledBytes = 0;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
 
-  /** Retain only bounded exact-source compiler results within this one private derive. */
-  function remember(source, result) {
+  /** Retain bounded compiler results for the life of the process, keyed by source content hash. */
+  function remember(source, result, path) {
     const bytes = Buffer.byteLength(source) + Buffer.byteLength(JSON.stringify(result));
     // Budget: memoization retains at most 4 MiB/4096 entries; oversized misses still compile normally.
-    if (compiled.size >= 4096 || compiledBytes + bytes > 4 * 1024 ** 2) return;
-    compiled.set(source, Object.freeze({ compiles: result.compiles, imports: Object.freeze([...result.imports]) }));
-    compiledBytes += bytes;
+    const key = sourceKey(source, path);
+    if (PROCESS_CACHE.has(key) || PROCESS_CACHE.size >= 4096 || processCacheBytes + bytes > 4 * 1024 ** 2) return;
+    PROCESS_CACHE.set(key, Object.freeze({ compiles: result.compiles, imports: Object.freeze([...result.imports]) }));
+    processCacheBytes += bytes;
   }
 
   /** Rebuild the caller's original order with independent rows and import arrays, including duplicates. */
-  function orderedResults(sources, fresh) {
-    return sources.map(source => {
-      const result = compiled.get(source) ?? fresh.get(source);
+  function orderedResults(sources, fresh, paths) {
+    return sources.map((source, index) => {
+      const result = PROCESS_CACHE.get(sourceKey(source, paths[index])) ?? fresh.get(source);
       return { compiles: result.compiles, imports: [...result.imports] };
     });
   }
@@ -103,8 +132,6 @@ export function createRunnerModuleParser() {
   function close() {
     if (closed) return;
     closed = true;
-    compiled.clear();
-    compiledBytes = 0;
     let failed = false;
     if (child) {
       try { child.kill('SIGKILL'); }
@@ -132,15 +159,17 @@ export function createRunnerModuleParser() {
     if (!Number.isSafeInteger(child.pid)) throw parserFailure();
   }
 
-  /** Compile source text only, waiting on one atomic regular-file reply under the existing parser deadline. */
-  function parse(sources) {
+  /** Compile source text only (optional `paths` pair each source with its file for the cache key), waiting on one atomic regular-file reply under the existing parser deadline. */
+  function parse(sources, paths = []) {
     let request = null;
     let reply = null;
     try {
       assertRunnerModuleParserCurrent();
       if (closed || childFailed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw parserFailure();
-      const missing = [...new Set(sources.filter(source => !compiled.has(source)))];
-      if (!missing.length) return orderedResults(sources, new Map());
+      if (!Array.isArray(paths) || paths.some(path => path !== undefined && typeof path !== 'string')) throw parserFailure();
+      const missing = [...new Set(sources.filter((source, index) => !PROCESS_CACHE.has(sourceKey(source, paths[index]))))];
+      if (!missing.length) return orderedResults(sources, new Map(), paths);
+      sourcesCompiled += missing.length;
       const id = ++sequence;
       if (!Number.isSafeInteger(id)) throw parserFailure();
       const input = JSON.stringify({ version: 1, id, sources: missing });
@@ -160,8 +189,8 @@ export function createRunnerModuleParser() {
           const rows = checkedResults(result, id, missing.length);
           assertRunnerModuleParserCurrent();
           const fresh = new Map(missing.map((source, index) => [source, rows[index]]));
-          for (const [source, row] of fresh) remember(source, row);
-          return orderedResults(sources, fresh);
+          sources.forEach((source, index) => { if (fresh.has(source)) remember(source, fresh.get(source), paths[index]); });
+          return orderedResults(sources, fresh, paths);
         }
         const remaining = Number(deadline - process.hrtime.bigint()) / 1e6;
         if (remaining <= 0) throw parserFailure();

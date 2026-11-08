@@ -9,10 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
-import { gateRunnerAdmission } from '../../../config/index.js';
-import { runCheckOnRunner } from './landing-runner-check.js';
-import { runTail } from './landing-runner-check.js';
-import { withMainCheckout } from './main-red.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** Each command gets this long; the whole smoke is about 15 s, so a hung command is a failure, not a wait. */
 const COMMAND_MS = 30_000;
@@ -46,7 +43,7 @@ export function runLandingCliSmoke(candidate) {
     const env = scratchEnvironment(home), repo = join(home, 'repo'), seat = join(home, 'seat');
     const git = (cwd, ...args) => {
       // init installs this repository's hooks, which call a pullboard that is not installed here; the scratch repository runs none.
-      const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
+      const result = gitSpawnSync(['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
       if (result.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not prepare its scratch repository (git ${args[0]}): ${result.stderr.trim()}`);
     };
     mkdirSync(repo);
@@ -55,7 +52,10 @@ export function runLandingCliSmoke(candidate) {
     const pullboard = (cwd, label, ...args) => {
       const result = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: COMMAND_MS });
       if (result.status !== 0) {
-        const why = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => !/ExperimentalWarning|trace-warnings/u.test(line)).slice(0, 3).join(' ');
+        const lines = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => line.trim() && !/ExperimentalWarning|trace-warnings/u.test(line));
+        // Node prints the throwing source line and a caret first; lead with the line naming the error, such as the missing module's path.
+        const named = lines.findIndex(line => /^\w*Error\b/u.test(line.trim()));
+        const why = (named > 0 ? [lines[named], ...lines.slice(0, named)] : lines).slice(0, 3).join(' ');
         throw new Refused('LAND_CLI_SMOKE', `the candidate's \`pullboard ${label}\` exits ${result.status ?? result.signal ?? 'with an error'} on a scratch board: ${why}; fix it before landing`);
       }
       ran.push(label);
@@ -67,7 +67,7 @@ export function runLandingCliSmoke(candidate) {
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
-    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke');
+    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke', '--route', 'strong');
     pullboard(repo, 'add', 'add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists');
     pullboard(seat, 'list', 'list');
     pullboard(seat, 'show', 'show', '1');
@@ -87,50 +87,18 @@ export function runLandingCliSmoke(candidate) {
  * @returns {{ ran: string[] }}
  */
 export function runCommitCliSmoke(root, commit) {
-  const exists = spawnSync('git', ['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
+  const exists = gitSpawnSync(['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
   if (exists.status !== 0) return { ran: [] };
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-tree-')));
   try {
-    const archive = spawnSync('git', ['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
+    const archive = gitSpawnSync(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
-    if (unpacked.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${String(archive.stderr ?? unpacked.stderr).trim()}`);
+    if (unpacked.status !== 0) {
+      // Name the step that failed: git archive when it failed, else tar, whose error may be a spawn error with no stderr.
+      const tool = archive.status === 0 ? 'tar' : 'git archive';
+      const reason = String(unpacked.stderr ?? '').trim() || unpacked.error?.message || `exit ${unpacked.status ?? unpacked.signal}`;
+      throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${tool} failed: ${reason}`);
+    }
     return runLandingCliSmoke(directory);
   } finally { rmSync(directory, { recursive: true, force: true }); }
-}
-
-/** The candidate's own smoke, run by the runner in its checkout of the candidate tree. */
-const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } = await import('./packages/landing/src/shell/landing-cli-smoke.js'); runLandingCliSmoke(process.cwd());"`;
-
-/**
- * Smoke a clean committed candidate checkout where this machine runs checks: on a runner when gate.runnersOnly is on,
- * queueing for a free one and never falling back to a local process; otherwise here, as before (#3011).
- * Why the candidate's own smoke module: the runner holds only the candidate tree, and a tree with bin/pullboard.js ships it.
- *
- * @param {string} candidate - A clean committed checkout of the candidate tree.
- * @param {{ admission?: object }} [options] - The captured runner admission.
- * @returns {Promise<{ ran: string[], runner?: string }>}
- */
-export async function smokeCandidate(candidate, { admission = gateRunnerAdmission() } = {}) {
-  if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate);
-  if (!existsSync(join(candidate, 'bin', 'pullboard.js'))) return { ran: [] };
-  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', admission });
-  if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
-  return { ran: ['runner'], runner: run.executionRunner };
-}
-
-/**
- * Smoke a commit that is not checked out, as `pullboard merged` records one, where this machine runs checks (#3011).
- *
- * @param {string} root - Any checkout of the repository holding the commit.
- * @param {string} commit - The candidate commit.
- * @param {{ admission?: object }} [options] - The captured runner admission.
- * @returns {Promise<{ ran: string[], runner?: string }>}
- */
-export async function smokeCommit(root, commit, { admission = gateRunnerAdmission() } = {}) {
-  if (admission.runnerOnly !== true) return runCommitCliSmoke(root, commit);
-  const exists = spawnSync('git', ['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
-  if (exists.status !== 0) return { ran: [] };
-  const result = await withMainCheckout(root, commit, checkout => smokeCandidate(checkout, { admission }));
-  if (result.unavailable) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not check out ${commit.slice(0, 12)}: ${result.unavailable}; retry merged`);
-  return result;
 }

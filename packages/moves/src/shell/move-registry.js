@@ -73,9 +73,9 @@ export const MOVE_OPERATIONS = found.operations;
  * The board-wide pending-condition floor is passed in by the port that composes the engine: the
  * health front door reaches this loader through its own imports, so importing it here would cycle.
  */
-export function minimumMoveEngine(operation, args, board, at, boardFloor = () => 1) {
+export function minimumMoveEngine(operation, args, board, at, boardFloor = () => 1, context) {
   if (!Object.hasOwn(MOVE_REGISTRY, operation)) throw new Error(`unknown move ${operation}; declare its own module before using it`);
-  const value = MOVE_REGISTRY[operation].minimumEngine(args, board, at);
+  const value = MOVE_REGISTRY[operation].minimumEngine(args, board, at, context);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${operation} returned an invalid engine floor`);
   return Math.max(value, boardFloor(board), sourceAdvanceFloor(board, SOURCE_ADVANCE_ENGINE));
 }

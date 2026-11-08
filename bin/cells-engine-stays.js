@@ -1,6 +1,6 @@
 /** Retain canonical engine identities without allowing arbitrary accepted plan rows to disappear [C7,CD64]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { engineBindings } from '../packages/state/core.js';
 import { lex } from '../packages/kernel/index.js';

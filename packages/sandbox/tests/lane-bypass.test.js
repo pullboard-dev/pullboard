@@ -30,6 +30,8 @@ import {
 import {
   submissionPaths,
 } from '../src/shell/trusted-policy.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const SANDBOXES = [];
@@ -111,7 +113,7 @@ function project() {
 function laneWorktree(box, lane, branch) {
   const path = join(box.dir, `${lane}-worktree`);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, 'join', lane);
+  const joined = fixtureJoin(box.run, path, lane);
   assert.equal(joined.code, 0, joined.err);
   return path;
 }
@@ -178,7 +180,7 @@ test('[L3] a linked worktree refuses lane checks when the common Git directory h
   const box = project();
   box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: create a graft parent');
   const web = laneWorktree(box, 'web', 'web/one');
-  const added = box.run(box.repo, 'add', 'web', 'Graft proof', '--specs', 'G1', '--criterion', 'history remains genuine', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Graft proof', '--specs', 'G1', '--criterion', 'history remains genuine', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(web, 'claim', String(id)).code, 0);

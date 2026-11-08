@@ -5,10 +5,13 @@ export { workFreeReleases, readWorkFreeReleases } from './src/core/work-free-rel
 export { buildTimeStats, buildTimeLines } from './src/core/stats-build-time.js';
 export {
   nativeToolCallIds,
+  nativeLastPrompt,
 } from './src/core/exit-rules-calls.js';
 export {
   repeatedExitFailure,
   exitRulesDecision,
+  contextCeiling,
+  exitContextDecision,
 } from './src/core/exit-rules-policy.js';
 export {
   replayHistory,
@@ -167,3 +170,5 @@ export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMil
 export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
 export { buildCalibration } from './src/core/build-calibration.js';
 export { isProofAgent, proofAgentIds } from './src/shell/stats.js';
+
+export { idleSkipMinutes } from './src/core/idle-skip-minutes.js';

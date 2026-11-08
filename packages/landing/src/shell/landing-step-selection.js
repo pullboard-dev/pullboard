@@ -52,6 +52,14 @@ export function landingEntry(item) {
     ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}) };
 }
 
+/**
+ * Whether a dependency no longer holds an item back: merged, or withdrawn [C7].
+ * Why: a withdrawn item never merges, so counting it unmerged left #2822 accepted for 34 h, re-blocked every minute.
+ */
+export function dependencySatisfied(dependency) {
+  return Boolean(dependency?.item_merged_commit) || dependency?.item_status === 'withdrawn';
+}
+
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
 export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [] } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
@@ -123,7 +131,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
-    const waitsOn = dependencies.filter((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id));
+    const waitsOn = dependencies.filter((id) => !dependencySatisfied(all.find((other) => other.item_id === id))); // only merged or withdrawn count as met, even a verified dependency already in this batch [C7]
     // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
     if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();

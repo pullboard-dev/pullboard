@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require authentic command success before reading its result. */
 function document(result) {
@@ -80,7 +81,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = document(box.run(box.repo, 'add', 'web', 'Bound repeated red submissions', '--specs', 'G1',
+  const added = document(fixtureAdd(box.run, box.repo, 'web', 'Bound repeated red submissions', '--specs', 'G1',
     '--criterion', 'The source is correct when:\n1. the red input fails the test [test]\n2. the corrected input passes the test [test]',
     '--check', check, '--wait', '--json'));
   item = added.item.item_id;
