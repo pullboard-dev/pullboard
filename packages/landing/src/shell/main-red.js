@@ -408,6 +408,11 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         const gui = testsNeedGui(checkout, [path]);
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
         const measure = remote => withGateSlot(checkout, async lease => {
+          // Another caller may have measured this content while this one waited for the slot: recheck after admission, so concurrent cold readers execute the file at most once [C7,#3166].
+          if (!rerun(path)) {
+            const done = outcomeOf((await snapshot()).entries, path);
+            if (done) return { reused: true };
+          }
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
@@ -442,6 +447,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         }
       }, { onMainBranch: true });
       if (measured.unavailable) throw new Error(measured.unavailable);
+      if (measured.reused) continue;
       if (pinned) pinnedEntries[path] = measured;
       await withComparisonCache(root, onWait, () => {
         const current = readCache(file);

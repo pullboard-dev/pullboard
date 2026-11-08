@@ -10,6 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../../../test/fixture-child.js';
@@ -160,4 +161,31 @@ test('clause 1: a batch that changed the failing test\'s inputs is compared with
   commit(box, 'test: the item changes the red test');
   compare(box, 'landing', base);
   assert.equal(runs(box), 2, 'the landing reran main for the changed test instead of trusting the content record');
+});
+
+test('clause 3: two cold readers of the same content run main once, the second rechecking after it is admitted [C7,#3166]', async t => {
+  const box = fixture(t);
+  const first = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  const driver = join(box.directory, 'cold-driver.mjs');
+  writeFileSync(driver, [
+    `import { compareMainFailures } from ${JSON.stringify(MAIN_RED)};`,
+    "const [root, commit] = process.argv.slice(2);",
+    "console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
+  ].join('\n'));
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  const env = box.env;
+  const child = () => new Promise((resolve, reject) => {
+    const proc = spawn(process.execPath, [driver, box.root, first], { cwd: box.root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', chunk => { out += chunk; });
+    proc.stderr.on('data', chunk => { err += chunk; });
+    proc.on('error', reject);
+    proc.on('close', status => status === 0 ? resolve(JSON.parse(out.trim().split('\n').at(-1))) : reject(new Error(out + err)));
+  });
+  const [one, two] = await Promise.all([child(), child()]);
+  assert.equal(one.files[0].result, 'red', JSON.stringify(one));
+  assert.equal(two.files[0].result, 'red', JSON.stringify(two));
+  assert.equal(runs(box), 1, 'main executed the file once for two concurrent cold readers');
 });
