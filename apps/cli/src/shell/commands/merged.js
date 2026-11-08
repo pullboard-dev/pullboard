@@ -7,6 +7,7 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
 import { runCommitCliSmoke } from '../../../../../packages/landing/index.js';
 import { requireLandingPlanCheck } from '../../../../../packages/landing/index.js';
+import { placeLandingNewFiles } from '../../../../../packages/landing/index.js';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { landMerged } from '../../../../../packages/land/index.js';
@@ -47,6 +48,28 @@ export function recordedMerge(item, commit) {
   if (!recorded) return null;
   if (recorded === commit) return { commit: recorded };
   throw new Refused('MERGED_ALREADY', `item #${item.item_id} is already merged as ${recorded}; ${commit} is a different commit, so nothing was recorded`);
+}
+
+/**
+ * Place the files a hand landing added that the cells plan does not cover, as one chore commit on the checkout this command
+ * runs in, so the landing never leaves main's cells-plan check red (#3443). It acts only when the landing is that checkout's
+ * tip on a clean tree; anything else keeps today's refusal from the plan check that follows.
+ *
+ * @param {string} root The checkout `pullboard merged` runs in.
+ * @param {string} commit The landing commit being recorded.
+ * @param {{ say: (text: string) => void }} io
+ * @returns {void}
+ */
+function placeUncoveredOnTrunk(root, commit, io) {
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  const dirty = tryGit(root, ['status', '--porcelain']);
+  if (head.status !== 0 || head.stdout.trim() !== commit || dirty.status !== 0 || dirty.stdout.trim()) return;
+  const files = placeLandingNewFiles(root);
+  if (!files.length) return;
+  const added = tryGit(root, ['add', '--', ...files]);
+  const made = added.status === 0 ? tryGit(root, ['commit', '-q', '-m', 'chore(cells): place new files in the plan [C7]']) : added;
+  if (made.status === 0) io.say(`placed new files in the cells plan: ${tryGit(root, ['rev-parse', '--short=12', 'HEAD']).stdout.trim()}`);
+  else tryGit(root, ['reset', '-q', '--hard', commit]);
 }
 
 /** Refresh the derived map after the merged receipt has been recorded. */
@@ -137,6 +160,7 @@ export async function run(io, { first, second, values }) {
   };
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
+    placeUncoveredOnTrunk(ctx.info.root, commit, io);
     requireLandingPlanCheck(ctx.info.root, commit);
     // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
     runCommitCliSmoke(ctx.info.root, commit);
