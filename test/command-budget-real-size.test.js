@@ -76,11 +76,13 @@ function measureCommands(box) {
 
 test('clause 1: next, next --take, next --verify, claim and release each have p50 under 1 s on the real-size board, printed against a 200 ms goal [C7,#3019]', t => {
   const samples = measureCommands(helpers.project('true'));
+  const slow = [];
   for (const [name, values] of Object.entries(samples)) {
     const middle = p50(values);
     t.diagnostic(`${name}: p50 ${middle.toFixed(0)} ms against the ${GOAL_MS} ms goal and the ${MAX_P50_MS} ms bar (${middle < GOAL_MS ? 'meets' : 'misses'} the goal); samples ${values.map(ms => ms.toFixed(0)).join(' ')}`);
-    assert.ok(middle < MAX_P50_MS, `${name} p50 ${middle.toFixed(0)} ms is not under ${MAX_P50_MS} ms`);
+    if (!(middle < MAX_P50_MS)) slow.push(`${name} p50 ${middle.toFixed(0)} ms is not under ${MAX_P50_MS} ms`);
   }
+  assert.deepEqual(slow, [], 'every command has a p50 under 1 s');
 });
 
 test('clause 2: the budget fails when any command has a p50 of 1 s or more [C7,#3019]', () => {
