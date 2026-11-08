@@ -1,6 +1,6 @@
 /** Policy sealing distinguishes landing scheduling from the proof a queued gate owes [C7,V4]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -113,7 +113,13 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
   const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   assert.equal(JSON.parse(submitted.out).queued, true);
-  await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); // budget: owned worker readiness hang ceiling
+  try { await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); } // budget: owned worker readiness hang ceiling
+  catch (error) {
+    const state = queuedState(box, id), directory = join(box.repo, '.git/pullboard/submit-handoffs', state.job?.id ?? '');
+    const files = existsSync(directory) ? readdirSync(directory).filter(name => !statSync(join(directory, name)).isDirectory()).map(name => `${name}: ${readFileSync(join(directory, name), 'utf8').slice(-1200)}`) : [];
+    console.error(`# diagnosis ${error.message}; queue ${JSON.stringify(state)}; worker files ${JSON.stringify(files)}`);
+    throw new Error(`${error.message}; queue ${JSON.stringify(state)}; worker files ${JSON.stringify(files)}`);
+  }
   assert.equal(queuedState(box, id).job.state, 'running');
   if (landingOnly) config.landing = { ...config.landing, manualOverride: false };
   else config.gate = 'node -e "process.exit(0)"';
