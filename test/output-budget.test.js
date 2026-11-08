@@ -53,9 +53,9 @@ function mainTree() {
   const base = spawnSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' });
   if (base.status !== 0) return null;
   const dir = privateFixtureFiles('pullboard-budget-main-').root;
-  const archive = spawnSync('git', ['archive', base.stdout.trim()], { cwd: ROOT });
-  const untar = spawnSync('tar', ['-x', '-C', dir], { input: archive.stdout });
-  if (archive.status !== 0 || untar.status !== 0) throw new Error('could not extract merge-base main');
+  // Stream the archive into tar: a whole checkout overflows spawnSync's default output buffer.
+  const extract = spawnSync('sh', ['-c', 'set -o pipefail 2>/dev/null; git archive "$0" | tar -x -C "$1"', base.stdout.trim(), dir], { cwd: ROOT, encoding: 'utf8' });
+  if (extract.status !== 0 || !existsSync(join(dir, 'bin/pullboard.js'))) throw new Error(`could not extract merge-base main: ${extract.stderr}`);
   if (existsSync(join(ROOT, 'node_modules'))) symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'), 'dir');
   return dir;
 }
