@@ -83,9 +83,11 @@ function heldTrunk(t) {
 /** Let a real command wake the real lander on the held trunk, and wait until it refuses and backs off. */
 async function backingOff(box) {
   command(box, 'list');
-  await waitForCondition(() => record(box)?.backoff?.outcome === 'LAND_TEST_DEFECT' && leaseRequests(box).length > 0,
+  // One read per poll: the lander and the commands rewrite the record, so a second read can see a newer one.
+  let pending = null;
+  await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'LAND_TEST_DEFECT' && leaseRequests(box).length > 0,
     'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => record(box) });
-  return { pending: record(box), requests: leaseRequests(box).length };
+  return { pending, requests: leaseRequests(box).length };
 }
 
 /**
@@ -94,9 +96,10 @@ async function backingOff(box) {
  * out would have doubled it to 120 s.
  */
 async function attemptsBefore(box, { pending }, label) {
-  await waitForCondition(() => record(box)?.backoff?.retryAt && record(box).backoff.retryAt !== pending.backoff.retryAt, label,
+  // One read per poll: an accept replaces the record with an immediate wake that carries no back-off until it refuses.
+  let next = null;
+  await waitForCondition(() => (next = record(box)?.backoff)?.retryAt && next.retryAt !== pending.backoff.retryAt, label,
     { signal: AbortSignal.timeout(50_000), state: () => record(box) });
-  const next = record(box).backoff;
   assert.equal(next.backoffMs, 60_000, 'the woken attempt ran under no back-off, so its refusal starts the waits again');
   const startedAt = Date.parse(next.retryAt) - next.backoffMs;
   assert.ok(startedAt < Date.parse(pending.backoff.retryAt), `the next attempt ended at ${new Date(startedAt).toISOString()}, before the back-off ended at ${pending.backoff.retryAt}`);
