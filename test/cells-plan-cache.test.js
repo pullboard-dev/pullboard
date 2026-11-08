@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: clause 1 reads the repository tree to prove the file moved; clause 2 runs the repository cells checks. */
 /** The cells checks replay a saved answer for an unchanged commit, tree and diff, and miss on any change [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
