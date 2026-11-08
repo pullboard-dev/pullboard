@@ -29,7 +29,7 @@ function commit(box, cwd, message) {
 
 const CRITERION = '1. web/cases.test.js shows a greeting [test] 2. web/cases.test.js names the visitor by first name [test]';
 
-test('clause 1: a plain node --test check run by the real submit gate records every case name with pass or fail in its exact-head receipt [C7,V4]', { timeout: 240_000 }, () => {
+test('clause 1 and clause 2: the real submit gate records every case name of a plain node --test check in its exact-head receipt, and show --review lists each named case [C7,V4]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
