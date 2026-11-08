@@ -21,6 +21,7 @@ import {
   pathMapFromFiles,
 } from '../packages/codemap/index.js';
 import { cellSourceSnapshot } from '../packages/codemap/index.js';
+export { withCellSourceSnapshots } from '../packages/codemap/index.js';
 
 const objectScopes = new AsyncLocalStorage();
 

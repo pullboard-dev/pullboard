@@ -82,7 +82,7 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   if (proven) {
     await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
-    smoke(state.batch.root);
+    smoke(state.batch.root, { record: true });
     state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
     return proven;
   }

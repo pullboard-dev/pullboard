@@ -32,9 +32,9 @@ appendFileSync(process.env.HANDOFF_TEST_LOG, 'dispatcher ' + process.pid + '\\n'
 function fixture() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-dispatcher-reuse-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);
+  mkdirSync(join(tools, 'bin'), { recursive: true });
+  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), DISPATCHER);
   const log = join(dir, 'log');
   writeFileSync(log, '');
