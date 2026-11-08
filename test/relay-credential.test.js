@@ -114,8 +114,8 @@ test('every current operation selects its native actor credential without a seco
     // A queue without an immutable captured job is refused by the genuine origin sealer before transport.
     if (operation === 'queueSubmitHandoff') return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
-    // An owner wait without a clean proved source folder is refused by the native ownership sealer before transport.
-    if (operation === 'deferOwnership') return { operation, args, kind, sent: false, expected: 'OWNERSHIP_WAIT_SOURCE' };
+    // An owner wait seals its proved source natively, so a missing item stops at that preparation before transport.
+    if (operation === 'deferOwnership') return { operation, args, kind, sent: false, expected: 'NO_ITEM' };
     // The earlier claim case now owns this row; a non-HEAD source must stop at native origin sealing.
     if (operation === 'followItemPatches') return { operation, args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
       kind, sent: false, expected: 'ITEM_PATCH_SOURCE', label: 'followItemPatches claimed row with invalid head' };
