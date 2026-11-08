@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { logEvent } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';

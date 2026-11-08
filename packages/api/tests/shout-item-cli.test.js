@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { moveArgs } from '../../person/index.js';
 import { derivedFamily } from '../../items/index.js';
