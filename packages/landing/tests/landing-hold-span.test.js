@@ -27,6 +27,7 @@ function landOnce(box, { defect }) {
   const source = [
     `import { openBoard } from ${url('../../../apps/lib/index.js')};`,
     `import * as store from ${url('../../../src/board.js')};`,
+    `import { writeBoardCommand } from ${url('../../store/index.js')};`,
     `import { loadConfig } from ${url('../../../packages/config/index.js')};`,
     `import { runLandingBatch } from ${url('../index.js')};`,
     `import { landingPorts } from ${url('../../../test/landing-ports-fixture.js')};`,
@@ -36,7 +37,7 @@ function landOnce(box, { defect }) {
     `import { testBlob } from ${url('../src/shell/landing-step-selection.js')};`,
     `import { mainCheckout } from ${url('../../git/index.js')};`,
     'const [root, home, defect] = process.argv.slice(1);',
-    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
+    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"), undefined, { writeContext: { command: "api", seat: "coordinator" } });',
     'const log = join(home, "board-writes.jsonl");',
     'const rows = () => existsSync(log) ? readFileSync(log, "utf8").split("\\n").filter(Boolean).map(line => JSON.parse(line)) : [];',
     'try {',
@@ -46,7 +47,7 @@ function landOnce(box, { defect }) {
     '  }',
     '  const before = rows().length;',
     '  const spans = [];',
-    '  const write = async (operation, args) => { const start = performance.now(); try { return board.enginePorts.store[operation](board, ...args); } finally { spans.push({ operation, ms: performance.now() - start }); } };',
+    '  const write = async (operation, args) => { const start = performance.now(); try { return writeBoardCommand(board, operation, args, "coordinator"); } finally { spans.push({ operation, ms: performance.now() - start }); } };',
     '  let error = null, lines = [];',
     '  try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile: process.argv[4], root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); }',
     '  catch (caught) { error = { code: caught.code }; }',
@@ -99,5 +100,8 @@ test('clause 1: a real landing that selects, admits and records its batch opens 
   assert.equal(operations[0], 'recordLandingBatch', 'selection, test-defect checks, admission and the gate ran before the first board write, which is the batch record');
   assert.deepEqual(result.spans.filter(span => span.ms >= SECOND_MS), [], 'no write span of a landing that records reaches a second');
   assert.ok(result.writes.length > 0, 'the machine write log recorded this landing\'s holds');
+  const api = result.writes.filter(row => row.command === 'api' && row.seat === 'coordinator' && row.phase === 'native-move');
+  assert.ok(api.some(row => row.move === 'recordLandingBatch'), `a command=api seat=coordinator phase=native-move hold receipt names the batch record: ${JSON.stringify(result.writes)}`);
+  assert.deepEqual(api.filter(row => row.heldMs >= SECOND_MS), [], 'every api/coordinator/native-move hold is under a second');
   assert.deepEqual(result.writes.filter(row => row.heldMs >= SECOND_MS), [], 'no recorded hold reaches a second');
 });
