@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
 import * as store from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { HOUR } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
+
+/** The model name both Haiku seats join with; the fixture only needs a valid one. */
+const SEAT_MODEL = 'Fixture model';
 
 /** The verify policy an item froze on a board with verify.family require and a one-review relaxation threshold. */
 const RELAXED_FREEZE = () => ({ text: JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 1 } } }), digest: 'relaxed-family-digest' });
@@ -27,7 +30,7 @@ function familyReviewBoard(t) {
   const joinFamily = (name, family) => {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    const seat = box.json(box.runAs(`${name}-session`, root, 'join', 'web', '--family', family, '--model', 'Fixture model', '--route', 'strong', '--json'));
+    const seat = box.json(box.runAs(`${name}-session`, root, 'join', 'web', '--family', family, '--model', SEAT_MODEL, '--route', 'strong', '--json'));
     return { ...seat, root, session: `${name}-session` };
   };
   const author = joinFamily('haiku-author', 'Haiku');
@@ -36,7 +39,7 @@ function familyReviewBoard(t) {
   const build = box.add('web', 'Buildable work for the Haiku seat');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
+  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git', 'pullboard', 'board.sqlite'), web: box.repo });
   try {
     store.claim(board, review, { agentId: author.agent, lane: 'web', leaseMs: HOUR, freeze: RELAXED_FREEZE });
     submitFixture(board, review, { agentId: author.agent, commit, tree });
