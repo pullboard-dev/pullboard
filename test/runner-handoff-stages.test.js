@@ -1,12 +1,11 @@
 /** The runner job runs the real hand-off stages from its ticket; a red ends it with the local worker's failure account [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { HANDOFF_STAGES, failureAccount, runHandoffStages } from '../apps/runner/src/shell/runner-handoff-stages.js';
 import { handoffStageServices } from '../apps/cli/src/shell/runner-handoff-services.js';
-import { runFixtureGit } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 
 const IDENTITY = ['-c', 'user.name=Stage Test', '-c', 'user.email=stage@example.test', '-c', 'commit.gpgsign=false'];
 const SERVICES = handoffStageServices();
@@ -14,7 +13,7 @@ const JOB = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 
 /** A fixture runner: a real checkout of one commit and its own log file, outside this machine's logs. */
 function fixtureRunner(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-handoff-stages-'));
+  const dir = privateFixtureFiles('pullboard-handoff-stages-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'runner-checkout');
   runFixtureGit(['init', '-q', '-b', 'main', root]);
