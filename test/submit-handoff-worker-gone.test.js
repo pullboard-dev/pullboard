@@ -55,7 +55,10 @@ function handoffEvents(box, id, jobState) {
  * Run one dispatcher drain on the fixture's repository and return what it printed.
  * Why: the drain's sweep reports a hand-off it could not end on stderr only, so a failed case quotes it.
  */
-function drainOnce(box, source) {
+async function drainOnce(box, source) {
+  // The submit's own dispatcher holds the one dispatcher place until it ends; a drain started beside it defers and sweeps nothing, so wait for it to end first.
+  const pattern = join(box.dir, 'silent-tools', 'bin', 'handoff-worker-dispatcher');
+  await box.helpers.waitFor(() => spawnSync('pgrep', ['-f', pattern]).status !== 0, 'the submit launched dispatcher ending', 120000); // budget: hang ceiling for the launched dispatcher to leave, not a timing assertion.
   const run = spawnSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
   assert.equal(run.status, 0, `the drain exits 0\n${run.stdout}${run.stderr}`);
   // The dispatcher logs a failed sweep here, not on its output; quote it so a missed requeue names its cause.
@@ -91,7 +94,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);
-  const swept = drain();
+  const swept = await drain();
   const requeued = state(box, box.id);
   const judged = (() => {
     const saved = process.env.PULLBOARD_MACHINE_HOME; process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -105,7 +108,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   assert.equal(requeued.job.requeuedFor, 'worker-gone');
   assert.equal(requeued.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
   assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: one board event records the ended job');
-  drain();
+  await drain();
   assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: a second drain adds no event for the same item');
 
   const shown = box.run(box.web, 'show', String(box.id));
@@ -140,13 +143,13 @@ test('clause 1: a drain ends a hand-off whose folder no longer exists as infrast
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);
-  const swept = drain();
+  const swept = await drain();
   const ended = state(box, box.id);
   assert.notEqual(ended.job.state, 'queued', `clause 1: a ghost queued job is not left in the gate\n${swept}\n${JSON.stringify(ended.job)}`);
   assert.notEqual(ended.job.state, 'running');
   assert.equal(ended.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
   const ends = () => handoffEvents(box, box.id, ended.job.state);
   assert.equal(ends(), 1, 'clause 1: one board event records the ended job');
-  drain();
+  await drain();
   assert.equal(ends(), 1, 'clause 1: a second drain adds no event');
 });
