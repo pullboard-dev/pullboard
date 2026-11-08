@@ -61,6 +61,8 @@ function gateWaitReporter(io) {
 
 const FILE_CHARS = 32_000;
 const PACK_FILE_CHARS = 96_000;
+// Loaded by runItems on first use so importing this package stays light [C7].
+let store, digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate, missingGate;
 
 /**
  * A whole number from a flag, within bounds, or a refusal naming the flag.
