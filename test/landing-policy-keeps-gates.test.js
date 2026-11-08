@@ -1,6 +1,7 @@
 /** Policy sealing distinguishes landing scheduling from the proof a queued gate owes [C7,V4]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -70,6 +71,17 @@ function queuedState(box, id) {
   finally { closeBoard(board); }
 }
 
+/** Whether the fixture's queued worker still holds its job: its captured source or its tool snapshot exists. */
+function workerBusy(box) {
+  const jobs = join(box.repo, '.git/pullboard/submit-handoffs');
+  if (!existsSync(jobs)) return false;
+  return readdirSync(jobs).some(job => {
+    let tools = null;
+    try { tools = JSON.parse(readFileSync(join(jobs, job, 'request.json'), 'utf8')).tools ?? null; } catch { /* A request still being written names nothing yet. */ }
+    return existsSync(join(jobs, job, 'source')) || Boolean(tools && existsSync(tools));
+  });
+}
+
 for (const landingOnly of [true, false]) test(`clause ${landingOnly ? 1 : 2}: a real running queued worker ${landingOnly ? 'finishes after landing changes' : 'requeues changed gate policy without a red'} [C7,V4]`, { timeout: 240_000 }, async t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
@@ -97,12 +109,14 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
     '--check', `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`, '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
+  // The runner gives a finished case's cleanup 30 s before it kills the file, and the helpers' synchronous rmSync,
+  // retrying ENOTEMPTY while the worker still writes, blocked the main thread past it: wait for the owned worker
+  // inside that window, then remove the fixtures asynchronously [C7].
   t.after(async () => {
     writeFileSync(release, 'release');
-    const job = queuedState(box, id).job;
-    if (job) await helpers.waitFor(() => !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'source')), // budget: owned worker cleanup hang ceiling
-      'owned worker cleanup', 180_000); // budget: owned-child cleanup hang ceiling, no performance claim
-    helpers.cleanup();
+    try { await helpers.waitFor(() => !workerBusy(box), 'owned worker cleanup', 20_000); } // budget: hang ceiling inside the runner's 30 s file-exit window; no elapsed-time assertion
+    catch { /* A worker still running past the ceiling is removed with its fixture below. */ }
+    await Promise.all(helpers.sandboxes.map(dir => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })));
   });
   const claimed = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
@@ -113,7 +127,13 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
   const submitted = box.run(source, 'submit', String(id), '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   assert.equal(JSON.parse(submitted.out).queued, true);
-  await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); // budget: owned worker readiness hang ceiling
+  try { await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); } // budget: owned worker readiness hang ceiling
+  catch (error) {
+    const state = queuedState(box, id), directory = join(box.repo, '.git/pullboard/submit-handoffs', state.job?.id ?? '');
+    const files = existsSync(directory) ? readdirSync(directory).filter(name => !statSync(join(directory, name)).isDirectory()).map(name => `${name}: ${readFileSync(join(directory, name), 'utf8').slice(-1200)}`) : [];
+    console.error(`# diagnosis ${error.message}; queue ${JSON.stringify(state)}; worker files ${JSON.stringify(files)}`);
+    throw new Error(`${error.message}; queue ${JSON.stringify(state)}; worker files ${JSON.stringify(files)}`);
+  }
   assert.equal(queuedState(box, id).job.state, 'running');
   if (landingOnly) config.landing = { ...config.landing, manualOverride: false };
   else config.gate = 'node -e "process.exit(0)"';
