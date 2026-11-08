@@ -8,7 +8,7 @@ import { sampleRunnerLoad } from './runner-load.js';
 import { carriedRunnerTrunk } from './runner-policy.js';
 import { remoteWorkerLaunch } from './runner-remote-tooling.js';
 import { shellWord } from './runner-remote-tooling.js';
-import { spawnSsh } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';

@@ -8,7 +8,7 @@ import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
-import { spawnSsh } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';

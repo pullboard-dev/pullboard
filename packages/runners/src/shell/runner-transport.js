@@ -19,7 +19,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
-import { spawnSsh } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
 

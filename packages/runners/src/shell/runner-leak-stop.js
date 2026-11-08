@@ -1,6 +1,6 @@
 /** End processes a dead job left under a runner's jobs folder, so an idle proof can pass again [C7]. */
 import { shellWord } from './runner-remote-tooling.js';
-import { spawnSsh } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 
 /**

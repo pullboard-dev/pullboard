@@ -58,9 +58,6 @@ function loadedTooling() {
   catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 
-/** Every runner ssh call spawns through the transport's multiplexed helper: one connection per runner (#3658). */
-export { spawnSsh } from '../../../transport/index.js';
-
 /** Quote one remote shell argument without permitting substitutions or expansion. */
 export function shellWord(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
