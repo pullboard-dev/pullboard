@@ -9,8 +9,11 @@ export function firstRefusalProblem(board, id, agentId, ports) {
   return reason ? new Refused('REOPEN_HELD_FOR_BUILDER', reason) : null;
 }
 
-/** Explain ineligible build work without raising an item refusal from review selection. */
-export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem, otherBuilderFirst = false, offering = false }) {
+/**
+ * Explain ineligible build work without raising an item refusal from review selection. The optional seatGone port
+ * ends a builder's first-refusal window early when that builder's seat is gone (#3447).
+ */
+export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem, otherBuilderFirst = false, offering = false, seatGone }) {
   const continuation = exitContinuationProblem?.(board, id, agentId);
   if (continuation) return continuation.message;
   const window = firstRefusal(board, id);
@@ -24,7 +27,10 @@ export function firstRefusalReason(board, id, agentId, { firstRefusal, exitConti
   }
   if (window?.otherSeatFirst) return window.builder === agentId
     ? `item #${id} returned for lack of progress; another seat gets first refusal until ${window.until}; take another item` : null;
-  return window && window.builder !== agentId && !takeoverReady(board, id)
+  // The window protects a builder who can still come back; a gone seat never will, so it ends at once (#3447).
+  // Heartbeats are private local state, so an ordered (sealed) move keeps the recorded window, as liveRouteProblem does.
+  const builderGone = board.executionEngineVersion === undefined && Boolean(window) && seatGone?.(board, window.builder) === true;
+  return window && window.builder !== agentId && !takeoverReady(board, id) && !builderGone
     ? `item #${id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it`
     : null;
 }
@@ -46,8 +52,19 @@ export function tellFirstRefusal(board, item, detail, persistShout) {
     text: `Item #${item.item_id} waits for you until ${window.until}; claim it to resume, or run pullboard release ${item.item_id} --reason ROUTED_ELSEWHERE to let another builder take it.` });
 }
 
-/** Copy only enabled coordinator policy into ordered moves before they are sealed for replay. */
+/**
+ * Copy only enabled coordinator policy into ordered moves before they are sealed for replay. With claim.returnToBoard
+ * on, a reject seals zero minutes, so the rejected work goes back to the board with no builder first refusal (#3541).
+ *
+ * @param {string} operation the ordered move
+ * @param {any[]} args its arguments
+ * @param {any} config the coordinator's configuration
+ * @returns {any[]} the arguments to seal
+ */
 export function firstRefusalArgs(operation, args, config) {
+  if (config.claim?.returnToBoard === true && operation === 'verify' && args[1]?.decision === 'REJECT') {
+    return [args[0], { ...args[1], reopenFirstRefusalMinutes: 0 }, ...args.slice(2)];
+  }
   const minutes = config.claim?.reopenFirstRefusalMinutes;
   if (!minutes || !['verify', 'reopen'].includes(operation)) return args;
   if (operation === 'verify' && args[1]?.decision !== 'REJECT') return args;

@@ -4,10 +4,12 @@ import { PATCH_FOLLOW_ENGINE } from "../../../../../src/patch-follow-engine.js";
 import { itemPatchRecords } from "../../../../items/core.js";
 /** Native coordinator patch inputs preserve source and author authority [V4,H16]. */
 import { ITEM_PATCH_ENGINE } from "../../../../../src/item-patch-engine.js";
+import { ITEM_PATCH_AUTO_ENGINE } from "../../../../../src/item-patch-auto-engine.js";
 /** Old engines must never interpret new patch payloads. */
 function minimumEngine(args, board) {
   if (board && itemPatchRecords(board, args[0]).some(record => record.attachedCommit)) return Math.max(itemReviewPolicyEngine(board, args[0]), PATCH_FOLLOW_ENGINE);
-  return Math.max(itemReviewPolicyEngine(board, args[0]), args[1]?.presubmit === true ? ITEM_PATCH_SUBMIT_ENGINE : ITEM_PATCH_ENGINE);
+  return Math.max(itemReviewPolicyEngine(board, args[0]), args[1]?.autoAttach === true ? ITEM_PATCH_AUTO_ENGINE
+    : args[1]?.presubmit === true ? ITEM_PATCH_SUBMIT_ENGINE : ITEM_PATCH_ENGINE);
 }
 /** The actor is the explicit coordinator argument, not the patch author. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
