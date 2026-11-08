@@ -206,7 +206,7 @@
     },
     {
       "file": "test/hosted-shapes.test.js",
-      "line": 814,
+      "line": 815,
       "expression": "join(healthy, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -409,7 +409,7 @@
     },
     {
       "file": "test/relay-agent.test.js",
-      "line": 197,
+      "line": 198,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
