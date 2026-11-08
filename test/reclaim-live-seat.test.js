@@ -5,6 +5,8 @@ import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -31,18 +33,21 @@ function manualClock(start = Date.parse('2026-11-04T12:00:00.000Z')) {
 }
 
 /** A real repo and SQLite board: one core seat holding a claim, with that claim's item folder opened. */
-function fixture(t) {
+function fixture(t, start, { adopted = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-seat-heartbeat-')));
   const repo = join(directory, 'seat');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'root');
-  const clock = manualClock();
+  const clock = manualClock(start);
   const file = join(directory, 'board.sqlite');
   const board = openBoard(file, clock);
   t.after(() => { stopSeatKeepalive(); store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: join(directory, 'main') });
-  const seat = store.register(board, { lane: 'core', path: repo, route: 'mid' });
+  // An adopted fixture registers the claim's seat at a second checkout, so the item folder below belongs to an earlier seat's name.
+  const holder = adopted ? join(directory, 'second-seat') : repo;
+  if (adopted) git(repo, 'worktree', 'add', '-q', '--detach', holder, 'main');
+  const seat = store.register(board, { lane: 'core', path: holder, route: 'mid' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'long submit', criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' });
   store.claim(board, id, { agentId: seat, lane: 'core', leaseMs: 7_200_000,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'digest:bar' }) });
@@ -104,4 +109,32 @@ test('[C7,#2960] the keepalive heartbeat never keeps a finished command\'s proce
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 10_000 });
   assert.equal(run.signal, null, 'the process exited on its own instead of hanging on the keepalive timer');
   assert.equal(run.status, 0, run.stderr);
+});
+
+/**
+ * A claim that moved to a second seat while its work stayed in the first seat's item folder (an adopted folder).
+ * The clock runs an hour ahead of the files Git just wrote, so only a file the test touches reads as recent work.
+ */
+function adoptedFolderFixture(t, workAgoMs) {
+  stopSeatKeepalive();
+  const f = fixture(t, Date.now() + 3_600_000, { adopted: true });
+  const edited = join(f.folder, 'edited.txt');
+  writeFileSync(edited, 'work\n');
+  const at = new Date(f.clock.now().getTime() - workAgoMs);
+  utimesSync(edited, at, at);
+  utimesSync(join(f.folder, '.git'), at, at);
+  f.clock.advance(3 * 60_000);
+  return { f, id: f.id };
+}
+
+test('[C7,#3687] a claim whose item folder was adopted from an earlier seat is not released while its work is recent', t => {
+  const { f, id } = adoptedFolderFixture(t, 5 * 60_000);
+  const snapshot = captureLapsedClaims({ info: { root: f.repo }, config: {}, clock: f.clock }, f.board, 'coordinator');
+  assert.deepEqual((snapshot?.claims ?? []).filter(row => row.idle === 'seat-gone' && row.id === id), [], 'the sentinel finds the adopted folder and sees its recent edit');
+});
+
+test('[C7,#3687] a claim whose seat is quiet and whose adopted folder is idle is still released as seat-gone', t => {
+  const { f, id } = adoptedFolderFixture(t, 40 * 60_000);
+  const snapshot = captureLapsedClaims({ info: { root: f.repo }, config: {}, clock: f.clock }, f.board, 'coordinator');
+  assert.deepEqual((snapshot?.claims ?? []).filter(row => row.idle === 'seat-gone' && row.id === id).map(row => row.id), [id]);
 });
