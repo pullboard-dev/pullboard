@@ -73,8 +73,7 @@ import {
 } from './gate-execution.js';
 import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
-import { mergeShardRuns } from './proof-shards.js';
-import { runProofShards } from './proof-shards.js';
+import { proveBatches } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
 import {
   commandWord,
@@ -222,8 +221,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
       const command = filesCommand(proofFiles);
       const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
-      // On a runner the files fan out across free slots; the one receipt still names the whole command [C7].
-      const run = { ...await (lease.runner && proofFiles.length > 1
+      // The files run from a queue of batches every slot the gate gets pulls from; the one receipt still names the whole command [C7].
+      const run = { ...await (proofFiles.length > 1
         ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
         : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
@@ -231,23 +230,25 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     /**
-     * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's
-     * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
-     * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
-     * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
+     * Run the proof's files from a queue of small batches and merge them into one run. The gate's own lease is the first
+     * lane; on a runner the gate keeps asking for more runner slots while batches remain, and each slot pulls batches
+     * until the queue is empty. Slot lanes carry no proof context, so the gate's lease writes the only receipt. Every
+     * batch reports its test account under the proof's one timing run id, so the merged output accounts for every
+     * selected file (TEST_SELECTION_UNVERIFIED). With no runner lease the one local lane runs every batch as today's
+     * command. A rerun of the same candidate tree after an infrastructure end runs only the batches with no recorded
+     * pass (#3699).
      */
     const proveShards = async (execution, filesCommand) => {
       const runners = execution.gateLease.executionServices.runners;
-      const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
       const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
         runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
         metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
-      const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
-        shardSlotOptions(slotOptions));
-      // A browser proof plans only as many shards as runners have browser slots free, so no shard waits on its siblings [C7].
-      const freeSlots = planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      const shards = await runProofShards(proofFiles, { freeSlots, times: readFileTimes(root), root, runFirst, runOther });
-      return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
+      /** Take one more runner slot and let `lane` pull batches on it; the request ends once the queue has closed. */
+      const takeSlot = (lane, { closed }) => withGateSlot(root, shardLease => lane(files => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease))),
+        shardSlotOptions(slotOptions, { closed }));
+      // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
+      const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote });
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */
