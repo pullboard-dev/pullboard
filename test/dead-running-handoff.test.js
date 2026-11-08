@@ -4,12 +4,15 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { driverRecord } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -66,7 +69,10 @@ function fixture(t) {
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
-    helpers.cleanup();
+    // The driver and dispatcher still write for a moment after the job ends, and the synchronous cleanup never
+    // re-walks a tree written behind it: remove the tree only once they are done, with async retries (#3495).
+    await gateSettled(helpers, box, state(box, id).job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, started };
 }
@@ -78,7 +84,7 @@ test('a running handoff with a dead worker pid is recovered and a new submit que
   await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
-  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  const owner = driverRecord(box.boardFile, first.id);
   // The worker leads its own detached process group; killing the group leaves no live gate behind, like a crash.
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.

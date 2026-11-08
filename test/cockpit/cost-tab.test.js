@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */

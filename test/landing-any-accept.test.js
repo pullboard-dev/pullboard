@@ -6,15 +6,18 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { waitForCondition } from './runner-fixture-state.js';
 import * as store from '../packages/store/index.js';
 import { automaticLandingDirectory } from '../packages/landing/index.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = new URL('../bin/pullboard.js', import.meta.url).pathname;
+/** The reviewers' model, apart from the builders' fixture model. */
+const REVIEWER_MODEL = 'Landing reviewer';
 
 /** The environment of one real agent session; the fixture itself keeps none. */
 function sessionEnv(box, identity) {
@@ -68,7 +71,7 @@ function fixture(t, lanes) {
   if (lanes.includes('api')) {
     builders.api = join(box.dir, 'api-1');
     box.git(box.repo, 'worktree', 'add', '-q', builders.api, '-b', 'api/one');
-    assert.equal(fixtureJoin(box.run, builders.api, 'api').code, 0);
+    joinFixtureSeat(box, builders.api, 'api', { model: FIXTURE_MODEL }); // the strong route, as the web seat joined
   }
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
   const items = lanes.map((lane, index) => {
@@ -82,7 +85,7 @@ function fixture(t, lanes) {
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', 'Landing reviewer');
+    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
     return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
   });
   return { box, items, binding: mainBinding(box) };
@@ -125,8 +128,11 @@ test('an accept from a reviewer worktree session lands on main with no command i
   assertLanded(box, items, binding);
 });
 
-test('two accepts at once from two sessions land both in one landing [B35,B3,R3]', async t => {
+test('two accepts at once from two sessions land both, each in a batch of one [B35,B3,R3,C7]', async t => {
   const { box, items, binding } = fixture(t, ['web', 'api']);
+  // The board's own batch size (Corey 5 Nov). An accept's landing starts at once, with no 10 s wait to gather accepts.
+  onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
+    reason: 'Batch size stays one', window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } }));
   const before = onBoard(box, board => store.landingBatches(board).length);
   const results = await Promise.all(items.map(item => accept(box, item)));
   for (const result of results) {
@@ -135,5 +141,6 @@ test('two accepts at once from two sessions land both in one landing [B35,B3,R3]
   }
   await landed(box, items);
   assertLanded(box, items, binding);
-  assert.equal(onBoard(box, board => store.landingBatches(board).length) - before, 1, 'concurrent accepts coalesce into one landing');
+  const batches = onBoard(box, board => store.landingBatches(board)).slice(before).filter(batch => batch.state === 'landed');
+  assert.deepEqual(batches.map(batch => (batch.items ?? []).length), [1, 1], 'concurrent accepts land one item per batch');
 });
