@@ -49,6 +49,8 @@ test('a moved main keeps the receipt unless it changes the item or its check [C7
   assert.equal(sealedMoveOverlap(dir, { from: base, to: unrelated, commit: item, check: 'node --test test/a.test.js' }), null);
   const named = commit('test/a.test.js', 'z');
   assert.match(sealedMoveOverlap(dir, { from: base, to: named, commit: item, check: 'node --test test/a.test.js' }), /test\/a\.test\.js, a file the check names/);
+  const spaced = commit('test/a space.test.js', 'q');
+  assert.match(sealedMoveOverlap(dir, { from: named, to: spaced, commit: item, check: "node --test 'test/a space.test.js'" }), /test\/a space\.test\.js, a file the check names/);
   const touched = commit('item.js', 'w');
   assert.match(sealedMoveOverlap(dir, { from: base, to: touched, commit: item, check: 'node --test x' }), /item\.js, a file this item changed/);
   assert.match(sealedMoveOverlap(dir, { from: touched, to: base, commit: item, check: 'x' }), /rewound/);

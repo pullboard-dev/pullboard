@@ -6,6 +6,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { Refused } from '../../../kernel/index.js';
+import { literalShellWords } from '../../../kernel/core.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {
@@ -82,7 +83,9 @@ export function sealedMoveOverlap(root, { from, to, commit, check }) {
   if (from === to) return null;
   try { git(root, ['merge-base', '--is-ancestor', from, to]); } catch { return `main was rewound since submit (${from.slice(0, 12)} is not in ${to.slice(0, 12)})`; }
   const itemFiles = new Set(changedBetween(root, git(root, ['merge-base', from, commit]), commit));
-  const named = new Set(String(check ?? '').split(/\s+/).map(word => word.replace(/^['"]|['"]$/g, '').replace(/^\.\//, '')));
+  // Quoted paths keep their spaces; a check the literal parser refuses falls back to whitespace words.
+  const words = literalShellWords(String(check ?? '')) ?? String(check ?? '').split(/\s+/).map(word => word.replace(/^['"]|['"]$/g, ''));
+  const named = new Set(words.map(word => word.replace(/^\.\//, '')));
   for (const path of changedBetween(root, from, to)) {
     if (itemFiles.has(path)) return `${path}, a file this item changed`;
     if (named.has(path)) return `${path}, a file the check names`;
