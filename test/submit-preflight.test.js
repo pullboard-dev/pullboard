@@ -10,9 +10,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -43,8 +42,7 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   // An outside reviewer rejects that exact head.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  box.env.PULLBOARD_MODEL = FIXTURE_MODEL; // the reviewer joins on the fixture's strong route, whatever model runs the gate.
-  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  assert.equal(joinFixtureSeat(box, reviewer, 'api').code, 0); // the reviewer joins on the strong route, whatever model runs the gate.
   json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   // Resubmit the same head with the check armed to run for minutes.
