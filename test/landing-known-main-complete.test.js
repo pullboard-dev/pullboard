@@ -90,7 +90,7 @@ function landBatch(box, itemId) {
   return JSON.parse(run.stdout.trim().split('\n').at(-1));
 }
 
-test('an exact-main failure is fully collected with later selected work before landing; new red blocks [B3,C7]', () => {
+test('clause 1: an exact-main failure is fully collected with later selected work before landing; new red blocks [B3,C7]', () => {
   const { box, red } = realNodeMainProject();
   const marker = join(box.dir, 'later-node-test-ran');
   const later = `import { test } from 'node:test'; import { writeFileSync } from 'node:fs'; test('later-passing-case', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));\n`;
