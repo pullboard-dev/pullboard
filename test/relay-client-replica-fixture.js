@@ -41,7 +41,7 @@ export async function relayUploadSummary(uploads, key, boardId) {
   return Promise.all(uploads.map(async ({ sequence, sealed }) => {
     const plain = await unseal(key, Buffer.from(sealed, 'base64url'), { boardId, kind: 'move', sequence });
     const move = JSON.parse(new TextDecoder().decode(plain));
-    return { sequence, operation: move.operation, moveId: move.id,
+    return { sequence, operation: move.operation, moveId: move.id, args: move.operation === 'appendFact' ? move.args : null,
       itemId: move.operation === 'recordProofRun' ? move.args?.[0]?.itemId
         : move.operation === 'submit' && Number.isSafeInteger(move.args?.[0]) ? move.args[0] : null,
       commit: move.operation === 'submit' ? move.args?.[1]?.commit ?? null : null,
@@ -142,9 +142,10 @@ export async function assertRefusalUploadsOneUsageMove({ relay, before, key, boa
     seen = relay.uploads.length;
   }
   assert.equal(stable, 2, 'the refused submit leaves a settled outbox');
-  const operations = (await relayUploadSummary(relay.uploads.slice(before), key, boardId)).map(({ operation }) => operation);
+  const moves = await relayUploadSummary(relay.uploads.slice(before), key, boardId);
+  const operations = moves.map(({ operation }) => operation);
   assert.equal(operations.length, 1, `a receipt-missing recovered descriptor is refused before relay upload; only one usage move follows (saw ${operations.join(', ') || 'nothing'})`);
-  assert.match(operations[0], /^recordUsage(Batch)?$/u, `the one upload after the refusal is a usage move (saw ${operations[0]})`);
+  assert.match(operations[0], /^recordUsage(Batch)?$/u, `the one upload after the refusal is a usage move (saw ${operations[0]}: ${JSON.stringify(moves[0].args)})`);
 }
 
 /** Make a submitted commit locally verifiable by the other replica's real Git history. */
