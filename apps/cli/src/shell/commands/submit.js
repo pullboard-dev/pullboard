@@ -492,7 +492,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
@@ -922,7 +923,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
       requireKernelApproval(board, { root, base: currentTrunk.commit, commit: submitted, item: id });
       submitPreflight(board, id, { agentId: me.id, commit: submitted, tree: headTree(root),
-        ...(size ? { submissionSize: size } : {}), inspectClauses },
+        ...(size ? { submissionSize: size } : {}), inspectClauses, ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) },
       { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit },
       { refuse: (observed, item) => refuseUnreviewable(observed, item,
         { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) });

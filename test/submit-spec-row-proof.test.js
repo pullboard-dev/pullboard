@@ -142,6 +142,9 @@ function markedTest(dir, name, caseName) {
   ].join('\n');
 }
 
+/** How the packet cites a run of the file a clause names: the file, or (#3696) the executed cases in it. */
+const NAMED_FILE = ['clause names the file', 'case in the file the clause names', 'test cites the clause'];
+
 test('clause 1: submit runs the test file the frozen criterion names and the one the brief Test: list names, though the change never imports them [C7,V4]', { timeout: 240_000 }, async (t) => {
   const { packet, dir } = submittedItem(undefined, {
     criterion: '1. The page shows a greeting, proved by web/named.test.js [test]. 2. The visitor sees a farewell [test].',
@@ -153,7 +156,7 @@ test('clause 1: submit runs the test file the frozen criterion names and the one
 
   await t.test('clause 2: show --review lists each [test] clause with its named file outcome from the exact-head gate receipt, no gap [C7,V4]', () => {
     const [first, second] = packet.clauses;
-    assert.ok(first.runs.some(run => run.file === 'web/named.test.js' && run.result === 'pass' && run.receipt && run.why === 'clause names the file'),
+    assert.ok(first.runs.some(run => run.file === 'web/named.test.js' && run.result === 'pass' && run.receipt && NAMED_FILE.includes(run.why)),
       `clause 1 cites its named file's run: ${JSON.stringify(first)}`);
     assert.ok(second.runs.some(run => run.file === 'web/brief.test.js' && run.result === 'pass' && run.receipt && run.why === "the brief's Test: list names the file"),
       `clause 2 cites the brief's Test: file run: ${JSON.stringify(second)}`);

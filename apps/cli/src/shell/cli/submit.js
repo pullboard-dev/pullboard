@@ -49,7 +49,8 @@ export function gateTestFiles(root, item) {
   const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
   const named = barTestFiles(item).all.filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
   let units = null;
-  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return new Set(); }
+  // An unreadable selection ticks nothing from the changed files, but submit still runs the bar-named files.
+  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return selectedGateFiles(named, null); }
   return new Set([...selectedGateFiles(changed, units), ...selectedGateFiles(named, null)]);
 }
 
