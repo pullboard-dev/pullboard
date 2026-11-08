@@ -187,7 +187,6 @@ const LAND_RED = 'web/land-9.test.js';
 /** A per-item separate-publish landing project whose main already carries one red case, committed through real hooks. */
 function landRedMainProject() {
   const box = landProject({ withWorktree: false });
-  box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, perItem: true, manualOverride: true, publish: 'separate' } }, null, 2));
