@@ -127,13 +127,13 @@ function adoptedFolderFixture(t, workAgoMs) {
   return { f, id: f.id };
 }
 
-test('[C7,#3687] a claim whose item folder was adopted from an earlier seat is not released while its work is recent', t => {
+test('clause 1: a claim whose item folder was adopted from an earlier seat is not released while its work is recent [C7]', t => {
   const { f, id } = adoptedFolderFixture(t, 5 * 60_000);
   const snapshot = captureLapsedClaims({ info: { root: f.repo }, config: {}, clock: f.clock }, f.board, 'coordinator');
   assert.deepEqual((snapshot?.claims ?? []).filter(row => row.idle === 'seat-gone' && row.id === id), [], 'the sentinel finds the adopted folder and sees its recent edit');
 });
 
-test('[C7,#3687] a claim whose seat is quiet and whose adopted folder is idle is still released as seat-gone', t => {
+test('clause 2: a claim whose seat is quiet and whose adopted folder is idle is still released as seat-gone [C7]', t => {
   const { f, id } = adoptedFolderFixture(t, 40 * 60_000);
   const snapshot = captureLapsedClaims({ info: { root: f.repo }, config: {}, clock: f.clock }, f.board, 'coordinator');
   assert.deepEqual((snapshot?.claims ?? []).filter(row => row.idle === 'seat-gone' && row.id === id).map(row => row.id), [id]);
