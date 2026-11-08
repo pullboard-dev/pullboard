@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-view-test journey
  * The agent floor's approved fixes in real Chrome: grouped number band, wider Now column, equal queue cards, more ways in [N26,N38]. */
