@@ -5,12 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { VERDICT_WITHDRAW_ENGINE } from '../src/verdict-withdraw-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -22,13 +24,13 @@ function acceptedSnapshot(context = false) {
     assert.equal(e2e.commitFile(box, box.repo, 'web/page.html', '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Start</h1>\n', 'test(web): establish a private review base [G1]').status, 0);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   }
-  assert.equal(box.run(box.repo, 'add', 'web', 'Withdrawal engine fixture', '--specs', 'G1', '--criterion', 'The page renders.').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Withdrawal engine fixture', '--specs', 'G1', '--criterion', 'The page renders.').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', context ? '<header>Old</header>\n' + '\n'.repeat(8) + '<h1>Page</h1>\n' : '<h1>Page</h1>', 'feat(web): page [G1]').status, 0);
   assert.equal(box.run(box.web, 'submit', '1').code, 0);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/reviewer');
-  assert.equal(box.run(reviewer, 'join', context ? 'web' : 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, context ? 'web' : 'api').code, 0);
   assert.equal(box.run(reviewer, 'next', '--verify', '1').code, 0);
   box.git(reviewer, 'switch', '-q', '--detach', box.git(box.web, 'rev-parse', 'HEAD'));
   const accepted = box.run(reviewer, 'verify', '1', 'accept', '--note', 'native private check passed', '--json');

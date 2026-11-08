@@ -1,3 +1,4 @@
+import { machineHome } from '../../../resources/index.js';
 /** Advisory process-owned write records; never part of native board state or lock authority [C7,P4]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -115,13 +116,30 @@ export function beginBoardWrite(db, context = {}, marker = null) {
   return record;
 }
 
-/** Account a named synchronous part of the active writer without performing diagnostic I/O. */
-export function measureBoardWritePhase(db, name, work) {
+/**
+ * Account a named synchronous part of the active writer without performing diagnostic I/O.
+ * A call that passes `move` is the move body: the record names the move, and the slowest phase measured
+ * inside it becomes the record's step, so a long hold can be read to its cause (#3336).
+ *
+ * @param {object} db - The board connection whose active write is measured.
+ * @param {string} name - The phase name.
+ * @param {() => *} work - The synchronous work to time.
+ * @param {string} [move] - The move name when this phase is the move body.
+ * @returns {*} The work's result.
+ */
+export function measureBoardWritePhase(db, name, work, move) {
   const started = performance.now();
+  if (move) for (const record of pending.get(db) ?? []) {
+    if (record.complete) continue;
+    record.move = move;
+    record.moveDepth = (record.moveDepth ?? 0) + 1;
+  }
   try { return work(); } finally {
     const elapsed = performance.now() - started;
     for (const record of pending.get(db) ?? []) {
       if (record.complete) continue;
+      if (move) record.moveDepth = Math.max(0, (record.moveDepth ?? 1) - 1);
+      else if (record.moveDepth > 0 && elapsed > (record.stepMs ?? 0)) { record.step = name; record.stepMs = elapsed; }
       record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
       if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
     }
@@ -138,6 +156,9 @@ export function noteBoardWriteItem(db, item) {
   }
 }
 
+/** Locate per-command write measurements in private machine storage, outside native board state. */
+export function boardWriteLog() { return join(machineHome(), 'board-writes.jsonl'); }
+
 /** Complete only after COMMIT/ROLLBACK or actual connection close; unique records cannot unlink a successor. */
 export function finishBoardWrite(record, released, outcome = 'released') {
   if (!record || record.complete || !released) return;
@@ -149,6 +170,7 @@ export function finishBoardWrite(record, released, outcome = 'released') {
     catch { /* A closed diagnostic stream must not turn an already committed move into an apparent refusal. */ }
   }
   recordBoardHold({ ...record, durationMs, outcome });
+  recordBoardHold({ ...record, durationMs, outcome, allWrites: true });
   if (record.marker) try { unlinkSync(record.marker); } catch { /* Optional advisory cleanup. */ }
   pending.get(record.db)?.delete(record);
 }

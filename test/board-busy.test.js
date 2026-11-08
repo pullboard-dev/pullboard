@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,6 +20,7 @@ import { exportBoard } from '../packages/store/index.js';
 import { beginCommandPhase } from '../packages/link/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -69,7 +70,7 @@ async function holdWriteLock(box, file) {
 }
 
 /** Prove a real ordered CLI move refuses contention atomically, then succeeds exactly once. */
-async function proveBusyWrite(t, args, table) {
+async function proveBusyWrite(t, args, table, events = 1) {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -96,7 +97,7 @@ async function proveBusyWrite(t, args, table) {
   assert.equal(retried.status, 0, retried.context);
   const after = snapshot(file);
   assert.equal(after.tables[table].length, before.tables[table].length + 1, 'one retry makes exactly one move');
-  assert.equal(after.tables.event.length, before.tables.event.length + 1, 'only the successful retry records an event');
+  assert.equal(after.tables.event.length, before.tables.event.length + events, 'only the successful retry records its events');
 }
 
 test('a board write that outwaits the busy timeout is refused by name, never a stack trace [C7,P4,B2]', async (t) => {
@@ -104,7 +105,7 @@ test('a board write that outwaits the busy timeout is refused by name, never a s
 });
 
 test('a busy ordered item addition leaves no partial item and retries once [C7,P4,B2]', async (t) => {
-  await proveBusyWrite(t, ['add', 'web', 'private busy item', '--specs', 'G1', '--criterion', 'the page renders'], 'item');
+  await proveBusyWrite(t, ['add', 'web', 'private busy item', '--specs', 'G1', '--criterion', 'the page renders'], 'item', 2); // an add records [add, milestone_placed]
 });
 
 /** Hold a public store transaction, with an explicit diagnostic identity, until its owner releases it. */
@@ -112,7 +113,7 @@ async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-named-board-writer');
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
     const board = openBoard(process.argv[1], undefined, {
       writeContext: { command: 'private-lock-holder', seat: 'coordinator' },
@@ -204,7 +205,7 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
   const before = snapshot(file);
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'private-rollback', seat: 'coordinator' } });
     try {
       store.atomic(board, () => store.atomic(board, () => {
@@ -296,7 +297,7 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = box.run(box.repo, 'add', 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const fact = box.run(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
@@ -404,7 +405,7 @@ test('opening an older board names and logs its genuine index-building write [C7
 test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = box.run(box.repo, 'add', 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const document = snapshot(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.equal(document.tables.item.length, 1);
@@ -417,7 +418,7 @@ test('native import observes committed and rolled-back write ownership without c
       import { readFileSync } from 'node:fs';
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
       import { exportBoard, importBoard } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       const file = process.argv[1];
@@ -567,7 +568,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
 test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = box.run(box.repo, 'add', 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -576,7 +577,7 @@ test('a standalone native attempt and nested rollback each observe only their ac
       import assert from 'node:assert/strict';
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
       import { exportBoard } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       const file = process.argv[1];

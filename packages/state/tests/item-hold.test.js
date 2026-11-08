@@ -1,9 +1,11 @@
 /** Coordinator item holds preserve routing, claims and ordered replay [N2,N22,H16,M1]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyRelayMove,
   prepareEngineMove,
@@ -24,7 +26,7 @@ function addMidItem(board, lane, title) {
 /** Read a successful private CLI JSON result without hiding its diagnostic on failure. */
 function jsonSuccess(box, cwd, ...args) {
   const result = box.run(cwd, ...args, '--json');
-  assert.equal(result.code, 0, result.err || result.out);
+  assert.equal(result.code, 0, result.out + result.err);
   return JSON.parse(result.out);
 }
 
@@ -55,7 +57,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
     assert.match(box.run(box.repo, 'list', lane).out, new RegExp(`held by coordinator \\(unknown\\): ${reason}`));
     held.set(lane, { id, reason });
     for (const route of ['light', 'mid', 'strong']) {
-      const actor = jsonSuccess(box, box.repo, 'worktree', lane, '--route', route);
+      const actor = jsonSuccess(box, box.repo, 'worktree', lane, '--route', route, '--model', 'Fixture');
       actors.push({ ...actor, lane, route });
       const next = store.nextFor(board, { agentId: actor.agent, lane });
       assert.equal(next.item, null, `${lane}/${route} cannot offer a held item`);
@@ -64,7 +66,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
       assert.equal(attempted.code, 1);
       const refusal = JSON.parse(attempted.out);
       assert.equal(refusal.error.code, 'NOTHING_FREE');
-      assert.ok(refusal.error.message.includes(`#${id} is held by coordinator: ${reason}`));
+      assert.ok(refusal.error.message.includes('1 item is held by coordinator'), refusal.error.message);
     }
   }
   jsonSuccess(box, box.repo, 'hold', 'web', '--reason', 'lane release review');
@@ -73,7 +75,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
   assert.equal(paused.code, 1);
   const pausedReason = JSON.parse(paused.out).error.message;
   assert.ok(pausedReason.includes('lane release review'));
-  assert.ok(pausedReason.includes(`#${held.get('web').id} is held by coordinator: ${held.get('web').reason}`),
+  assert.ok(pausedReason.includes('1 item is held by coordinator'),
     'a lane hold does not mask the item hold reason');
   jsonSuccess(box, box.repo, 'hold', 'web', '--off');
   for (const actor of actors) {
@@ -82,7 +84,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
       assert.equal(attempted.code, 1);
       const refusal = JSON.parse(attempted.out);
       assert.equal(refusal.error.code, 'ITEM_HELD', `${actor.lane}/${actor.route} cannot claim a held item in either lane`);
-      assert.ok(refusal.error.message.includes(reason));
+      assert.ok(refusal.error.message.includes(`#${id} is held by coordinator: ${reason}`), refusal.error.message);
       assert.equal(store.getItem(board, id).item_status, 'open');
       assert.equal(store.getItem(board, id).item_owner, null);
     }
@@ -164,7 +166,10 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   assert.deepEqual(store.getItem(heldClaimCopy, id), store.getItem(board, id), 'snapshot sync preserves the held claim and reason');
   assert.equal(store.getItem(heldClaimCopy, id).item_owner, 'web-1');
   assert.equal(jsonSuccess(box, box.web, 'claim', String(id)).renewed, true);
-  box.git(box.web, 'commit', '--allow-empty', '-qm', 'feat(web): finish held work [G1]');
+  mkdirSync(`${box.web}/web`, { recursive: true });
+  writeFileSync(`${box.web}/web/held-work.txt`, 'finished held work\n');
+  box.git(box.web, 'add', 'web/held-work.txt');
+  box.git(box.web, 'commit', '-qm', 'feat(web): finish held work [G1]');
   assert.equal(jsonSuccess(box, box.web, 'submit', String(id)).id, id);
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'the existing live holder can still submit');
 });

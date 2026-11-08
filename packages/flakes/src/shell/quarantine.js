@@ -1,3 +1,12 @@
+import { randomUUID } from 'node:crypto';
+import { legacyFlakeObservations } from '../core/flake-ratchet.js';
+import { flakeRatchet } from '../core/flake-ratchet.js';
+import { pairedFlakeObservations } from '../core/flake-ratchet.js';
+import { ratchetBoundary } from './ratchet-boundary.js';
+import { repairedAt } from './ratchet-boundary.js';
+import { backfillPairs } from './ratchet-boundary.js';
+import { eventHistory } from './event-history.js';
+import { quarantinesAt } from '../core/flake-ratchet.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../store/index.js";
 import { nativeProofBlockingGreen } from "../../../verify/index.js";
@@ -21,6 +30,7 @@ import {
 import { GATE_RUN_ENGINE } from "../../../../src/gate-run-engine.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { RUN_TIMING_ENGINE } from "../../../../src/run-timing-engine.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
 import {
   boardReceiptStore,
   receiptBinds,
@@ -28,6 +38,7 @@ import {
 } from "../../../gate/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./flakes.js";
+import { flakeEvents } from "./flakes.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { QUARANTINE_CORE_ENGINE } from "../../../../src/quarantine-core-engine.js";
@@ -44,10 +55,22 @@ export function quarantineOn(board) {
 /** The one identity of a test across runs: its committed file and its structured name. */
 function testKey(file, name) { return JSON.stringify([file, name]); }
 
-/** Every recorded gate run, oldest first, with the event that carries it and the seat that recorded it. */
+/** Each gate-run event parsed once per connection: its run, and whether it was an automatic Submit quarantine run. */
+function gateRunEvents(board) {
+  return eventHistory(board, 'gate-run', ['gate-run'], row => {
+    const detail = JSON.parse(row.event_detail);
+    return { run: { eventId: row.event_id, by: row.event_by, ...detail.run },
+      autoSubmit: detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true };
+  });
+}
+
+/**
+ * Every recorded gate run, oldest first, with the event that carries it and the seat that recorded it. The runs are
+ * frozen and shared: read once per connection, then only the runs after them, so a write that warmed them before its
+ * lock reads only the new runs inside it [C7].
+ */
 export function gateRuns(board) {
-  return board.db.prepare("SELECT event_id, event_by, event_detail FROM event WHERE event_kind = 'gate-run' ORDER BY event_id").all()
-    .map(row => ({ eventId: row.event_id, by: row.event_by, ...JSON.parse(row.event_detail).run }));
+  return gateRunEvents(board).map(entry => entry.run);
 }
 
 /**
@@ -59,7 +82,7 @@ export function flakeQuarantines(board) {
   for (const row of board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all()) {
     const detail = JSON.parse(row.event_detail);
     latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id,
-      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}),
+      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}), ...(detail.ledger === true ? { ledger: true } : {}),
       ...(detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true ? { autoSubmit: true } : {}) });
   }
   const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
@@ -67,7 +90,7 @@ export function flakeQuarantines(board) {
     const state = getItem(board, entry.item).item_status;
     const clean = entry.nativeCore && !entry.autoSubmit ? cleanRunRelease(nativeRuns, entry) : null;
     const item = getItem(board, entry.item);
-    const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || !entry.nativeCore && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
+    const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || (!entry.nativeCore || entry.ledger) && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
     const closing = lifted ? (entry.autoSubmit
       ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind='merged'")
       : board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind IN ('accept','withdraw')")).get(entry.item).id : null;
@@ -76,10 +99,68 @@ export function flakeQuarantines(board) {
   });
 }
 
+/**
+ * Capture the current ratchet against the last landed batch from one consistent read snapshot [C7].
+ *
+ * Why: the capture reads runs, the ledger and quarantines in several queries. Outside a transaction a
+ * concurrent write could land between them, and refusing on that left a busy board unable to land at
+ * all. One read transaction pins every query to the same snapshot, so other writers never disturb it;
+ * a caller already inside a transaction has pinned it for us.
+ */
+export function landingFlakeRatchet(board, ports = {}) {
+  let own = false;
+  try { board.db.exec('BEGIN'); own = true; } catch { /* The caller's open transaction already holds one snapshot. */ }
+  try {
+    const result = captureFlakeRatchet(board, ports);
+    if (own) board.db.exec('COMMIT');
+    own = false;
+    return result;
+  } finally {
+    if (own) board.db.exec('ROLLBACK');
+  }
+}
+
+/** Compute the ratchet from the board as one snapshot shows it, reconstructing the last batch's boundary once. */
+function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
+  const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
+  const boundary = ratchetBoundary(board), row = boundary.row;
+  const runs = readRuns(board).filter(run => run.eventId <= eventId);
+  let previous = boundary.previous;
+  if (row) {
+    if (!previous) {
+      const events = board.db.prepare(`SELECT event_id, event_kind, item_id, event_detail FROM event
+        WHERE event_id<=? AND event_kind IN ('test-quarantine','accept','reject','reopen','claim','submit','withdraw','merged') ORDER BY event_id`).all(row.event_id);
+      const active = quarantinesAt(events, runs, { throughEvent: row.event_id,
+        quarantineCoreEngine: QUARANTINE_CORE_ENGINE, autoSubmitEngine: AUTO_SUBMIT_QUARANTINE_ENGINE }).filter(entry => entry.status === 'quarantined');
+      previous = { version: 1, eventId: row.event_id, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
+    }
+  }
+  const quarantines = readQuarantines(board);
+  const latest = new Map(quarantines.map(row => [testKey(row.file, row.name), row]));
+  const ledger = readLedger(board);
+  const repaired = repairedAt(board, ledger);
+  const pairs = [...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }),
+    ...legacyFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })].filter(row => {
+    const quarantine = latest.get(testKey(row.file, row.name));
+    return !(repaired.get(testKey(row.file, row.name)) > row.lastEventId)
+      && (quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId));
+  });
+  // A ledger row released after its last sighting is protected like a released pair; a new sighting reopens it.
+  const released = row => latest.get(testKey(row.file, row.name))?.status === 'lifted' && latest.get(testKey(row.file, row.name)).since >= row.lastEventId;
+  const current = ledger.filter(row => !released(row));
+  const observations = [...current, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  return flakeRatchet({ previous, eventId, observations, quarantines });
+}
+
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */
 function structuredRun(run) {
   return !['suite', 'main-red'].includes(run.kind) && Array.isArray(run.testOutcomes) && (run.version === 1 || run.version === 2
     && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode));
+}
+
+/** A Submit diagnostic belongs to its admission, so the general quarantine path cannot count it as a separate run. */
+function submitDiagnostic(run) {
+  return run.kind === 'check' && run.proof?.submitPhase === 'diagnostic' && run.proof.frozenDigest === null;
 }
 
 /** Count one identity's actual consecutive verdicts; missing, skipped and duplicate runs add nothing. */
@@ -241,6 +322,9 @@ function gateRunValue(board, { agentId, receipt }) {
     && (board.executionEngineVersion ?? ENGINE_VERSION) < RUN_TIMING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `run phase timings require engine ${RUN_TIMING_ENGINE}`);
   }
+  if (Object.hasOwn(receipt ?? {}, 'shadow') && (board.executionEngineVersion ?? ENGINE_VERSION) < SHADOW_TIER1_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `tier 1 shadow facts require engine ${SHADOW_TIER1_ENGINE}`);
+  }
   if (Object.hasOwn(receipt ?? {}, 'collection') && (board.executionEngineVersion ?? ENGINE_VERSION) < MAIN_AUDIT_ENGINE) {
     throw new Refused('ENGINE_VERSION', `collection receipts require engine ${MAIN_AUDIT_ENGINE}`);
   }
@@ -291,6 +375,7 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
   if (marked && autoSubmit === undefined) autoSubmit = true;
   if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null))) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
   if (autoSubmit && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTO_SUBMIT_QUARANTINE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording automatic Submit quarantine');
+  warmFlakeHistory(board);
   return atomic(board, () => {
     if (marked) requireSubmitDiagnosticAdmission(board, agentId, value);
     if (Object.hasOwn(value, 'collection')) {
@@ -312,9 +397,18 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
       value.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
-      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
-    logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
-    if (autoSubmit) return { run: value, quarantined: recordSubmitQuarantines(board, agentId, value) };
+      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'shadow') ? SHADOW_TIER1_ENGINE : GATE_RUN_ENGINE);
+    const itemId = value.proof?.item ?? null;
+    logEvent(board, agentId, 'gate-run', itemId, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+    if (itemId !== null && value.shadow) logEvent(board, agentId, 'fact', itemId, { id: randomUUID(), kind: 'measurement',
+      text: `Tier-1 shadow for gate receipt ${value.id} at ${value.head}: ${value.shadow.verdict}; real gate result: ${value.shadow.real}; differs: ${value.shadow.differs}.`,
+      ref: { kind: 'gate-run', id: value.id }, supersedes: null });
+    if (autoSubmit) {
+      const filed = recordSubmitQuarantines(board, agentId, value);
+      // A seat's Submit pair is a pair the landing ratchet counts; file it now, or landing stops until a coordinator run.
+      return { run: value, quarantined: backfillRatchetQuarantines(board, agentId, file => ownerLane(owners?.[file] ?? lane), filed) };
+    }
     if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
@@ -344,40 +438,75 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
   });
 }
 
+/**
+ * Read the gate-run and flake histories before a write takes the board lock, so the write reads only the events
+ * since. A caller already inside a transaction reads them there, as before [C7].
+ * @param {any} board
+ */
+export function warmFlakeHistory(board) {
+  if (board.db.isTransaction !== false) return;
+  gateRunEvents(board);
+  flakeEvents(board);
+}
+
 /** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
 function recordStructuredQuarantines(board, agentId, value, lane, owners) {
-  if (!structuredRun(value)) return [];
-  const runs = gateRuns(board).filter(run => run.tree === value.tree && structuredRun(run));
-  const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
-  const filed = [];
-  for (const outcome of value.testOutcomes) {
-    if (outcome.skipped) continue;
-    const key = testKey(outcome.file, outcome.name), prior = known.get(key);
-    if (prior?.status === 'quarantined') continue;
-    const eligible = runs.filter(run => run.eventId > (prior?.since ?? 0)
-      && run.testOutcomes.some(row => !row.skipped && testKey(row.file, row.name) === key));
-    const red = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && !row.passed));
-    const green = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && row.passed));
-    if (!red || !green || red.id === green.id) continue;
-    const ownerLane = owners?.[outcome.file] ?? lane;
-    if (typeof ownerLane !== 'string' || !/^[a-z][a-z0-9-]*$/u.test(ownerLane)) throw new Refused('GATE_RUN_EVIDENCE', 'a quarantined test needs its recorded owner lane');
-    const item = (prior?.status === 'quarantined' ? prior.item : null) ?? existingRepair(board, outcome.file, outcome.name) ?? addItem(board, { by: agentId, lane: ownerLane, route: 'strong',
-      title: `Flaky test: ${outcome.file} :: ${outcome.name}`.slice(0, 240),
-      criterion: `Correct why ${outcome.file} :: ${outcome.name} gives contradictory verdicts on tree ${value.tree}; retain both runs and prove the correction.`,
-      brief: `Structured native quarantine. Test ${outcome.file} :: ${outcome.name}. Tree ${value.tree}. Red run ${red.id}; green run ${green.id}. The test still runs and is reported. Its actual exit code and blocking verdict are unchanged; 20 actual clean runs or verification of this item releases quarantine.` });
-    logEvent(board, agentId, 'test-quarantine', item, { engine: QUARANTINE_CORE_ENGINE,
-      file: outcome.file, name: outcome.name, tree: value.tree, runs: [red.id, green.id] });
-    filed.push({ file: outcome.file, name: outcome.name, item });
-    known.set(key, { status: 'quarantined' });
+  const all = gateRuns(board).filter(run => !submitDiagnostic(run)), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
+  if (structuredRun(value)) {
+    const runs = all.filter(run => run.tree === value.tree && structuredRun(run));
+    for (const outcome of value.testOutcomes) {
+      if (outcome.skipped) continue;
+      const key = testKey(outcome.file, outcome.name), prior = known.get(key);
+      if (prior?.status === 'quarantined') continue;
+      const eligible = runs.filter(run => run.eventId > (prior?.since ?? 0)
+        && run.testOutcomes.some(row => !row.skipped && testKey(row.file, row.name) === key));
+      const red = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && !row.passed));
+      const green = eligible.find(run => run.testOutcomes.some(row => testKey(row.file, row.name) === key && !row.skipped && row.passed));
+      if (!red || !green || red.id === green.id) continue;
+      fileStructuredQuarantine(board, agentId, { file: outcome.file, name: outcome.name, tree: value.tree, red: red.id, green: green.id, lane: owners?.[outcome.file] ?? lane }, known, filed);
+    }
+  }
+  // Backfill: a flake proven on a tree that never runs again would otherwise stay unfiled while the ratchet counts it.
+  return backfillRatchetQuarantines(board, agentId, file => owners?.[file] ?? lane, filed, all, known);
+}
+
+/** A lane a repair can be filed in; a Submit names its seat's lane, so fall back to core rather than refuse the run. */
+function ownerLane(lane) {
+  return typeof lane === 'string' && /^[a-z][a-z0-9-]*$/u.test(lane) ? lane : 'core';
+}
+
+/**
+ * File one repair and quarantine for every same-tree pair the landing ratchet counts and no quarantine answers.
+ * Why: the ratchet counts pairs from every recorded run, Submit included, but only coordinator runs filed them, so one
+ * flaky Submit stopped every landing until a coordinator gate ran (5 Nov: FLAKE_RATCHET on a seat's Submit pair) [C7].
+ */
+export function backfillRatchetQuarantines(board, agentId, laneFor, filed = [], runs = gateRuns(board),
+  known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]))) {
+  for (const pair of backfillPairs(board, runs, flakeLedger(board))) {
+    const key = testKey(pair.file, pair.name), prior = known.get(key);
+    if (prior?.status === 'quarantined' || prior?.since >= pair.lastEventId) continue;
+    fileStructuredQuarantine(board, agentId, { ...pair, red: pair.red.id, green: pair.green.id, lane: laneFor(pair.file) }, known, filed);
   }
   return filed;
 }
 
+/** Log one structured quarantine against its repair item, reusing an open repair, and mark the test known. */
+function fileStructuredQuarantine(board, agentId, { file, name, tree, red, green, lane }, known, filed) {
+  if (typeof lane !== 'string' || !/^[a-z][a-z0-9-]*$/u.test(lane)) throw new Refused('GATE_RUN_EVIDENCE', 'a quarantined test needs its recorded owner lane');
+  const item = existingRepair(board, file, name) ?? addItem(board, { by: agentId, lane, route: 'strong',
+    title: `Flaky test: ${file} :: ${name}`.slice(0, 240),
+    criterion: `Correct why ${file} :: ${name} gives contradictory verdicts on tree ${tree}; retain both runs and prove the correction.`,
+    brief: `Structured native quarantine. Test ${file} :: ${name}. Tree ${tree}. Red run ${red}; green run ${green}. The test still runs and is reported. Its actual exit code and blocking verdict are unchanged; 20 actual clean runs or verification of this item releases quarantine.` });
+  logEvent(board, agentId, 'test-quarantine', item, { engine: QUARANTINE_CORE_ENGINE, file, name, tree, runs: [red, green] });
+  filed.push({ file, name, item });
+  known.set(testKey(file, name), { status: 'quarantined' });
+}
+
 /** File one core repair only after two separately admitted native Submit contradictions within the rolling day. */
 function recordSubmitQuarantines(board, agentId, value) {
-  const marked = new Set(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='gate-run'").all()
-    .map(row => JSON.parse(row.event_detail)).filter(row => row.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && row.autoSubmit === true).map(row => row.run.id));
-  const runs = gateRuns(board).filter(run => marked.has(run.id));
+  const events = gateRunEvents(board);
+  const marked = new Set(events.filter(entry => entry.autoSubmit).map(entry => entry.run.id));
+  const runs = events.map(entry => entry.run).filter(run => marked.has(run.id));
   const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
   const filed = [];
   for (const outcome of value.testOutcomes ?? []) {

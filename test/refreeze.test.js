@@ -6,11 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { UNCHANGED_REFREEZE_ENGINE } from '../src/unchanged-refreeze-engine.js';
 import { runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureBoard } from './board-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Compute actual content identities instead of test-only constant digests. */
 function frozen(text = 'Original promise') {
@@ -79,7 +80,7 @@ test('[V2] the actual CLI reports an identical refreeze as retained and preserve
   const e2e = createE2eHelpers();
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const added = box.run(box.repo, 'add', 'web', 'Same frozen bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'The promise stays the same', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Same frozen bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'The promise stays the same', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');

@@ -57,18 +57,25 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
+    claims: { releaseGone: false, releaseCooldownMinutes: 30 }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: false },
-    review: { starveMinutes: 10 },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
+    review: { starveMinutes: 5 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
+    modelTiers: [
+      { contains: 'haiku', route: 'light' },
+      { contains: 'luna', route: 'light' },
+      { contains: 'sonnet', route: 'mid' },
+      { contains: 'sol', route: 'mid' },
+      { contains: 'opus', route: 'strong' },
+    ],
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
-    cells: { cache: false },
+    cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
@@ -206,6 +213,13 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
+  if (!Array.isArray(config.modelTiers) || config.modelTiers.some(entry => !entry || typeof entry !== 'object'
+    || Array.isArray(entry) || Object.keys(entry).some(key => !['contains', 'route'].includes(key))
+    || typeof entry.contains !== 'string' || !entry.contains.trim() || entry.contains.trim() !== entry.contains
+    || !['light', 'mid', 'strong'].includes(entry.route))
+    || new Set((config.modelTiers ?? []).map(entry => typeof entry?.contains === 'string' ? entry.contains.toLowerCase() : null)).size !== (config.modelTiers ?? []).length) {
+    problems.push('"modelTiers" is a list of unique { "contains": "model label fragment", "route": "light|mid|strong" } entries; unmatched models use mid');
+  }
   if (!config.toolBuild || typeof config.toolBuild.enabled !== 'boolean'
     || typeof config.toolBuild.autoGate !== 'boolean'
     || !Number.isSafeInteger(config.toolBuild.refreshMs) || config.toolBuild.refreshMs < 1
@@ -244,7 +258,8 @@ export function configProblems(config) {
       || ['rerun', 'quarantine'].some(key => config.flakes[key] !== undefined && typeof config.flakes[key] !== 'boolean')
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
   if (config.cells !== undefined && (!config.cells || typeof config.cells !== 'object' || Array.isArray(config.cells)
-      || typeof config.cells.cache !== 'boolean' || Object.keys(config.cells).some(key => key !== 'cache'))) problems.push('"cells" has only the boolean "cache", off by default');
+      || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
+      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
   if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || Object.keys(config.rigor).some(key => key !== 'budget'))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add; 400 by default');
@@ -277,18 +292,27 @@ export function configProblems(config) {
   }
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
-    problems.push('"landing" has optional environment: { platform, arch, node }, "timeout" and "cadence" durations, "parallel": true for concurrent candidate gates, and "publish": "separate" to land locally and push through pullboard publish');
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
+  if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: landing takes one verified item at a time and runs only that item\'s plan; false keeps batch landing');
+  if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
+  if (config.landing?.first !== undefined && (!Array.isArray(config.landing.first) || config.landing.first.some(id => !Number.isSafeInteger(id) || id < 1))) {
+    problems.push('"landing.first" is a list of item ids the lander takes ahead of the accept order, in the order listed');
+  }
+  if (config.landing?.auditOnly !== undefined && (!Array.isArray(config.landing.auditOnly) || config.landing.auditOnly.some(file => typeof file !== 'string' || !file.trim()))) {
+    problems.push('"landing.auditOnly" is a list of test file paths the per-item landing gate leaves to the post-landing audit');
+  }
   if (config.landing?.requireReceipts !== undefined && typeof config.landing.requireReceipts !== 'boolean') problems.push('"landing.requireReceipts" is a boolean; omit it or use false to preserve legacy landing records');
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
-  for (const key of ['timeout']) {
+  // landing.stall: how long a landing batch may make no progress before it ends (10 minutes when unset, #3186, #3477).
+  for (const key of ['timeout', 'stall']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
     const ms = match ? Number(match[1]) * CHECK_TIMEOUT_MS[match[2]] : NaN;
@@ -355,8 +379,9 @@ export function configProblems(config) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
   if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
-    || Object.keys(config.claims).some(key => key !== 'releaseGone') || typeof config.claims.releaseGone !== 'boolean') {
-    problems.push('claims.releaseGone is a boolean; false preserves ordinary claim leases');
+    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
+    problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
@@ -460,7 +485,7 @@ export function configFromSource(source) {
   return {
     ...config,
     check: { ...config.check, timeoutMs: Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] },
-    ...(config.landing ? { landing: { ...config.landing, ...Object.fromEntries(['timeout', 'cadence'].filter(key => config.landing[key] !== undefined).map(key => { const value = CHECK_TIMEOUT_RE.exec(key === 'cadence' && typeof config.landing[key] === 'object' ? config.landing[key].every : config.landing[key]); return [`${key}Ms`, Number(value[1]) * CHECK_TIMEOUT_MS[value[2]]]; })) } } : {}),
+    ...(config.landing ? { landing: { ...config.landing, ...Object.fromEntries(['timeout', 'stall', 'cadence'].filter(key => config.landing[key] !== undefined).map(key => { const value = CHECK_TIMEOUT_RE.exec(key === 'cadence' && typeof config.landing[key] === 'object' ? config.landing[key].every : config.landing[key]); return [`${key}Ms`, Number(value[1]) * CHECK_TIMEOUT_MS[value[2]]]; })) } } : {}),
     leaseMs: durationMs(config.lease),
     reviewLeaseMs: durationMs(config.reviewLease, 'reviewLease'),
   };

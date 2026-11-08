@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -35,18 +36,19 @@ function plannedProject(t, { companionLanes = false } = {}) {
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
   const marker = join(box.dir, 'check-ran');
-  writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
+  writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, (process.argv[2] ?? 'proof') + '\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   // This is a tiny real project, not a claim that all production source exists in it.
   const plan = readPlan(SOURCE);
   plan.cells = plan.cells.map(cell => ({ ...cell, paths: [], reexports: [], cuts: [], imports: [] }));
-  plan.stays = []; plan.retired = [];
+  plan.stays = []; plan.retired = []; plan.entries = []; plan.engineStays = [];
   writePlan(box.repo, plan);
   const config = loadConfig(box.repo);
   if (companionLanes) {
     config.lanes.view = { owns: ['src/view/', 'apps/view/'], specs: ['G1'] };
     config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
   } else config.lanes.web.owns.push('src/', 'packages/items/', 'apps/web/', 'bin/cells-plan.json', 'bin/cells-plan/');
+  config.lanes.probe = { owns: ['src/plan-gate-probe.js'], specs: ['G1'] };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
@@ -54,7 +56,33 @@ function plannedProject(t, { companionLanes = false } = {}) {
   box.git(box.repo, 'add', 'bin/cell-lint-baselines');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  enforcePlacementTrial(box);
   return { ...box, marker };
+}
+
+/**
+ * Put the placement refusal past its trial in the fixture's own ledger, so a real submit refuses it rather than only
+ * reports it. Why: machinery refusals start in report mode on every fresh repository (#2611) under an identity bound to
+ * the rule's content, so a probe submit from a spare worktree records that identity first and the ledger is then aged.
+ */
+function enforcePlacementTrial(box) {
+  const probe = join(box.dir, 'placement-probe');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
+  success(box, probe, 'join', 'probe', '--model', 'Fixture');
+  const id = success(box, box.repo, 'add', 'probe', 'Cells move 1/1: probe the placement trial', '--specs', 'G1',
+    '--criterion', 'the probe source is planned', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
+  success(box, probe, 'claim', String(id));
+  mkdirSync(join(probe, 'src'), { recursive: true });
+  writeFileSync(join(probe, 'src/plan-gate-probe.js'), 'export const probe = 1;\n');
+  box.git(probe, 'add', 'src/plan-gate-probe.js');
+  box.git(probe, 'commit', '-q', '-m', 'feat(probe): add the probe source [G1]');
+  success(box, probe, 'submit', String(id));
+  const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+  const ledger = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(ledger.codes.CELLS_PLAN_UNPLACED, 'the probe recorded the placement trial');
+  ledger.gates = 20;
+  ledger.codes.CELLS_PLAN_UNPLACED.start = 0;
+  writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 
 /** Keep actual native command failures in every setup assertion. */
@@ -64,10 +92,19 @@ function success(box, cwd, ...args) {
   return JSON.parse(run.out);
 }
 
-test('native submit names an unplanned source before its check, then the same placed source submits [C7]', t => {
+/** Check the completed CLI child's drained phases without requiring either concurrent phase to beat refusal. */
+function refusedPhaseCounts(marker) {
+  const phases = existsSync(marker) ? readFileSync(marker, 'utf8').trim().split('\n').filter(Boolean) : [];
+  assert.ok(phases.every(phase => phase === 'criterion' || phase === 'proof'), `unexpected check phase: ${phases}`);
+  for (const phase of ['criterion', 'proof']) {
+    assert.ok(phases.filter(value => value === phase).length <= 1, `${phase} executes at most once before the refused command finishes`);
+  }
+}
+
+test('clause 1: native submit refuses an unplanned source while independent checks run, then the placed source submits [C7]', t => {
   const box = plannedProject(t);
-  const id = success(box, box.repo, 'add', 'web', 'Place the new source', '--specs', 'G1',
-    '--criterion', 'the added source is planned', '--check', 'node check.cjs', '--wait').item.item_id;
+  const id = success(box, box.repo, 'add', 'web', 'Cells move 1/1: place the new source', '--specs', 'G1',
+    '--criterion', 'the added source is planned', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
   assert.equal(existsSync(box.marker), true, 'the real add baseline completed its check');
   success(box, box.web, 'claim', String(id));
   mkdirSync(join(box.web, 'src'), { recursive: true });
@@ -81,7 +118,9 @@ test('native submit names an unplanned source before its check, then the same pl
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
   assert.match(refused.out, /node bin\/cells-plan\.js --place/);
-  assert.equal(existsSync(box.marker), false, 'no check executes before the placement refusal');
+  refusedPhaseCounts(box.marker);
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
+    'placement refusal records no accepted submission');
   const before = readPlan(box.web);
   const placed = runFixtureChild(process.execPath, [PLAN, '--place', 'src/plan-gate-added.js', '--cell', 'items'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
@@ -100,7 +139,7 @@ test('native submit names an unplanned source before its check, then the same pl
   mkdirSync(join(box.web, 'apps/web'), { recursive: true });
   writeFileSync(join(box.web, 'packages/items/src/shell/plan-gate-added.js'), 'export const value = 1;\n');
   writeFileSync(join(box.web, 'packages/items/index.js'), "export { value } from './src/shell/plan-gate-added.js';\n");
-  writeFileSync(join(box.web, 'src/plan-gate-added.js'), "export { value } from '../packages/items/index.js';\n");
+  rmSync(join(box.web, 'src/plan-gate-added.js')); // A first move of a never-landed source leaves no forwarding shim.
   writeFileSync(join(box.web, 'apps/web/index.js'), "import { value } from '../../packages/items/index.js'; console.log(value);\n");
   box.git(box.web, 'add', 'bin/cells-plan.json', 'bin/cells-plan', 'src', 'packages', 'apps');
   box.git(box.web, 'commit', '-q', '-m', 'chore: place and complete the real fixture move');
@@ -114,18 +153,18 @@ test('native view submit validates its core companion placement on the composed 
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-    success(box, path, 'join', lane);
+    success(box, path, 'join', lane, '--model', 'Fixture');
   }
   const author = success(box, core, 'whoami').id;
-  const id = success(box, box.repo, 'add', 'view', 'Place through a core companion', '--specs', 'G1',
-    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
+  const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
+    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
   mkdirSync(join(view, 'apps/view/src/shell/view'), { recursive: true });
   writeFileSync(join(view, 'apps/view/src/shell/view/plan-companion-added.js'), 'export const companionPlaced = true;\n');
   writeFileSync(join(view, 'apps/view/index.js'), "export { companionPlaced } from './src/shell/view/plan-companion-added.js';\n");
-  writeFileSync(join(view, file), "export { companionPlaced } from '../../apps/view/index.js';\n");
+  writeFileSync(join(view, file), 'export const companionPlaced = true;\n'); // A new source, not a forwarding shim over main.
   box.git(view, 'add', file, 'apps/view');
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
@@ -133,7 +172,9 @@ test('native view submit validates its core companion placement on the composed 
   const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
-  assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
+  refusedPhaseCounts(box.marker);
+  assert.equal(JSON.parse(box.run(view, 'show', String(id), '--json').out).item_status, 'claimed',
+    'companion placement refusal records no accepted submission');
   placePath(view, file, { cell: 'app:view' });
   const patch = join(box.dir, 'core-placement.patch');
   writeFileSync(patch, box.git(view, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan') + '\n');

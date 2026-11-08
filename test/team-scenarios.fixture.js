@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import { request as boardLinkRequest } from '../packages/link/index.js';
 import {
   personSigningCase,
@@ -103,10 +103,10 @@ import {
   executeMove,
   serveApi,
 } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import {
   main,
-} from '../src/cli.js';
+} from '../apps/cli/index.js';
 import {
   fetchFresh,
 } from './http-fixture.js';
@@ -116,7 +116,7 @@ import {
 } from '../packages/pages/index.js';
 import {
   snapshotState,
-} from '../relay/browser-model.js';
+} from '../apps/relay/index.js';
 import {
   unpackRelease,
 } from './release-archive.js';
@@ -365,15 +365,20 @@ function statSyncMode(file) { return lstatSync(file).mode & 0o777; }
 
 /** Simulate a long holder and polling waiter on an in-memory board with its injected clock. */
 
-/** Send one sealed person request with its passkey presence, returning the relay's answer. */
+/** Send one sealed person request with its passkey presence, retrying only a sequence collision because another client may append between reading and posting. */
 async function passkeyRequest(box, session, document, presence) {
   const link = JSON.parse(box.readLink());
-  const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
-  const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
-  const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
   const key = decodeBoardKey(box.readKey().trim());
-  const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
-  return relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
+  let response;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
+    const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
+    const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
+    const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
+    response = await relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
+    if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(response.document?.error?.code)) return response;
+  }
+  return response;
 }
 
 /** True when no regular file under a directory holds a person session or a person grant. */

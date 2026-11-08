@@ -18,7 +18,7 @@ import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
 import { styleSources } from '../packages/codemap/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
@@ -87,7 +87,7 @@ test('source style inventories package tests and apps alongside legacy source [C
   box.put('packages/sample/node_modules/ignored.js', 'invalid');
   const sources = styleSources(box.root);
   assert.deepEqual(sources.map(row => row.file), ['apps/sample/index.js', 'packages/sample/tests/value.test.js', 'src/legacy.js']);
-  const helper = new URL('../src/static-import-style.js', import.meta.url).href;
+  const helper = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = `import {importStyleViolations} from ${JSON.stringify(helper)}; console.log(JSON.stringify(importStyleViolations(${JSON.stringify(sources)})));`;
   const result = runFixtureChild(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', script], { cwd: box.root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
@@ -98,9 +98,9 @@ test('actual CLI help and API catalog work through a named cell command front do
   const box = fixture(t);
   copyPackageFiles(REPO, box.root);
   const manifest = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
-  box.put('package.json', JSON.stringify({ ...manifest, imports: MAP }));
-  copyPackageSubset(REPO, box.root, [{ path: 'src/commands/version.js', as: 'packages/sample/index.js' }]);
-  box.put('src/commands/version.js', "export { run } from '#sample';\n");
+  box.put('package.json', JSON.stringify({ ...manifest, imports: { ...MAP, '#sample': './packages/sample/src/shell/commands/version.js' } }));
+  copyPackageSubset(REPO, box.root, [{ path: 'apps/cli/src/shell/commands/version.js', as: 'packages/sample/src/shell/commands/version.js' }]);
+  box.put('apps/cli/src/shell/commands/version.js', "export { run } from '#sample';\n");
   /** Exercise the real command registry through its named package shim. */
   const run = (...args) => runFixtureChild(process.execPath, ['bin/pullboard.js', ...args], { cwd: box.root, encoding: 'utf8' });
   const version = run('version', '--json');
@@ -110,7 +110,7 @@ test('actual CLI help and API catalog work through a named cell command front do
   const help = run('help', 'version', '--json');
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /version/u);
-  const script = "import {JSON_SHAPES} from './src/json.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
+  const script = "import {JSON_SHAPES} from './packages/config/index.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
   const catalog = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.root, encoding: 'utf8' });
   assert.equal(catalog.status, 0, catalog.stderr);
   const shape = JSON.parse(catalog.stdout);
@@ -128,7 +128,7 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
   const tool = mkdtempSync(join(tmpdir(), 'pullboard-installed-cell-tool-'));
   t.after(() => rmSync(tool, { recursive: true, force: true }));
   copyPackageFiles(REPO, tool);
-  const module = pathToFileURL(join(tool, 'src/test-action-cache.js')).href;
+  const module = pathToFileURL(join(tool, 'packages/gate/src/shell/test-action-cache.js')).href;
   const script = `import {testActionKeys} from ${JSON.stringify(module)}; const keys = await testActionKeys(${JSON.stringify(box.root)}, {commit:${JSON.stringify(commit)}}); console.log(JSON.stringify(keys.get('packages/sample/tests/value.test.js')));`;
   /** Fresh processes reload the private installed analyzer while the candidate's Git tree stays fixed. */
   const key = () => {
@@ -139,12 +139,12 @@ test('an installed cell resolver upgrade invalidates memo keys outside the candi
     return record.key;
   };
   const resolver = join(tool, 'packages/codemap/src/core/import-map.js');
-  const analyzer = join(tool, 'src/test-action-cache.js');
+  const analyzer = join(tool, 'packages/gate/src/shell/test-action-cache.js');
   const fixedAnalyzer = readFileSync(analyzer, 'utf8');
   const originalResolver = readFileSync(resolver, 'utf8');
   const revisedResolver = originalResolver + '\n// Installed resolver revision: candidate tree deliberately unchanged.\n';
   // Reproduce the old installed analyzer in this private copy only; the owning checkout stays untouched.
-  writeFileSync(analyzer, fixedAnalyzer.replace(", '../packages/codemap/src/core/import-map.js'", ''));
+  writeFileSync(analyzer, fixedAnalyzer.replace(", '../../../codemap/src/core/import-map.js'", ''));
   const oldBefore = key();
   writeFileSync(resolver, revisedResolver);
   const oldAfter = key();

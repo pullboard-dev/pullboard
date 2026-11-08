@@ -7,17 +7,18 @@ import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
-import { openBoard } from '../src/native-board.js';
-import * as nativeBoard from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { cleanupFixtureChildren } from './fixture-child.js';
 import { runFixtureChild } from './fixture-child.js';
-import { context } from '../src/cli-read-context.js';
-import { withBoardRead } from '../src/cli-context.js';
-import { retrySync } from '../src/cli-sync.js';
+import { context } from '../apps/cli/index.js';
+import { withBoardRead } from '../apps/cli/index.js';
+import { retrySync } from '../apps/cli/index.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -45,7 +46,7 @@ function fixture(t, check = 'true', acceptedFiles = {}) {
     assert.equal(result.status, 0, result.stderr);
   }
   if (Object.keys(acceptedFiles).length) box.git(box.web, 'merge', '--no-edit', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Ship the staged fixture', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Ship the staged fixture', '--specs', 'G1',
     '--criterion', 'The fixture passes its native check.', '--check', check, '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;

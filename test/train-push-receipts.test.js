@@ -16,7 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard, recordGateRun } from '../src/native-board.js';
+import { openBoard, recordGateRun } from '../apps/lib/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { boardReceiptStore } from '../packages/gate/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
@@ -119,7 +119,7 @@ function fixture(t, required = true) {
   writeFileSync(join(box.repo, 'web/train.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config,
-    landing: { manualOverride: true, publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+    landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
   box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare native train fixture');
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
@@ -169,10 +169,10 @@ async function audit(box, batch) {
     && JSON.parse(event.event_detail).batch.state === 'landed').at(-1));
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
-  const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
-import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../src/gate-run-receipt.js', import.meta.url).href)};
+import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
@@ -417,7 +417,7 @@ test('actual admission sentinel [C7]',()=>writeFileSync(${JSON.stringify(marker)
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: mark the actual private gate body');
   writeFileSync(join(box.repo, 'web/dirty-proof.txt'), 'A remote proof needs committed source.\n');
-  const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';

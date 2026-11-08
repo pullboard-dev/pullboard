@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
-import { withParseScope } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { withParseScope } from '../packages/gate/index.js';
 import { formatJson } from '../packages/merge/index.js';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
+import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
 import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellReaddirSync as readdirSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -21,15 +21,16 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
-import { readCellLintBaseline } from '../packages/codemap/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { moveHistoryPlacement } from '../packages/codemap/index.js';
+import { engineLeafPlacement } from '../packages/codemap/index.js';
+import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
-import { tryGit } from '../src/git.js';
+import { tryGit } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -37,13 +38,35 @@ import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
+import { ownedStayProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
 import { writeShimHandoff } from './cells-remove-shims.js';
-import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
+import {
+  readMoveDataReads,
+  staleDataReads,
+} from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
+
+import { createFixtureMemo } from '../packages/codemap/index.js';
+import { checkCommandDefinition } from '../packages/git/index.js';
+import { receiptDigest } from '../packages/git/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
+import { cellsCacheDirectory } from './cells-inventory-cache.js';
+import { publishCacheEntry } from './cells-inventory-cache.js';
+
+/** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
+function fixtureAnalyzerDigest() {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  return receiptDigest({ node: process.version, files: checkCommandDefinition(root, [], [fileURLToPath(new URL('./cells-move-fixtures.js', import.meta.url))])
+    .map(entry => [entry.path, entry.mode, entry.digest]) });
+}
+const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, unsupportedSite } = createFixtureMemo({
+  fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest: fixtureAnalyzerDigest,
+  eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+});
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -110,6 +133,8 @@ export function planWrites(root, plan, name) {
 export function writePlan(root, plan) {
   const entries = entryPlacementProblems(root, plan);
   if (entries.length) throw new Refused('CELLS_ENTRY', entries.join('; '));
+  const owned = ownedStayProblems(plan);
+  if (owned.length) throw new Refused('CELLS_STAY_OWNER', `${owned.join('; ')}; name an existing cell with --owner`);
   const retired = retiredProblems(root, plan);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   // Persist authoritative rows; readers derive summaries from the exact rows they return.
@@ -146,7 +171,7 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
 }
 
 /** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
-export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false } = {}) {
+export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false, owner } = {}) {
   if (typeof file !== 'string' || !inPlanScope(file) || file.split('/').some(piece => !piece || piece === '.' || piece === '..')
     || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || typeof entry !== 'boolean' || !['core', 'shell'].includes(part)) {
     throw new Refused('CELLS_UNPLACED', 'use --place <in-scope path> with exactly one --cell <existing cell> or --stay');
@@ -154,6 +179,7 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
   const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', file]);
   if (tracked.status !== 0 || !lstatSync(join(root, file)).isFile()) throw new Refused('CELLS_UNPLACED', `stage a regular source file before placing it: ${file}`);
   const plan = readPlan(root);
+  if (owner !== undefined) return ownStay(root, plan, file, { stay, entry, owner });
   if (entry) {
     const destination = plan.cells.find(row => row.name === cell);
     if (!destination?.name.startsWith('app:') || stay || part !== 'shell') throw new Refused('CELLS_ENTRY', 'a process entry needs the shell of an existing app cell');
@@ -189,6 +215,24 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
   return plan;
 }
 
+/**
+ * Give a stay an owner cell: the file keeps its path, and the plan check and cut walk count it as that cell's file.
+ * Why: deployed entries such as relay/server.mjs keep their path, yet belong to the app that serves them (#2576).
+ */
+function ownStay(root, plan, file, { stay, entry, owner }) {
+  if (!stay || entry || typeof owner !== 'string') throw new Refused('CELLS_STAY_OWNER', 'use --stay <path> --owner <cell>');
+  if (!plan.cells.some(row => row.name === owner)) throw new Refused('CELLS_STAY_OWNER', `choose an existing cell for --owner: ${owner}`);
+  if (plan.cells.some(row => row.paths.some(([from, to]) => from === file || to === file))) {
+    throw new Refused('CELLS_STAY_OWNER', `${file} is planned to move; only a stay can have an owner`);
+  }
+  const row = plan.stays.find(value => value.path === file);
+  if (row?.owner !== undefined && row.owner !== owner) throw new Refused('CELLS_STAY_OWNER', `${file} is already owned by ${row.owner}; retain its existing owner`);
+  if (row) row.owner = owner;
+  else plan.stays.push({ path: file, reason: 'explicit bounded placement: stays in place during the move', owner });
+  writePlan(root, plan);
+  return plan;
+}
+
 /** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
 export function computePlan(root) {
   const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
@@ -200,8 +244,8 @@ export function computePlan(root) {
 }
 
 /** Name the in-scope paths at HEAD the committed plan does not place, so drift is reported rather than guessed. */
-export function unplanned(root, plan) {
-  const retired = retiredProblems(root, plan);
+export function unplanned(root, plan, inventory) {
+  const retired = retiredProblems(root, plan, inventory);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   const map = readPathMap(root);
   const known = new Set();
@@ -209,7 +253,7 @@ export function unplanned(root, plan) {
   for (const row of plan.stays) known.add(row.path);
   const listed = tryGit(root, ['ls-files']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
-  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file));
+  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && moveHistoryPlacement(file) === null && !engineLeafPlacement(file));
 }
 
 /**
@@ -270,41 +314,6 @@ function moveBase(root) {
   return null;
 }
 
-/** Split one analyzer refusal into its exact source line text and reason, or null for any other problem. */
-function unsupportedSite(problem, file, source) {
-  const match = /^(.+):(\d+): unsupported fixture source: (.+)$/u.exec(problem);
-  if (!match || match[1] !== file) return null;
-  const text = source.split('\n')[Number(match[2]) - 1];
-  return text === undefined ? null : { text: text.trim(), reason: match[3] };
-}
-
-/**
- * Count the same file's unproven reads at the move's main base, by exact line text and reason, from committed
- * bytes only. Why: a read the analyzer could not prove before the move is not a gap the move made, while a read
- * whose line names a moved basename, or any new or extra occurrence, still counts against the move.
- */
-function baseUnsupported(root, base, file, { moves, dataReads }) {
-  const counts = new Map();
-  if (!base) return counts;
-  /** Read one regular blob at the base commit, never the working tree. */
-  function readBase(path) {
-    if (!/^[\w./-]+$/u.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
-    const row = tryGit(root, ['ls-tree', '-z', base, '--', path]);
-    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
-    // tryGit trims output, so exact bytes come from Git directly; the analyzer re-hashes them against the object.
-    const shown = object && spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
-    return shown?.status === 0 ? { source: shown.stdout, object } : null;
-  }
-  const original = readBase(file);
-  if (!original) return counts;
-  const uses = fixtureSourceEdits(original.source, { file, moves, readSource: readBase, dataReads, mentionsOnly: true });
-  for (const problem of uses.problems) {
-    const site = unsupportedSite(problem, file, original.source);
-    if (site) counts.set(`${site.text}\0${site.reason}`, (counts.get(`${site.text}\0${site.reason}`) ?? 0) + 1);
-  }
-  return counts;
-}
-
 const historyReferencesByBase = new Map();
 
 /** Read only sealed history already present on the accepted base; candidate edits cannot create authority. */
@@ -351,13 +360,13 @@ function historyShimReferences(root, acceptedBase) {
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export through the reachable front door, and no enforced cell lint rose. This is each move item's frozen check.
  */
-export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintReport, lintBaseline } = {}) {
+export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintReport, lintBaseline, inventory: suppliedInventory } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
   let workerFiles;
   let moveFiles;
-  let inventory;
+  let inventory = suppliedInventory;
   let exceptions;
   let history;
   /** Build the repository inventory once and share it across move closure and lint checks. */
@@ -365,7 +374,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
-      try { workerFiles = new Set(Object.keys(runnerPackage(root).files)); }
+      try { workerFiles = runnerWorkerFiles(root, { importsIn, commonJsIn, files: sharedInventory().files.keys() }); }
       catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
     }
     return workerFiles.has(from) && workerFiles.has(to);
@@ -407,15 +416,16 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
   const snapshot = tryGit(root, ['rev-parse', 'HEAD']);
+  // One tree listing names every tracked blob; each read used to ask Git once (#2601).
+  const blobs = snapshot.status === 0 ? treeBlobs(root, snapshot.stdout) : new Map();
   /** Bind producer bytes to the current regular tracked snapshot; symlink ancestors never supply analysis authority. */
   function readSource(file) {
     if (snapshot.status !== 0 || !/^[\w./-]+$/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return null;
     let path = root;
     for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) return null; }
     if (!lstatSync(path).isFile()) return null;
-    const row = tryGit(root, ['ls-tree', '-z', snapshot.stdout, '--', file]);
-    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
-    return row.status === 0 && object ? { source: readFileSync(path, 'utf8'), object } : null;
+    const object = blobs.get(file);
+    return object ? { source: readFileSync(path, 'utf8'), object } : null;
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
@@ -434,7 +444,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     const source = readFileSync(path, 'utf8');
     if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
     const moves = cell.paths.map(([from, to]) => [from, to]);
-    const uses = fixtureSourceEdits(source, { file, moves, readSource, dataReads: data.reads, mentionsOnly: true });
+    const uses = rememberedFixtureEdits(fixtureSourceEdits, source, { file, moves, readSource, objectOf: path => blobs.get(path) ?? null, dataReads: data.reads, mentionsOnly: true });
     matchedDataReads.push(...uses.matchedDataReads ?? []);
     const before = uses.problems.some(problem => unsupportedSite(problem, file, source))
       ? baseUnsupported(root, base, file, { moves, dataReads: data.reads }) : new Map();
@@ -456,9 +466,9 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
     problems.push(`unreachable front door ${cell.frontDoor}; ${cellRoot} must remain reachable from a production app through its front door`);
   }
-  if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(report, lintBaseline ?? readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
-  }
+  const main = lintBaseline ? { baseline: lintBaseline, report } : mainCellLintReport(root, { importsIn, commonJsIn }); // main counted now, never a stored file [C7]
+  for (const row of main ? cellLintGrowth({ ...report, transition: main.report.transition }, main.baseline, { enforcedOnly: true }) : []) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+  saveFixtureEdits();
   return problems;
 }
 
@@ -538,22 +548,23 @@ function main(argv) {
     writePlan(root, computePlan(root));
     return 0;
   }
+  if (mode === '--stay') return main(['--place', rest[0], '--stay', ...rest.slice(1)]);
   if (mode === '--place') {
     const [file, ...options] = rest;
-    const allowed = new Set(['--cell', '--part', '--stay', '--entry']);
+    const allowed = new Set(['--cell', '--part', '--stay', '--entry', '--owner']);
     const values = {};
     for (let i = 0; i < options.length; i++) {
       const flag = options[i];
-      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--entry | --part core|shell], or --place <path> --stay');
+      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--entry | --part core|shell], or --place <path> --stay [--owner <cell>]');
       values[flag] = ['--stay', '--entry'].includes(flag) ? true : options[++i];
       if (values[flag] === undefined) throw new Refused('CELLS_PLAN_MODE', `supply the value for ${flag}`);
     }
-    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true });
+    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true, owner: values['--owner'] });
     return 0;
   }
   if (mode === '--check') return cachedCellsRun(root, [mode], () => {
     const plan = readPlan(root), missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
-    const entries = entryPlacementProblems(root, plan);
+    const entries = [...entryPlacementProblems(root, plan), ...ownedStayProblems(plan)];
     for (const problem of entries) console.error(problem);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
@@ -597,7 +608,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

@@ -8,36 +8,47 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { createRelayAuth } from '../relay/auth.js';
-import { createDeviceStore } from '../relay/device-store.js';
-import { createRelayJournal } from '../relay/journal.js';
-import { createRelayPages } from '../relay/page-store.js';
-import { createStorageQuota } from '../relay/storage-quota.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createDeviceStore } from '../apps/relay/index.js';
+import { createRelayJournal } from '../apps/relay/index.js';
+import { createRelayPages } from '../apps/relay/index.js';
+import { createStorageQuota } from '../apps/relay/index.js';
 
 const ROOT = join(import.meta.dirname, '..');
 const PAGE = readFileSync(join(ROOT, 'docs', 'architecture.md'), 'utf8');
 
 /**
- * Read every JavaScript module in one repository folder, optionally narrowed by file name.
+ * Read every JavaScript module below one repository folder, optionally narrowed by file name.
  * @param {string} folder
  * @param {RegExp} [name]
  * @returns {{ path: string, text: string }[]}
  */
 function modules(folder, name = /\.m?js$/u) {
-  return readdirSync(join(ROOT, folder)).filter(file => /\.m?js$/u.test(file) && name.test(file)).sort()
-    .map(file => ({ path: folder + '/' + file, text: readFileSync(join(ROOT, folder, file), 'utf8') }));
+  const pending = [join(ROOT, folder)];
+  const found = [];
+  while (pending.length) {
+    const directory = pending.pop();
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) pending.push(path);
+      else if (entry.isFile() && /\.m?js$/u.test(entry.name) && name.test(entry.name)) {
+        found.push({ path: relative(ROOT, path).split(sep).join('/'), text: readFileSync(path, 'utf8') });
+      }
+    }
+  }
+  return found.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 /**
- * Name every table a CREATE TABLE statement under relay/ makes; this is what the relay stores.
+ * Name every table declared by the relay app's source modules; this is what the relay stores.
  * @returns {Set<string>}
  */
 function codeTables() {
   const tables = new Set();
-  for (const { text } of modules('relay')) {
+  for (const { text } of modules('apps/relay/src')) {
     for (const match of text.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+([A-Za-z_][A-Za-z0-9_]*)/gu)) tables.add(match[1]);
   }
   return tables;
@@ -50,7 +61,7 @@ function codeTables() {
  */
 function codePrefixes() {
   const prefixes = new Set();
-  for (const { text } of [...modules('relay'), ...modules('src', /^relay.*\.js$/u)]) {
+  for (const { text } of [...modules('apps/relay/src'), ...modules('packages/link/src')]) {
     for (const match of text.matchAll(/\brandom\('([a-z]{2}_)'\)/gu)) prefixes.add(match[1]);
     for (const match of text.matchAll(/(?<![A-Za-z0-9_])(p[a-z]_)(?=[|)]|\[A-Za-z0-9_-\])/gu)) prefixes.add(match[1]);
     for (const match of text.matchAll(/startsWith\('(p[a-z]_)'\)/gu)) prefixes.add(match[1]);
@@ -126,10 +137,10 @@ test('the architecture page names every relay table and credential prefix the co
 });
 
 test('every file and function the architecture page cites exists in the code [H7]', () => {
-  const paths = [...PAGE.matchAll(/`((?:src|relay|test|docs|packages)\/[A-Za-z0-9_./-]+\.(?:js|mjs|md))`/gu)].map(match => match[1]);
+  const paths = [...PAGE.matchAll(/`((?:apps|src|relay|test|docs|packages)\/[A-Za-z0-9_./-]+\.(?:js|mjs|md))`/gu)].map(match => match[1]);
   assert.ok(paths.length > 10, 'the page cites the code it describes');
   for (const path of new Set(paths)) assert.ok(existsSync(join(ROOT, path)), `the page cites ${path}, which exists`);
-  const citations = [...PAGE.matchAll(/`([A-Za-z_][A-Za-z0-9_]*)`(?: and `([A-Za-z_][A-Za-z0-9_]*)`)? in `((?:src|relay|packages)\/[A-Za-z0-9_./-]+\.m?js)`/gu)];
+  const citations = [...PAGE.matchAll(/`([A-Za-z_][A-Za-z0-9_]*)`(?: and `([A-Za-z_][A-Za-z0-9_]*)`)? in `((?:apps|src|relay|packages)\/[A-Za-z0-9_./-]+\.m?js)`/gu)];
   assert.ok(citations.length > 10, 'the page names the functions behind its claims');
   for (const [, first, second, path] of citations) {
     const source = readFileSync(join(ROOT, path), 'utf8');

@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { rejectionReturnEnabled } from '../core/rework-family-routing.js';
 import * as rejectClause from "../../../verify/src/shell/reject-clause.js";
 import { requireSourceAdvanceReview } from "../../../verify/index.js";
@@ -11,6 +12,8 @@ import { getItem } from "./board-query.js";
 import { listItems } from "./board-query.js";
 import { requireKnownMainReworks } from '../core/known-main-reworks.js';
 import { submissionProof } from '../../../state/index.js';
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../../src/known-main-owner-pattern-engine.js';
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../src/known-main-running-file-engine.js';
 import { itemHold } from "./board-query.js";
 import { recordVerdict } from "../../../verify/index.js";
 import { atomic } from "./board-event-log.js";
@@ -38,6 +41,8 @@ import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-
 import { holdItem } from "./board-hold-item.js";
 import { persistShout } from "./board-shout.js";
 import { shout } from "./board-shout.js";
+import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
+import { listAgents } from './board-query.js';
 
 /**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
@@ -71,6 +76,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   const suppliedNote = note.trim();
+  const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
     const relaxation = relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null;
@@ -80,7 +86,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       if (!isAccept || !review || knownMainFailures.main !== review.trunk) throw new Refused('SUBMISSION_PROOF', 'known main failures must match the accepting review trunk');
       const proof = submissionProof({ version: 1, files: [], full: false, deferred: false, reason: '', knownMainFailures }, engine);
       proofKnown = proof.knownMainFailures;
-      requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id);
+      requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id,
+        engine >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE);
     }
     if (quarantineProofId !== undefined) {
       if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
@@ -100,7 +107,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
-        ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
+        ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? isAccept ? itemPatchReviewProblem(board, found, companionDigest, { getItem }) : null
@@ -126,11 +133,17 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    if (!isAccept && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
+    if (!isAccept && reopenFirstRefusalMinutes === undefined) {
+      if (rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
+      else if (engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
+    }
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb, knownMainFailures: proofKnown }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
-      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
+      shout, tellFirstRefusal, persistShout,
+      recordRejectedItemRoute: (target, itemId, moveEngine, item, dependencies) => recordRejectedItemRoute(target, itemId, moveEngine, item,
+        { ...dependencies, routeCalibrationEngine: ROUTE_CALIBRATION_ENGINE }),
+      escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };

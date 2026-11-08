@@ -11,13 +11,14 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { assertStartupBudgets } from './cli-startup-budget-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const REPO = resolve(import.meta.dirname, '..');
 const BIN = join(REPO, 'bin', 'pullboard.js');
 /** Modules a read must never load: the gate runner, the relay client and the landing machinery. */
-const HEAVY = ['src/gate.js', 'src/relay.js', 'src/land.js', 'src/commands/gate.js', 'src/commands/relay.js', 'src/commands/land.js',
+const HEAVY = ['src/gate.js', 'src/land.js', 'apps/cli/src/shell/commands/gate.js', 'apps/cli/src/shell/commands/relay.js', 'src/commands/land.js',
   'packages/sandbox/src/shell/trusted-policy.js', 'packages/gate/src/shell/check-baseline.js', 'packages/gate/src/shell/shell-run.js', 'packages/commits/src/shell/hooks.js', 'packages/resources/index.js',
-  'src/board.js', 'src/board-event-log.js', 'src/machine.js', 'src/sentinels.js', 'packages/sentinels/src/shell/sentinels.js', 'src/landing-lease.js', 'src/board-landing-lease.js'];
+  'src/board.js', 'packages/store/src/shell/board-event-log.js', 'src/machine.js', 'src/sentinels.js', 'packages/sentinels/src/shell/sentinels.js', 'src/landing-lease.js', 'src/board-landing-lease.js'];
 
 /** Find the real Git executable before the fixture puts its counting shim first on PATH. */
 function realGitPath() {
@@ -125,7 +126,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   run('add', 'core', 'Show me', '--specs', 'C7', '--criterion', 'it shows', '--brief', 'Files: src/a.js\nTest: it shows.');
   const worktree = join(dir, 'core-1');
   git('worktree', 'add', '-q', '-b', 'core/one', worktree);
-  runIn(worktree, 'join', 'core', '--model', 'test-model');
+  fixtureJoin(runIn, worktree, 'core', '--model', 'test-model');
   return { run, runIn, worktree, repo, gitAt, facts };
 }
 
@@ -143,7 +144,7 @@ test('a read command loads only its own modules [C7]', async (t) => {
   assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
   assert.deepEqual(status.modules.filter((path) => HEAVY.includes(path)), [], 'offline status loads no gate, relay or land module');
   // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
-  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/')), [],
+  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
     'offline status loads no move module');
   const list = box.run('list', '--json');
   assert.equal(JSON.parse(list.stdout).items.length, 1);

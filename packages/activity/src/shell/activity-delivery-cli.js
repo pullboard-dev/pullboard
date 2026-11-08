@@ -1,11 +1,12 @@
 /** Inbox and successful-submit delivery share one canonical receipt path [R2,N26,H16]. */
 import * as store from '../../../../src/board.js';
 import { budgetInbox } from '../core/inbox-budget.js';
-import { readActivityDelivery } from '../core/activity-delivery-read.js';
+import { readActivityDelivery } from './activity-delivery-read.js';
 import { handoffMoveProblem } from '../../../state/src/core/handoff-state.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   activityMainFiles,
+  batchMainFiles,
   activityWorkingFiles,
   readActivityCursor,
   saveActivityCursor,
@@ -35,8 +36,21 @@ export function activityDeliveryLines({ shouts, agents, activity, budget }, conf
   return lines;
 }
 
+/**
+ * Whether recording this observation would change nothing: no fresh interrupt and no digest past the recorded cursor.
+ *
+ * The canonical move saves only new interrupts or a later digest, so an unchanged read records nothing; skipping it
+ * spares the board lock and the lapsed-claim capture every ordered write runs first, which cost seconds per inbox (#2421).
+ */
+function deliveryUnchanged(board, agentId, observation) {
+  if (observation.fresh.length) return false;
+  if (observation.digestThrough === undefined) return true;
+  return observation.digestThrough <= store.activityDeliveryState(board, agentId).digestThrough;
+}
+
 /** Persist bounded batches without advancing past an interrupt that a later batch has not yet recorded. */
 async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
+  if (deliveryUnchanged(board, agentId, observation)) return;
   const groups = [];
   for (let offset = 0; offset < observation.fresh.length; offset += 1000) groups.push(observation.fresh.slice(offset, offset + 1000));
   if (!groups.length) groups.push([]);
@@ -49,17 +63,26 @@ async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
   }
 }
 
-/** Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate. */
+/**
+ * Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate.
+ *
+ * A read with nothing to record runs on a read-only board first, so it never queues behind another seat's write;
+ * only a read that must record delivery or mark shouts read opens the board for writing (#2421).
+ */
 export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}, ports) {
-  const { withBoard, whoAmI, ordered } = ports;
-  const delivered = await withBoard(ctx, async board => {
+  const { withBoard, withBoardRead, whoAmI, ordered } = ports;
+  /** Project and, unless `quiet`, record one delivery; a quiet pass returns null where it would have to write. */
+  const deliverOn = async (board, quiet) => {
     const me = whoAmI(ctx, board);
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
     const local = readActivityCursor(ctx.info.root, me.id, store.boardId(board));
+    let mainBatch = null;
     const projected = readActivityDelivery(board, me.id, { sessionStart: local.sessionStart, afterSubmit,
       workingFiles: builds => activityWorkingFiles(ctx.info.root, builds),
+      // The landings' file lists are read together before the projection asks for them one at a time (#3252).
+      prepareMainChanges: pairs => { mainBatch = batchMainFiles(ctx.info.root, pairs); },
       changesForMain: (commit, detail) => activityMainFiles(ctx.info.root, commit, detail,
-        { rowFiles: [ctx.config.spec, ctx.config.practice] }) });
+        { rowFiles: [ctx.config.spec, ctx.config.practice], batch: mainBatch }) });
     const { observation, newsShouts, shoutCursor, ...activity } = projected;
     // A delivered, unacted interrupt is an obligation, not news: a repeat read names its id once, never its text again [#1885].
     const fresh = new Set(observation.fresh.map(interrupt => interrupt.id));
@@ -70,7 +93,8 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     if (retired) activity.receipt = { recorded: false, code: retired.code, message: retired.message };
     const shouts = directShouts ? store.inbox(board, me.id, { through: shoutCursor, markRead: false })
       .filter(shout => !newsShouts.includes(shout.shout_id)) : [];
-    const agents = store.listAgents(board);
+    // Seat names render only shouts; a read with none never lists every seat on the board (#2421).
+    const agents = shouts.length ? store.listAgents(board) : [];
     const diagnostic = 'activity cursor could not be saved; activity may repeat when you read inbox again';
     /** Reserve the possible persistence warning while selecting complete public groups. */
     const bound = () => budgetInbox({ shouts, agents, activity }, ctx.config.inbox.tokenBudget,
@@ -81,6 +105,18 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       .map(interrupt => interrupt.eventId).filter(Number.isSafeInteger);
     const selected = { ...observation, fresh: observation.fresh.filter(interrupt => included.has(interrupt.id)),
       through: withheld.length ? Math.min(observation.through, Math.min(...withheld) - 1) : observation.through };
+    if (quiet && !retired && !deliveryUnchanged(board, me.id, selected)) return null;
+    const markThrough = () => {
+      const rendered = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
+      const withheldShouts = observation.fresh.filter(interrupt => !rendered.has(interrupt.id))
+        .map(interrupt => interrupt.shout).filter(Number.isSafeInteger);
+      return withheldShouts.length ? Math.min(shoutCursor, Math.min(...withheldShouts) - 1) : shoutCursor;
+    };
+    if (quiet) {
+      // Marking shouts read is a write, so a quiet pass hands any unread shout to the writing pass.
+      if (directShouts && store.inbox(board, me.id, { through: markThrough(), markRead: false }).length) return null;
+      return { ...bounded, local };
+    }
     if (!retired) {
       try { await recordIncluded(ctx, board, me.id, selected, ports); }
       catch (error) {
@@ -90,15 +126,15 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
         bounded = bound();
       }
     }
-    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) {
-      const rendered = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
-      const withheldShouts = observation.fresh.filter(interrupt => !rendered.has(interrupt.id))
-        .map(interrupt => interrupt.shout).filter(Number.isSafeInteger);
-      const through = withheldShouts.length ? Math.min(shoutCursor, Math.min(...withheldShouts) - 1) : shoutCursor;
-      store.inbox(board, me.id, { through });
-    }
+    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) store.inbox(board, me.id, { through: markThrough() });
     return { ...bounded, local };
-  });
+  };
+  let delivered = null;
+  if (!actedIds.length && withBoardRead) {
+    try { delivered = await withBoardRead(ctx, board => deliverOn(board, true)); }
+    catch (error) { if (!store.writeRefused(error)) throw error; }
+  }
+  delivered ??= await withBoard(ctx, board => deliverOn(board, false));
   if (!['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(delivered.activity.receipt?.code) && !saveActivityCursor(delivered.local, delivered.activity.cursor)) {
     ctx.io.err('activity cursor could not be saved; activity may repeat when you read inbox again');
   }

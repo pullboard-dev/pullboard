@@ -1,7 +1,7 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { compactItemSummaries } from '../src/view-state-summary.js';
-import { expandItemSummaries } from '../src/view-state-summary.js';
+import { compactItemSummaries } from '../apps/view/index.js';
+import { expandItemSummaries } from '../apps/view/index.js';
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
 import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
@@ -9,11 +9,11 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { atomic } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { proofStats } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
@@ -190,10 +190,12 @@ test('[N26,A2] varied generated native items use at most 40 percent of ordinary 
 });
 
 test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive four-hour boundary and retains a three-hour-old seat', async t => {
-  const box = await fixture(t, { recentAge: 3 * 3_600_000 });
+  // Item progress has its own minute transitions; isolate this seat-only activity boundary.
+  const box = await fixture(t, { items: 0, recentAge: 3 * 3_600_000 });
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
   box.advance(3_600_000);
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
+  assert.equal(box.builds(), 1, 'the inclusive seat boundary still uses the clock-only cache hit');
   box.advance(1);
   const expired = await box.request(box.path + '/state');
   assert.deepEqual(expired.document.state.agents, []);

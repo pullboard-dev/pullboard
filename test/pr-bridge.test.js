@@ -17,13 +17,14 @@ import { test } from 'node:test';
 import { bridgeProject, bridgeProvider, landBridgeItems, landBridgeRepair, mergeBridgeAs, runBridgeCLI } from './pr-bridge-fixture.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
 import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../packages/github/index.js';
 import { withGitFacts } from '../src/git.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read the real private gate invocations, retaining their exact Git heads. */
 function gateHeads(box) {
@@ -145,7 +146,7 @@ test('a pull request carries a verified-by-a-second-agent status and an outside 
   // A later independently checked item cannot hide an earlier unverified commit in the same PR.
   proven.git(proven.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: unreviewed release bump');
   const unreviewed = proven.git(proven.repo, 'rev-parse', 'HEAD');
-  const added = proven.run(proven.repo, 'add', 'web', 'independently checked later work', '--specs', 'G1',
+  const added = fixtureAdd(proven.run, proven.repo, 'web', 'independently checked later work', '--specs', 'G1',
     '--criterion', 'the later work remains correct', '--check', 'test ! -f RED', '--json');
   assert.equal(added.code, 0, added.err);
   const later = JSON.parse(added.out).item.item_id;
@@ -336,7 +337,7 @@ test('one publish pass computes pull request coverage once with bounded git call
     const calls = readFileSync(trace, 'utf8').trim().split('\n').filter(Boolean).length;
     assert.equal(itemReads, 1, 'one native item/receipt cohort serves all open pull requests');
     assert.ok(calls <= 6, `coverage uses a bounded graph read, observed ${calls} Git processes`);
-    const added = box.run(box.repo, 'add', 'web', 'larger proof cohort', '--specs', 'G1',
+    const added = fixtureAdd(box.run, box.repo, 'web', 'larger proof cohort', '--specs', 'G1',
       '--criterion', 'another accepted native contribution', '--check', 'test ! -f RED', '--json');
     assert.equal(added.code, 0, added.err);
     landBridgeRepair(box, JSON.parse(added.out).item.item_id, 'web/three.js', { independent: true });

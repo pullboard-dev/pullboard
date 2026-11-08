@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import {
   appliedSequence,
   applyEngineMove,
@@ -19,10 +20,43 @@ import { submitInvariantProposals } from '../packages/items/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { landingFailures } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { repositoryBoardFile } from './board-submit-fixture.js';
 import { replayHistoricalSeatMove } from './pre-grant-seats.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+/**
+ * Give one disk fixture board its own real repository, so the board knows its repository [C7,V4].
+ * @param {{dir: string}} box
+ * @param {string} name
+ * @returns {any} the opened board, bound to that repository as the native CLI binds it on open
+ */
+function repoBoard(box, name) {
+  const directory = join(box.dir, `repo-${name.replace(/\.sqlite$/u, '')}`);
+  mkdirSync(directory, { recursive: true });
+  const board = openBoard(repositoryBoardFile(directory));
+  board.gitRoot = directory;
+  return board;
+}
+
+/**
+ * Open a replica board file bound to the same fixture repository as its source, so replay reads the policy the source sealed [C7,V4].
+ * @param {{dir: string}} box
+ * @param {string} name
+ * @param {any} source
+ * @returns {any}
+ */
+function replicaBoard(box, name, source) {
+  const board = openBoard(join(box.dir, name));
+  board.gitRoot = source.gitRoot;
+  return board;
+}
+
+/** The commit that holds a repository-bound fixture board's accepted policy, which a submit seals. */
+function fixtureHead(board) {
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: board.gitRoot, encoding: 'utf8' }).trim();
+}
 
 /** Read a fixture's real board through its public interface. */
 function onBoard(box, action) {
@@ -211,7 +245,7 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
 
 test('submission selection replays on two replicas and legacy history remains unknown [C7,V4,H16]', t => {
   const box = e2e.sandbox();
-  const source = openBoard(join(box.dir, 'source.sqlite'));
+  const source = repoBoard(box, 'source.sqlite');
   const copies = [];
   t.after(() => { for (const board of [source, ...copies]) store.closeBoard(board); });
   // Engine 12's proofless positive control must start from the joins and claim it could have written.
@@ -222,10 +256,10 @@ test('submission selection replays on two replicas and legacy history remains un
     freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) }]);
   const document = exportBoard(source);
   for (let index = 0; index < 4; index += 1) {
-    const board = openBoard(join(box.dir, `replica-${index}.sqlite`));
+    const board = replicaBoard(box, `replica-${index}.sqlite`, source);
     importBoard(board, document); copies.push(board);
   }
-  const options = { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40),
+  const options = { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40), policyCommit: fixtureHead(source),
     submissionProof: { version: 1, files: ['test/a.test.js'], full: false, deferred: true, reason: '' } };
   const move = prepareEngineMove(source, 'submit', [id, options], { id: 'selection-replay', actor: 'web-1' });
   const receipt = { sequence: appliedSequence(source) + 1, at: '2026-10-17T00:00:00.000Z', kind: 'move',
@@ -244,6 +278,7 @@ test('submission selection replays on two replicas and legacy history remains un
   const legacy = structuredClone(move);
   legacy.engine = 12;
   delete legacy.args[1].submissionProof;
+  for (const sealed of ['policyCommit', 'clausePolicyCommit', 'inspectClauses']) delete legacy.args[1][sealed]; // an older engine never sealed a policy
   const old = applyRelayMove(copies[3], legacy, receipt);
   assert.equal(old.error, undefined);
   const last = store.events(copies[3]).findLast(event => event.event_kind === 'submit');
@@ -261,10 +296,10 @@ test('submission selection replays on two replicas and legacy history remains un
 // Maintains the independent public receiver control from outside rejection 1061.
 test('a landing escape is proposed as a submit invariant only when modern submits carry their receipt [C7,V4,H16]', t => {
   const box = e2e.sandbox();
-  const source = openBoard(join(box.dir, 'modern-source.sqlite'));
-  const target = openBoard(join(box.dir, 'modern-replica.sqlite'));
-  const legacyTarget = openBoard(join(box.dir, 'legacy37-replica.sqlite'));
-  const replica = openBoard(join(box.dir, 'modern-second-replica.sqlite'));
+  const source = repoBoard(box, 'modern-source.sqlite');
+  const target = replicaBoard(box, 'modern-replica.sqlite', source);
+  const legacyTarget = replicaBoard(box, 'legacy37-replica.sqlite', source);
+  const replica = replicaBoard(box, 'modern-second-replica.sqlite', source);
   t.after(() => {store.closeBoard(source);store.closeBoard(target);store.closeBoard(legacyTarget);store.closeBoard(replica);});
   const historicalEngine = SUBMISSION_PROOF_ENGINE - 1;
   replayHistoricalSeatMove(source,historicalEngine,'register',[{lane:'coordinator',path:'/fixture/main'}]);
@@ -276,7 +311,7 @@ test('a landing escape is proposed as a submit invariant only when modern submit
   importBoard(legacyTarget,exportBoard(source));
   importBoard(replica,exportBoard(source));
   const count=store.events(target).length;
-  const options = {agentId:'web-1',commit:'a'.repeat(40),tree:'b'.repeat(40)};
+  const options = {agentId:'web-1',commit:'a'.repeat(40),tree:'b'.repeat(40),policyCommit:fixtureHead(source)};
   const move=prepareEngineMove(source,'submit',[id,{...options,submissionProof:{version:1,
     files:[],full:false,deferred:true,reason:'controlled receiver envelope'}}],
     {id:'modern-missing-selection',actor:'web-1'});
@@ -285,7 +320,8 @@ test('a landing escape is proposed as a submit invariant only when modern submit
   assert.equal(SUBMISSION_PROOF_ENGINE,38,'submission receipts keep their stable first engine');
   assert.equal(move.engine,ENGINE_VERSION,'the new envelope uses the current engine, separately from the minimum');
   assert.equal(Object.hasOwn(move.args[1],'submissionProof'),false);
-  const legacyMove = {...move,engine:SUBMISSION_PROOF_ENGINE - 1,id:'legacy37-missing-selection'};
+  const legacyMove = structuredClone({...move,engine:SUBMISSION_PROOF_ENGINE - 1,id:'legacy37-missing-selection'});
+  for (const sealed of ['policyCommit','clausePolicyCommit','inspectClauses']) delete legacyMove.args[1][sealed]; // an older engine never sealed a policy
   const legacyResult = applyRelayMove(legacyTarget,legacyMove,{sequence:sourcePrefix+1,at:'2026-10-17T00:00:00.000Z',kind:'move',sender:{kind:'agent',userId:'fixture',agent:'web-1'}});
   assert.equal(legacyResult.error,undefined,'controlled engine37 proofless legacy still replays');
   assert.equal(store.getItem(legacyTarget,id).item_status,'submitted');

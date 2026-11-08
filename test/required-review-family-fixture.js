@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 
 /** Exercise the real add/edit parser, shared eligibility and exact-seat dispatch without fabricating stored rows. */
 export async function proveRequiredReviewFamily(t, { fixture, cli }) {
   const box = await fixture(t);
   const added = await cli(box, box.root, ['add', 'web', 'Review by a named family', '--criterion',
-    'Only the explicitly required declared family reviews this item.', '--specs', 'G1', '--check', 'true',
+    'Only the explicitly required declared family reviews this item.', '--specs', 'G1', '--route', 'strong', '--check', 'true',
     '--review-family', 'Family Alpha', '--wait']);
   assert.equal(added.code, 0, added.out + added.err);
   const id = added.document.item.item_id;

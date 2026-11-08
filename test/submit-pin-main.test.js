@@ -4,8 +4,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
-import { runSubmitGate } from '../src/gate-submit.js';
+import { runSubmitGate } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require actual successful native CLI execution before inspecting its document. */
 function document(result) {
@@ -57,7 +58,7 @@ test('a companion submit seals when main advances during its proof phase, the #1
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: gate that lands during proof [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(box.run(box.repo, 'add', 'web', 'Companion submit across a landing',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Companion submit across a landing',
     '--criterion', 'The feature submits.', '--specs', 'G1', '--check', `node '${check}'`, '--json')).item.item_id;
   document(asSession(box, 'pin-builder', box.web, 'claim', String(id)));
   const previous = box.env.CODEX_THREAD_ID;

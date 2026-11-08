@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
-/**
- * Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim.
- */
+/** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,30 +14,38 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/verify/index.js';
+import { installFileWatchdog } from '../packages/verify/src/shell/file-watchdog.js';
+import {
+  DEFAULT_TEST_FILE_TIMEOUT_MS,
+  testFileTimeoutMs,
+  activeHandleSummary,
+  installTestChildDrain,
+} from '../packages/gate/src/shell/test-child-drain.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
   isGitWorkTree,
   trackedDefaultTestFiles,
   shardArguments,
-  testSelectionPatterns,
-} from '../src/test-selection.js';
+  testSelectionPatterns, narrowsSelection,
+} from '../packages/gate/src/shell/test-selection.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
-import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js';
-import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
-import { optionTakesValue } from '../src/test-file-dispatch.js';
-import { knownNodeOption } from '../src/test-file-dispatch.js';
-import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
-import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
-import { hasTestFiles as selectedFilesPresent } from '../src/test-selection.js';
-import { explicitTestFiles as selectedFiles } from '../src/test-selection.js';
-import { formatTestOutcomes } from '../src/test-outcomes.js';
+import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
+import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
+import { optionTakesValue } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { knownNodeOption } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { COLLECTION_ID_ENV } from '../packages/gate/src/core/collection-env.js';
+import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/src/shell/run-timing.js';
+import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell/test-selection.js';
+import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
+import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
+// The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
+import { testRunPhaseClock } from '../packages/gate/src/shell/test-run-phases.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -57,7 +63,7 @@ const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
 const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
-export const DEFAULT_TEST_FILE_TIMEOUT_MS = 30_000;
+export { DEFAULT_TEST_FILE_TIMEOUT_MS };
 // Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable.
 const LANDING_WORKER_IDENTITY_TIMEOUT_MS = 12_000;
 const LANDING_CHILD_CUSTODY_TIMEOUT_MS = 12_000;
@@ -66,12 +72,14 @@ const watchdogSource = `
 const { parentPort } = require('node:worker_threads');
 const { writeSync } = require('node:fs');
 const timers = new Map();
+const finished = [];
 parentPort.on('message', (message) => {
   if (message.type === 'stop') {
     const active = timers.get(message.id);
     if (active) {
       clearTimeout(active.timer);
       if (active.probe) clearTimeout(active.probe);
+      if (active.name !== undefined) finished.push({ name: active.name, ms: Date.now() - active.startedAt });
     }
     timers.delete(message.id);
     return;
@@ -109,10 +117,10 @@ parentPort.on('message', (message) => {
     const elapsedMs = Date.now() - startedAt;
     writeSync(2, 'run-tests: test "' + message.name + '" in ' + message.file +
       ' failed: it ran ' + (elapsedMs / 1000).toFixed(1) + 's, past the ' +
-      message.timeoutMs + 'ms per-test timeout\\n');
+      message.timeoutMs + 'ms per-test timeout; finished cases ' + JSON.stringify(finished) + '\\n');
     try { process.kill(message.pid, 'SIGKILL'); } catch { /* The timed-out test process already exited. */ }
   }, message.timeoutMs);
-  timers.set(message.id, { timer });
+  timers.set(message.id, { timer, name: message.name, startedAt });
 });
 `;
 
@@ -130,38 +138,10 @@ function testTimeoutMs(value = process.env.PULLBOARD_TEST_TIMEOUT_MS) {
   return Number(value);
 }
 
-/** Read the per-file exit ceiling so a completed file cannot keep the gate open. */
-function testFileTimeoutMs(value = process.env.PULLBOARD_TEST_FILE_TIMEOUT_MS) {
-  if (value === undefined) return DEFAULT_TEST_FILE_TIMEOUT_MS;
-  if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 2_147_483_647) {
-    throw new Error('PULLBOARD_TEST_FILE_TIMEOUT_MS must be a positive integer no greater than 2147483647 milliseconds');
-  }
-  return Number(value);
-}
-
-/** Describe listening ports and live handle types when the test-file exit ceiling expires. */
-function activeHandleSummary() {
-  const handles = process._getActiveHandles();
-  const ports = [];
-  const types = [];
-  for (const handle of handles) {
-    const type = handle?.constructor?.name ?? 'Unknown';
-    types.push(type);
-    if (typeof handle?.address !== 'function' || !handle.listening) continue;
-    try {
-      const address = handle.address();
-      if (address && typeof address === 'object' && typeof address.port === 'number') {
-        ports.push(`${address.address}:${address.port}`);
-      }
-    } catch { /* A handle may close while its diagnostic is collected. */ }
-  }
-  return { ports: [...new Set(ports)].slice(0, 20), types: [...new Set(types)].slice(0, 20) };
-}
-
 /**
  * Keep an independent watchdog for every active test in this test-file process.
  *
- * @returns {void}
+ * @returns {{ pause: () => void, resume: () => void }}
  */
 function installTestWatchdog() {
   const timeoutMs = testTimeoutMs();
@@ -190,7 +170,7 @@ function installTestWatchdog() {
     }
     const id = `${process.pid}:${++nextTestId}`;
     const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
-    reportFileTest(id, name);
+    reportFileTest(id, name, timeoutMs);
     activeTests.set(context, id);
     runningTests.add(id);
     watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });
@@ -218,6 +198,11 @@ function installTestWatchdog() {
   }
 
   after(armFileExitWatchdog);
+  return {
+    /** Give the bounded child drain custody of cleanup until it settles. */
+    pause() { if (fileWatchdogArmed) { watchdog.postMessage({ type: 'stop', id: fileId }); fileWatchdogArmed = false; } },
+    resume: armFileExitWatchdog,
+  };
 }
 
 /** Quote a path for the private Git shim without interpreting shell metacharacters. */
@@ -255,10 +240,11 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   delete env[LANDING_SHARD_ENV];
   delete env[TIMING_RUN_ID_ENV];
   delete env[COLLECTION_ID_ENV];
+  env.PULLBOARD_TEST_SANDBOX = sandbox;
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
-  env.PULLBOARD_MODEL = 'Test Model';
+  env.PULLBOARD_MODEL = 'Test Model'; env.PULLBOARD_OWN_CLI = '1'; // #2458: tests run the candidate's own CLI.
   env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   // A test finds its runner by this pid, never by parsing ps text; a nested runner sets its own (#1073).
   env.PULLBOARD_TEST_RUNNER_PID = String(process.pid);
@@ -312,7 +298,7 @@ async function loadCustomReporter(reporter) {
  * @returns {Promise<{status:number,signal:null}>}
  */
 async function runTests(args, env, concurrency) {
-  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../src/test-file-dispatch.js');
+  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   if (legacyFileMode(args)) return legacyNativeFileRun(args, env, concurrency, { runner, knownNodeOption, optionTakesValue });
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
@@ -323,7 +309,7 @@ async function runTests(args, env, concurrency) {
 
 /** Convert the Node test CLI subset to the supported node:test run() options. */
 async function landingTestOptions(args, env, concurrency) {
-  const { testFileOptions } = await import('../src/test-file-dispatch.js');
+  const { testFileOptions } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   return testFileOptions(args, env, concurrency, { runner, optionTakesValue, knownNodeOption });
 }
 
@@ -739,7 +725,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
-  const { dispatchTestFiles, legacyFileMode } = await import('../src/test-file-dispatch.js');
+  const { dispatchTestFiles, legacyFileMode } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
@@ -1007,15 +993,17 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
       setup(tests) {
-        // A HUNG file stays red, but its watchdog must not cancel the remaining named files.
+        // A HUNG or wall-TIMEOUT file stays red, but its watchdog must not cancel the remaining named files (#3167).
         tests.on('test:stderr', data => {
-          if (data.file && data.message?.includes('run-tests: HUNG file ')) hungFiles.add(data.file);
+          if (data.file && /run-tests: (?:HUNG|TIMEOUT) file /u.test(data.message ?? '')) hungFiles.add(data.file);
         });
         tests.on('test:complete', data => {
           const { file, name, details } = data;
           // Node 22.13 leaves ordinary/file completions untyped; newer versions label them as tests.
           if (file && details?.passed === false && (details.type === undefined || details.type === 'test') && !firstFailure) {
             if (hungFiles.has(file)) return;
+            // Once this shard stops, its in-flight files end aborted: interrupted by the stop, never its first failure.
+            if (controller.signal.aborted || details.error?.failureType === 'testAborted') return;
             // A failure a live person waiver covers does not stop the run; every other file still runs.
             if (landingFailureWaived(waivers, file, name)) { waivedFiles.set(file, waivedFiles.get(file) ?? true); return; }
             // A file or suite failing only through its tests was decided by those tests already.
@@ -1032,6 +1020,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           if (data.success === false) successful = false;
           if (data.file) {
             startedFiles.add(data.file);
+            // A file cancelled by this shard's stop did not complete; it is reported as interrupted, not failed.
+            if (data.success === false && controller.signal.aborted) return;
             completedFiles.add(data.file);
             if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true && !hungFiles.has(data.file)) {
               firstFailure = { file: data.file, name: 'test file failed before a test completed' };
@@ -1146,7 +1136,7 @@ async function longestFilesFirst(args) {
     at.push(index);
   }
   if (at.length < 2) return args;
-  const { readFileTimes } = await import('../src/test-value-timing.js');
+  const { readFileTimes } = await import('../packages/gate/src/shell/test-value-timing.js');
   const times = readFileTimes(process.cwd());
   if (!Object.keys(times).length) return args;
   const ordered = longestFirst(at.map(index => args[index]), times, file => relative(process.cwd(), resolve(file)));
@@ -1238,12 +1228,13 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
  * @returns {Promise<void>}
  */
 async function main(args) {
+  const clock = testRunPhaseClock();
   let concurrency;
   try {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../src/test-run.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+        import('../packages/gate/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
@@ -1253,7 +1244,7 @@ async function main(args) {
       }
     }
     testTimeoutMs();
-    const { testConcurrency } = await import('../src/test-concurrency.js');
+    const { testConcurrency } = await import('../packages/gate/src/shell/test-concurrency.js');
     const { browserByLaunchEnabled } = await import('../packages/config/index.js');
     concurrency = { ...testConcurrency(process.cwd()), byLaunch: browserByLaunchEnabled() };
   } catch (error) {
@@ -1263,7 +1254,7 @@ async function main(args) {
   }
   const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
   process.env[COLLECTION_ID_ENV] ||= timing.id;
-  const sharding = shardArguments(args);
+  const sharding = shardArguments(args, optionTakesValue);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
     process.exitCode = 1;
@@ -1274,13 +1265,13 @@ async function main(args) {
   const shortEligible = namesOnlyTestFiles(args);
   let browser = fullSuite;
   if (!browser) {
-    const { testsNeedBrowser } = await import('../src/browser-admission.js');
+    const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
-  const actions = await (await import('../src/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  const actions = await (await import('../packages/gate/src/shell/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
   process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
-  const { testsNeedGui } = await import('../src/gui-admission.js');
+  const { testsNeedGui } = await import('../packages/gate/src/shell/gui-admission.js');
   let guiFiles;
   try {
     guiFiles = actions.files ?? (fullSuite
@@ -1292,12 +1283,12 @@ async function main(args) {
     return;
   }
   const gui = testsNeedGui(process.cwd(), guiFiles);
-  const { cpuRunnerRequired } = await import('../src/cpu-load-admission.js');
+  const { cpuRunnerRequired } = await import('../packages/gate/src/shell/cpu-load-admission.js');
   const runnerAdmission = (await import('../packages/config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
-    fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
-  timing.phase('selectionMs', selectionAt);
+    fullSuite && !narrowsSelection(args, optionTakesValue));
+  timing.phase('selectionMs', selectionAt); clock.mark('selection');
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
   const shardLabel = process.env[LANDING_SHARD_ENV];
@@ -1308,15 +1299,15 @@ async function main(args) {
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
     // Observe leftovers around the whole execution, including failed cases; never remove clones.
     const cloneCheck = browser && process.platform === 'darwin'
-      ? await import('../src/chrome-clone-check.js') : null;
+      ? await import('../packages/gate/index.js') : null;
     let clonesBefore;
     if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
-      timing.phase('setupMs', setupAt);
+      timing.phase('setupMs', setupAt); clock.mark('admission');
       const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
       signal = result.signal;
-      process.exitCode = result.status ?? 1;
+      process.exitCode = result.status ?? 1; clock.mark('tests');
       if (fileTimes) (await import('../src/landing-shards.js')).printShardFileTimes(fileTimes);
     } finally {
       try {
@@ -1327,31 +1318,34 @@ async function main(args) {
             process.exitCode = 1;
           }
         }
-      } finally { rmSync(sandbox, { recursive: true, force: true }); }
+      } finally { (await import('../packages/gate/src/shell/test-sandbox-cleanup.js')).removeTestSandbox(sandbox); }
     }
   };
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
-    // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
-    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787).
-    const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
-    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
-      const { landingShardCount } = await import('../src/test-concurrency.js');
+    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
+    // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
+    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
+      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
       const count = landingShardCount(process.cwd());
-      if (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS) {
-        const files = actions.files ?? (fullSuite
+      // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
+      const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
+      if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
+        const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
-          : explicitTestFiles(args));
+          : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
-        const { testsNeedBrowser } = await import('../src/browser-admission.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
+        const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
+        // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
+        const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
-          needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
+          needsBrowser: async shardFiles => { const bound = await browserBound; return shardFiles.some(file => bound.has(file)); }, timing });
         timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;
         return;
@@ -1368,10 +1362,14 @@ async function main(args) {
     /** Acquire all required capabilities before creating the sandbox or starting test processes. */
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
-      const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../src/gate-slot.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+      // Gate slot and services by direct file: the gate, runner and landing front doors reach gate.js, board and machine [C7,V4].
+      const [{ withGateSlot }, { loadMachineSettings }, { gateSlotServices }] = await Promise.all([
+        import('../packages/gate/src/shell/gate-slot.js'), import('../packages/config/index.js'), import('./gate-slot-services.js'),
       ]);
+      const executionServices = await gateSlotServices();
       const capacity = loadMachineSettings().gateSlots;
+      const { timingSeat } = await import('../src/seat-timing.js');
+      const seat = timingSeat(process.cwd());
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
       const canShipRunner = runnerPath && runnerPath !== '..' && !runnerPath.startsWith(`..${sep}`);
@@ -1382,13 +1380,18 @@ async function main(args) {
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
-        timing.forward();
+        timing.forward(); clock.mark('admission');
         const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
-          browser, metadata: lease.runMetadata });
+          browser, metadata: lease.runMetadata }); clock.mark('runner');
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
+        executionServices, browser, gui,
+        kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
+        // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
+        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
+        shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
           recordRunnerWait(state);
@@ -1420,7 +1423,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
-  (await import('../src/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
+  (await import('../packages/gate/src/shell/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
   const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
   let tokenWaitMs = 0;
   // Only this test file reports; anything it starts is not one of the shard's files.
@@ -1437,9 +1440,10 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   const startsPath = process.env[LANDING_WORKER_STARTS_ENV];
   const attempt = process.env[LANDING_ATTEMPT_ENV];
   const landingWorker = Boolean(startsPath && attempt);
+  let cleanupWatchdog;
   if (landingWorker) {
     // Preserve #589 timing/custody behavior and announce before any browser-capacity wait.
-    installTestWatchdog();
+    cleanupWatchdog = installTestWatchdog();
     const file = resolve(process.argv[1]);
     let identityAvailable = false;
     appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
@@ -1468,7 +1472,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     // The test body never sees the setting itself: its own fixtures classify with their own machine settings.
     const byLaunch = process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
     delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
-    const { testsNeedBrowser } = await import('../src/browser-admission.js');
+    const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
     if (await testsNeedBrowser(process.cwd(), [process.argv[1]], { byLaunch })) {
       const { takeResource } = await import('../packages/resources/index.js');
       const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,
@@ -1487,5 +1491,9 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // After any browser wait, so a file never holds a core while it queues for a browser (#1046).
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
-  if (!landingWorker) installTestWatchdog();
+  if (!landingWorker) cleanupWatchdog = installTestWatchdog();
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8') installTestChildDrain({
+    sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
+    onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
+  });
 }

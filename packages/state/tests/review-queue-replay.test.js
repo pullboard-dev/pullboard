@@ -1,9 +1,9 @@
+/** @pullboard-test-loads src/board.js src/machine.js */
 /** In-memory engine replay coverage for sealed review-skipped snapshots [Q1,V15,H3,H16]. */
-import { submitFixture } from '../../../test/board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,
   importBoard,
@@ -16,6 +16,13 @@ import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { unpackRelease } from '../../../test/release-archive.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
 const RENEW_AT = '2026-10-08T12:00:30.000Z';
@@ -31,8 +38,9 @@ const REVIEW_SKIPPED = {
 };
 
 /** Create one seed board and two independent in-memory replicas with different ambient clocks. */
-function memoryCopies(t, historicalSeats = false) {
+function memoryCopies(t, historicalSeats = false, historicalSetup = false) {
   const source = openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
+  if (historicalSetup) source.executionEngineVersion = 4;
   /** Engine-1 claim history starts with real engine-1 joins, not a newer seat's activated grant. */
   const register = who => historicalSeats
     ? replayHistoricalSeatMove(source, 1, 'register', [who])
@@ -45,6 +53,7 @@ function memoryCopies(t, historicalSeats = false) {
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${String(index + 8).padStart(2, '0')}:00:00.000Z`) };
     const board = openBoard(':memory:', clock);
+    // Import under the live engine: an engine-4 context skips the family projection that importBoard warms.
     importBoard(board, snapshot);
     return board;
   });
@@ -101,13 +110,17 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
 });
 
 test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
-  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t);
+  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t, false, true);
   for (const board of [legacyBoard, currentBoard]) {
+    if (board === legacyBoard) board.executionEngineVersion = 4;
     store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
       freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
     submitFixture(board, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
     store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
+    if (board === legacyBoard) delete board.executionEngineVersion;
   }
+  // The v4 replica cannot carry the current engine's review-default activation witness.
+  legacyBoard.db.prepare("DELETE FROM board_meta WHERE meta_key='review_default:active' OR meta_key LIKE 'review_default:normalized:%'").run();
   assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
 
   const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
@@ -136,20 +149,20 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
   assert.equal(legacyBoard.executionEngineVersion, undefined);
 
   const missingModernNote = applyEngineMove(currentBoard, { version: 1, engine: 5, id: 'current-review-release-missing-note', operation: 'release', args: [item, 'web-2'] },
-    { sequence: 1, at: '2026-10-08T09:00:30.000Z' });
+    { sequence: 1, at: '2026-10-08T08:00:34.000Z' });
   assert.equal(missingModernNote.error.code, 'NOTE_REQUIRED', 'the v5 replay receiver enforces the new construction contract');
   assert.equal(missingModernNote.events, undefined);
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused replay restores the live engine context');
   const modernRelease = prepareEngineMove(currentBoard, 'release', [item, 'web-2', 'recheck the submitted tree', 'OTHER'], { id: 'current-review-release' });
   assert.equal(modernRelease.engine, ENGINE_VERSION);
-  const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T09:00:31.000Z' });
+  const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T08:00:35.000Z' });
   assert.equal(modern.error, undefined);
   assert.deepEqual(JSON.parse(modern.events[0].event_detail), { review: true, reason: 'recheck the submitted tree', reasonCode: 'OTHER', model: 'unknown' });
   assert.equal(currentBoard.executionEngineVersion, undefined);
   const filtered = store.reserveNextReview(currentBoard, { agentId: 'web-2', lane: 'web', leaseMs: LEASE_MS, policy: 'any' });
   assert.equal(filtered.item, null, 'engine 5 nextFor hides work released by this reviewer during cooldown');
   const modernReserve = applyEngineMove(currentBoard, prepareEngineMove(currentBoard, 'reserveReview', [item,
-    { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }], { id: 'current-review-reserve' }), { sequence: 3, at: '2026-10-08T09:00:32.000Z' });
+    { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }], { id: 'current-review-reserve' }), { sequence: 3, at: '2026-10-08T08:00:36.000Z' });
   assert.equal(modernReserve.error.code, 'REVIEW_COOLDOWN');
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused v5 replay restores the live engine context');
 });

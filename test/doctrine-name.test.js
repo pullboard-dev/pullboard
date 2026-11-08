@@ -5,9 +5,11 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { projectState } from '../src/cli/view-state.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { doctrineHistory } from '../src/doctrine.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DOCTRINE = 'DOCTRINE.md';
@@ -405,12 +407,12 @@ test('[D4,A5] verify in a detached checkout reads the trunk baseline for a doctr
   box.git(source, 'add', '-A');
   box.git(source, 'commit', '-q', '-m', 'chore: initialize doctrine verification fixture');
   const check = `out=$(${shellWord(process.execPath)} ${shellWord(BIN)} spec check 2>&1) && printf '%s\\n' "$out" | grep -Eq 'DOCTRINE[.]md: .*0 errors'`;
-  const added = box.run(source, 'add', 'web', 'Doctrine review fixture', '--criterion', 'The frozen doctrine check passes in the verifier clone.', '--check', check, '--json');
+  const added = fixtureAdd(box.run, source, 'web', 'Doctrine review fixture', '--criterion', 'The frozen doctrine check passes in the verifier clone.', '--check', check, '--json');
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const id = JSON.parse(added.stdout).item.item_id;
   const builder = join(box.dir, 'verify-doctrine-builder');
   box.git(source, 'worktree', 'add', '-q', '-b', 'web/doctrine-review', builder);
-  assert.equal(box.run(builder, 'join', 'web').status, 0);
+  assert.equal(fixtureJoin(box.run, builder, 'web').status, 0);
   // This doctrine check already passes on main by design; the person accepts it so the new board's hold lifts.
   assert.equal(box.run(source, 'check', 'accept', String(id)).status, 0);
   assert.equal(box.run(builder, 'claim', String(id)).status, 0);

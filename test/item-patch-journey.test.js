@@ -4,9 +4,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require actual successful native CLI execution before inspecting its document. */
 function document(result) {
@@ -85,7 +86,7 @@ test('a native companion patch is independently checked and lands the exact acce
     "}",
     "process.exitCode = pass ? 0 : 1;",
   ].join('\n'));
-  const added = document(box.run(box.repo, 'add', 'web', 'A feature requiring a native companion',
+  const added = document(fixtureAdd(box.run, box.repo, 'web', 'A feature requiring a native companion',
     '--criterion', 'The companion contains exactly the required bytes.', '--specs', 'G1',
     '--check', `node ${JSON.stringify(script)}`, '--json'));
   const id = added.item.item_id;
@@ -134,14 +135,12 @@ test('a native companion patch is independently checked and lands the exact acce
   assert.ok(runs.some(run => run.head === submitted && run.bytes === null), 'unpatched frozen execution actually failed');
   assert.ok(runs.some(run => run.head === reviewed && run.bytes === 'required companion\n'), 'accepted source actually ran with exact bytes');
   const patchedRuns = runs.filter(run => run.bytes === 'required companion\n');
-  assert.equal(patchedRuns.length, 2, 'a real main advance during the first patched check causes exactly one retry');
-  assert.notEqual(patchedRuns[0].head, patchedRuns[1].head, 'the retry checks a distinct composed source');
+  // #2501 retains the verdict across an unrelated main move, so the unrelated advance causes no retry.
+  assert.equal(patchedRuns.length, 1, 'an unrelated main advance during the patched check keeps the verdict without a retry');
   assert.equal(patchedRuns[0].mainArrived, false);
-  assert.equal(patchedRuns[1].mainArrived, true);
-  assert.equal(patchedRuns[1].mainBytes, 'main arrived\n');
-  assert.equal(reviewed, patchedRuns[1].head, 'the accepted verdict binds to the second patched check');
+  assert.equal(reviewed, patchedRuns[0].head, 'the accepted verdict binds to the first patched check');
   assert.equal(box.git(box.repo, 'rev-list', '--count', `${submitted}..main`), '1', 'the fixture advances main exactly once');
-  assert.equal(box.git(box.repo, 'show', `${reviewed}:docs/arrived.txt`), 'main arrived', 'the accepted composition includes the exact new main bytes');
+  assert.equal(box.git(box.repo, 'ls-tree', '--name-only', reviewed, 'docs/'), '', 'the retained composition excludes the unrelated main move');
   document(box.run(box.repo, 'patch', 'remove', String(id), 'companion-v1', '--json'));
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'a changed active set invalidates acceptance');
   assert.equal(store.getItem(board, id).item_verified_by, null);

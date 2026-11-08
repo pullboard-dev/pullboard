@@ -34,10 +34,10 @@ import {
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createRelayAuth } from '../relay/auth.js';
-import { createRelayHandler } from '../relay/service.js';
-import { createGitHubClient } from '../relay/github.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';
@@ -172,15 +172,18 @@ export async function relayClientFixture(t, { cliChildren, coordinatorModel, acc
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
   const privateBin = join(scratch, 'path');
+  const hookBin = join(scratch, 'hook-path');
   const traceFile = join(scratch, 'snapshot-fetch-trace.jsonl');
   const tracePreload = join(scratch, 'snapshot-fetch-trace.mjs');
   mkdirSync(root);
   mkdirSync(home, { mode: 0o700 });
   mkdirSync(privateBin, { mode: 0o700 });
+  mkdirSync(hookBin, { mode: 0o700 });
   const git = process.env.PATH.split(delimiter).map(entry => join(entry, 'git')).find(existsSync);
   assert.ok(git, 'fixture has a git executable');
   symlinkSync(realpathSync(git), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
+  symlinkSync(realpathSync(CLI), join(hookBin, 'pullboard'));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
     PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PATH: privateBin,
@@ -212,12 +215,12 @@ globalThis.fetch = function tracedFetch(input, init) {
     if (Number.isSafeInteger(document.sequence)) sequence = document.sequence;
     if (typeof document.sealed === 'string') ciphertext = createHash('sha256').update(document.sealed).digest('hex');
   } catch { /* Record only metadata for malformed fixture traffic. */ }
-  const callers = (new Error().stack ?? '').split('\\n')
+  const callers = (Error.stackTraceLimit = 64, new Error().stack ?? '').split('\\n')
     .filter(line => line.includes('/src/'))
-    .slice(0, 8)
+    .slice(0, 32)
     .map(line => {
       const name = line.match(/^\\s*at (.*?) \\(/u)?.[1] ?? '<anonymous>';
-      const location = line.match(/\\/src\\/([^/():]+\\.js:\\d+:\\d+)/u)?.[1] ?? 'unknown';
+      const location = line.match(/\\/src\\/((?:[^/():]+\\/)*[^/():]+\\.js:\\d+:\\d+)/u)?.[1] ?? 'unknown';
       return name + '@' + location;
     });
   const signal = init?.signal ?? input?.signal;
@@ -725,6 +728,14 @@ globalThis.fetch = function tracedFetch(input, init) {
   assert.equal(runFixtureChild('git', ['add', 'README.md'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   assert.equal(runFixtureChild('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'fixture clone starts from a committed project');
   assert.equal((await cli('init')).code, 0);
+  // Waiver signing is guarded by committed coordinator policy before it reaches the person-signing check [E22].
+  const policyPath = join(root, 'pullboard.json');
+  const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
+  writeFileSync(policyPath, JSON.stringify({ ...policy, landing: { ...policy.landing, manualOverride: true } }, null, 2) + '\n');
+  assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'initialized coordinator policy is staged');
+  const policyCommit = runFixtureChild('git', ['commit', '-q', '-m', 'test(relay): commit initialized coordinator policy'], {
+    cwd: root, env: { ...env, PATH: `${hookBin}:${env.PATH}` }, encoding: 'utf8' });
+  assert.equal(policyCommit.status, 0, policyCommit.failure ?? policyCommit.stderr + policyCommit.stdout);
   assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
   assert.equal((await cli('add', lane, 'private cleanup fixture item')).code, 0);

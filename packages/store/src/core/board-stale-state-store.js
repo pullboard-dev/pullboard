@@ -1,13 +1,21 @@
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
+import { dependencyWaiters } from '../../../items/index.js';
+import { dependencyWorkAt } from '../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
-import { IN_STATE } from "../../../../src/machine.js";
+import { IN_STATE } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { redReturnLeaseHolds } from "./red-return-lease.js";
+import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../src/pinned-claim-lapse-engine.js";
+import { PINNED_CLAIM_RELEASE_MS } from "./pinned-claim.js";
+import { itemPinned } from "./pinned-claim.js";
 
 /** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
@@ -37,7 +45,7 @@ function validateSnapshot(board, snapshot, health) {
   if (!snapshot || staleInstant(snapshot.observedAt, now) === null
     || !Number.isSafeInteger(snapshot.observedRevision) || snapshot.observedRevision < 0
     || !['holds', 'claims', 'reviews'].every(key => Array.isArray(snapshot[key]) && snapshot[key].length <= 10_000)) invalid();
-  const limits = staleStateLimits({ health });
+  const limits = staleStateLimits({ health }, { dependency: (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE });
   if (Object.keys(limits).some(key => snapshot.limits?.[key] !== limits[key])) invalid();
   const revision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS revision FROM event').get().revision;
   if (snapshot.observedRevision !== revision) changed();
@@ -92,7 +100,14 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const item = itemById(board, row.id);
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
-  if (!['stall', 'release', 'waiting', 'progress'].includes(row.idle)) invalid();
+  if (!['stall', 'release', 'waiting', 'progress', 'seat-gone', 'dependency'].includes(row.idle)) invalid();
+  if (row.idle === 'seat-gone') {
+    const signal = row.deadSeat?.heartbeatAt ?? row.claimAt;
+    const at = Date.parse(snapshot.observedAt), last = Date.parse(signal ?? '');
+    if (row.deadSeat?.observedAt !== snapshot.observedAt || row.deadSeat?.quietMs !== 120_000
+      || row.deadSeat?.worktreeMissing !== true && (!Number.isFinite(last) || at - last < 120_000)) invalid();
+    return { row, item };
+  }
   if (row.idle === 'waiting') {
     if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
     const after = String(item.item_after ?? '').split(',').map(Number);
@@ -104,16 +119,26 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     return { row, item };
   }
   const observed = Date.parse(snapshot.observedAt);
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE && redReturnLeaseHolds(board, item, observed)) changed();
   if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
   const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }) : null;
   // A holder who committed in the last 30 minutes is working, whatever the failures or the clock say [B4,B5].
   if (progress && (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && row.commitAt != null
     && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
+  if (row.idle === 'dependency') {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) < STRANDED_DEPENDENCY_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before reclaiming a stranded dependency');
+    const waiters = dependencyWaiters(board, row.id).map(entry => entry.item_id);
+    if (!waiters.length || JSON.stringify(waiters) !== JSON.stringify(row.dependents)) changed();
+    const lastWork = dependencyWorkAt(board, item, row.commitAt, observed);
+    if (row.resourceQuiet !== true || !lastWork || lastWork !== row.workActivity || row.idleMs !== observed - Date.parse(lastWork)
+      || row.idleMs < snapshot.limits.dependency) invalid();
+  }
   const last = staleInstant(row.workActivity, observed);
-  const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
+  const pinnedLapse = row.idle === 'release' && (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, item.item_id);
+  const limit = row.idle === 'dependency' ? snapshot.limits.dependency : row.idle === 'release' ? (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS) : CLAIM_STALL_MS;
   if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
-  if (['release', 'progress'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
+  if (['release', 'progress', 'dependency'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
     || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
     || (row.handoff.pin === null ? typeof row.handoff.unpinned !== 'string' || !row.handoff.unpinned
       : !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string' || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`)))) invalid();
@@ -225,7 +250,11 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           (result.stalled ??= []).push(row.id);
           continue;
         }
-        const reason = row.idle === 'progress'
+        const reason = row.idle === 'dependency'
+          ? `Stale dependency: no commit, test run or fact since ${row.workActivity}, past health.dependencyIdle; ${handoffText(row.handoff)}.`
+          : row.idle === 'seat-gone'
+          ? `Seat ${row.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.`
+          : row.idle === 'progress'
           ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
           : row.idle === 'waiting'
           ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
@@ -237,16 +266,24 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
           id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
         logEvent(board, agentId, 'release', row.id, { reason,
+          ...(row.idle === 'seat-gone' ? { reclaim: { seat: row.actor, heartbeatAt: row.deadSeat.heartbeatAt, worktreeMissing: row.deadSeat.worktreeMissing,
+            observedAt: snapshot.observedAt } } : {}),
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
         board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`claim_stalled:${row.id}`);
         if (row.idle === 'waiting') board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
         notice(row.actor, `Released your claim on #${row.id}: ${reason}`, row.id);
+        if (row.idle === 'dependency') for (const dependent of dependencyWaiters(board, row.id)) {
+          notice(dependent.item_owner ?? laneLead(board, dependent.item_lane), `Dependency #${row.id} of #${dependent.item_id} was released as stale and is available again at its rank; a new builder can claim it.`, dependent.item_id);
+        }
         result.claims.push(row.id);
       }
     }
-    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || result.claimScan) {
+    // A scan that found nothing and moved nothing is not a board event: with a seat command every few seconds, the
+    // empty record was written 3,609 times on 6 Nov, each one a board write every reader waited behind [C7].
+    const scanned = result.claimScan && result.claimScan.previous !== result.claimScan.next;
+    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || scanned) {
       logEvent(board, agentId, 'stale_maintenance', null, { observedAt: snapshot.observedAt, ...result });
     }
     return result;

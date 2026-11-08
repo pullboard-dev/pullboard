@@ -1,82 +1,20 @@
 #!/usr/bin/env node
 /** The Pullboard repository's source-only preflight; no browser fixtures run [C7]. */
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { styleSources } from '../packages/codemap/index.js';
-import { importStyleViolations } from '../packages/gate/index.js';
-import { engineFolderProblems } from '../packages/state/index.js';
-import { declaredProseCommands } from '../src/static-prose-commands.js';
-import { doctrineReport } from '../packages/doctrine/index.js';
-import { loadConfig } from '../packages/config/index.js';
-import { HELP } from '../src/cli.js';
-import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
-import { viewPureGate } from './checks/view-pure.js';
-import { boardWriteIoProblems } from './checks/board-write-io.js';
-import { relayBoundaryProblems } from './checks/relay-boundary.js';
-import { fixedWallMargins } from '../test/wall-clock-budgets.js';
+import { runStaticTreeRegistry } from './checks/static-tree-registry.js';
+import { changedStaticFailures } from './checks/changed-static.js';
 
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const root = process.cwd();
 if (process.argv[2] === '--changed-files') {
-  const files = process.argv.slice(3);
-  const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file))
-    .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }));
-  const failures = [
-    ...relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file))
-      .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }))]).map(row => `${row.file}:${row.line}: ${row.text}`),
-    ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
-    // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-    ...engineFolderProblems(root).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),
-  ];
-  for (const file of files) {
-    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) failures.push(...fixedWallMargins(readFileSync(join(root, file), 'utf8'), file));
-  }
+  // One list for the gate and the pre-commit hook: bin/checks/changed-static.js.
+  const failures = changedStaticFailures(root, process.argv.slice(3));
   if (failures.length) { process.stderr.write(`${failures.join('\n')}\n`); process.exitCode = 1; }
 } else {
-let failed = false;
-const sources = styleSources(root);
-const relaySources = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name)).map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
-for (const row of relayBoundaryProblems([...sources, ...relaySources])) {
-  console.error(`${row.file}:${row.line}: ${row.text}`);
-  failed = true;
-}
-for (const row of importStyleViolations(sources)) {
-  console.error(`${row.file}:${row.line}: one import binding per line (${row.count} bindings)`);
-  failed = true;
-}
-for (const row of engineFolderProblems(root)) {
-  console.error(`${row.file}:${row.line}: ${row.text}`);
-  failed = true;
-}
-for (const row of viewPureGate(root).failures) {
-  console.error(`${row.path}:${row.line}: ${row.text}`);
-  failed = true;
-}
-for (const row of boardWriteIoProblems(sources)) {
-  console.error(`${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`);
-  failed = true;
-}
-const declared = [...declaredProseCommands(HELP)].sort();
-const actual = [...PULLBOARD_COMMANDS].sort();
-if (JSON.stringify(declared) !== JSON.stringify(actual)) {
-  const line = readFileSync(join(root, 'src/cockpit.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
-  console.error(`src/cockpit.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`);
-  failed = true;
-}
-const clock = spawnSync(process.execPath, ['test/wall-clock-budgets.js'], { cwd: root, encoding: 'utf8' });
-if (clock.stdout) process.stdout.write(clock.stdout);
-if (clock.stderr) process.stderr.write(clock.stderr);
-if (clock.status !== 0) failed = true;
-for (const row of doctrineReport(root, loadConfig(root))) {
-  if (!row.holds) {
-    console.error(`doctrine ${row.id}: ${row.state}\n${row.problems.join('\n')}`);
-    failed = true;
-  }
-}
+const failures = runStaticTreeRegistry(root);
+for (const row of failures) console.error(row);
+const failed = failures.length > 0;
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
 process.exitCode = failed ? 1 : 0;
 }

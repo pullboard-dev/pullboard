@@ -23,10 +23,6 @@ import { runnerPolicyRecord } from '../../../sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../sandbox/index.js';
 import { acceptedBudgetTrunk } from './test-file-budget-policy.js';
 import {
-  runProfiledShellAsync,
-  withGateSlot,
-} from './gate.js';
-import {
   cleanGitEnvironment,
   git as readGit,
   headCommit,
@@ -36,14 +32,14 @@ import {
   testsNeedGui,
 } from './gui-admission.js';
 import { Refused } from '../../../kernel/index.js';
-import { runnerSource } from '../core/gate-policy-load.js';
 import {
   retainTestOutput,
   renderTestSummary,
 } from './test-output-summary.js';
 import { readFileSync } from 'node:fs';
-import { fullGateRun } from './gate-execution.js';
 import { timingSource } from './run-timing.js';
+import { whileSeatAlive } from './seat-keepalive.js';
+import { announceTestRun } from '../core/test-progress.js';
 import { trackedDefaultTestFiles } from './test-selection.js';
 import {
   browserFreeChecksEnabled,
@@ -57,6 +53,7 @@ export async function runFullSuite(root, runner, executionServices) {
   if (relative(root, runner).split(sep).join('/') !== 'bin/run-tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
+  const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('./gate.js'), import('./gate-execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('./cpu-load-admission.js');
   const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
@@ -100,7 +97,8 @@ function git(root, args, env) {
  * The commit a runner checks out: HEAD when the tree is clean, else a snapshot commit of the working tree, made
  * with a private index so the checkout's own index and branches stay as they are. Ignored files stay out.
  */
-function snapshotCommit(root) {
+async function snapshotCommit(root) {
+  const { runnerSource } = await import('../core/gate-policy-load.js');
   if (runnerSource(root)) return { commit: headCommit(root), clean: true };
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-test-index-'));
   try {
@@ -116,7 +114,7 @@ function snapshotCommit(root) {
 
 /** Run the files where the work is: this clean checkout, or a clean temporary checkout of its snapshot. */
 export async function inCleanCheckout(root, work, withMainCheckout) {
-  const { commit, clean } = snapshotCommit(root);
+  const { commit, clean } = await snapshotCommit(root);
   if (clean) return work(root);
   const accepted = acceptedBudgetTrunk(root);
   const result = await withMainCheckout(root, commit, async checkout => {
@@ -144,11 +142,12 @@ function localReason() {
 /**
  * Run named test files through a gate slot, which deals them to the registered runners first (#1054); the focused
  * runner (pullboard.json affectedTests) gives each file its timeout. A red file is compared with main's recorded
- * result for that file, so a failure main already has reads as known.
+ * result for that file, so a failure main already has reads as known. A single named file skips that comparison
+ * unless compareMain is set.
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -157,9 +156,11 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
   }
   let paths = affected ? [] : testFiles(root, files);
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
+  const { runProfiledShellAsync, withGateSlot } = await import('./gate.js');
   const started = Date.now();
   const admission = testRunnerAdmission();
-  const run = await inCleanCheckout(root, async (checkout) => {
+  // The claim stays live for the whole run: a long runner wait must not look like a gone seat (#3430).
+  const run = await whileSeatAlive(root, () => inCleanCheckout(root, async (checkout) => {
     let full = false;
     if (policy) {
       const options = { base: policy.commit, trunk: policy.commit };
@@ -173,13 +174,20 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
-    return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }),
+    return withGateSlot(checkout, async (lease) => {
+      const stop = typeof say === 'function' ? announceTestRun(say, { host: lease.runner?.host, files: paths, ...timers }) : () => {};
+      try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
+    },
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
-  }, withMainCheckout);
+  }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
-  if (!run.isGreen) {
+  // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
+  // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
+  const skipMain = !affected && paths.length === 1 && !compareMain;
+  if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
+  if (!run.isGreen && !skipMain) {
     const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
       execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;

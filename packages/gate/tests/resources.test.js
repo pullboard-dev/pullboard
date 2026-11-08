@@ -1,7 +1,8 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { redGateReleaseSource } from '../../../test/gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/shell/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
@@ -31,6 +32,7 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { describe } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from '../../resources/index.js';
 import { setResourceCapacity } from '../../resources/index.js';
@@ -42,13 +44,17 @@ import { releaseQueueProof } from '../../../test/resources-release-fixture.js';
 import { openPrivateScopedView } from '../../../test/resources-lease-fixture.js';
 import { queuedLeaseProof } from '../../../test/resources-lease-fixture.js';
 import { resourceNames } from '../../../test/resources-lease-fixture.js';
+import { oldSchema } from '../../../test/resources-lease-fixture.js';
+import { staleIdentity } from '../../../test/resources-lease-fixture.js';
+import { expireHeartbeat } from '../../../test/resources-lease-fixture.js';
 import { resourceWorkerSources } from '../../../test/resources-lease-fixture.js';
 import { checkProject } from '../../../test/resources-verify-fixture.js';
 import { verificationProject } from '../../../test/resources-verify-fixture.js';
+import { fixtureAddArgv } from '../../../test/testkit-fixture.js';
 const TEMP = [];
 const CHILDREN = new Set();
 const MODULE = pathToFileURL(resolve(import.meta.dirname, '../../resources/index.js')).href;
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const LEASE_HELPERS = createE2eHelpers();
 const PRE_RUNNER_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../test/fixtures/resources-pre-runners.js')).href;
 const SETTINGS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../config/src/shell/settings.js')).href;
@@ -107,39 +113,6 @@ function waitForMarker(path, timeoutMs = 60_000) {
     watcher.on('rename', check);
     check();
   });
-}
-
-/** Create the previous private queue schema so simultaneous openers exercise its migration. */
-function oldSchema(box) {
-  mkdirSync(box.home, { recursive: true });
-  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
-  try {
-    db.exec(`CREATE TABLE resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
-      CREATE TABLE holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
-      CREATE INDEX holder_name ON holder(name);
-      CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
-      CREATE INDEX waiter_name_ticket ON waiter(name, ticket);`);
-  } finally { db.close(); }
-}
-
-/** Force a stale private fixture row with a mismatched process start identity. */
-function staleIdentity(box, table, agent) {
-  assert.ok(['holder', 'waiter'].includes(table));
-  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
-  try {
-    const result = db.prepare(`UPDATE ${table} SET started = ?, heartbeat = 0 WHERE agent = ?`).run('old-process-start', agent);
-    assert.equal(result.changes, 1, `${agent} has a private ${table} row`);
-  } finally { db.close(); }
-}
-
-/** Expire a private lease heartbeat without changing its recorded OS identity. */
-function expireHeartbeat(box, table, agent) {
-  assert.ok(['holder', 'waiter'].includes(table));
-  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
-  try {
-    const result = db.prepare(`UPDATE ${table} SET heartbeat = 0 WHERE agent = ?`).run(agent);
-    assert.equal(result.changes, 1, `${agent} has a private ${table} row`);
-  } finally { db.close(); }
 }
 
 /** Read a private machine database without changing the process environment for other fixtures. */
@@ -480,7 +453,7 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
   assert.equal(await checkNeedsBrowser(repo, 'node bin/run-tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
     'known browser suites remain browser-gated');
-  const added = runFixtureChild(process.execPath, [BIN, 'add', 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(added.status, 0, added.stderr);
@@ -531,7 +504,7 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
   const box = fixture();
   const { repo } = checkProject(box);
   const check = `out=$(node bin/run-tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
-  const added = runFixtureChild(process.execPath, [BIN, 'add', 'coordinator', 'Browser-free policy check', '--check', check, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(added.status, 0, added.stderr);
@@ -634,6 +607,9 @@ test('browserSlots admits that many browser runs and no more [C7]', async () => 
   await release(third);
 });
 
+// These cases keep all asynchronous state in separate child processes and private machine homes.
+// Their only parent environment changes are synchronous reads restored before yielding.
+describe('isolated resource queue scenarios [C7,Q1,Q2]', { concurrency: 4 }, () => {
 test('[Q1,Q2] capacity-one takers acquire in strict FIFO arrival order', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
@@ -815,6 +791,8 @@ test('the pool alone orders submits, reviews and browser runs [C7]', async () =>
   await release(secondReview);
 });
 
+});
+
 test('the pool admits reviews before submits before focused runs, and waiting runs age up [C7,V4]', async () => {
   const AGE_MS = 30 * 60_000;
   const box = fixture();
@@ -904,6 +882,7 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
   assert.equal(queueClass({ landing: 1, since }, at(0)).name, 'landing');
 });
 
+describe('isolated mixed-version and release queues [C7,Q1,Q2]', { concurrency: 4 }, () => {
 test('a line holding an older pullboard waiter keeps arrival order, so mixed versions never deadlock [C7]', async () => {
   const box = fixture();
   setQueueOrder(box, { reviewsFirst: true }); // #697: class order is a machine opt-in.
@@ -928,6 +907,8 @@ test('a line holding an older pullboard waiter keeps arrival order, so mixed ver
 });
 
 test('the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
+
+});
 
 test('queue order follows the machine settings [C7,O5]', async () => {
   const gate = (box) => privateList(box).find(({ name }) => name === 'gate');
@@ -1234,6 +1215,8 @@ test('[Q1,Q2] landing holders leave an empty slot for the next eligible landing 
   }
 });
 
+// Each process and memory case below also owns a distinct pool; no asynchronous parent environment override is shared.
+describe('isolated resource process and memory scenarios [C7,Q1,Q2,Q3]', { concurrency: 4 }, () => {
 test('[Q1,Q2] landing priority preserves tickets while an older resource database migrates [Q1,Q2]', async () => {
   const box = fixture();
   oldSchema(box);
@@ -1535,7 +1518,7 @@ test('the pool holds work while the machine is out of memory and names the bigge
 });
 
 test('the memory hold is off until a floor is set, an unread machine warns once, and resources prints the memory line [C7]', async () => {
-  const { gateWaitReporter } = await import(CLI_MODULE);
+  const { gateWaitReporter } = await import('../index.js');
   const said = [];
   const report = gateWaitReporter({ say: (line) => said.push(line) });
   report({ holders: [], position: 1, memory: { checked: true, held: true, line: 'memory: holding the gate queue because pressure is critical: first' } });
@@ -1601,6 +1584,8 @@ test('the memory hold is off until a floor is set, an unread machine warns once,
   assert.match(JSON.parse(json.stdout).memory.line, /^memory: /u, 'the JSON result carries the same machine line');
 });
 
+});
+
 test('[Q4] machine capacity decreases atomically refuse an occupied or queued resource', async () => {
   const box = fixture();
   const oldHome = process.env.PULLBOARD_HOME;
@@ -1664,10 +1649,6 @@ test('[Q1] machine scope is shared, repo scope stays local, and board scope name
 
 test('[Q4] a red gate releases its lease before the same process starts another gate', async () => {
   const box = fixture();
-  const setting = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../bin/pullboard.js'), 'settings', 'gateSlots', '1'], {
-    cwd: box.first, env: box.env, encoding: 'utf8',
-  });
-  assert.equal(setting.status, 0, setting.stderr);
   const command = join(box.dir, 'red-then-green.cjs');
   const counter = join(box.dir, 'gate-count');
   const eventsFile = join(box.dir, 'gate-runs.log');
@@ -1680,13 +1661,7 @@ test('[Q4] a red gate releases its lease before the same process starts another 
     'process.exit(count === 0 ? 7 : 0);',
   ].join('\n'));
   const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
-  const worker = `
-    import { runGate } from ${JSON.stringify(GATE_MODULE)};
-${executionServicesSource(GATE_MODULE)}
-    const first = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
-    const second = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
-    console.log(JSON.stringify({ firstGreen: first.isGreen, secondGreen: second.isGreen }));
-  `;
+  const worker = redGateReleaseSource();
   const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
     cwd: box.first, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
   });

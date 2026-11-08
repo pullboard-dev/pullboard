@@ -2,7 +2,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { join, posix } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../packages/gate/index.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
@@ -20,9 +20,14 @@ export function copyFixtureRunner(source, destination) {
   const parser = createRunnerModuleParser();
   const files = new Set(['package.json', ...Object.keys(runnerPackage(source).files),
     ...readdirSync(join(source, 'src/command-docs')).filter(file => file.endsWith('.json')).map(file => `src/command-docs/${file}`),
+    ...['apps/cli/src/shell/commands'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
+    ...['apps/cli/src/shell/command-docs', 'apps/cli/src/shell/documentation', 'apps/cli/src/shell/documentation/events'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.json')).map(file => `${folder}/${file}`)),
     ...readdirSync(join(source, 'src/commands')).filter(file => file.endsWith('.js')).map(file => `src/commands/${file}`)]);
   let pending = ['bin/run-tests.js',
-    ...readdirSync(join(source, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`),
+    ...['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...readdirSync(join(source, 'src')).filter(file => file.endsWith('-engine.js')).map(file => `src/${file}`)];
   try {
     while (pending.length) {
@@ -51,5 +56,8 @@ export function copyFixtureRunner(source, destination) {
     if (!lstatSync(join(source, file)).isFile() || lstatSync(join(source, file)).isSymbolicLink()
       || !realpathSync(join(source, file)).startsWith(sourceRoot + '/')) throw new Error(`unsafe fixture runtime: ${file}`);
   }
+  // This repository-only gate helper is not part of the published runner package; callers that
+  // exercise its static preflight copy it explicitly into their private fixture.
+  files.delete('test/wall-clock-budgets.js');
   return copyPackageFiles(source, destination, { files: [...files].sort() });
 }

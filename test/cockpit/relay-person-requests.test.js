@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { performance } from 'node:perf_hooks';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { scratch, machine, project, fetchLive, startView, target, chromeExecutable, openSnapshotChrome, stopOwnedChrome } from './fixture.js';
 
 test('relay person requests stay explicit, read-only and visible [H12,H5]', { timeout: 120_000 }, async (t) => {
@@ -132,7 +132,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       return response.writeHead(upstream.status, { 'content-type': 'application/json' }).end(await upstream.text());
     }
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
-    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(resolve(import.meta.dirname, '../../src/view.css')));
+    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url)));
     return fixtureRequest(request, response);
   });
   await new Promise((resolve) => pageServer.listen(0, '127.0.0.1', resolve));
@@ -142,6 +142,8 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${pageServer.address().port}/`, profile);
     await chrome.waitFor("typeof data === 'object' && !!data?.project && typeof window.__setPersonRequest === 'function'");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')");
+    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=\"items\"]').hidden && document.querySelector('#new-item')");
     assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'the request view fits a phone viewport');
     assert.equal(await chrome.stable("document.body.classList.contains('requests') && getComputedStyle(document.querySelector('#new-item')).display !== 'none' && document.querySelector('#new-item').getBoundingClientRect().height >= 44"), true, 'the explicit capability exposes usable person controls');
     await chrome.click("document.querySelector('[data-tab=\"shouts\"]')"); await chrome.stable("document.querySelector('#shout-to').value = 'coordinator'"); await chrome.stable("document.querySelector('#shout-text').value = 'Please review this item.'"); await chrome.stable("document.querySelector('#shout-form').requestSubmit()");

@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBoard, nativeBoardPorts } from '../src/native-board.js';
-import { openBoardForRead } from '../src/native-board.js';
-import { closeBoard } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { openBoardForRead } from '../apps/lib/index.js';
+import { closeBoard } from '../apps/lib/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { moveArgs } from '../packages/person/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';
@@ -19,6 +19,11 @@ import { checkpointPublisher } from '../packages/outbox/index.js';
 import { relayOrdering } from '../packages/outbox/index.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
+
+/** Make an empty temporary directory; the caller removes it. The single place fixtures create one [C7]. */
+export function temporaryDirectory(prefix) {
+  return mkdtempSync(join(tmpdir(), prefix));
+}
 
 /**
  * Open the production schema and moves in memory, with cleanup owned by the test.
@@ -34,7 +39,7 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
   let file = ':memory:';
   let directory;
   if (storage === 'file') {
-    directory = mkdtempSync(join(tmpdir(), 'pullboard-board-contract-'));
+    directory = temporaryDirectory('pullboard-board-contract-');
     file = join(directory, 'board.sqlite');
   }
   try {

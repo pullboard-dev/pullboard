@@ -1,4 +1,4 @@
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 /** Shared registered-runner test tooling and bounded round-trip helpers. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
@@ -57,7 +57,7 @@ export function cleanupToolingSnapshots() {
       process.stderr.write(`retained runner tooling snapshot at ${record.directory}\n`);
       continue;
     }
-    rmSync(record.directory, { recursive: true, force: true });
+    rmSync(record.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
   TOOLING_SNAPSHOTS.clear();
 }
@@ -162,7 +162,7 @@ async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, fi
  */
 export async function runThroughGate(repo, env, command, { browser = true, timing = false, item = '663', kind = 'check', landing = false, toolingRoot = resolve(import.meta.dirname, '..'), requests, deadlines } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'src', 'gate.js')).href;
+  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});

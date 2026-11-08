@@ -5,7 +5,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
+import { recordClaimWorktrees } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('two claimed Git worktrees name shared edits and protect an open item until release [N2]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-'));
@@ -39,9 +41,9 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(leftNotice, /#1 overlaps #2 \(two\) on shared\.js/);
   assert.match(rightNotice, /#2 overlaps #1 \(one\) on shared\.js/);
   assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
-  const { heartbeatCommand } = await import('../src/cli-presence.js');
+  const { heartbeatCommand } = await import('../apps/cli/index.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   const left = store.register(board, { lane: 'core', path: first, route: 'strong' });
@@ -51,18 +53,24 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' });
   store.claim(board, a, { agentId: left, lane: 'core', leaseMs: 3600000, head: base, freeze });
   store.claim(board, b, { agentId: right, lane: 'core', leaseMs: 3600000, head: base, freeze });
+  // Background maintenance records each claim's files; the heartbeat reads that record and runs no Git (#2427).
+  recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   for (const [root, id, peer, owner] of [[first, a, b, right], [second, b, a, left]]) {
     const lines = [];
     heartbeatCommand({ err: line => lines.push(line) }, { ctx: { info: { root } }, board });
     assert.match(lines.join('\n'), new RegExp(`#${id} overlaps #${peer} \\(${owner}\\) on shared\\.js`));
   }
 
+  const bounded = [];
+  heartbeatCommand({ err: line => bounded.push(line) }, { ctx: { info: { root: first } }, board, overlaps: false });
+  assert.deepEqual(bounded, [], 'the flag-free next loop leaves overlap text out of its bounded output');
+
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
 
-test('next skips a named file being edited and offers it after release [N2]', async t => {
-  const { openBoard } = await import('../src/native-board.js');
+test('next names a file being edited as an overlap note and still offers the item [N2,C7]', async t => {
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
@@ -74,7 +82,7 @@ test('next skips a named file being edited and offers it after release [N2]', as
     freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
   const workingFiles = new Map([[edited, { files: ['shared.js'], unknown: false }]]);
   const blocked = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles });
-  assert.notEqual(blocked.item?.item_id, waiting);
+  assert.equal(blocked.item?.item_id, waiting);
   assert.ok(blocked.reasons.some(reason => reason.includes(`#${edited}`) && reason.includes('shared.js')));
   store.release(board, edited, holder, 'fixture', undefined, 'ROUTED_ELSEWHERE');
   const offered = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles, omitIds: [edited] });
@@ -113,7 +121,7 @@ test('a merged main change is not attributed to the claimed worktree [N2]', t =>
 
 test('the real next command routes around a live worktree edit [N2]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const { mkdirSync } = await import('node:fs');
   const helpers = createE2eHelpers();
@@ -121,7 +129,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const box = helpers.project('true');
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  const joined = box.run(second, 'join', 'web');
+  const joined = fixtureJoin(box.run, second, 'web', '--route', 'strong', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err + joined.out);
   // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -135,14 +143,16 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
     freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'shared.js'), 'work\n');
+  // Maintenance observes the holder's worktree; next routes from that record without running Git there (#2427).
+  recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   const next = box.run(second, 'next', '--build', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
   const { createServer } = await import('node:http');
   const { createLocalApiHandler } = await import('../packages/api/index.js');
-  const { viewApiPorts } = await import('../src/view-api-ports.js');
+  const { viewApiPorts } = await import('../apps/view/index.js');
   const { apiBoardOpeners } = await import('./board-fixture.js');
-  const { refusalDocument } = await import('../src/next-step-words.js');
+  const { refusalDocument } = await import('../apps/cli/index.js');
   const { main } = await import('./native-cli-fixture.js');
   const { apiFetch } = await import('./api-fixture.js');
   let port = 0;
@@ -160,6 +170,8 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const initial = await (await apiFetch(api, path)).json();
   mkdirSync(join(second, 'web'), { recursive: true });
   writeFileSync(join(second, 'web', 'shared.js'), 'other work\n');
+  // The state reads the worktree record maintenance wrote, so record the new edit before the delta read.
+  recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   const updated = await (await apiFetch(api, `${path}?since=${initial.state.sequence}`)).json();
   assert.deepEqual(updated.delta.replace.claimOverlaps[changed].overlaps[0].files, ['web/shared.js']);
   const submit = box.run(box.web, 'submit', String(changed));

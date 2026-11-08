@@ -6,7 +6,8 @@ export { factReference } from "./src/core/fact-reference.js";
 export { names, productsOfRow, productsOfItem, productsOfLane, productSummaries, productProblems, productLine } from "./src/core/products.js";
 export { projectSiblings, repoLabels, resolveRepo, projectPersonDecisions } from "./src/core/project-decisions.js";
 export { validateReferences, referenceAuthority, validateReferenceAuthority, referenceAuthors, validateReferenceAuthors } from "./src/shell/reference-authors.js";
-export { handledReferences, referenceAcknowledged, submitReferenceReminders, referenceLines, validateReferenceTargets, briefSections } from "./src/shell/reference-lines.js";
+export { handledReferences, referenceAcknowledged, submitReferenceReminders, referenceLines, validateReferenceTargets } from "./src/shell/reference-lines.js";
+export { briefSections } from "./src/core/brief-sections.js";
 export { checkReleaseReferences } from "./src/shell/reference-release.js";
 export { rowDecisionContext, staleRowDecision, staleRowDecisions } from "./src/shell/row-decision-state.js";
 export { rowDecisionReplacement, personNeeds } from "./core.js";
@@ -21,7 +22,7 @@ export { ensureSpecApprovalCoordinator, initialSpecApprovalBaseline } from "./sr
 export { captureSpecApprovalBaseline, specApprovalState, itemAgentApprovals, agentApprovalLine, projectItemSpecApprovals, projectSpecApprovals, refuseAgentApprovedRows } from "./src/shell/spec-approval.js";
 export { draftRow } from "./src/shell/spec-draft.js";
 export { renamedGatePath, revisionGateCommand } from "./src/shell/spec-gate-renames.js";
-export { needsSpecRefreezes, specRefreezeSkips, assertNoCitedSpecDecline, prepareSpecRefreezes, validateSpecRefreezes } from "./src/shell/spec-refreeze.js";
+export { needsSpecRefreezes, specRefreezeSkips, assertNoCitedSpecDecline, prepareSpecRefreezes, prepareSpecRowApplyPayload, validateSpecRefreezes } from "./src/shell/spec-refreeze.js";
 export { planSpecRevision, revisionReference, validSpecRevision, validRevisionApproval, prepareSpecRevisionDecisions, decideSpecRevisions, markAppliedRevisions, projectSpecRevisions } from "./src/shell/spec-revisions.js";
 export { SPEC_REFREEZE, applySpecRowDecisions } from "./src/shell/spec-row-apply.js";
 export { parseRowVerification, rowVerificationFormatProblems, rowVerificationSource, verifiedRowSource } from "./src/core/spec-verdict-format.js";

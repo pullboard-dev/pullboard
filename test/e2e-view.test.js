@@ -1,4 +1,4 @@
-import { cockpitPage as cockpitSource } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitSource } from '../apps/cli/index.js';
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
@@ -24,13 +24,14 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -218,7 +219,7 @@ test('a person running view with JSON in a terminal keeps the server in that ter
 
 test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   box.run(box.repo, 'shout', 'web-1', 'the heading is in G1');
   const registry = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8'));
   assert.deepEqual(registry.projects.map((entry) => entry.root), [box.repo]);
@@ -326,7 +327,7 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
 
 test('the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');

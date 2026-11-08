@@ -6,8 +6,9 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { testClosures } from '../packages/gate/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -51,7 +52,7 @@ function fixture() {
   put(box.repo, 'web/item.test.js', "import {test} from 'node:test'; test('item works [G1]', () => {});\n");
   commit(box, box.repo, 'test: accepted repository scanner');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const made = box.run(box.repo, 'add', 'web', 'test tree guard fixture', '--specs', 'G1',
+  const made = fixtureAdd(box.run, box.repo, 'web', 'test tree guard fixture', '--specs', 'G1',
     '--criterion', 'The item and repository test scanner pass.', '--check', 'node --test web/item.test.js', '--json');
   assert.equal(made.code, 0, made.err + made.out);
   const id = JSON.parse(made.out).item.item_id;

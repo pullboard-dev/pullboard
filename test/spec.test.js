@@ -11,13 +11,13 @@ import { checkLoosening } from '../packages/doctrine/index.js';
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
-import { openBoard, draftSpecRow, recordRowVerification } from '../src/native-board.js';
+import { openBoard, draftSpecRow, recordRowVerification } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -245,7 +245,7 @@ test('a row-like line that does not parse is an error, never dropped [S1]', () =
   assert.equal(findings[0].line, 2);
 });
 
-test('rows inside code fences are examples, not rows', () => {
+test('rows inside code fences are examples, not rows [S1]', () => {
   const spec = parseSpec('## G\n```\n- G1 [approved, must] Example. | gate: x\n```\n');
   assert.equal(spec.rows.length, 0);
 });
@@ -270,7 +270,7 @@ test('approved must-rows name their gate [S4]', () => {
   assert.deepEqual(lintSpec(parseSpec('## G\n- G1 [approved, aim] Aims need none.\n')), []);
 });
 
-test('bad status, bad tier and unknown fields are errors; long rows warn', () => {
+test('bad status, bad tier and unknown fields are errors; long rows warn [S1]', () => {
   const findings = lintSpec(
     parseSpec(`## G\n- G1 [maybe, should] Text. | owner: me\n- G2 [draft] ${'word '.repeat(25)}\n`),
   );
@@ -281,7 +281,7 @@ test('bad status, bad tier and unknown fields are errors; long rows warn', () =>
   assert.ok(messages.some((message) => message.startsWith('warning: 25 words')));
 });
 
-test('cited ids must exist and must not be retired', () => {
+test('cited ids must exist and must not be retired [S2]', () => {
   const spec = { ...parseSpec(SPEC), name: 'SPEC.md' };
   assert.deepEqual(idProblems(spec, ['G1', 'K1']), []);
   assert.deepEqual(idProblems(spec, ['G9', 'G2']), ['G9 is not in SPEC.md', 'G2 is retired']);
@@ -556,7 +556,7 @@ function viewMove(box, move, channel, env) {
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
     const apiBoardOpeners = { openBoard, openBoardForRead, moveArgs };
     const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);

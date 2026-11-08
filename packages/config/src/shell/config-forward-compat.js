@@ -13,18 +13,18 @@ function schema(base) {
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget']),
-    cells: fields(['cache']),
+    cells: fields(['cache', 'shimMaxAgeDays']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
-    landing: { ...fields(['publish', 'timeout', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride']),
+    landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt']) },
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
       'affectedTests', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health']),
     testConcurrency: fields(['files', 'browser']),
-    health: fields(['sentinel', 'stuck', 'holds', 'release']),
+    health: fields(['sentinel', 'stuck', 'holds', 'release', 'dependencyIdle']),
   };
 }
 

@@ -21,14 +21,14 @@ import { createServer } from 'node:http';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { main } from './native-cli-fixture.js';
-import { resultCommands } from '../src/cli.js';
+import { resultCommands } from '../apps/cli/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { projectState } from '../src/cli/view-state.js';
-import { serveView } from '../src/commands/view.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
@@ -36,6 +36,7 @@ import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixtur
 import { relayClientFixture } from './relay-client-fixture.js';
 import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
 import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -430,7 +431,7 @@ catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI J
   const box = await project();
   const agent = join(box.dir, 'app-1');
   await box.git(box.repo, 'worktree', 'add', '-q', agent, '-b', 'app/one');
-  const joined = await box.run(agent, 'join', 'app');
+  const joined = await fixtureJoin(box.run, agent, 'app');
   assert.equal(joined.status, 0, joined.stderr);
 
   const ask = await json(box, box.repo, 'shout', ['app', 'Should this endpoint retry?', '--decision']);
@@ -452,7 +453,7 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
   const worktree = async (name, lane) => {
     const path = join(box.dir, name);
     await box.git(box.repo, 'worktree', 'add', '-q', path, '-b', `${lane}/${name}`);
-    const joined = await box.run(path, 'join', lane);
+    const joined = await fixtureJoin(box.run, path, lane);
     assert.equal(joined.status, 0, joined.stderr);
     return path;
   };

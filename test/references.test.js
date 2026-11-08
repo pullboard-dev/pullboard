@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { briefSections } from '../packages/spec/index.js';
 import * as store from '../src/board.js';
-import { openBoard, nativeBoardPorts } from '../src/native-board.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
@@ -15,6 +15,7 @@ import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/c
 import { createE2eHelpers } from './e2e-helpers.js';
 import { referenceLines, referenceAcknowledged } from '../packages/spec/index.js';
 import { bridgeProject, bridgeProvider, landBridgeItems, runBridgeCLI, runBridgeCLIAs } from './pr-bridge-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('changelog matching distinguishes issue numbers and accepts Markdown acknowledgement links [C7]', () => {
   const reference = { target: 'https://github.com/example/project/issues/1', handle: 'Reporter' };
@@ -70,7 +71,7 @@ test('reference point 21: shipping checks only the selected release and every la
   ] });
   assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.3', '--reason', 'Arrange fixture release', '--items', entries.map(entry => entry.id).join(',')).code, 0);
   assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.4').code, 0);
-  const future = box.run(box.repo, 'add', 'web', 'Unlanded acknowledgement', '--brief', 'Reference: https://example.com/unlanded @LaterReporter', '--json');
+  const future = fixtureAdd(box.run, box.repo, 'web', 'Unlanded acknowledgement', '--brief', 'Reference: https://example.com/unlanded @LaterReporter', '--json');
   assert.equal(future.code, 0, future.err || future.out);
   assert.equal(box.run(box.repo, 'milestone', 'items', '0.9.3', '--reason', 'Arrange fixture release', '--add', String(JSON.parse(future.out).item.item_id)).code, 0);
   /** Commit the actual release section so the check cannot read unrelated working-tree edits. */
@@ -128,7 +129,7 @@ test('reference point 22: add and edit refuse board-only references with the rig
   const e2e = createE2eHelpers();
   const box = e2e.project('true');
   t.after(() => e2e.cleanup());
-  const valid = box.run(box.repo, 'add', 'web', 'An external reference', '--brief', 'Reference: https://example.com/report', '--json');
+  const valid = fixtureAdd(box.run, box.repo, 'web', 'An external reference', '--brief', 'Reference: https://example.com/report', '--json');
   assert.equal(valid.code, 0, valid.err || valid.out);
   const id = JSON.parse(valid.out).item.item_id;
   for (const [reference, flag] of [['H21', '--specs H21'], ['#17', '--after'], ['17', '--after']]) {
@@ -164,7 +165,7 @@ function submitReferenceFixture(t, { handled, matchingAddition }) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare reference changelog fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const reference = handled ? acknowledgement : target;
-  const added = box.run(box.repo, 'add', 'web', 'Submit reference reminder', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Submit reference reminder', '--specs', 'G1',
     '--criterion', 'The private reference change remains green.', '--check', 'test -f web/reference-change.txt',
     '--brief', `${e2e.LIGHT_BRIEF}Reference: ${reference}\n`, '--json');
   assert.equal(added.code, 0, added.err || added.out);
@@ -216,7 +217,7 @@ test('GitHub issue and pull references check explicit author handles during asyn
   const issuePath = '/repos/fixture/repository/issues/6';
   const pullPath = '/repos/fixture/repository/pulls/7';
 
-  const wrongIssue = await runBridgeCLI(box, 'add', 'web', 'Wrong issue author', '--brief',
+  const wrongIssue = await fixtureAdd(runBridgeCLI, box, 'web', 'Wrong issue author', '--brief',
     'Reference: https://github.com/fixture/repository/issues/6 @another-person', '--json');
   assert.notEqual(wrongIssue.code, 0, 'an explicit handle that differs from the issue author is refused');
   assert.match(`${wrongIssue.out}\n${wrongIssue.err}`, /issue-author/iu);
@@ -228,7 +229,7 @@ test('GitHub issue and pull references check explicit author handles during asyn
   assert.equal(referenceCalls(issuePath), 2, 'GitHub login matching is case-insensitive');
 
   const beforeUnhandled = referenceCalls(issuePath) + referenceCalls(pullPath);
-  const unhandledAdd = await runBridgeCLI(box, 'add', 'web', 'Unhandled reference', '--brief',
+  const unhandledAdd = await fixtureAdd(runBridgeCLI, box, 'web', 'Unhandled reference', '--brief',
     'Reference: https://github.com/fixture/repository/issues/6', '--json');
   assert.equal(unhandledAdd.code, 0, unhandledAdd.err || unhandledAdd.out);
   const itemId = JSON.parse(unhandledAdd.out).item.item_id;

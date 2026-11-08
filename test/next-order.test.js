@@ -1,5 +1,5 @@
 import * as queueStore from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { roadmap, addMilestone, editMilestoneItems, orderMilestoneItems } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 import { crossLaneFixture } from './e2e-helpers.js';
@@ -16,16 +16,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { workQueue } from '../packages/items/index.js';
+import { refreshCodeMap } from '../packages/codemap/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../packages/state/index.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
+import { fixtureAdd } from './testkit-fixture.js';
+
+/** Remove only the CLI's trailing next-step hint; its flags change independently of the queue answer under test. */
+function queueAnswer(output) {
+  return output.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
+}
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
   const { board, builder } = boardFixture();
@@ -235,7 +245,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up the fresh board');
   for (const title of ['First app item', 'Second app item']) {
-    const added = box.run(repo, 'add', 'app', title, '--route', 'strong',
+    const added = fixtureAdd(box.run, repo, 'app', title, '--route', 'strong',
       '--criterion', 'The app item creates its readiness marker.', '--check', 'test -f app/ready', '--json');
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   }
@@ -262,7 +272,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   const idle = helpers.project('true');
   const empty = JSON.parse(idle.run(idle.repo, 'next', '--json').out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
-  assert.match(empty.next, /pullboard next --wait 9/u, 'a genuinely idle board retains its ordinary wait');
+  assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
 });
 
 test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
@@ -379,7 +389,7 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   assert.doesNotMatch(JSON.stringify(beginner.overview ?? beginner), /milestone order|rank the queue/iu, 'newcomer help does not gain scheduling words');
 });
 
-test('pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
+test('clause 1: pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('queue-holder', 'web', box.session);
   const oldest = box.add('web', 'Oldest unranked strong work');
@@ -422,12 +432,15 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
-  const lightWork = box.add('api', 'Light release work', 'light');
+  const lightWork = box.add('api', 'Light release work', 'mid');
+  box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
+    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json'));
+  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--json'));
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
   const text = box.run(box.repo, 'queue');
-  text.out = text.out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
+  text.out = queueAnswer(text.out);
   assert.match(text.out.trim().split('\n').at(-1), new RegExp(`^next now: strong → #${strongWork}, mid → #${midWork}, light → #${lightWork}$`, 'u'));
   // The queue's answer is what next actually serves each route.
   for (const [route, lane, id] of [['light', 'api', lightWork], ['mid', 'api', midWork], ['strong', 'web', strongWork]]) {
@@ -435,7 +448,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
     const next = box.json(box.runAs(`queue-${route}-session`, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id, `a ${route} agent's next is the queue's ${route} item`);
   }
-  const queueWithoutHint = box.run(box.repo, 'queue').out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
+  const queueWithoutHint = queueAnswer(box.run(box.repo, 'queue').out);
   assert.match(queueWithoutHint.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
 });
 
@@ -449,7 +462,13 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
   orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
+  // From QUEUE_PREEMPT_ENGINE main-red evidence is an emergency that leads even an explicit rank (#1442), so the
+  // rework tie-break rule is proved on the engine below it and the emergency lead on the current one.
+  const pinnedEngine = board.executionEngineVersion;
+  board.executionEngineVersion = QUEUE_PREEMPT_ENGINE - 1;
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
+  if (pinnedEngine === undefined) delete board.executionEngineVersion; else board.executionEngineVersion = pinnedEngine;
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'main-red evidence leads an explicit rank once emergencies preempt');
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
@@ -634,7 +653,7 @@ test('an explicit colliding claim warns but remains available to the builder [N2
   const busy = box.seat('collision-busy', 'web', 'collision-busy-session');
   const manual = box.seat('collision-manual', 'web', 'collision-manual-session');
   /** A real coordinator-created brief in the private project's permitted web lane. */
-  const add = title => box.json(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+  const add = title => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
     '--brief', 'Files: web/shared.js\nTest: an explicit choice names its overlap', '--json')).item.item_id;
   const a = add('A holds the shared file');
   const b = add('B is an explicit override');
@@ -707,7 +726,7 @@ test("a claimed item whose files grow into another claimed item's files names th
   const left = box.seat('growth-left', 'web', 'growth-left-session');
   const right = box.seat('growth-right', 'web', 'growth-right-session');
   /** Create ordinary coordinator briefs in the private project's permitted lane. */
-  const add = (title, file) => box.json(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+  const add = (title, file) => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
     '--brief', `Files: ${file}\nTest: growing work names its newly shared file`, '--json')).item.item_id;
   const a = add('A already holds x', 'web/x.js');
   const b = add('B initially holds only y', 'web/y.js');
@@ -852,14 +871,16 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
   setting('wipPerReviewer', 1.5);
   const offer = store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 });
   assert.equal(offer?.item.item_id, waiting[0], 'recorded capacity replaces the legacy ratio when reviews pile up');
-  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE }),
+  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE, lineCapacity: true }),
     error => error.code === 'LINE_WIP_LIMIT' && error.message.includes(`#${waiting[0]}`),
     'a new claim over the limit names the oldest eligible waiting review');
   const foreign = store.register(board, { lane: 'core', path: join(root, 'takeover'), route: 'strong', parent: 'takeover-T', session: 'takeover-child' });
   const returned = store.getItem(board, waiting[0]);
-  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    clause: returned.item_title, note: 'Synthetic lifecycle refusal; no gate execution claimed.', head: returned.item_commit,
-    digest: returned.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 60 });
+  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'ACCEPT', reason: 'CRITERION_MET',
+    clause: returned.item_title, note: 'Synthetic accepted lifecycle record; no gate execution claimed.', head: returned.item_commit,
+    digest: returned.item_frozen_digest, policy: 'any' });
+  store.reopen(board, returned.item_id, { agentId: 'coordinator', conflict: { files: ['src/board.js'], trunk: 'b'.repeat(40) },
+    note: 'Synthetic main-merge conflict lifecycle record; no merge is claimed.', reopenFirstRefusalMinutes: 60 });
   setting('wipPerReviewer', false);
   setting('takeoverMinutes', 15);
   const historyBefore = store.events(board, { itemId: returned.item_id });
@@ -1032,4 +1053,44 @@ test('blocked release --on records and coordinator edit --after none clears the 
   box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
   box.json(box.run(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json'));
   box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+});
+
+
+test('next does not hand out an item whose functions overlap work in progress [N2,N20,C7]', t => {
+  const helpers = createE2eHelpers(), box = helpers.sandbox();
+  const root = join(box.dir, 'function-queue');
+  for (const dir of ['src', 'bin', 'test', 'packages', 'apps']) mkdirSync(join(root, dir), { recursive: true });
+  writeFileSync(join(root, 'src/shared.js'), 'export function alpha() { return 1; }\nexport function beta() { return 2; }\nexport function gamma() { return alpha(); }\n');
+  writeFileSync(join(root, 'test/shared.test.js'), "import '../src/shared.js';\n");
+  writeFileSync(join(root, 'bin/record-args.js'), "require('node:fs').writeFileSync('ran.json', JSON.stringify(process.argv.slice(2)));\n");
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', 'src', 'bin', 'test');
+  box.git(root, 'commit', '-qm', 'seed function map');
+  refreshCodeMap(root, box.git(root, 'rev-parse', 'HEAD').trim());
+  const board = openBoard(join(root, 'board.sqlite'), undefined, { gitRoot: root });
+  t.after(() => { store.closeBoard(board); helpers.cleanup(); });
+  store.register(board, { lane: 'coordinator', path: root });
+  const busy = store.register(board, { lane: 'core', path: join(root, 'busy'), route: 'strong' });
+  const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong' });
+  const add = title => store.addItem(board, { by: 'coordinator', lane: 'core', title, brief: 'Files: src/shared.js' });
+  const active = add('Change alpha()');
+  store.claim(board, active, { agentId: busy, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const conflict = add('Improve alpha()');
+  const independent = add('Improve beta()');
+  const picked = store.nextFor(board, { agentId: builder, lane: 'core' });
+  assert.equal(picked.item.item_id, independent, 'the same function waits, but a distinct function in the same file may proceed');
+  assert.ok(picked.reasons.some(reason => reason.includes(`#${conflict}`) && reason.includes('alpha')));
+  store.claim(board, independent, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const third = store.register(board, { lane: 'core', path: join(root, 'third'), route: 'strong' });
+  const adjacent = add('Improve gamma()');
+  const next = store.nextFor(board, { agentId: third, lane: 'core' });
+  assert.equal(next.item.item_id, adjacent);
+  assert.ok(next.reasons.some(reason => reason.includes('call-adjacent') && reason.includes('test/shared.test.js')));
+  assert.deepEqual(next.crossRunTests, ['test/shared.test.js']);
+  const main = box.git(root, 'rev-parse', 'HEAD').trim();
+  const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node bin/record-args.js', submitGate: 'landing', submitInvariants: [], registryGuards: [] },
+    { base: main, trunk: main, changed: [], check: null, crossRunTests: next.crossRunTests });
+  const run = spawnSync('/bin/sh', ['-c', plan.proofCommand], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.ok(JSON.parse(readFileSync(join(root, 'ran.json'), 'utf8')).includes('./test/shared.test.js'), 'the selected cross-run test actually reaches the proof command');
 });

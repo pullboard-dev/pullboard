@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
 import { rebuildProofCounters } from '../packages/verify/index.js';
 import { ensureRigorCounters } from '../packages/rigor/index.js';
@@ -17,7 +17,7 @@ import { RIGOR_TAIL_LIMIT } from '../packages/rigor/index.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../src/board-rigor-source.js';
 import { parseSpec } from '../packages/spec/index.js';
-import { coordinatorDecisionSections } from '../src/cli.js';
+import { coordinatorDecisionSections } from '../apps/cli/index.js';
 import { agentParent } from '../packages/store/index.js';
 
 const PREFIX = 'local:proof-stats:rigor:v1:';

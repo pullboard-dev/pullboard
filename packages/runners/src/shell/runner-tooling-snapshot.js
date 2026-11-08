@@ -8,14 +8,13 @@ import { runnerPackageReader } from './runner-package.js';
 import { Refused } from '../../../kernel/index.js';
 import { assertRunnerModuleParserCurrent } from './runner-module-parser.js';
 import { createHash } from 'node:crypto';
-import { importsIn } from '../../../gate/index.js';
+import { importsWithCompiler as importsIn } from '../../../kernel/index.js';
 import { createRunnerModuleParser } from './runner-module-parser.js';
+import { parseWithPaths } from './runner-module-parser.js';
 
 const readers = new WeakMap();
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
-const CONTROLLER_STEPS = ['src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js',
-  'src/runner-request.js', 'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
-  'packages/runners/index.js', 'packages/runners/src/shell/runners.js',
+const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/shell/runners.js',
   'packages/runners/src/shell/runner-source-scan.js', 'packages/runners/src/shell/runner-history-pack.js',
   'packages/runners/src/shell/runner-remote-tooling.js', 'packages/runners/src/shell/runner-request.js',
   'packages/runners/src/shell/runner-result.js', 'packages/runners/src/shell/runner-dispatch.js',
@@ -31,7 +30,7 @@ function controllerProviderReader(root, source) {
   const parser = createRunnerModuleParser();
   let entries;
   try {
-    entries = [...new Set(importsIn([source], parser.parse)[0]
+    entries = [...new Set(importsIn([source], parseWithPaths(parser.parse, [join(resolve(root), 'bin/runner-controller.js')]))[0]
       .filter(specifier => specifier.startsWith('../packages/'))
       .map(specifier => specifier.slice(3)))].sort();
   } finally { parser.close(); }

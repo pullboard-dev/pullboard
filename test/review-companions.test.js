@@ -7,8 +7,9 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require actual successful CLI execution before inspecting its document. */
 function document(result) {
@@ -34,7 +35,7 @@ test('a reviewer gets the companion-composed tree and a bare tree cannot reject 
   // @pullboard-board-file journey: reservation and verdict share this durable board
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  const id = document(box.run(box.repo, 'add', 'web', 'Work with a companion', '--criterion', 'The companion file exists.', '--specs', 'G1', '--check', `node -e "require('node:assert/strict').equal(require('node:fs').readFileSync('web/source.js','utf8').trim(),'export const source = true;')"`, '--json')).item.item_id;
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Work with a companion', '--criterion', 'The companion file exists.', '--specs', 'G1', '--check', `node -e "require('node:assert/strict').equal(require('node:fs').readFileSync('web/source.js','utf8').trim(),'export const source = true;')"`, '--json')).item.item_id;
   const builder = document(asSession(box, 'rc-builder', box.web, 'whoami')).id;
   document(asSession(box, 'rc-builder', box.web, 'claim', String(id)));
   assert.equal(helpers.commitFile(box, box.web, 'web/source.js', 'export const source = true;\n', 'feat(web): build source [G1]').status, 0);

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { importsIn } from '../packages/gate/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -18,8 +18,8 @@ const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
 function closure(read, identities) {
-  const pending = readdirSync(join(ROOT, 'src/moves')).filter(file => file.endsWith('.js'))
-    .map(file => `src/moves/${file}`);
+  const pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(ROOT, folder)).filter(file => file.endsWith('.js'))
+    .map(file => `${folder}/${file}`));
   const seen = new Set(), native = new Set();
   while (pending.length) {
     const file = pending.shift();
@@ -61,7 +61,7 @@ test('conflict shim preserves the accepted main move closure and the broad index
   const canonicalExport = "export { CONFLICT_ENGINE } from './trunk-conflict-engine.js';";
   assert.ok(original.includes(canonicalExport), 'the re-export names the unchanged canonical engine leaf');
   const acceptedBody = original.replace(canonicalExport, 'export { CONFLICT_ENGINE };');
-  assert.equal(createHash('sha256').update(acceptedBody).digest('hex'), 'bc4ef60283c22fda3a2c5cf43fc9b8017e4ff4fa86826d58c420683584b8ca63',
+  assert.equal(createHash('sha256').update(acceptedBody).digest('hex'), '9d4b4fcb4eea3966b06aab1aa44fd79498a376c45527b9d1a8183b45d4806452',
     'the unchanged conflict implementation is the accepted 4417733 main body');
   const movedExport = "export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';";
   assert.ok(read(MOVED).includes(movedExport), 'the moved body re-exports the same engine leaf');

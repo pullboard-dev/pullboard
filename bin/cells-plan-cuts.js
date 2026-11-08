@@ -11,12 +11,12 @@ import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
 import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../packages/kernel/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
@@ -29,7 +29,17 @@ export function ownerFor(plan, map) {
   }
   const entries = new Map();
   for (const entry of plan.entries ?? []) for (const file of [entry.path, mappedPath(map, entry.path)]) entries.set(file, entry.cell);
+  // An owned stay keeps its path but belongs to its owner cell, so a lower cell importing it imports that cell.
+  for (const stay of plan.stays ?? []) if (typeof stay?.owner === 'string' && !entries.has(stay.path)) entries.set(stay.path, stay.owner);
   return file => entries.get(file) ?? plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
+}
+
+/** Name each stay row whose owner is not an existing cell, or whose fields are not exactly path, reason and owner. */
+export function ownedStayProblems(plan) {
+  const names = new Set(plan.cells.map(cell => cell.name));
+  return (plan.stays ?? []).filter(stay => stay && Object.hasOwn(stay, 'owner'))
+    .filter(stay => Object.keys(stay).sort().join(',') !== 'owner,path,reason' || typeof stay.owner !== 'string' || !names.has(stay.owner))
+    .map(stay => `stay ${stay.path} names owner ${JSON.stringify(stay.owner)}, which is not a cell in the plan`);
 }
 
 /** Find a condition's matching parenthesis in lexed code, without interpreting quoted examples. */
@@ -50,7 +60,7 @@ function nodeBinding(parsed, module, name) {
 }
 
 /** Prove an own-file main guard, or a non-exporting Node script that actually awaits its program. */
-function processEntry(file, source) {
+export function processEntry(file, source) {
   const parsed = lex(source), code = parsed.code;
   if (/\b(?:const|let|var|function|class)\s+process\b/u.test(code)) return false;
   const identities = [];
@@ -110,6 +120,21 @@ export function entryPlacementProblems(root, plan, files, sharedMap = undefined)
     }
   }
   return problems;
+}
+
+/**
+ * The placement problems a merged tree adds over base main: tracked bin/ or src/ sources with no plan row, and process
+ * entries without a stays row. Why: three files landed unplaced on 6 Nov and turned every later gate red [C7].
+ * The readers are passed in because cells-plan.js imports this module.
+ */
+export function addedPlacementProblems(baseRoot, mergedRoot, { unplanned, readPlan }) {
+  const found = root => {
+    const plan = readPlan(root);
+    return [...unplanned(root, plan).map(path => ({ path, message: `${path} has no cells-plan row` })),
+      ...entryPlacementProblems(root, plan).map(message => ({ path: message.split(' ')[0], message }))];
+  };
+  const before = new Set(found(baseRoot).map(row => row.message));
+  return found(mergedRoot).filter(row => !before.has(row.message));
 }
 
 /** Results of the forwarding check by source: it is pure and the cut sweep asks it once per cell. */

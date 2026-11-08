@@ -1,7 +1,7 @@
 /** Build one pinned, credential-free runner request from the admitted source [C7]. */
 import { configFromSource } from '../../../config/index.js';
-import { runnerSource } from '../../../gate/index.js';
-import { validateRunner } from '../../../gate/index.js';
+import { runnerSource } from '../../../gate/src/core/gate-policy-load.js';
+import { validateRunner } from '../../../config/index.js';
 import { repoInfo } from '../../../../src/git.js';
 import { secretsIn } from '../../../commits/index.js';
 import { machineSettingsFile } from '../../../resources/index.js';
@@ -12,13 +12,14 @@ import { anonymousOrigin } from './runner-history-pack.js';
 import { candidateTags } from './runner-history-pack.js';
 import { originAncestor } from './runner-history-pack.js';
 import { validRunnerTrunk } from './runner-policy.js';
-import { remoteWorkerCommand } from './runner-remote-tooling.js';
+import { remoteWorkerLaunch } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { protectHistory } from './runner-source-scan.js';
 import { protectionAt } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { sourceObjects } from './runner-source-scan.js';
+import { readAnalysisArtifact } from '../../../resources/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
@@ -28,14 +29,28 @@ import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 
+/**
+ * The exact commit and tree a pinned source names, read from the repository's object store in place; null unless that
+ * commit holds exactly that tree. Why: a main comparison cloned main into a temporary repository whose cache id was new
+ * every time, so each one shipped the whole history to a cold runner cache (584 s median, #3323) [C7].
+ */
+function pinnedSource(root, source) {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '') || typeof source.tree !== 'string') return null;
+  try { return sourceGit(root, ['rev-parse', '--verify', `${source.commit}^{tree}`]).trim() === source.tree ? { commit: source.commit, tree: source.tree } : null; }
+  catch { return null; }
+}
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
-export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }, { privateCheckEnvelope }) {
+export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
-  const current = runnerSource(root);
+  // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
+  // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
+  const current = source?.pinned === true ? pinnedSource(root, source) : runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
     throw new Refused('RUNNER_SOURCE_CHANGED', 'the queued source changed; restore the committed tree and retry the run');
   }
   const trustedMode = privateCheck ? privateCheckEnvelope(privateCheck) : null;
+  const artifact = analysisArtifact === undefined ? null : readAnalysisArtifact(analysisArtifact, trustedMode?.sha256);
   let selected = current;
   if (!trustedMode && metadata.trunk !== undefined) {
     if (!validRunnerTrunk(metadata.trunk, current.commit)) throw new Refused('NO_POLICY', 'the admitted runner policy is invalid; rerun through the controller with its pinned coordinator policy');
@@ -64,23 +79,28 @@ export async function requestFor(root, command, { runner, source, browser = fals
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
   try {
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
-    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0';
+    // A pinned main comparison never reuses or exports results, as it did from its throwaway clone's empty store.
+    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0' && source?.pinned !== true;
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
-    const exchange = reuse ? await (await import('../../../../src/test-action-transfer.js')).prepareTestResultExchange(root, command, selected.commit) : null;
+    const exchange = reuse ? await (await import('../../../gate/index.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
-    const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).filter(entry => entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
+    // A private check or probe taken under a landing lease is never itself the landing run: the worker refuses a trusted check marked landing.
+    const landing = metadata.landing === true && !trustedMode;
+    const projection = landing && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).filter(entry => entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
       && !/[\\\r\n\0]/u.test(entry.file) && entry.file.split('/').every(part => part && part !== '.' && part !== '..'))
       .map(({ kind, test, file }) => ({ kind, test, ...(kind === 'case' ? { file } : {}) })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
-    const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
+    const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : landing ? 'land' : 'focused';
     const id = randomUUID();
     const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+      ...(runner.publicKey ? { runnerPublicKey: runner.publicKey } : {}),
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
+      ...(artifact ? { analysisArtifact: artifact.descriptor } : {}),
       ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
-      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
+      browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing, auditCoverage: metadata.auditCoverage === true,
       ...(typeof metadata.timingRunId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(metadata.timingRunId) ? { timingRunId: metadata.timingRunId } : {}),
-      ...(metadata.landing === true && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
+      ...(landing && metadata.timeoutMs ? { timeoutMs: metadata.timeoutMs } : {}),
       // The classification this controller used, so the runner never reclassifies by its own settings (#1043).
       browserByLaunch: byLaunch ?? carriedBrowserByLaunch() ?? readMachineSettingsFile(machineSettingsFile())?.gate?.browserByLaunch === true,
       ...(stages ? { stageMarker: `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}` } : {}), waivers: projection,
@@ -98,11 +118,11 @@ export async function requestFor(root, command, { runner, source, browser = fals
       encodedSpec = Buffer.from(JSON.stringify(spec));
     }
     if (encodedSpec.length > 1024 ** 2) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling request exceeds its safe transfer limit; keep this run local');
-    const remote = remoteWorkerCommand(runner, worker, tooling, runtime, '', spec.recovery);
+    const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime, '', spec.recovery);
     // These are transport hang ceilings, independent of the command's execution budget.
     return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
-      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec]), env: sshEnvironment(),
+      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([capsule, Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

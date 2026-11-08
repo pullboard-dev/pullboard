@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from '../test/e2e-helpers.js';
 import { runFixtureChild } from '../test/fixture-child.js';
 
@@ -39,10 +39,13 @@ test('the hand-off guide matches the board [B3,N19]', () => {
     command(box, box.web, 'shout', 'coordinator', 'Integrating the accepted page.',
       '--evidence', 'attempt', '--outcome', 'integrating', '--item', String(id), '--commit', accepted);
 
+    // Decisions go upward only from the lane lead, so the coordinator names the web seat lead first [B3,N19].
+    const lead = JSON.parse(command(box, box.web, 'join', 'web', '--json')).agent;
+    command(box, box.repo, 'lanes', 'lead', 'web', lead);
     const ask = JSON.parse(command(box, box.web, 'shout', 'coordinator',
-      'Which page should follow?', '--decision', '--json')).id;
+      'Which page should follow?', '--decision', '--kind', 'decision', '--json')).id;
     const answered = JSON.parse(command(box, box.web, 'shout', 'coordinator',
-      'May the checked page proceed?', '--decision', '--json')).id;
+      'May the checked page proceed?', '--decision', '--kind', 'decision', '--json')).id;
     command(box, box.repo, 'answer', String(answered), 'Proceed with the checked page.');
     const person = JSON.parse(command(box, box.repo, 'shout', 'person',
       'Should the release wait for another page?', '--decision', '--json')).id;

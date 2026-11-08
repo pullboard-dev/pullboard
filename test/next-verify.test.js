@@ -8,11 +8,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
@@ -82,8 +83,9 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(early.code, 1, 'nothing is reserved, so the command still exits 1');
   const said = early.stdout + early.stderr;
   assert.match(said, new RegExp(`nothing to review yet; the builder is still working on #${id}`, 'u'));
-  assert.match(said, /pullboard watch/u, 'the next step names pullboard watch');
-  assert.match(said, /check back: pullboard next --verify/u, 'or check back with the same command');
+  // Since 4657576b18 (#2777) next steps never suggest a wait: the step is the same command, not pullboard watch.
+  assert.match(said, /next: check pullboard next --verify for a ready review/u, 'the next step checks back with the same command');
+  assert.doesNotMatch(said, /pullboard watch/u, 'the next step suggests no wait');
   assert.doesNotMatch(said, /NOTHING_FREE/u, 'no NOTHING_FREE when work is in progress');
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'nothing is reserved');
 
@@ -113,7 +115,7 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   const initialized = box.run(box.repo, 'init', '--verbose');
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
   assert.equal(initialized.code, 0, initialized.err);
-  const added = box.run(box.repo, 'add', 'web', 'Ready for review', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Ready for review', '--specs', 'G1',
     '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
@@ -136,7 +138,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(startup, /--family "<vendor family>"/u);
   const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
   const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
-    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture' }, encoding: 'utf8' });
+    // The fixture model name maps to no tier, so join would default to mid; item #1 needs a strong verifier [V4].
+    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' }, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);
   assert.match(independent.stdout, /next to verify: #1 Ready for review/u,
     'the printed line reserves the submitted item from the new independent fixture session');
@@ -199,4 +202,23 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   const reservations = store.events(box.board).filter(event => event.event_kind === 'reserve' && event.item_id === id);
   assert.equal(reservations.length, 1, 'atomic reselection lets exactly one competing reviewer reserve');
   assert.ok(store.getItem(box.board, id).item_review_by);
+});
+
+/** Clause 1 of #3206: two idle next --verify polls open zero write-capable board connections. */
+test('clause 1: two idle next --verify polls with nothing to review open zero board write connections [V15,C7]', async t => {
+  const box = await project(t);
+  claimed(box);
+  await run(box, box.reviewer, ['next', '--verify']);
+  let writers = 0;
+  /** Count write-capable native connections while every production guard stays active. */
+  const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
+    writers++;
+    return native.openBoard(...args);
+  } });
+  /** Poll through the actual native CLI. */
+  const poll = () => main(['next', '--verify'], { cwd: box.reviewer, clock: box.clock, loadNativeBoard,
+    stdout: { isTTY: false, write() {} }, stderr: { write() {} } });
+  await poll();
+  await poll();
+  assert.equal(writers, 0, 'idle polls open no write connection');
 });

@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
@@ -24,11 +24,13 @@ import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../packages/state/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { newRigorNotices, undraftedRigor } from '../packages/rigor/index.js';
+import { runCheckAt } from '../packages/rigor/index.js';
 import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { unpackRelease } from './release-archive.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL', 'SSH_CONNECTION', 'SSH_TTY'];
@@ -265,7 +267,7 @@ test('a lane draft made while a Rigor proof runs still keeps its id [D1,S1,B26]'
   historyBox.close();
   const lane = join(box.dir, 'lane');
   box.git('worktree', 'add', '-q', lane, '-b', 'app/rows');
-  const joined = runFixtureChild(process.execPath, [BIN, 'join', 'app', '--model', 'Lane model'], { cwd: lane, env: box.env, encoding: 'utf8' });
+  const joined = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'app', '--model', 'Lane model'], { cwd: lane, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   // The proof's own check drafts from the lane the first time it runs, so the draft lands mid-proof.
   const result = join(box.dir, 'mid-proof-draft.json');
@@ -364,8 +366,8 @@ test('a repeated failure cause is noticed [D1,V1]', () => {
   const uncausedItem = board.add('Uncaused');
   board.submit(uncausedItem); board.reject(uncausedItem, undefined, `${catalog.slice('test:'.length).replace('::', ': ')} failed`);
   // Merge conflicts on two items never list, however often they recur.
-  board.submit(conflictA); board.landReopen(conflictA, { file: 'src/help.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
-  board.submit(conflictB); board.landReopen(conflictB, { file: 'src/help.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
+  board.submit(conflictA); board.landReopen(conflictA, { file: 'src/sample-conflict.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
+  board.submit(conflictB); board.landReopen(conflictB, { file: 'src/sample-conflict.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
   board.close();
 
   const repeated = json(box, 'rigor');
@@ -680,7 +682,6 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
 
 
 test('a timed-out proof drains only its captured process group before removing its worktree [D1,D3,S1]', async () => {
-  const { runCheckAt } = await import('../packages/rigor/index.js');
   const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
   const box = freshBoard();
   const helper = join(box.repo, 'hold-proof.mjs');

@@ -1,4 +1,4 @@
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { installSshStandIn, HOST } from './runner-ssh-fixture.js';
@@ -8,9 +8,12 @@ import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const CASES = `import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,7 +69,7 @@ function fixture(t, { missingRunner = false } = {}) {
   box.git(box.repo, 'commit', '-qm', 'chore: comparison base [G1]');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(id, 1);
@@ -171,9 +174,31 @@ test('a green submission records its background comparison without a reviewer co
   assert.ok(comparison.head.id && comparison.base.id);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  const joined = box.run(reviewer, 'join', 'api', '--model', 'Comparison reviewer', '--json');
+  const joined = fixtureJoin(box.run, reviewer, 'api', '--model', 'Comparison reviewer', '--json');
   assert.equal(joined.code, 0, joined.err);
   const offered = box.run(reviewer, 'next', '--verify', '--json');
   assert.equal(offered.code, 0, offered.err);
   assert.equal(JSON.parse(offered.out).comparison.status, 'complete');
+});
+
+
+test('an empty configured runner pool records an unavailable comparison without dispatch [C7,V4]', async t => {
+  const box = fixture(t);
+  writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
+  const head = submit(box);
+  const removed = box.run(box.repo, 'runner', 'remove', HOST, '--json');
+  assert.equal(removed.code, 0, removed.out + removed.err);
+  const requests = join(box.dir, 'requests');
+  const before = existsSync(requests) ? readFileSync(requests, 'utf8') : '';
+  const result = await runFixtureChildAsync(process.execPath,
+    [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  const comparison = JSON.parse(result.stdout);
+  assert.equal(comparison.status, 'unavailable');
+  assert.equal(comparison.source, head);
+  assert.match(comparison.error, /no configured runner/u);
+  const shown = box.run(box.repo, 'show', String(box.id), '--json');
+  assert.equal(shown.code, 0, shown.err);
+  assert.equal(JSON.parse(shown.out).comparison.status, 'unavailable', 'the ordinary diagnostic records its unavailable fact');
+  assert.equal(existsSync(requests) ? readFileSync(requests, 'utf8') : '', before, 'no worker dispatch was attempted');
 });

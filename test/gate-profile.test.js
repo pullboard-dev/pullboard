@@ -9,9 +9,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { listResources } from '../packages/resources/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
@@ -22,7 +24,31 @@ const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. |
 const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
-after(() => { for (const dir of TEMP) rmSync(dir, { recursive: true, force: true }); });
+// budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
+const CLEANUP_CEILING_MS = 15_000;
+
+/**
+ * Remove every fixture directory, retrying while a detached submit hand-off worker finishes its last writes.
+ * rmSync's own maxRetries backs off linearly (100 retries at 300 ms blocked far past the 30 s file-exit
+ * ceiling and the gate killed the file), so each attempt is short and the whole loop is bounded; a tree a
+ * worker still holds at the ceiling stays in the run's temporary root and is named on stderr.
+ */
+after(() => {
+  const deadline = Date.now() + CLEANUP_CEILING_MS;
+  for (const dir of TEMP) {
+    for (;;) {
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        break;
+      } catch (error) {
+        if (error.code !== 'ENOTEMPTY' && error.code !== 'EBUSY') throw error;
+        if (Date.now() < deadline) continue;
+        process.stderr.write(`gate-profile cleanup left ${dir}: ${error.code} at ${error.path ?? dir} after ${CLEANUP_CEILING_MS} ms\n`);
+        break;
+      }
+    }
+  }
+});
 
 /** Create an isolated CLI sandbox and real local Git helpers. */
 function sandbox() {
@@ -63,12 +89,24 @@ function gateRepo(box, gate) {
   const repo = join(box.dir, 'gate-repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate }));
+  const initialized = box.run(repo, 'init');
+  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  installPrivatePullboardPath(box);
+  mkdirSync(join(repo, 'work'));
+  writeFileSync(join(repo, 'work/owner.txt'), 'coordinator lane fixture\n');
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, spec: 'SPEC.md', verify: 'any', lanes: { work: { owns: ['work/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
-  assert.equal(box.run(repo, 'add', 'coordinator', 'Work').status, 0);
-  assert.equal(box.run(repo, 'claim', '1').status, 0);
+  const added = fixtureAdd(box.run, repo, 'work', 'Work');
+  assert.equal(added.status, 0, added.stderr || added.stdout);
+  const lane = join(box.dir, 'work-1');
+  box.git(repo, 'worktree', 'add', '-q', lane, '-b', 'work/one');
+  const laneJoin = joinFixtureSeat(box, lane, 'work');
+  assert.equal(laneJoin.code, 0, laneJoin.err || laneJoin.out);
+  assert.equal(JSON.parse(laneJoin.out).agent, 'work-1');
+  const claimed = box.run(lane, 'claim', '1');
+  assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
   return { repo, ...box };
 }
 
@@ -85,7 +123,9 @@ function project(box = sandbox()) {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up profile project');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').stdout, /joined as web-1/);
+  const webJoin = joinFixtureSeat(box, web, 'web');
+  assert.equal(webJoin.code, 0, webJoin.err || webJoin.out);
+  assert.equal(JSON.parse(webJoin.out).agent, 'web-1');
   return { ...box, repo, web };
 }
 
@@ -124,7 +164,8 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   writeFileSync(join(fixture.repo, 'timed/slow.test.js'), `import { test } from 'node:test'; test(${JSON.stringify(slowName)}, async () => new Promise(resolve => setTimeout(resolve, 150)));\n`);
   writeFileSync(join(fixture.repo, 'timed/fail.test.js'), "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('failing timing profile sample', () => assert.equal(1, 2));\n");
   box.git(fixture.repo, 'add', 'timed');
-  box.git(fixture.repo, 'commit', '-q', '-m', 'test: add timing profile fixtures');
+  // The slow fixture's name carries FAKE_SECRET on purpose; the pre-commit secret scan would refuse this synthetic commit, so it skips that hook as the submit-profile case does.
+  box.git(fixture.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: add timing profile fixtures');
   const runner = `'${RUNNER.replaceAll("'", "'\\''")}'`;
   const command = `node ${runner} timed/fast.test.js && node ${runner} timed/slow.test.js`;
   writeFileSync(join(fixture.repo, 'pullboard.json'), JSON.stringify({ gate: command }));
@@ -190,7 +231,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.ok(queued, 'the gate joined the real private machine queue');
   const elapsedMs = Date.now() - started;
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /timing \(node\): wall/);
+  assert.match(result.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const profilePath = /timing profile: ([^\n]+)/.exec(result.stdout)?.[1];
   assert.ok(profilePath, result.stdout);
   assert.ok(profilePath.endsWith('pullboard-gate.log.profile.json'), 'the full gate profile is paired with its canonical raw log');
@@ -224,6 +265,11 @@ test('a timing profile records two runner invocations and the real gate-slot wai
 
 test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', () => {
   const box = project();
+  const projectConfig = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...projectConfig, verify: { policy: 'any', unrelatedTrunkMoves: false } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: preserve unaffected profile review');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const runner = `'${RUNNER.replaceAll("'", "'\\''")}'`;
   const command = `node ${runner} .timed/fast.test.js .timed/slow.test.js`;
   mkdirSync(join(box.repo, '.timed'));
@@ -233,8 +279,9 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   writeFileSync(join(box.repo, '.timed/middle-output.mjs'), "import {spawnSync} from 'node:child_process'; const noise=['-e',\"process.stdout.write(('harmless padding '.repeat(30)+'\\\\n').repeat(10000))\"]; spawnSync(process.execPath,noise,{stdio:'inherit'}); const child=spawnSync(process.execPath,['--test-reporter=tap','.timed/middle.test.mjs'],{stdio:'inherit'}); spawnSync(process.execPath,noise,{stdio:'inherit'}); process.exitCode=child.status;\n");
   box.git(box.repo, 'add', '.timed');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
+  box.env.CODEX_THREAD_ID = 'profile-builder-session';
   assert.equal(box.run(box.web, 'claim', '1').status, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
@@ -242,7 +289,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   const direct = box.run(box.web, 'check', '--yes');
   assert.equal(direct.status, 0, direct.stderr);
-  assert.match(direct.stdout, /timing \(node\): wall/);
+  assert.match(direct.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const directPath = /timing profile: ([^\n]+)/.exec(direct.stdout)?.[1];
   assert.ok(directPath, direct.stdout);
   assert.equal(statSync(directPath).mode & 0o777, 0o600);
@@ -251,13 +298,28 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.ok(directProfile.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
   assert.ok(existsSync(directPath.slice(0, -'.profile.json'.length) + '.log'));
 
-  assert.equal(box.run(box.web, 'submit', '1').status, 0);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.status, 0, submitted.stderr || submitted.stdout);
+  const submission = JSON.parse(submitted.stdout);
+  assert.ok(submission.gate.check.profilePath && submission.gate.proofProfilePath, 'native submit retains both authentic phase profiles');
+  for (const profilePath of [submission.gate.check.profilePath, submission.gate.proofProfilePath, submission.gate.profilePath]) {
+    assert.ok(profilePath && existsSync(profilePath), `submit profile is retained: ${profilePath}`);
+    assert.equal(statSync(profilePath).mode & 0o777, 0o600);
+    assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)), 'the corresponding sanitized raw log remains beside its profile');
+  }
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs/review-context.md'), 'unrelated main context\n');
+  box.git(box.repo, 'add', 'docs/review-context.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance unrelated review context');
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
+  box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
+  const reviewJoin = joinFixtureSeat(box, review, 'api');
+  assert.equal(reviewJoin.code, 0, reviewJoin.err || reviewJoin.out);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
-  assert.equal(accepted.status, 0, accepted.stderr);
-  assert.match(accepted.stdout, /timing \(node\): wall/);
+  assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
+  assert.match(accepted.stdout, /submit proof not reused:/u, 'main advancement creates a new accepted composition and executes its check');
+  assert.match(accepted.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
   assert.ok(verifyPath.endsWith('.log.profile.json'), accepted.stdout);
@@ -265,10 +327,22 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(statSync(verifyPath.slice(0, -'.profile.json'.length)).mode & 0o777, 0o600);
   const verified = JSON.parse(readFileSync(verifyPath, 'utf8'));
   assert.ok(verified.waitMs >= 0 && verified.wallMs > 0);
+  const reviewBoard = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let checkedHead;
+  try {
+    checkedHead = store.verdictsFor(reviewBoard, 1).at(-1)?.review?.head;
+  } finally { store.closeBoard(reviewBoard); }
+  assert.ok(checkedHead, 'the sealed fresh ACCEPT review names its actual checked composition');
+  assert.notEqual(checkedHead, commit, 'unrelated main advancement produced a new composed commit');
+  assert.equal(box.git(review, 'show', `${checkedHead}:docs/review-context.md`).trim(), 'unrelated main context',
+    'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
+  box.env.CODEX_THREAD_ID = 'profile-builder-session';
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
 
-  assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
+  const shellAdded = fixtureAdd(box.run, box.repo, 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true');
+  assert.equal(shellAdded.status, 0, shellAdded.stderr || shellAdded.stdout);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
   const shellCheck = box.run(box.web, 'check', '2', '--yes');
   assert.equal(shellCheck.status, 0, shellCheck.stderr);
@@ -285,12 +359,33 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   writeFileSync(join(box.web, 'web/shell-only.txt'), 'shell only');
   const shellCommit = featureCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '2').status, 0);
-
+  const shellSubmitted = box.run(box.web, 'submit', '2', '--json');
+  assert.equal(shellSubmitted.status, 0, shellSubmitted.stderr || shellSubmitted.stdout);
+  const shellSubmission = JSON.parse(shellSubmitted.stdout);
+  assert.ok(shellSubmission.gate.check.profilePath && shellSubmission.gate.proofProfilePath, 'shell submit retains the two authentic execution profiles');
+  for (const profilePath of [shellSubmission.gate.check.profilePath, shellSubmission.gate.proofProfilePath, shellSubmission.gate.profilePath]) {
+    assert.ok(profilePath && existsSync(profilePath), `submit profile is retained: ${profilePath}`);
+    assert.equal(statSync(profilePath).mode & 0o777, 0o600);
+    assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)));
+  }
+  const shellReviewer = join(box.dir, 'shell-timing-profile-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', shellReviewer, shellCommit);
+  box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
+  const reviewerJoin = joinFixtureSeat(box, shellReviewer, 'api');
+  assert.equal(reviewerJoin.code, 0, reviewerJoin.err || reviewerJoin.out);
+  const shellAccepted = box.run(shellReviewer, 'verify', '2', 'accept', '--note', 'reuse the authentic submit profile');
+  assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
+  assert.match(shellAccepted.stdout, /reused submit proof/u);
+  assert.doesNotMatch(shellAccepted.stdout, /timing profile:/u, 'reuse does not invent a verifier profile for work it did not run');
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
-  try { item = store.getItem(board, 2); }
-  finally { store.closeBoard(board); }
+  try {
+    item = store.getItem(board, 2);
+    const nativeProofIds = new Set(store.proofReceipts(board, 2).map(receipt => receipt.id));
+    const reusedIds = /reused submit proof ([a-f0-9-]{36}(?:, [a-f0-9-]{36})*)/u.exec(shellAccepted.stdout)?.[1].split(', ') ?? [];
+    assert.ok(reusedIds.length > 0, 'the exact-source ACCEPT cites native submit proof ids');
+    for (const receiptId of reusedIds) assert.ok(nativeProofIds.has(receiptId), `reused verdict cites actual board receipt ${receiptId}`);
+  } finally { store.closeBoard(board); }
   const frozen = JSON.parse(item.item_frozen);
   const shellVerify = checkAtCommit(box.repo, { ...item, item_commit: shellCommit, item_frozen: JSON.stringify({ ...frozen, check: 'true' }) }, { waitMs: 17 });
   assert.equal(shellVerify.state, 'pass');
@@ -458,7 +553,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const trace = join(box.dir, `${scenario.name.replaceAll(' ', '-')}.trace`);
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
     const checkCommand = 'node bin/run-tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
     const gateCommand = 'node bin/run-tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
@@ -499,8 +594,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     box.git(box.repo, 'add', '-A');
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
-    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
+    box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+    const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
     assert.equal(box.run(box.web, 'claim', '1').status, 0);

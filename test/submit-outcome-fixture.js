@@ -1,5 +1,5 @@
 /** Private real-CLI/Git fixtures retain source and receipt guards for remote outcome tests [V4,B3,H16]. */
-import '../src/cli.js'; // This test invokes the real CLI through its public executable.
+import '../apps/cli/index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
+import { createFixtureWorktree, fileFixtureItem } from './testkit-fixture.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
@@ -26,7 +27,7 @@ function put(root, file, text) {
 
 /** Run the actual command with isolated identity and machine settings. */
 function cli(box, root, ...args) {
-  return runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
+  return runFixtureChild(process.execPath, [BIN, ...args, ...(args.includes('--json') ? [] : ['--json'])], { cwd: root, env: box.env, encoding: 'utf8' });
 }
 
 /** Commit fixture changes normally, retaining its real Git history. */
@@ -80,13 +81,12 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
   ].join('\n') + '\n');
   beforeMain?.(box);
   box.main = commit(box, root);
-  result = cli(box, root, 'add', 'core', 'Unrelated change', '--specs', 'G1', '--route', 'mid',
-    '--criterion', 'The unrelated change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: inherited failure accounting');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  box.item = JSON.parse(result.stdout).item.item_id;
-  result = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  box.builder = JSON.parse(result.stdout).path;
+  box.item = fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
+    check, route: 'mid', brief: 'Files: change.txt, test/\nTest: inherited failure accounting', args: ['--specs', 'G1'],
+    run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
+  result = createFixtureWorktree(box, root, 'core', { route: 'mid', run: (cwd, ...args) => cli(box, cwd, ...args) });
+  assert.equal(result.code, 0, result.out + result.err);
+  box.builder = JSON.parse(result.out).path;
   result = cli(box, box.builder, 'claim', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(box.builder, 'change.txt', 'Unrelated change.\n');
@@ -98,11 +98,9 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
 
 /** File a still-open repair with the exact failing test in its declared check. */
 function fileMainRed(box) {
-  const result = cli(box, box.root, 'add', 'core', 'Main red: inherited assertion needs repair', '--specs', 'G1',
-    '--criterion', 'The inherited assertion passes on main.', '--check', 'node test/runner.js test/inherited.test.js',
-    '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  return JSON.parse(result.stdout).item.item_id;
+  return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
+    criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
+    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */

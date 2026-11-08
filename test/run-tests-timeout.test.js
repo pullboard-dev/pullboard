@@ -131,14 +131,18 @@ test('idle target [C7,V10]', async () => {
   assert.doesNotMatch(output, /whole-file wall limit|per-test timeout/u);
 });
 
-test('a busy file reaches its per-file wall limit and its sibling still passes [C7,V10]', t => {
+// A case inside its own per-test budget keeps that budget past the file wall (#2827), so the wall bounds a busy
+// file outside any case: a spin in file setup, before a test starts, never waits on a 60-second case budget.
+test('clause 1: a busy file reaches its per-file wall limit and its sibling still passes [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
-test('busy target [C7,V10]', () => { while (true) {} });
+const until = Date.now() + 30000;
+while (Date.now() < until) {}
+test('busy target [C7,V10]', () => {});
 `, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '250', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000',
     PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'stalled.test.js': 1500 }) });
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "busy target \[C7,V10\]"/gu) ?? []).length, 1, output);
+  assert.equal((output.match(/TIMEOUT file .*stalled\.test\.js.*slowest running case "<file setup or cleanup>"/gu) ?? []).length, 1, output);
   assert.match(output, /whole-file wall limit 1500ms/u);
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
 });

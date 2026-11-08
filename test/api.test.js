@@ -1,8 +1,8 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
@@ -26,16 +26,16 @@ import { createServer } from 'node:http';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { main, main as nativeTestMain } from './native-cli-fixture.js';
-import { resultCommands } from '../src/cli.js';
+import { resultCommands } from '../apps/cli/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { serveApi } from '../packages/api/index.js';
 import * as apiExports from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { projectState } from '../src/cli/view-state.js';
-import { serveView } from '../src/commands/view.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
@@ -48,6 +48,7 @@ import {
   shellWord,
   timedMs,
 } from './api-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -500,8 +501,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.deepEqual(readFileSync(dbFile), before, 'the removed environment override cannot migrate the shared board');
   const relayProbe = join(linked, '.schema-relay-probe.mjs');
   writeFileSync(relayProbe, `
-    import { localRecords } from './src/relay.js';
-    import { openBoard } from './src/native-board.js';
+    import { localRecords } from './packages/link/index.js';
+    import { openBoard } from './apps/lib/index.js';
     try {
       localRecords(openBoard, process.env.PULLBOARD_FIXTURE_REPO, (board) => board.db.prepare('PRAGMA user_version').get());
       console.log(JSON.stringify({ code: 'UNEXPECTED_OPEN' }));
@@ -524,8 +525,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js'; import { viewApiPorts } from './src/view-api-ports.js'; import { refusalDocument } from './src/next-step-words.js';
-    import { openBoard, openBoardForRead } from './src/native-board.js';
+    import { serveApi } from './src/api.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
@@ -578,7 +579,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const mutationProbe = join(unguarded, '.schema-mutation-probe.mjs');
   writeFileSync(mutationProbe, `
     import { closeBoard } from './src/board.js';
-    import { openBoard } from './src/native-board.js';
+    import { openBoard } from './apps/lib/index.js';
     const board = openBoard(process.env.PULLBOARD_FIXTURE_BOARD, undefined, { isMain: false });
     closeBoard(board);
   `);
@@ -1040,7 +1041,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = box.run(app, 'join', 'app', '--model', 'fixture-agent');
+    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1127,7 +1128,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   const box = project();
   const app = join(box.dir, 'app-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-  assert.equal(box.run(app, 'join', 'app').status, 0);
+  assert.equal(fixtureJoin(box.run, app, 'app').status, 0);
   const api = await startApi(t, box);
   const boards = await (await apiFetch(api, '/api/v1/boards')).json();
   const board = boards.boards.find((candidate) => candidate.root === box.repo);

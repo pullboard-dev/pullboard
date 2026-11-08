@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { viewApiPorts } from '../src/view-api-ports.js';
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+import { viewApiPorts } from '../apps/view/index.js';
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -36,7 +36,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 0\n', 'feat(web): baseline [G1]').status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const { check, readCheckedHeads } = staleVerdictCheckFixture(box.dir);
-  run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--check', check, '--wait');
+  run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--route', 'strong', '--check', check, '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
@@ -148,7 +148,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     syncBuiltinESMExports();
     phoneStale = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   } finally { childProcess.spawnSync = originalSpawn; syncBuiltinESMExports(); }
-  assert.ok(coldGit.filter(args => args.includes('diff')).length <= 1,
+  assert.ok(coldGit.filter(args => args.includes('diff')).length <= 2, // one candidate commit's file list plus the landed-change check c33ce2e1f5 added; never one per commit
     'unrelated main history must not start one file-diff process per commit: ' + JSON.stringify(coldGit));
   const phoneState = snapshotState(phoneStale, withBoard(box.repo, store.boardId));
   assert.equal(phoneState.items[0].verdictState?.commit, movingCommit, 'the sealed phone snapshot carries the same stale verdict at fixed served HEAD');
@@ -180,9 +180,12 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     assert.equal(error.code, 'STALE_VERDICT');
     assert.ok(error.message.includes('web/feature.js') && error.message.includes(movingCommit), error.message);
   }
-  box.git(box.repo, 'revert', '-m', '1', '--no-edit', movingCommit);
+  // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
+  box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
+  box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): move main caller again [G1]');
   syncTrunk();
-  assert.ok(items().every(item => item.item_verdict_state?.commit === movingCommit), 'a revert cannot turn an old review into a new review');
+  assert.ok(items().every(item => item.item_verdict_state?.code === 'STALE_VERDICT'), 'a later move keeps an old review stale');
   const priorChecks = readCheckedHeads();
   const oldHead = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Trying the old candidate is insufficient.');
   assert.equal(oldHead.code, 1);

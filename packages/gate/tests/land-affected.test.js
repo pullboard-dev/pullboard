@@ -9,11 +9,12 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../src/shell/affected-tests.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { json } from '../../../test/land-board-fixture.js';
 
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+after(async () => { await cleanupFixtureChildren(); e2e.cleanup(); });
 
 /** A real Node test whose imported value must keep the specified contract. */
 function valueTest(expected) {
@@ -23,14 +24,16 @@ function valueTest(expected) {
 /** Reject the actual merged importer, exercising either full fallback or the finite import subset. */
 function affectedBatch(t, { stableBadges = false, inline = false, waive = false, opaque = false } = {}) {
   // The execution and waiver assertions inspect TAP; Node 22 and 24 have different default reporters.
-  const box = e2e.project('node --test --test-reporter=tap web/*.test.js');
+  const sandbox = e2e.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
+  const box = e2e.project('node --test --test-reporter=tap web/*.test.js', sandbox);
   // A fixture CLI is a fresh process, not the outer Node test worker. Admission markers stay intact.
   delete box.env.NODE_TEST_CONTEXT;
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: inline ? (opaque ? '(node --test --test-reporter=tap web/floor.test.js)' : 'node --test --test-reporter=tap web/floor.test.js') : config.gate,
     affectedTests: 'node --test --test-reporter=tap', submitGate: 'landing',
-    submitInvariants: ['web/floor.test.js'], submitDeferAbove: 20, landing: inline ? {} : { publish: 'separate' },
+    submitInvariants: ['web/floor.test.js'], submitDeferAbove: 20, landing: inline ? { manualOverride: true } : { publish: 'separate', manualOverride: true },
     verify: { policy: 'any', unrelatedTrunkMoves: true } }, null, 2) + '\n');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -54,12 +57,14 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): update the value and its test [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  const submitted = box.run(box.web, 'submit', String(item));
+  process.stderr.write('# land-affected: submit frozen source\n');
+  const submitted = box.run(box.web, 'submit', String(item), '--wait', '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const checkLog = box.git(box.web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
   assert.match(readFileSync(resolve(box.web, checkLog), 'utf8'), /# tests 1\b/u, 'submit really executes its frozen test');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
+    process.stderr.write('# land-affected: verify frozen source\n');
     const verified = box.run(box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'private real affected-test fixture');
     assert.equal(verified.code, 0, verified.out + verified.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -68,6 +73,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   const addedTest = e2e.commitFile(box, box.repo, 'web/new-importer.test.js', valueTest(1), 'test(web): retain the original importing contract [G1]');
   assert.equal(addedTest.status, 0, addedTest.stderr);
   const main = box.git(box.repo, 'rev-parse', 'main');
+  process.stderr.write('# land-affected: check accepted main\n');
   const mainGate = box.run(box.repo, 'gate');
   assert.equal(mainGate.code, 0, mainGate.out + mainGate.err);
   assert.match(readFileSync(join(box.repo, '.git/pullboard-gate.log'), 'utf8'), inline ? /# tests 1\b/u : /# tests 3\b/u,
@@ -78,6 +84,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
     assert.match(importer.stdout, /# tests 1\b/u, 'the omitted importer really passes on main');
   }
   if (waive) assert.equal(box.run(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver').code, 0);
+  process.stderr.write('# land-affected: land candidate with late importer\n');
   const outcome = box.run(box.repo, 'land', '--json');
   assert.equal(outcome.code, 0, outcome.out + outcome.err);
   const landing = JSON.parse(outcome.out);
@@ -99,23 +106,23 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   if (stableBadges) assert.deepEqual(selection.files, ['web/new-importer.test.js', 'web/value.test.js']);
 }
 
-test('a batch that breaks an affected test is caught at landing [C7,V4]', t => {
+test('clause 1: a batch that breaks an affected test is caught at landing [C7,V4]', t => {
   affectedBatch(t);
 });
 
-test('a finite affected import subset is checked with the fixed guard floor [C7,V4]', t => {
+test('clause 1: a finite affected import subset is checked with the fixed guard floor [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true });
 });
 
-test('a custom inline gate cannot omit a batch affected importer [C7,V4]', t => {
+test('clause 1: a custom inline gate cannot omit a batch affected importer [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true });
 });
 
 
-test('a generated affected phase retains exact person waiver accounting [C7,V4]', t => {
+test('clause 1: a generated affected phase retains exact person waiver accounting [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true, waive: true });
 });
 
-test('an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', t => {
+test('clause 1: an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true, waive: true, opaque: true });
 });

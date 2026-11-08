@@ -1,16 +1,20 @@
 import { installRunnerOnlyCases } from './resources-runner-only-fixture.js';
 /** Private real-board setup for resource-admission verification checks [C7,V4]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import assert from 'node:assert/strict';
 import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Create a minimal real board whose CPU check and affected tests share the private gate pool. */
 export function checkProject(box) {
+  // This admission probe must execute its marker body rather than reuse an earlier filtered result.
+  box.env.PULLBOARD_TEST_REUSE = '0';
   const repo = box.first;
   runFixtureGit(['branch', '-M', 'main'], { cwd: repo, env: box.env });
   const initialized = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: repo, env: box.env, encoding: 'utf8' });
@@ -21,7 +25,7 @@ export function checkProject(box) {
   writeFileSync(join(repo, 'SPEC.md'), '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n');
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(repo, 'bin'), { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), repo);
+  copyFixtureRunner(resolve(import.meta.dirname, '..'), repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/unrelated.test.js'), "import { test } from 'node:test'; test('unrelated test', () => {});\n");
   runFixtureGit(['add', '-A'], { cwd: repo, env: box.env });
@@ -41,10 +45,12 @@ export function checkProject(box) {
 export function verificationProject(t, { checked = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const project = helpers.project('true');
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
+  const project = helpers.project('true', sandbox);
   const marker = join(project.dir, 'verification-check-ran');
   const check = 'printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
-  const added = project.run(project.repo, 'add', 'web', 'Private admission boundary', '--specs', 'G1',
+  const added = fixtureAdd(project.run, project.repo, 'web', 'Private admission boundary', '--specs', 'G1',
     '--criterion', 'The real frozen verification keeps its public boundary.',
     ...(checked ? ['--check', check] : []), '--wait', '--json');
   assert.equal(added.code, 0, added.err || added.out);
@@ -53,12 +59,14 @@ export function verificationProject(t, { checked = false } = {}) {
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const committed = helpers.commitFile(project, project.web, 'web/review.js', 'export const ready = true;\n', 'feat(web): admission fixture [G1]');
   assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
-  const submitted = project.run(project.web, 'submit', String(item), '--json');
+  const submitted = project.run(project.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const head = JSON.parse(submitted.out).commit;
+  project.env.CLAUDECODE = '1';
+  project.env.CLAUDE_CODE_SESSION_ID = 'resource-fixture-reviewer';
   const reviewer = join(project.dir, 'reviewer');
   project.git(project.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  const joined = project.run(reviewer, 'join', 'web');
+  const joined = fixtureJoin(project.run, reviewer, 'web');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const settings = project.run(project.repo, 'settings', 'gateSlots', '1', '--json');
   assert.equal(settings.code, 0, settings.err || settings.out);

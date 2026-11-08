@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
-import { localRunnerDescriptor } from '../src/runner-load.js';
+import { localRunnerDescriptor } from '../packages/runners/index.js';
 import { recordReceipt } from '../packages/gate/index.js';
-import * as runnerApi from '../src/runners.js';
+import * as runnerApi from '../packages/runners/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { takeResource } from '../packages/resources/index.js';
-import { readRunnerStage } from '../src/runner-stage-read.js';
+import { readRunnerStage } from '../apps/runner/index.js';
 
 /** Capture the actual CLI response while supplying a deterministic observation clock. */
 async function run(root, args, clock) {

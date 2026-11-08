@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as rawStore from '../src/board.js';
-import { openBoard, nativeBoardPorts } from '../src/native-board.js';
-import { draftSpecRow } from '../src/native-board.js';
-import { recordRowVerification } from '../src/native-board.js';
-import { decideSpecRevisions } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { draftSpecRow } from '../apps/lib/index.js';
+import { recordRowVerification } from '../apps/lib/index.js';
+import { decideSpecRevisions } from '../apps/lib/index.js';
 import * as milestones from '../src/board-milestones.js';
-import { MOVE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { publishLatestCheckpoint } from '../packages/link/index.js';
 import { checkpointPublisher } from '../packages/outbox/index.js';
 import { captureSpecApprovalBaseline } from '../packages/spec/index.js';
@@ -24,6 +24,7 @@ import { seedSourceAdvance } from './relay-parity-source-advance.js';
 import { seedNativeTrain } from './relay-parity-train.js';
 import { seedItemPatches } from './relay-parity-item-patches.js';
 import { seedSubmitHandoff } from './relay-parity-submit-handoff.js';
+import { seedSelectorGap, seedAcceptedReland } from './relay-parity-selector-reland.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 /** The fixture root supplies canonical native operations to the unchanged lower recipes. */
@@ -78,6 +79,8 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     process.stderr.write('parity phase seedNativeTrain complete\n');
     await seedSpecOutcomes(context);
     await seedCurrentOperations(context);
+    await seedSelectorGap(context);
+    await seedAcceptedReland(context);
     await seedBarSignature(context);
     await seedCoordinatorAuthority(context);
     await seedRehome(context);

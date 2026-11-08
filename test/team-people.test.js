@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
   CLI,
@@ -17,6 +17,7 @@ import {
 } from './team-scenarios.fixture.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureAddArgv } from './testkit-fixture.js';
 
 test('the board knows its people: events name them, approvers decide [E3,E4,E20]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for two people's real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
@@ -42,7 +43,7 @@ test('the board knows its people: events name them, approvers decide [E3,E4,E20]
   // One coordinator per board [E19]: bob's main checkout takes the coordinator to act, then alice takes it back.
   const bobTakes = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'takeover', '--json']);
   assert.equal(bobTakes.code, 0, `bob's main checkout takes the coordinator: ${JSON.stringify(bobTakes.document?.error ?? null)}`);
-  const bobAdd = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'add', box.lane, 'An item bob adds', '--json']);
+  const bobAdd = await relayFixtureChild(bobRoot, bobEnv, [...fixtureAddArgv(CLI), box.lane, 'An item bob adds', '--json']);
   assert.equal(bobAdd.code, 0, `bob adds an item: ${JSON.stringify(bobAdd.document?.error ?? null)}`);
   assert.equal((await box.cli('takeover')).code, 0, 'alice’s main checkout takes the coordinator back');
   const exported = (await box.cli('export')).document.tables;

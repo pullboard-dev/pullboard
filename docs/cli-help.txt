@@ -12,7 +12,7 @@ Set up
   pullboard init [--model <name>] [--blueprint <name or file>]... [--no-permissions] [--no-hooks] [--yes] [--verbose]  --no-hooks skips agent nudges; --yes commits only setup's own files with your Git identity
   pullboard worktree <lane> --model <name> [--route light] [--family <name>]   make and join a worktree for a new agent
                                         pullboard.json worktrees: inside or beside; init defaults to inside
-  pullboard join <lane> --model <name> [--route light] [--family <name>] [--parent <session-id>]  register this worktree and its parent session
+  pullboard join <lane> --model <name> [--family <name>] [--parent <session-id>]  register this worktree and its parent session
                                         A model is required (or set PULLBOARD_MODEL); family is a separate declaration
   pullboard join coordinator --model <name>                                 declare the main checkout's coordinator model
                                         pullboard.json agents.names: suffix (default) or prefix
@@ -81,6 +81,7 @@ Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+    [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -96,6 +97,7 @@ Work
                                         with --criterion and a brief, --check is needed below strong
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+                     [--expected-minutes <minutes|unknown>]
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
@@ -107,15 +109,16 @@ Work
                                         the context pack at $PULLBOARD_PACK (and $PULLBOARD_CHECK, $PULLBOARD_ITEM,
                                         $PULLBOARD_ATTEMPT, $PULLBOARD_TIER); green work is submitted, red escalated
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
-  pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>" [--every 60] [--cycles N]
+  pullboard run --scale --lane <lane> --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
-                                        within pullboard settings workers.budget seat-hours; idle seats stop first
+                                        within pullboard settings workers.budget spend per day; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
+  pullboard milestone focus <name|off> [--overflow off|on]   focus next on one release
   pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
   pullboard milestone order <name> <ids> --reason "<why>"   override computed order (coordinator or person)
@@ -141,15 +144,20 @@ Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
-  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>]
+  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>] [--out <directory>]
+  pullboard patch object <item> <key> --note "why"
+                                        format-patch or plain diff; mixed lanes report owners and write drafts for confirmation
                                         coordinator: bind a companion patch to the exact submitted source
   pullboard patch list <item>            read its ordered native patches and patch-set digest
   pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
+  pullboard slice <parent> "<title>" --files <paths> [--lane <lane>] [--check "<command>"]
+                                        holder or coordinator: create a child with the parent’s frozen bar
   pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
                                         create one child in another lane; repeat the same parent, lane and key to find it
                                         --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
+  pullboard shadow-batch <id> <id>... [--json]  compose accepted items onto main in a scratch tree and run the tier-2 checks once; board and main stay unchanged
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
-                                        earlier ones as one line; --history prints every note in full
+                                        earlier ones as one line; --history prints every note in full; --review prints the review packet
   pullboard fact <id> <kind> <text> [--answers <bar-check-fact-id>] [--supersedes <fact-id>] [--ref path:lines@full-sha] [--implies <ids>]
                                         append item notes (question, answer, plan, risk), evidence or authorised judgements
                                         a bar-answer uses --answers to name the bar-check fact it reviewed
@@ -168,6 +176,7 @@ Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard test <files>                run named test files on the runner pool with the per-file timeout, uncommitted
                                         changes included; a red file is compared with main and named known or new
+                                        one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
@@ -175,19 +184,20 @@ Work
   pullboard bar sign <id> --note "..." [--coverage-file <json>]  another parent judges buildability and repeatable grading; edits clear the signature
                                         claim.barTestFiles configures project test-path globs (Node test/spec files by default)
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
+  pullboard bar sweep-full-suite       coordinator: remove full-suite/CI pass clauses from active bars; refused rows are listed
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--on <ids>] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
-  pullboard submit <id> [--wait] [--no-next]        needs a clean tree; --wait ends at the final gate result, never a review verdict (alias: done)
+  pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result
-  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
+  pullboard verify <id> accept [--no-next] [--read <clauses>] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
                                         two rejects of the same frozen clause hold the item for a sharper bar
                                         submit, release and verdict take native next work; --no-next leaves the seat empty
@@ -198,6 +208,7 @@ Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
+  pullboard shout --item <id> <text> --kind request --clause "frozen requirement"  ask the builder for work during review
   pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the kind; a submit or verdict the board recorded is not shouted
   Coordinator shouts without --kind, or with --kind status, refuse; record item updates with pullboard fact.
   A named lane lead receives question and blocker kinds first; exception and idea reach the coordinator.
@@ -247,6 +258,7 @@ Coordinator
                                         file one item per file a linter, type checker or test reporter flags
   pullboard land [--max N] [--dry-run] [--adopt]  manual override: gate and land a durable batch of accepted items
   pullboard land --due [--dry-run]       manual override: use configured age/count; no --max or --adopt; explain when not due
+  pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason "why"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
   pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
@@ -300,7 +312,7 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
-  pullboard capacity                     serial test-work minutes, work per landing, declared pure/contract share and conversion priority; --json
+  pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
@@ -366,7 +378,7 @@ Gate and hooks
 
 Lifecycle, read from src/machine.js
   pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram
-  agent         rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created), refreeze (when a live claim has a pending coordinator correction or a validated cited-spec correction)
+  agent         patch-objected, rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created), refreeze (when a live claim has a pending coordinator correction or a validated cited-spec correction)
   coordinator   patch-claimed, patch, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
   clock         lapse (when its lease runs out)
 

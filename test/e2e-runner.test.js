@@ -22,10 +22,11 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -37,12 +38,12 @@ const {
 test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', () => {
   const box = project();
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
-  assert.equal(box.run(box.repo, 'add', 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
-  assert.match(box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
-  assert.match(box.run(box.repo, 'add', 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
-  const foreign = box.run(box.repo, 'add', 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
+  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
+  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
+  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
-  const added = box.run(box.repo, 'add', 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
   assert.equal(added.code, 0, added.err);
   assert.match(added.out, /\nnext: pullboard next --wait 1\n$/u);
   assert.equal(added.out.replace(/next: pullboard next --wait 1\n$/u, '').trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
@@ -77,8 +78,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   ].join('\n'));
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
   const has = (file, text) => `grep -q ${text} ${file}`;
-  assert.equal(box.run(box.repo, 'add', 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
-  assert.equal(box.run(box.repo, 'add', 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
@@ -116,8 +117,8 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const weak = script('weak.sh', ['echo nope > api/server.js']);
   const strong = script('strong.sh', ['grep -q "Earlier tries by a lighter model" "$PULLBOARD_PACK" && echo "export const served = true;" > api/server.js']);
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
-  box.run(box.repo, 'add', 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
-  box.run(box.repo, 'add', 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
+  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
+  fixtureAdd(box.run, box.repo, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   assert.match(box.run(webRunner, 'run', '--agent-light', good, '--attempts', '1').out, /submitted #1/);
   const commit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
@@ -144,7 +145,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   box.git(localRunner, 'commit', '-q', '-m', 'feat(api): local server variant [G2]');
 
   const brief = LIGHT_BRIEF.replace('web/page.js', 'api/server.js');
-  box.run(box.repo, 'add', 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
+  fixtureAdd(box.run, box.repo, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
     '--check', 'grep -q upstream api/server.js', '--brief', brief);
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
@@ -154,7 +155,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.').out, /verified #1/);
 
   const dependentBrief = LIGHT_BRIEF.replace('web/page.js', 'api/client.js');
-  box.run(box.repo, 'add', 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
+  fixtureAdd(box.run, box.repo, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
     '--check', 'test -f api/client.js && grep -q upstream api/server.js', '--brief', dependentBrief);
   const blocked = box.run(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
   assert.notEqual(blocked.code, 0, blocked.out);
@@ -236,7 +237,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
   await view.stop();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
   const fresh = box.run(box.web, 'resume');
   assert.equal(fresh.code, 0, fresh.err);
   assert.match(fresh.out, /^resume: web-1 \(Test Model\), web lane, at /);
@@ -271,8 +272,8 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
 
 test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
-  box.run(box.repo, 'add', 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');
+  fixtureAdd(box.run, box.repo, 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
+  fixtureAdd(box.run, box.repo, 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'header.html'), '<header>');
   const next = box.run(box.web, 'next');
@@ -291,7 +292,7 @@ test('next takes work near your recent files; submit records them; show names re
   const verifiedCommit = JSON.parse(box.run(box.repo, 'show', '2', '--json').out).item_commit;
   box.git(box.repo, 'merge', '--no-ff', verifiedCommit, '-m', 'chore(merge): land #2 [G1]');
   assert.equal(box.run(box.repo, 'merged', '2', 'HEAD').code, 0);
-  box.run(box.repo, 'add', 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
+  fixtureAdd(box.run, box.repo, 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
   assert.match(box.run(box.repo, 'show', '3').out, /related: #2 Header: web\/nav\.html \(git log -p -1 [0-9a-f]{12} -- web\/nav\.html\)/);
   const warm = box.run(box.web, 'next');
   assert.match(warm.out, /claimed #3: Menu/, 'a clean tree: the files of the items it built last are what is warm');
@@ -300,7 +301,7 @@ test('next takes work near your recent files; submit records them; show names re
 
 test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match(box.run(box.web, 'hold', 'web', '--reason', 'mine').err, /COORDINATOR_ONLY/);
   assert.match(box.run(box.repo, 'hold', 'nowhere', '--reason', 'x').err, /NO_LANE/);
   assert.match(box.run(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten').out, /holding the web lane: G1 is being rewritten/);

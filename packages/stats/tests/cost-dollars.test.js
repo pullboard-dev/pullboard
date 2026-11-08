@@ -7,13 +7,14 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { publicUsage } from '../src/shell/cost-read.js';
 import { sumUsage } from '../src/shell/cost-read.js';
 import { localUsage } from '../../config/index.js';
 import { usageDollars } from '../../config/index.js';
 import { validateCostPrices } from '../../config/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const prices = {
   alpha: { freshInput: 2, cacheReadInput: 1, cacheWriteInput: 3, output: 4 },
@@ -37,7 +38,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const ids = ['alpha', 'beta', 'unpriced', 'mixed', 'shared'].map(model => document(box.run(box.repo, 'add', 'web', `Pricing ${model}`,
+  const ids = ['alpha', 'beta', 'unpriced', 'mixed', 'shared'].map(model => document(fixtureAdd(box.run, box.repo, 'web', `Pricing ${model}`,
     '--criterion', 'Local dollars preserve numeric usage.', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id);
   const agent = document(box.run(box.web, 'whoami', '--json')).id;
   for (const id of ids) {

@@ -1,5 +1,6 @@
 import { landingPorts } from './landing-ports-fixture.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
@@ -17,10 +18,11 @@ import {
   receiptStore,
 } from '../packages/gate/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../packages/landing/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
+import { LANDING_LEASE_MS } from '../packages/store/index.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
@@ -73,10 +75,12 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
-      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--wait', '--json'));
+      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json'));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
+    run(box, root, 'fact', String(id), 'diagnosis', `Files: ${file} Change: build the queued landing fixture file Test case: a suspended landing owner is fenced before the queued adopter runs`);
     run(box, root, 'claim', String(id));
     if (number === 2 && staleAfterFirst) {
       // The first-to-land item changes the lower id's checked path on an independent branch.
@@ -103,21 +107,27 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
   return entries;
 }
 
+/** The shared bounded observation wait; this fixture's sandboxes are owned by its callers. */
+const LEASE_WAIT = createE2eHelpers();
+
 /** Use a real public lease and board for bounded internal boundary controls, never a fabricated grant. */
 async function withFixtureLease(box, branch, action) {
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const request = { agentId: 'coordinator', action: 'request', branch, token: randomUUID(), pid: process.pid };
   let fence;
   try {
-    const grant = store.landingLeaseMove(board, request);
-    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander: ' + JSON.stringify(grant));
+    // A real lander may still hold the lease while it finishes; queue behind it and wait for the grant (#3137).
+    const grant = await LEASE_WAIT.waitFor(() => { // budget: hang ceiling for the fixture's own landers releasing, not a speed target.
+      const observed = store.landingLeaseMove(board, request);
+      return observed.acquired ? observed : null;
+    }, 'the fixture landers release the landing lease', 120_000);
     fence = { ...request, generation: grant.generation };
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
     return await action({ root: box.repo, board, fence, owner: 'private-boundary-control', say() {},
       write: async (operation, args) => board.enginePorts.store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
   } finally {
-    if (fence) store.landingLeaseMove(board, { ...fence, action: 'release' });
+    store.landingLeaseMove(board, { ...(fence ?? request), action: 'release' });
     store.closeBoard(board);
   }
 }
@@ -271,8 +281,8 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     `fs.appendFileSync(${JSON.stringify(policyOrigins)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, cwd: process.cwd(), args: process.argv.slice(2), node: process.version }) + '\\n');`,
     `fs.appendFileSync(${JSON.stringify(policyCalls)}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }) + '\\n');`,
     ...(suspendParent ? ["if (fs.existsSync(gatePid)) { const old = Number(fs.readFileSync(gatePid,'utf8')); try { process.kill(old,0); throw new Error('the previous landing gate is still running when the successor gate starts'); } catch(error) { if (error.code !== 'ESRCH') throw error; } }"] : []),
-    // Budget: the suspended-parent control holds beyond the real 30s lease; 65s is a runaway ceiling, not a speed target.
-    `if (fs.existsSync(arm)) { fs.writeFileSync(gatePid, String(process.pid)); fs.writeFileSync(entered, process.cwd()); const end = Date.now() + ${suspendParent ? 65000 : 20000}; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(release), 'owning test releases the gate'); }`,
+    // Budget: the suspended-parent control holds beyond the real landing lease (LANDING_LEASE_MS) so only the guardian ends it; lease plus 80s is a runaway ceiling, not a speed target.
+    `if (fs.existsSync(arm)) { fs.writeFileSync(gatePid, String(process.pid)); fs.writeFileSync(entered, process.cwd()); const end = Date.now() + ${suspendParent ? LANDING_LEASE_MS + 80_000 : 20000}; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(release), 'owning test releases the gate'); }`,
     "const files = fs.existsSync('web') ? fs.readdirSync('web').filter(file => /^queue-\\d+\\.txt$/.test(file)) : [];",
     "for (const file of files) assert.match(fs.readFileSync('web/' + file,'utf8'), /^works/);",
     "console.log('TAP version 13\\nok 1 - landed queue files keep their behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
@@ -305,7 +315,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
   children.push(first);
-  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate');
+  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate', 60_000); // budget: ceiling for a loaded runner starting the first landing CLI; no speed target.
   assert.ok(existsSync(entered), first.failure ?? first.stderrText);
   const firstBatch = readBoard(box, board => store.landingBatches(board).at(-1));
   assert.equal(firstBatch.state, 'gating');
@@ -336,7 +346,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
     try {
       await helpers.waitFor(() => !running(holder.guardianPid) && !running(blockedGatePid), 'the guardian and blocked gate stop without releasing their marker',
-        suspendParent ? 45_000 : 8_000); // Budget: actual 30s lease expiry plus owned-process drain; not a speed threshold.
+        suspendParent ? LANDING_LEASE_MS + 60_000 : 8_000); // Budget: actual lease expiry (LANDING_LEASE_MS) plus owned-process drain, stretched for a loaded runner; not a speed threshold.
     } catch (error) {
       const batch = readBoard(box, board => store.landingBatches(board).at(-1));
       error.message += '; custody observation: ' + JSON.stringify({ processes: processObservation([first.pid, holder.guardianPid, blockedGatePid, second.pid]),

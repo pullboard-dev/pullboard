@@ -3,9 +3,10 @@
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import * as machineRules from '../packages/state/index.js';
-import { HELP } from '../src/cli.js';
+import { HELP } from '../apps/cli/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const copy = () => structuredClone(machineRules.MACHINE);
@@ -41,12 +42,13 @@ test('the page and the help follow the declaration: a new move appears in both [
   assert.ok(!machineRules.lifecycleMarkdown().includes('shelve'));
   assert.ok(machineRules.lifecycleMarkdown(machine).includes('  open --> withdrawn: shelve'));
   assert.match(machineRules.lifecycleMarkdown(machine), /^\| shelve \| open \| withdrawn \| coordinator \|/m);
-  assert.match(machineRules.lifecycleHelp(machine), /^ {2}coordinator +.*\bshelve\b/m);
-  assert.doesNotMatch(machineRules.lifecycleHelp(machine), /^ {2}agent +.*\bshelve\b/m);
+  assert.match(machineRules.machine_lifecycleHelp(machine), /^ {2}coordinator +.*\bshelve\b/m);
+  assert.doesNotMatch(machineRules.machine_lifecycleHelp(machine), /^ {2}agent +.*\bshelve\b/m);
 });
 
 test('pullboard help lists each role\'s moves from the declaration, and pullboard lifecycle prints the page [M1, P4]', () => {
-  const help = runFixtureChild(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8' });
+  const ownCliEnv = { ...process.env, PULLBOARD_OWN_CLI: '1' };
+  const help = runFixtureChild(process.execPath, [BIN, 'help', '--all'], { encoding: 'utf8', env: ownCliEnv, cwd: tmpdir() });
   assert.equal(help.status, 0, help.stderr);
   for (const role of machineRules.MACHINE.roles) {
     const line = help.stdout.split('\n').find((text) => text.startsWith(`  ${role} `));
@@ -54,9 +56,9 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
     const listed = line.slice(role.length + 2).split(',').map((part) => part.trim().split(' ')[0]).filter(Boolean);
     assert.deepEqual(listed.sort(), [...new Set(machineRules.MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb))].sort(), `${role}'s moves`);
   }
-  assert.ok(HELP.all.includes(machineRules.lifecycleHelp()), 'the full help screen carries the generated section, not a typed copy');
-  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
+  assert.ok(HELP.all.includes(machineRules.lifecycleHelp), 'the full help screen carries the generated section, not a typed copy');
+  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle', '--detail'], { encoding: 'utf8', env: ownCliEnv, cwd: tmpdir() });
   assert.equal(printed.status, 0, printed.stderr);
-  assert.equal(printed.stdout, machineRules.lifecycleMarkdown());
+  assert.ok(printed.stdout.startsWith(machineRules.lifecycleMarkdown().trimEnd()), 'the command prints the generated page before the native CLI footer');
 });
 

@@ -5,8 +5,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { SETUP_COMMIT_QUESTION } from '../src/init-finish.js';
-import { RELAY_OFFER_QUESTION } from '../src/init.js';
+import { SETUP_COMMIT_QUESTION } from '../apps/cli/index.js';
+import { RELAY_OFFER_QUESTION } from '../apps/cli/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 /** Create a private Git repo whose installed hooks invoke this candidate CLI only. */
@@ -325,7 +325,7 @@ test('a real worktree under .claude/worktrees leaves status clean and coordinato
   assert.equal(box.cli('claim', id).code, 0);
   mkdirSync(join(box.root, 'docs'));
   writeFileSync(join(box.root, 'docs/proof.txt'), 'actual coordinator work\n');
-  box.git('add', 'docs/proof.txt'); box.git('commit', '-q', '-m', 'chore: add the coordinator proof');
+  box.git('add', 'docs/proof.txt'); box.git('commit', '-q', '-m', 'chore: add the coordinator proof', '-m', `Pullboard-Item: #${id}`);
   box.git('worktree', 'add', '-q', '-b', 'agent/scratch', '.claude/worktrees/scratch', 'HEAD');
   assert.equal(box.git('status', '--porcelain'), '', 'the real nested checkout adds no untracked paths');
   const submitted = box.cli('submit', id);

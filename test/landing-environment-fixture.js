@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../packages/gate/index.js';
 import { gateRuns } from '../packages/gate/index.js';
@@ -78,7 +78,8 @@ function verified(box, name, { touchTest = false } = {}) {
   success(box, path, 'join', 'web');
   const file = `web/${name}.txt`;
   const added = success(box, box.repo, 'add', 'web', `Landing change ${name}`, '--specs', 'G1',
-    '--criterion', `the ${name} change exists`, '--check', `test -f ${file}`);
+    '--criterion', `the ${name} change exists`, '--check', `test -f ${file}`,
+    '--brief', `Files:\n- ${file}\nChange:\n- add the file\nTest:\n- The file exists`);
   const id = added.item.item_id;
   success(box, path, 'claim', String(id));
   writeFileSync(join(path, file), `${name}\n`);

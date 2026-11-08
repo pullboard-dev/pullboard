@@ -7,15 +7,15 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createDeviceHandler } from '../relay/device-http.js';
-import { createDeviceStore } from '../relay/device-store.js';
-import { createGitHubClient } from '../relay/github.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createDeviceHandler } from '../apps/relay/index.js';
+import { createDeviceStore } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import {
   ACCESS_WINDOW_MS,
   createRelayAuth,
-} from '../relay/auth.js';
-import { createRelayHandler } from '../relay/service.js';
+} from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import {
@@ -26,7 +26,7 @@ import {
   wrapDeviceBoardKey,
 } from '../packages/keys/index.js';
 import { githubFixture } from './relay-fixture.js';
-import { excludedInventoryId } from '../relay/excluded-store.js';
+import { excludedInventoryId } from '../apps/relay/index.js';
 import {
   seal,
   unseal,

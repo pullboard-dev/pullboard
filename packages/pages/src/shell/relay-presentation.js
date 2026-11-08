@@ -1,3 +1,4 @@
+import { presentationShout } from '../core/relay-presentation.js';
 /** Device-sealed presentation uses the same API state as the local view [A4,H5,H15]. */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import { cachedVerdictStates } from "../../../verify/index.js";
 import { compareFlowWindows } from "../../../stats/index.js";
-import { claimWorktrees } from "../../../activity/index.js";
+import { recordedClaimWorktrees } from "../../../activity/index.js";
 import { claimOverlaps } from "../../../items/index.js";
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
@@ -52,7 +53,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     const items = store.listItems(board);
-    const overlaps = claimOverlaps(items, claimWorktrees(items, store.listAgents(board)));
+    const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     const overlapState = Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
@@ -79,15 +80,6 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
 export function relayPresentationShout(root, id, ports) {
   requirePresentationPorts(ports);
   return presentationShout(relayPresentation(root, {}, ports), id);
-}
-
-/** Resolve one addressed shout from an already decoded snapshot without local repository access. */
-export function presentationShout(presentation, id) {
-  if (!Array.isArray(presentation?.shouts)) throw new Refused('SHOUT_NOT_AVAILABLE', 'this snapshot does not include addressed shout history; refresh it with a current CLI');
-  const found = presentation.shouts.find((shout) => shout.shout_id === id);
-  if (!found) throw new Refused('NO_SHOUT', `no shout #${id}`);
-  const answer = found.shout_decision ? presentation.shouts.find((shout) => shout.shout_answers === id) ?? null : null;
-  return { ...found, decision_state: found.shout_decision ? (answer ? 'answered' : 'open') : null, decision_answer: answer };
 }
 
 /** Notice presentation-only changes, including a spec or doctrine edit without a board move. */

@@ -114,7 +114,7 @@ A repository's team board lives in its Git common directory at `.git/pullboard/b
 
 Item numbers belong to one board. A bare number such as `12` means the current board; a team item can be named `web#12` or `owner/web#12`, and a private item `~web#12` or `~owner/web#12` uses the repository origin owner/name. A bare handle resolves only when unique in the authorized local inventory; ambiguous handles list the qualified choices (`src/board-reference.js`, `packages/store/src/shell/board-inventory.js`). A dependency on another repository is written `repo#id`; it is satisfied only by that item on its own board after verification, and `pullboard next` names the item it waits for.
 
-`pullboard move <item-ref> --to <handle>` moves an open or verified item between the current repository's team board and its private board; `--private` selects that repository's private board for a bare numeric source ID. An ordered destination reservation chooses the target ID first. The source move then records one stable MOVEID and leaves a permanent redirect at the old source ID, which is never reused; destination application is keyed to the source board and MOVEID, so retrying a failed delivery reuses the same ID and cannot create a second item (`src/commands/move.js`, `packages/items/src/shell/item-rehome.js`). Move a local parent or wait item first when the destination needs its corresponding item there. A verified import carries the original source ACCEPT, commit, digest and verifier as imported provenance; it is not a new review by the destination board.
+`pullboard move <item-ref> --to <handle>` moves an open or verified item between the current repository's team board and its private board; `--private` selects that repository's private board for a bare numeric source ID. An ordered destination reservation chooses the target ID first. The source move then records one stable MOVEID and leaves a permanent redirect at the old source ID, which is never reused; destination application is keyed to the source board and MOVEID, so retrying a failed delivery reuses the same ID and cannot create a second item (`apps/cli/src/shell/commands/move.js`, `packages/items/src/shell/item-rehome.js`). Move a local parent or wait item first when the destination needs its corresponding item there. A verified import carries the original source ACCEPT, commit, digest and verifier as imported provenance; it is not a new review by the destination board.
 
 The version table is generated from the source-owned declarations in `src/formats/*.json` and their existing version constants. Add a declaration beside the format source instead of editing the table; `node bin/update-formats.js` refreshes it, and the native landing train refreshes it after merging.
 
@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `210` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `244` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -349,6 +349,23 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
+| `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
+| `job` | `job_kind` | `TEXT` | `NOT NULL` |
+| `job` | `job_item` | `INTEGER` | `nullable` |
+| `job` | `job_candidate` | `TEXT` | `nullable` |
+| `job` | `job_base` | `TEXT` | `nullable` |
+| `job` | `job_step` | `TEXT` | `NOT NULL`; `DEFAULT 'queued'` |
+| `job` | `job_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_lease_owner` | `TEXT` | `nullable` |
+| `job` | `job_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_created` | `INTEGER` | `NOT NULL` |
+| `job` | `job_updated` | `INTEGER` | `NOT NULL` |
+| `job_step` | `job_step_id` | `INTEGER` | `PRIMARY KEY` |
+| `job_step` | `job_step_job` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_name` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
+| `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -378,6 +395,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 <!-- board-indexes:start -->
 | Index | Table | Columns | Unique |
 | --- | --- | --- | --- |
+| `board_meta_agent_session_value_v1` | `board_meta` | `meta_value` | no |
 | `board_meta_grant_activation_unsafe_v1` | `board_meta` | `meta_key` | no |
 | `board_meta_grant_activation_v2` | `board_meta` | `(expression)` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
@@ -387,11 +405,13 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_item_id_event_id` | `event` | `item_id`, `event_id` | no |
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
+| `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
+| `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
@@ -453,7 +473,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
@@ -466,7 +486,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `release` | builder | `reasonCode`, optional `reason` |
 | `submit` | builder | `commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize` |
 | `reserve` | reviewer | `until` |
-| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
+| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`, optional `machine` (native machine verdict with each frozen command and authenticated receipt) |
 | `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey`, typed-pipeline `pipelineCause` (fixed category; other retains explanation) |
 | `bar-sharpen` | coordinator | `clause`, `clauseText`, `barKey`, `to`, `digest` |
 | `strong-rejection-notice` | coordinator | `engine`, `route`, `builder`, `rejections` |
@@ -515,7 +535,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
 | `submit-handoff` | queued builder | Queue `state` (queued, running, green, submitted, red or incomplete) and captured source `commit`; submitted retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
-| `submit_handoff_returned` | queued builder | Captured `commit` and original builder `reopenFirstRefusal`; only the failed queued item returns open, without releasing another claim. |
+| `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
@@ -861,6 +881,10 @@ Coordinator-authored check timing is stored at additive `board_meta` key `item_c
 `QUARANTINE_CORE_ENGINE` adds optional structured `testOutcomes` to native gate receipts and seals them through `recordGateRun`. Each row carries the committed relative file, exact test name, actual `passed` boolean and `skipped` boolean; missing or incomplete evidence remains unknown. The normal controller observes native events before reporters, excludes cancelled work and duplicate identities, and binds complete result frames to its private run timing id. Test workers do not inherit that id. Source inventories and the private canonical receipt bind the recorded rows; replay uses those sealed facts without consulting receiver files.
 
 At this floor, two executed opposite verdicts for one file/name on the same tree create one `test-quarantine` event naming both runs and one owner-lane repair item. Direct-suite and partial main-comparison observations do not prove a quarantine. Subsequent recorded executions of the exact file/name advance the clean streak; skips and unrelated passes add nothing, a failure resets it, and the first 20 consecutive passes or verification of the repair item releases it. Legacy events keep their prior lifecycle. The existing accepted-main quarantine opt-in controls reporting. New quarantines still execute and report and retain the actual raw exit code, failed counts and blocking verdict. They grant no landing waiver or proof promotion; nonblocking authority is a separate successor.
+
+`SHADOW_TIER1_ENGINE` adds an optional `shadow` fact to native version-two gate receipts, recorded by `recordProofRun` and `recordGateRun` beside the real verdict. It holds `version`, `tier` (1), `verdict`, `real`, `differs` and `reasons`: the verdict tier 1 alone (V4: static checks on the changed files, the item's check, and the tests its change can reach, plus cells only for cell-structure changes) would give. A red run naming no failing test is a static or check failure and stays red; a failing test counts only when the change reaches it, and an unknown reach counts every failing test. The fact is report-only: the receipt's `green`, `exitCode` and `failures` are as run, and nothing reads `shadow` to decide a verdict. An older engine replays the move without it.
+
+`LEDGER_QUARANTINE_ENGINE` makes the typed flake ledger quarantine what it proves. From this engine a `recordFlakeObservation` move files, for every active ledger flake without an active quarantine (rows recorded before this engine included), the ledger's open repair item or a new one with a `flake-repair` event, and one `test-quarantine` event with `ledger: true` naming the flake observation ids as `runs`. A row whose quarantine was lifted after its last sighting stays released until a newer sighting. The landing ratchet counts a ledger-backed quarantine as justified by its own red-and-green proof, however old; a withdrawn or verified repair lifts it. An older engine replays the move without filing.
 A release names a reason code from `INELIGIBLE`, `ROUTED_ELSEWHERE`, `BLOCKED`, `BUDGET` or `OTHER` (with its text in the note); the code is the `reasonCode` of the `release` event. Coded releases need the release-reasons engine; genuinely earlier recorded releases retain their meaning.
 
 
@@ -869,3 +893,11 @@ A release names a reason code from `INELIGIBLE`, `ROUTED_ELSEWHERE`, `BLOCKED`, 
 Native usage input splits add `freshInputTokens`, `cacheReadInputTokens` and `cacheWriteInputTokens` to numeric model summaries. Payloads carrying these fields require the input-split engine leaf; legacy usage payloads retain their original engine floor and stored bytes. Missing provider fields and legacy split values read as `null` (unknown), while provider-reported zero remains zero. Codex cumulative input includes cached reads, so fresh input is its nonnegative difference from `cached_input_tokens`; no cache-write counter is invented. Claude `input_tokens` is fresh input and its cache-read and cache-creation counters remain separate. Existing aggregate input/output fields keep their historical meaning. Item, model and stats reads expose the split without exposing private provider sessions. Shared-session item allocations remain unknown; the undivided shared-session totals retain their own numeric splits.
 
 Item summaries and item details carry `withdrawnReason` and `withdrawnFrom` on every local, relay and hosted projection. Both are `null` unless the item is withdrawn. The reason is the stored withdrawal reason; the prior stage is derived from the complete recorded lifecycle through the withdrawal move (`open`, `claimed` or `submitted`), not guessed from the current row or a capped activity feed. It is the public effective stage: a claim whose recorded lease deadline is at or before the recorded withdrawal time has already returned to `open`. Only the bounded claim deadline is projected for this derivation; private event detail is not exposed. Missing lifecycle evidence leaves `withdrawnFrom` null, and an older sanitized presentation with no authoritative reason retains an explicit null reason.
+
+The main-red failure-lines engine retains the first safe error line for each authenticated main-red failure. Automatically filed repairs store these lines beside the item, and show prints them; older moves replay without those new records. Check baselines retain their named red diagnostics in the recorded observation.
+
+The pinned-claim lapse engine releases a claim on a coordinator-pinned item after 30 minutes without a commit, submit or check, where other claims are released after 40. Older moves replay with the 40-minute rule.
+
+The verified-item hold engine lets `pullboard hold <id>` hold a verified item that has not landed. The hold keeps its accept and keeps it out of landing batches until `pullboard hold <id> --off`; older moves replay with holds on open or claimed items only.
+
+The release-quality hold engine counts a holder’s BLOCKED, BUDGET, or INELIGIBLE release toward an automatic released-twice hold. Maintenance, routing, and OTHER releases do not count; OTHER is free-form and cannot prove quality provenance. Older engine moves keep their original replay behavior.

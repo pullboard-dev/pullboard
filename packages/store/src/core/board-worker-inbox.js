@@ -11,14 +11,17 @@ export function workerInboxSeats(board, agent) {
   const digest = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?')
     .get(`agent_session:${agent.agent_id}`)?.meta_value;
   if (!/^[a-f0-9]{64}$/u.test(digest ?? '')) return [agent];
-  return withDerivedFamilies(board, board.db.prepare(`SELECT agent.* FROM agent JOIN board_meta
-    ON board_meta.meta_key='agent_session:' || agent.agent_id WHERE board_meta.meta_value=? ORDER BY agent.agent_id`).all(digest));
+  // Walk the session keys by their primary-key range, then each seat by id: never every seat on the board (#2421).
+  return withDerivedFamilies(board, board.db.prepare(`SELECT agent.* FROM board_meta CROSS JOIN agent
+    ON agent.agent_id=substr(board_meta.meta_key, 15) AND board_meta.meta_key='agent_session:' || agent.agent_id
+    WHERE board_meta.meta_key >= 'agent_session:' AND board_meta.meta_key < 'agent_session;' AND board_meta.meta_value=?
+    ORDER BY agent.agent_id`).all(digest));
 }
 
 /** Select each unread message once using its recipient's cursor, so old uneven cursors lose no mail. */
 export function workerInboxQuery(board, agent, columns = '*') {
   const seats = workerInboxSeats(board, agent);
-  if (seats.length === 1) return { seats, sql: `SELECT ${columns} ${UNREAD_SHOUT_SQL}`,
+  if (seats.length === 1) return { seats, sql: `SELECT ${columns} ${UNREAD_SHOUT_SQL} WHERE 1`,
     bindings: unreadShoutBindings(agent.agent_last_shout_id, agent.agent_id, agent.agent_lane) };
   const members = seats.map(seat => ({ id: seat.agent_id, lane: seat.agent_lane, cursor: seat.agent_last_shout_id }));
   return { seats, bindings: [JSON.stringify(members), Math.min(...members.map(seat => seat.cursor))],

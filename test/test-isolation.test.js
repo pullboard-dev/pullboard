@@ -11,6 +11,10 @@ import { pathToFileURL } from 'node:url';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { childJournalPreloadSource } from '../packages/gate/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
+import { gateMachineHome } from '../packages/gate/index.js';
+import { gateRuntimeCaptureSource } from '../packages/gate/index.js';
+import { runtimeCaptureSource } from '../packages/sandbox/index.js';
+import { machineHome } from '../packages/resources/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
@@ -130,4 +134,21 @@ test('a forged runner preload of the same name stays foreign [C7]', (t) => {
   rmSync(preload);
   assert.equal(foreignNodeOptions(declared, env), true, 'a missing file is foreign');
   assert.equal(foreignNodeOptions('--import=file:///elsewhere/unclassified.js', env), true, 'an undeclared import is foreign');
+});
+
+test('gate ports preserve machine-home and runtime-preload policy [C7]', () => {
+  const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
+  try {
+    for (const [machine, account] of [['/tmp/private-machine', '/tmp/private-account'], ['', '/tmp/private-account']]) {
+      process.env.PULLBOARD_MACHINE_HOME = machine;
+      process.env.PULLBOARD_ACCOUNT_HOME = account;
+      assert.equal(gateMachineHome({ override: machine, accountHome: account, osHome: '/unused' }), machineHome());
+    }
+    for (const directory of ['/tmp/runtime', '/tmp/a quoted path']) {
+      assert.equal(gateRuntimeCaptureSource(directory), runtimeCaptureSource(directory));
+    }
+  } finally {
+    if (override === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = override;
+    if (accountHome === undefined) delete process.env.PULLBOARD_ACCOUNT_HOME; else process.env.PULLBOARD_ACCOUNT_HOME = accountHome;
+  }
 });

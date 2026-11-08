@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { prepareItemPatchReview } from '../packages/items/index.js';
 import { effectiveItemHead } from '../packages/verify/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';
@@ -25,6 +25,7 @@ import { importBoard } from '../packages/store/index.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../src/item-patch-submit-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require the real CLI document, retaining exact diagnostics for every fixture setup refusal. */
 function document(result) {
@@ -39,7 +40,7 @@ function seat(box, name, lane) {
   const previous = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = name;
   let id;
-  try { id = document(box.run(root, 'join', lane, '--json')).agent; }
+  try { id = document(fixtureJoin(box.run, root, lane, '--json')).agent; }
   finally { if (previous === undefined) delete box.env.CODEX_THREAD_ID; else box.env.CODEX_THREAD_ID = previous; }
   return { root, id, session: name };
 }
@@ -108,11 +109,12 @@ function attach(f, key = 'approved-view', source = f.source, file = f.patchFile,
 /** Produce a second genuine phase pair on the same private item, retaining native admission and receipt writing. */
 async function repeatNativePhases(f, binding) {
   const module = name => new URL('../src/' + name, import.meta.url).href;
+  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
   writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
-import { openBoard } from ${JSON.stringify(module("native-board.js"))};
-import { runSubmitGate, submitGateConfig } from ${JSON.stringify(module('gate-submit.js'))};
-${executionServicesSource(module('gate-submit.js'))}
+import { openBoard } from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import { runSubmitGate, submitGateConfig } from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
 import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(new URL('../packages/sandbox/index.js', import.meta.url).href)};
 const root = process.cwd();

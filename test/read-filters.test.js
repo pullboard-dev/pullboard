@@ -7,7 +7,8 @@ import { selectFields } from '../packages/config/index.js';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -21,7 +22,7 @@ function json(box, cwd, ...args) {
 /** A real project with a web seat, one item and three shouts, one of them a coordinator question. */
 function board() {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Filtered read item', '--specs', 'G1', '--criterion', 'reads are filtered').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Filtered read item', '--specs', 'G1', '--criterion', 'reads are filtered').code, 0);
   for (const args of [[box.repo, 'shout', 'web', 'first note'], [box.web, 'shout', 'coordinator', '--kind', 'question', 'second ask'],
     [box.repo, 'shout', 'web', 'third note']]) assert.equal(box.run(...args).code, 0, args.join(' '));
   return box;

@@ -7,16 +7,16 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { costOverviewHtml, bindCostOverview } from '../../src/view/cost-overview.js';
-import { modelPresentation } from '../../src/view/model-presentation.js';
+import { costOverviewHtml, bindCostOverview } from '../../apps/view/index.js';
+import { modelPresentation } from '../../apps/view/index.js';
 import { costAnalytics } from '../../packages/stats/index.js';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the private Cost overview renders prepared analytics and each confidence [N26]', { timeout: 90000 }, async () => {
   const executable = chromeExecutable(); assert.ok(executable);
   const fixture = { version: 1, window:'7d', totals:{agentMs:7200000,medianItemMs:3600000,sentBack:{itemShare:.5,agentMsShare:.6}}, days:[{date:'2026-10-30',firstTimeMs:3600000,sentBackMs:3600000,items:2}], builders:{verdict:'leaning',best:'a',runnerUp:'b',rows:[{model:'a',label:'Model A',vendor:'Vendor',built:31,rate:.8,low:.6,high:.9,typicalItemMs:3600000},{model:'b',label:'Model B',built:30,rate:.7,low:.5,high:.9}]}, verifiers:{verdict:'nothing-to-compare',best:'a',rows:[{model:'a',label:'Model A',accepts:31,verdicts:35,rate:.1,low:.05,high:.2}]}, unknownBuilderModelShare:.1,longest:[{id:1,title:'Long item',agentMs:7200000,sentBack:2,verifiedBy:'Model A',sessions:[{label:'Model A',count:1,agentMs:7200000,tokensIn:null}]}],allItems:2};
-  const css = readFileSync(new URL('../../src/view.css', import.meta.url),'utf8') + readFileSync(new URL('../../src/view/cost.css', import.meta.url),'utf8');
+  const css = readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url),'utf8') + readFileSync(new URL("../../apps/view/src/shell/view/cost.css", import.meta.url),'utf8');
   const html = '<!doctype html><style>' + css + '</style><main id="cost">' + costOverviewHtml(fixture, 1) + '</main><script>const costOverviewHtml = ' + costOverviewHtml.toString() + '; const bindCostOverview = ' + bindCostOverview.toString() + '; window.calls = []; bindCostOverview(document.querySelector("#cost"), {readWindow: async window => ({...'+JSON.stringify(fixture)+',window}), openItem: id => calls.push("item:"+id), showAll: () => calls.push("all"), copyText: text => calls.push(text)});</script>'; 
   const server = createServer((_q,r) => r.writeHead(200,{'content-type':'text/html'}).end(html)); const dir = mkdtempSync(join(tmpdir(),'cost-redesign-')); let chrome;
   try { await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); chrome = await openSnapshotChrome(executable,'http://127.0.0.1:'+server.address().port,join(dir,'chrome'));
@@ -113,4 +113,20 @@ test('Cost names merge, the unrecorded note hides at zero, and unknown durations
   assert.equal(result.totals.agentMs, 7200000, 'an item with no recorded time does not blank the total');
   assert.equal(result.days[0].firstTimeMs, 7200000, 'nor the day');
   assert.equal(result.longest[0].sessions[0].count, 2, 'a model line counts its sessions');
+});
+
+test('two model ids with one display name make one row, untimed days say so, and the group row has no stray line [N26]', () => {
+  const at = '2026-10-25T15:00:00.000Z', event = (id, kind, item, by, detail = {}) => ({ event_id: id, event_kind: kind, item_id: item, event_by: by, event_at: at, event_detail: JSON.stringify(detail) });
+  const analytics = costAnalytics({ items: [{ item_id: 1, item_title: 'A' }, { item_id: 2, item_title: 'B' }, { item_id: 3, item_title: 'C' }], agents: [], window: '7d', now: new Date('2026-10-26T12:00:00Z'), timeZone: 'UTC', modelPresentation,
+    events: [event(1, 'submit', 1, 'x', { model: 'gpt-6-codex' }), event(2, 'merged', 1, 'x'), event(3, 'submit', 2, 'y', { model: 'codex' }), event(4, 'merged', 2, 'y'), event(5, 'submit', 3, 'z', { model: 'sonnet-5.5' }), event(6, 'reject', 3, 'r'), event(7, 'merged', 3, 'z')] });
+  assert.deepEqual(analytics.builders.rows.map(row => [row.label, row.built]).sort(), [['Codex', 2], ['Sonnet 5.5', 1]], 'gpt-6-codex and codex are one Codex row');
+  assert.equal(modelPresentation('claude-sonnet-5.5').key, modelPresentation('claude-sonnet-5-5').key, 'one name, one match key');
+  assert.deepEqual(analytics.days.map(day => [day.items, day.firstTimeMs, day.sentBackMs]), [[3, null, null]], 'a day with items and no recorded time');
+  const html = costOverviewHtml(analytics);
+  const body = html.slice(html.indexOf('<tbody>'), html.indexOf('</tbody>'));
+  assert.equal(body.match(/<th scope="row">.*?>Codex <small>/gu)?.length, 1, 'the Models table shows one Codex row');
+  assert.match(html, /class="unrecorded"[^>]*><tspan[^>]*>time not<\/tspan><tspan[^>]*>recorded<\/tspan>/u, 'a wide untimed column carries the label');
+  const month = costOverviewHtml({ window: '30d', totals: {}, days: Array.from({ length: 30 }, (_, index) => ({ date: '2026-10-' + String(index + 1).padStart(2, '0'), firstTimeMs: null, sentBackMs: null, items: 1 })), builders: { rows: [] }, verifiers: { rows: [] } });
+  assert.equal(month.match(/class="unrecorded"[^>]*transform="rotate\(-90 [^"]*"[^>]*>time not recorded</gu)?.length, 30, 'a narrow untimed column runs its label upright');
+  assert.match(html, /<th class="grp-gap"><\/th>/u, 'the empty group cell draws no partial line');
 });

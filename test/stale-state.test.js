@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
-import { staleStateSnapshot } from '../packages/health/src/core/stale-state-query.js';
+import { staleStateSnapshot } from '../packages/health/src/shell/stale-state-snapshot.js';
 import { planStaleState } from '../src/board-stale-state-maintenance.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
-import { run as statusRun } from '../src/commands/status.js';
+import { run as statusRun } from '../apps/cli/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 
@@ -71,7 +71,7 @@ function fixture(t) {
   /** Run the real private CLI with its public injected clock; all identity/settings files use private HOME. */
   const cli = async (...args) => {
     const source = `import {main} from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
-process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)})});`;
+process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)})});`;
     return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   };
   return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli, worktree };
@@ -558,6 +558,27 @@ test('the stale CLI validates and retains an explicit maintenance reason overrid
   const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
   assert.equal(detail.reasonCode, 'OTHER');
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
+});
+
+test('clause 1: release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
+  const f = fixture(t);
+  store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Gone folder fixture' });
+  const gone = f.add('Claim whose seat folder was removed'), present = f.add('Claim whose seat folder exists');
+  const goneSeat = store.agentById(f.board, f.builder).agent_path;
+  const other = store.register(f.board, { lane: 'web', path: join(f.box.dir, 'present-builder') });
+  f.worktree(store.agentById(f.board, other).agent_path, 'private-present-builder');
+  store.claim(f.board, gone, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  store.claim(f.board, present, { agentId: other, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  f.advance(MINUTE);
+  const kept = await f.cli('release', String(present), '--stale', '--reason', 'OTHER', '--note', 'Folder still exists, so this must wait', '--json');
+  assert.notEqual(kept.status, 0, 'a present folder still needs the configured stale interval');
+  assert.equal(store.getItem(f.board, present).item_owner, other);
+  const result = await f.cli('release', String(gone), '--stale', '--reason', 'OTHER', '--note', 'Seat folder was removed', '--json');
+  assert.equal(result.status, 0, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
+  assert.equal(store.getItem(f.board, gone).item_status, 'open');
+  const detail = JSON.parse(store.events(f.board, { itemId: gone }).findLast(event => event.event_kind === 'release').event_detail);
+  assert.equal(detail.staleClaim.seatFolderMissing, goneSeat);
+  assert.ok(detail.reason.includes(goneSeat), 'the missing path is recorded as the reason');
 });
 
 /** Preserve historical release detail bytes while current automatic expiry uses a genuine coded reason. */

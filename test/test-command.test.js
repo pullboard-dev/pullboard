@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/gate.js */
-/** @pullboard-test-loads src/commands/status.js */
+/** @pullboard-test-loads packages/gate/index.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/status.js */
 /** pullboard test runs named test files on the runner pool, and names a failure main already has [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -70,7 +70,7 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   const calls = readFileSync(requests, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
   assert.ok(calls.length >= 2 && calls.every((call) => call.host === HOST), 'the run and its main comparisons all went to the runner');
 
-  const text = box.run(box.web, 'test', 'test/hang.test.js');
+  const text = box.run(box.web, 'test', 'test/hang.test.js', '--compare-main');
   assert.equal(text.code, 1);
   assert.match(text.err, new RegExp(`red on ${HOST}`, 'u'), 'the text form names where it ran');
   assert.match(text.out.split('\n')[0], /file also fails on main at [a-f0-9]+: test\/hang\.test\.js \(case comparison unavailable\)/u, 'the first result line keeps the real file verdict without inventing a case match');

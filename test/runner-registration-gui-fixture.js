@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/gate.js packages/config/src/shell/config.js */
+/** @pullboard-module-loads packages/gate/index.js packages/config/src/shell/config.js */
 /** Real private SSH/worker fixtures for registration-time desktop observations [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
@@ -83,6 +83,8 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
     assert.equal(result.status, 0, result.context);
     return JSON.parse(result.stdout).runner;
   };
+  /** Register again and return the raw CLI result, for a registration that is expected to refuse. */
+  const registerRaw = () => cli(paths.repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   /** Run the ordinary gate with real GUI-marker classification and no previous worker receipt. */
   const runGui = async () => {
     for (const [name, value] of [['browserSlots', '0'], ['gateSlots', '0']]) {
@@ -90,7 +92,7 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
       assert.equal(result.status, 0, result.context);
     }
     const tooling = committedToolingSnapshot(fileURLToPath(new URL('..', import.meta.url)), env);
-    const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
+    const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
     const config = pathToFileURL(join(tooling, 'packages/config/src/shell/config.js')).href;
     const source = `import {runGate} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
@@ -107,10 +109,10 @@ process.exitCode=result.isGreen?0:1;
       { cwd: paths.repo, env, detached: true });
     return awaitRoundTrip(closed.child, closed, phases, before);
   };
-  return { ...paths, directory, requests, marker, env, register, trace, runGui,
+  return { ...paths, directory, requests, marker, env, register, registerRaw, trace, runGui,
     setMode: value => writeFileSync(modeFile, value),
     transportDown: () => installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-      machineHome: paths.remoteMachine, requests, healthDown: true }),
+      machineHome: paths.remoteMachine, requests, healthDown: true, registrationDown: true }),
     list: () => JSON.parse(cli(paths.repo, env, 'runner', 'list', '--json').stdout).runners,
     result: gateResult };
 }

@@ -1,10 +1,12 @@
 import { cellSourceInputs } from './cell-lint-inputs.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
+import {
+  cellLstatSync,
+  cellReadFileSync,
+  cellSourceSnapshot,
+} from './cell-source-snapshot.js';
 /** Compute the accepted cells layout and literal graph without evaluating repository modules [CD19,CD23,CD61,CD62]. */
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../core/import-map.js';
 
@@ -17,6 +19,22 @@ export function testFile(file) { return file === 'packages/testkit/index.js' || 
 /** Read only the exact committed migration marker; working-tree files and live board state grant nothing. */
 export function committedCellTransition(root) {
   const file = 'bin/cells-plan/transition.json';
+  const snapshot = cellSourceSnapshot(root);
+  if (snapshot) {
+    const entry = snapshot.entries.get(file);
+    if (!entry) return { present: false, active: false };
+    const regular = entry.mode === '100644' || entry.mode === '100755' || entry.mode === 0o100644 || entry.mode === 0o100755;
+    if (!regular) return { present: true, active: false, problem: 'transition marker must be a committed regular file' };
+    const bytes = snapshot.files.get(file);
+    if (!bytes) return { present: true, active: false, problem: 'transition marker bytes are unavailable from the sealed source snapshot' };
+    let marker;
+    try { marker = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { /* Invalid source is reported as named debt below. */ }
+    if (!marker || Array.isArray(marker) || Object.keys(marker).sort().join() !== 'deleteItem,version'
+      || marker.version !== 1 || marker.deleteItem !== 1770) {
+      return { present: true, active: false, problem: 'transition marker must name deleteItem 1770 and version 1 only' };
+    }
+    return { present: true, active: true };
+  }
   const options = { cwd: root, env: gitChildEnv(root), encoding: 'utf8' };
   const entry = gitSpawnSync(['ls-tree', '-z', 'HEAD', '--', file], options);
   if (entry.status !== 0 || !entry.stdout) return { present: false, active: false };
@@ -44,9 +62,24 @@ let inventoryBuilds = 0;
 export function inventoryBuildCount() { return inventoryBuilds; }
 
 /**
- * Bring an inventory up to date for files whose bytes changed on disk, parsing only those files. The file set is
- * unchanged, so every other file's imports and unknowns carry over; a changed package.json, or a file that is
- * gone, means a full rebuild instead.
+ * Whether a changed path alters how every module is read, so only a full census is canonical: package.json holds the
+ * import map, and the kernel front door and discovery.js decide which command folders count as inputs.
+ *
+ * @param {Iterable<string>} changed
+ * @returns {boolean}
+ */
+export function needsFullCensus(changed) {
+  return [...changed].some(file => file === 'package.json' || file === 'packages/kernel/index.js' || file === 'discovery.js' || file.endsWith('/discovery.js'));
+}
+
+/** Name the file a "missing import target" or "missing <kind> input" row waits for, so an added file can satisfy it. */
+function missingTarget(row) { return /^missing (?:import target|\w+ input) (.+)$/u.exec(row.reason ?? '')?.[1] ?? null; }
+
+/**
+ * Bring an inventory up to date for the changed paths only: changed and added files are read and parsed, deleted
+ * ones leave, and only the modules whose result depends on the file set are parsed again (importers of a deleted
+ * file, modules waiting on an added one, and command-folder discoverers). Why: the cells check must cost in
+ * proportion to the diff, never the repository, and almost every item adds or deletes a file (#2531).
  *
  * @param {string} root
  * @param {any} parsers
@@ -55,14 +88,31 @@ export function inventoryBuildCount() { return inventoryBuilds; }
  * @returns {{ files: Map<string, Buffer>, edges: Map<string, any[]>, unknown: any[] }}
  */
 export function updateCellInventory(root, parsers, prior, changed) {
-  const paths = [...new Set(changed)];
-  if (paths.some(file => file === 'package.json' || !prior.files.has(file) || !existsSync(join(root, file)))) return cellInventory(root, parsers);
-  const files = new Map(prior.files);
-  for (const file of paths) files.set(file, readFileSync(join(root, file)));
+  const paths = [...new Set(changed)].sort();
+  if (needsFullCensus(paths)) return cellInventory(root, parsers);
+  const files = new Map(prior.files), edges = new Map(prior.edges), touched = new Set(paths);
+  let unknown = prior.unknown.filter(row => !touched.has(row.file));
+  const added = new Set(), removed = new Set();
+  for (const file of paths) {
+    let entry = null;
+    try { entry = cellLstatSync(join(root, file)); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const was = files.has(file);
+    if (entry?.isFile()) { files.set(file, cellReadFileSync(join(root, file))); if (!was) added.add(file); continue; }
+    files.delete(file);
+    edges.delete(file);
+    if (was) removed.add(file);
+    if (entry) unknown.push({ file, reason: 'non-regular repository entry is not followed' });
+  }
   const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};
-  const modules = paths.filter(file => /\.[cm]?js$/u.test(file)).sort();
-  const edges = new Map(prior.edges), gone = new Set(modules);
-  const unknown = prior.unknown.filter(row => !gone.has(row.file));
+  const reparse = new Set(paths.filter(file => files.has(file) && /\.[cm]?js$/u.test(file)));
+  if (added.size || removed.size) {
+    for (const [file, rows] of edges) if (rows.some(row => removed.has(row.target))) reparse.add(file);
+    for (const row of unknown) if (added.has(missingTarget(row))) reparse.add(row.file);
+    for (const [file, bytes] of files) if (/\.[cm]?js$/u.test(file) && bytes.includes('COMMAND_CANDIDATE')) reparse.add(file);
+  }
+  const modules = [...reparse].filter(file => files.has(file)).sort(), again = new Set(modules);
+  unknown = unknown.filter(row => !again.has(row.file));
   const sources = modules.map(file => files.get(file).toString('utf8'));
   const parsed = parsers.importsIn(sources), common = parsers.commonJsIn(sources);
   for (const [index, file] of modules.entries()) {
@@ -94,13 +144,29 @@ export function cellInventory(root, parsers) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('cell inventory needs explicit module parser operations');
   const { importsIn, commonJsIn } = parsers;
   const files = new Map(), unknown = [];
-  const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
-  if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
-  for (const file of [...new Set(listed.stdout.split('\0').filter(Boolean))].sort()) {
+  const snapshot = cellSourceSnapshot(root);
+  let listedPaths;
+  if (snapshot) listedPaths = [...snapshot.entries.keys()].sort();
+  else {
+    const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
+    if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
+    listedPaths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
+  }
+  for (const file of listedPaths) {
+    if (snapshot) {
+      const entry = snapshot.entries.get(file);
+      if (entry && (typeof entry.mode === 'string' ? entry.mode === '040000' : entry.mode === 0o040000)) continue;
+      const regular = entry && (entry.mode === '100644' || entry.mode === '100755' || entry.mode === 0o100644 || entry.mode === 0o100755);
+      if (!regular) { unknown.push({ file, reason: 'non-regular repository entry is not followed' }); continue; }
+      const bytes = snapshot.files.get(file);
+      if (!bytes) { unknown.push({ file, reason: 'tracked path blob bytes are unavailable in the sealed snapshot' }); continue; }
+      files.set(file, Buffer.from(bytes));
+      continue;
+    }
     let entry;
-    try { entry = lstatSync(join(root, file)); }
+    try { entry = cellLstatSync(join(root, file)); }
     catch (error) { if (error.code !== 'ENOENT') throw error; unknown.push({ file, reason: 'tracked path is missing' }); continue; }
-    if (entry.isFile()) files.set(file, readFileSync(join(root, file)));
+    if (entry.isFile()) files.set(file, cellReadFileSync(join(root, file)));
     else unknown.push({ file, reason: 'non-regular repository entry is not followed' });
   }
   const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};

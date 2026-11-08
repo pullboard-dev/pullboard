@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { movesStats, movesLines, moveTranscripts } from '../packages/stats/index.js';
@@ -14,6 +14,7 @@ import { infraNote } from '../packages/commits/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { commandOutput } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** A private real Git/SQLite board with recorded event identities and no provider files. */
 function fixture(t) {
@@ -153,7 +154,7 @@ test('automatic infra notes distinguish import-only proof from other guarded dif
 test('claim states header and infra rules once in text and preserves JSON [C7,V4]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1', '--json');
   assert.equal(claimed.code, 0, claimed.err);

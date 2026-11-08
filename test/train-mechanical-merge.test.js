@@ -19,7 +19,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { json } from './land-board-fixture.js';
 import {
   mergeMechanicalSources,
@@ -30,7 +30,7 @@ import {
   formatTable,
   writeFormatTable,
 } from '../packages/state/index.js';
-import { discoverMoves } from '../src/move-registry.js';
+import { discoverMoves } from '../packages/moves/index.js';
 import {
   GATE_SLOT_HELD_ENV,
   GATE_SLOT_POOL_ENV,
@@ -71,9 +71,9 @@ function project(parallel = false) {
 function item(box, number, text) {
   const path = join(box.dir, `builder-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-  json(box, path, 'join', 'web');
+  json(box, path, 'join', 'web', '--model', 'fixture-model');
   const added = json(box, box.repo, 'add', 'web', `Registry addition ${number}`, '--specs', 'G1',
-    '--criterion', 'retain this registry entry', '--check', 'true');
+    '--criterion', 'retain this registry entry', '--check', 'true', '--brief', 'Files: src/registry.js\nTest: the registry keeps this entry');
   const id = added.item.item_id;
   json(box, path, 'claim', String(id));
   writeFileSync(join(path, FILE), text);

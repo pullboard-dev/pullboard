@@ -1,3 +1,9 @@
+/** @pullboard-test-input source-tree */
+import { browserModules } from '../apps/relay/index.js';
+import { presentationShout } from '../packages/pages/core.js';
+import { presentationShout as nodePresentationShout } from '../packages/pages/index.js';
+import { importsIn } from '../packages/gate/index.js';
+import { fileURLToPath } from 'node:url';
 /** Native API and actual sealed relay readers must expose the same board [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -31,4 +37,24 @@ test('local relay health and its Needs stay outside sealed state without hiding 
   assertReaderParity(native, relay);
   assert.throws(() => assertReaderParity(native, { ...relay, needs: [...relay.needs, { kind: 'undeclared-difference' }] }),
     /reader parity needs/u, 'other Needs differences remain refused');
+});
+
+
+test('relay pages and presentation browser entries reach no Node built-ins [C7,H5,H15]', () => {
+  const modules = browserModules(fileURLToPath(new URL('..', import.meta.url)), { named: {
+    '/relay/pages.js': 'apps/relay/src/core/browser-pages.js',
+    '/relay/presentation.js': 'packages/pages/src/core/relay-presentation.js',
+  } });
+  assert.ok(modules.has('/relay/m/packages/pages/core.js'));
+  assert.ok(![...modules.keys()].some(path => path.includes('/shell/')));
+  const imports = importsIn([...modules.values()]);
+  assert.equal(imports.flat().filter(name => name.startsWith('node:')).length, 0);
+  assert.equal(presentationShout, nodePresentationShout, 'both front doors preserve the same pure reader binding');
+  const question = { shout_id: 1, shout_decision: true };
+  const answer = { shout_id: 2, shout_answers: 1 };
+  assert.deepEqual(presentationShout({ shouts: [question, answer] }, 1), {
+    ...question, decision_state: 'answered', decision_answer: answer,
+  });
+  assert.throws(() => presentationShout({}, 1), error => error.code === 'SHOUT_NOT_AVAILABLE');
+  assert.throws(() => presentationShout({ shouts: [] }, 1), error => error.code === 'NO_SHOUT');
 });

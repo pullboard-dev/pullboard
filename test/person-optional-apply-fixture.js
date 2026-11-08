@@ -14,8 +14,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import * as signing from '../src/person-signing.js';
+import { openBoard } from '../apps/lib/index.js';
+import { attestAuthority, setPersonSigning, verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { presenceAttestation } from '../packages/person/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import {
@@ -61,8 +61,8 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
   t.after(() => store.closeBoard(board));
   // The relay's own stamp key, as the relay vouches for it to this process (#408).
   const relayKey = relayStampKey(box);
-  signing.attestAuthority(board, box.origin, relayKey.authority);
-  signing.setPersonSigning(board, { agentId: 'coordinator', signed: true });
+  attestAuthority(board, box.origin, relayKey.authority);
+  setPersonSigning(board, { agentId: 'coordinator', signed: true });
   const document = preparePersonRequest({ verb: 'spec-approve', args: { ids: 'G21' } }, randomUUID(), [{ id: 'G21', text, source: readFileSync(specFile, 'utf8').split(/\r?\n/u).find(line => line.startsWith('- G21 ')) }]);
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value;
   const presence = { board: boardId, request: document.id, digest: createHash('sha256').update(JSON.stringify(document)).digest('hex'),
@@ -91,7 +91,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
   execute('recordRowDecisions', [{ agentId: 'person', channel: 'view', decisions }], 'execute');
   if (fabricatedMetadata) {
     const genuine = store.rowDecisions(board)[0];
-    assert.equal(signing.verifiedPasskeyRowDecision(board, genuine), true, 'the genuine committed receipt is a positive control');
+    assert.equal(verifiedPasskeyRowDecision(board, genuine), true, 'the genuine committed receipt is a positive control');
     const missingEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event').get().id + 1000;
     assert.equal(board.db.prepare('SELECT event_id FROM event WHERE event_id=?').get(missingEvent), undefined);
     const fabricated = { ...genuine, event: missingEvent, source: genuine.source.replace('gate: review', 'gate: true'),
@@ -124,7 +124,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
     assert.equal(status.document.specApprovalBaseline?.pending, false);
     assert.equal(Boolean(board.db.prepare('SELECT event_id FROM event WHERE event_id=?').get(missingEvent)), syntheticEvent,
       'the control explicitly distinguishes fabricated metadata from a raw-inserted event and fabricated engine receipt');
-    assert.deepEqual({ verified: signing.verifiedPasskeyRowDecision(board, fabricated),
+    assert.deepEqual({ verified: verifiedPasskeyRowDecision(board, fabricated),
       falselyConfirmed: !status.document.needs.some(need => need.kind === 'agent-approved' && need.id === 'G21') },
     { verified: false, falselyConfirmed: false }, 'mutable receipt metadata cannot invent a committed approval or clear its changed gate');
     return;
@@ -140,7 +140,7 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
     return;
   }
   const plan = planRowApply(box.root, loadConfig(box.root), store.rowDecisions(board), {
-    passkeyDecision: record => signing.verifiedPasskeyRowDecision(board, record),
+    passkeyDecision: record => verifiedPasskeyRowDecision(board, record),
   }, { loadDoctrine });
   assert.equal(plan.files.length, 1);
   assert.match(plan.files[0].after, /- G21 \[approved, must\] An optional SSH row approved by its exact passkey request\./u);

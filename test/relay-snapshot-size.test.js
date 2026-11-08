@@ -1,6 +1,6 @@
 /** @pullboard-test-gui */
 /** Compression stays inside the device seal while both clients retain legacy snapshot reads [H5,H15,H17]. */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -26,6 +26,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const LEGACY_BODY_THRESHOLD = 14_000_000;
 const LEGACY_RELAY_THRESHOLD = 10_000_000;
+const SIGNED_IN_BOARD_RENDER_WAIT_MS = 15_000;
 
 /** Preserve every SQLite value while normalizing row prototypes for JSON transport comparisons. */
 function plainRows(rows) { return rows.map(row => ({ ...row })); }
@@ -142,12 +143,21 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   // The actual browser keeps reading a previously stored uncompressed JSON checkpoint too.
   const chrome = await startChrome();
   t.after(() => chrome.close());
-  await chrome.send('Network.setCookie', {
-    name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
+  const phone = await box.phoneSession();
+  const cookie = await chrome.send('Network.setCookie', {
+    name: 'pb_session', value: phone.token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
+  assert.equal(cookie.success, true, 'Chrome accepted the signed-in phone session cookie');
   const encodedKey = readFileSync(box.keyFile, 'utf8').trim();
   await chrome.navigate(box.origin + '/#board=' + sourceState.board + '&key=' + encodedKey);
   await chrome.waitFor('location.origin === ' + JSON.stringify(box.origin) + ' && document.readyState === "complete"');
+  const inventory = await chrome.evaluate(`(async () => {
+    const response = await fetch('/api/v1/boards', { credentials: 'same-origin' });
+    let value = null; try { value = await response.json(); } catch {}
+    return { status: response.status, boardIds: (value?.boards ?? []).map(board => board.id), error: value?.error?.code ?? null };
+  })()`);
+  assert.equal(inventory.status, 200, `the signed-in page reads its relay inventory: ${JSON.stringify(inventory)}`);
+  assert.ok(inventory.boardIds.includes(sourceState.board), `the browser account can see this linked board: ${JSON.stringify(inventory)}`);
   assert.deepEqual(await chrome.evaluate(`(async () => {
     const { Refused } = await import('/relay/refused.js');
     const refusal = new Refused('BROWSER_CONTROL', 'module loaded', 'recover here');
@@ -155,9 +165,29 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
   })()`), { name: 'Refused', code: 'BROWSER_CONTROL', message: '[BROWSER_CONTROL] module loaded', next: 'recover here' },
   'the actual served refusal module loads its complete browser dependency graph and retains its constructor contract');
   try {
+    await chrome.waitFor( // budget: bounded 15 s fixture page-state handshake hang ceiling.
+      `typeof data !== 'undefined' && data.project?.items?.some(item => item.title === 'legacy snapshot cursor')`, SIGNED_IN_BOARD_RENDER_WAIT_MS,
+      'the signed-in page has loaded the legacy snapshot item');
+  } catch (error) {
+    t.diagnostic('signed-in relay board read: ' + JSON.stringify(await chrome.evaluate(`(() => ({
+      activeTab: typeof view !== 'undefined' ? view.tab : null,
+      itemTitles: typeof data !== 'undefined' && Array.isArray(data?.project?.items) ? data.project.items.slice(0, 5).map(item => item.title) : [],
+      notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
+    }))()`)));
+    throw error;
+  }
+  assert.equal(await chrome.evaluate(`(() => { document.querySelector('[data-tab="items"]')?.click(); return document.querySelector('[data-tab="items"]')?.classList.contains('on'); })()`), true,
+  'the browser shows the Items tab before checking its chain');
+  try {
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('legacy snapshot cursor')");
   } catch (error) {
-    t.diagnostic('legacy browser read: ' + JSON.stringify(await chrome.evaluate("({ title: document.title, notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800), signIn: document.body.textContent.includes('Sign in with GitHub'), hasLegacy: document.body.textContent.includes('legacy snapshot cursor') })")));
+    t.diagnostic('legacy browser read: ' + JSON.stringify(await chrome.evaluate(`(() => ({
+      title: document.title,
+      notice: document.querySelector('#relay-notice')?.textContent.slice(0, 800),
+      activeTab: typeof view !== 'undefined' ? view.tab : null,
+      hasLegacy: document.body.textContent.includes('legacy snapshot cursor'),
+      chainText: document.querySelector('#chain')?.textContent.slice(0, 240) ?? null,
+    }))()`)));
     throw error;
   }
   t.diagnostic('legacy browser snapshot read passed');
@@ -179,6 +209,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
 
   assert.equal((await box.cli('status')).code, 0, 'the local CLI publishes a compressed pending snapshot');
   assert.equal((await box.cli('add', box.lane, 'advance compressed snapshot')).code, 0, 'an acknowledged move advances the relay snapshot cursor');
+  assert.equal((await box.cli('status')).code, 0, 'the local CLI publishes the advanced compressed checkpoint');
   const expected = relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS);
   const snapshotRequest = box.transit.filter(row => row.method === 'PUT' && row.path.endsWith('/state')).at(-1);
   assert.ok(snapshotRequest, 'the actual linked CLI uploaded a snapshot to the relay');

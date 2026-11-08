@@ -6,14 +6,14 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
 import {
@@ -34,6 +34,18 @@ export async function cli(box, cwd, args, hooks = {}) {
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
   return { code, out, err, document: out.trim() ? JSON.parse(out) : null };
+}
+
+/** Close a dispatch fixture and retry transient ENOTEMPTY races while child work drains. */
+async function cleanupFixture(directory, board, original) {
+  try {
+    store.closeBoard(board);
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
@@ -79,7 +91,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   assert.equal(initialized.code, 0, initialized.out + initialized.err);
   const file = join(root, '.git/pullboard/board.sqlite');
   // @pullboard-board-file journey: share the durable board initialized by the real CLI and selected by its worktree dispatch.
-  const board = openBoard(file, clock);
+  const board = openBoard(file, clock, { gitRoot: root });
   const seats = {};
   for (const [name, lane, parent, vendor] of [
     ['actor', 'web', 'fixture-A', 'Family Alpha'], ['builder', 'web', 'fixture-P', 'Family Alpha'],
@@ -95,9 +107,19 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   const config = loadConfig(root);
   const box = { root, file, board, clock, seats, config, git, advance: ms => { at += ms; } };
   /** File an ordinary runnable item; tests never prefilter a candidate list for next. */
-  box.add = (title, options = {}) => store.addItem(board, { by: 'coordinator', lane: 'web', title,
-    criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
-    brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options });
+  box.add = (title, options = {}) => {
+    const wanted = options.route ?? route;
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title,
+      criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
+      brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options,
+      route: wanted === 'light' ? 'mid' : wanted });
+    if (wanted === 'light') {
+      store.appendFact(board, id, { agentId: seats.builder.id, kind: 'diagnosis',
+        text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.' });
+      if (store.getItem(board, id).item_route !== 'light') store.editItem(board, id, { agentId: 'coordinator', route: 'light', reason: 'Private light dispatch fixture' });
+    }
+    return id;
+  };
   /** Set up authentic board ownership without claiming execution of a gate. */
   box.claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane,
     leaseMs: 3_600_000, freeze: item => {
@@ -120,11 +142,6 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     assert.equal(result.error, undefined, JSON.stringify(result));
     return result;
   };
-  t.after(() => {
-    store.closeBoard(board); rmSync(directory, { recursive: true, force: true });
-    for (const [key, value] of Object.entries(original)) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-  });
+  t.after(() => cleanupFixture(directory, board, original));
   return box;
 }

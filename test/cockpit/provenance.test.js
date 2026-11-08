@@ -1,6 +1,6 @@
 /** @pullboard-test-loads src/cli/view-state.js */
 /** View projection refuses migrations from linked source and borrows staged boards without owning them [A5,A6,A2]. */
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -11,8 +11,8 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { addItem, closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
+import { openBoard } from '../../apps/lib/index.js';
+import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { beginCommandPhase } from '../../packages/link/index.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 
@@ -74,7 +74,8 @@ function fixture(t) {
   };
   /** Change exactly one version constant in linked source, leaving the primary source untouched. */
   const bump = (name, from, to) => {
-    const path = join(lane, 'src/board-schema-source.js');
+    // The schema constants moved behind the store package shim (3d2332018b).
+    const path = join(lane, 'packages/store/src/shell/board-schema-source.js');
     const before = readFileSync(path, 'utf8');
     const after = before.replace(`export const ${name} = ${from};`, `export const ${name} = ${to};`);
     assert.notEqual(after, before, `the linked checkout contains ${name} ${from}`);
@@ -101,7 +102,7 @@ function fixture(t) {
 
 /** Ask actual linked serve.js to project the primary root while falsely supplying isMain=true. */
 async function linkedProjectState(box, options = {}) {
-  const source = await import(pathToFileURL(join(box.lane, 'src', 'cli', 'view-state.js')).href);
+  const source = await import(pathToFileURL(join(box.lane, 'apps', 'cli', 'src', 'shell', 'cli', 'view-state.js')).href);
   return source.projectState(box.root, { isMain: true, ...options });
 }
 
@@ -133,24 +134,24 @@ async function assertLinkedRefusalAndPrimaryRecovery(box) {
   assertSharedBoardUnchanged(box, before);
   const primary = box.cli(box.root, box.root, 'status', '--json');
   assert.equal(primary.status, 0, `${primary.stderr}${primary.stdout}`);
-  const primaryView = await import(pathToFileURL(join(box.root, 'src', 'cli', 'view-state.js')).href);
+  const primaryView = await import(pathToFileURL(join(box.root, 'apps', 'cli', 'src', 'shell', 'cli', 'view-state.js')).href);
   assert.equal(primaryView.projectState(box.root).root, box.root, 'primary view source still opens the same board');
   assertSharedBoardUnchanged(box, before);
 }
 
-test('linked view source refuses a schema-only upgrade of the primary board [A5,A6,A2]', async t => {
+test('clause 1: linked view source refuses a schema-only upgrade of the primary board [A5,A6,A2]', async t => {
   const box = fixture(t);
   box.bump('SCHEMA_VERSION', 3, 4);
   await assertLinkedRefusalAndPrimaryRecovery(box);
 });
 
-test('linked view source refuses an event-log-only upgrade of the primary board [A5,A6,A2]', async t => {
+test('clause 1: linked view source refuses an event-log-only upgrade of the primary board [A5,A6,A2]', async t => {
   const box = fixture(t);
   box.bump('EVENT_LOG_VERSION', 1, 2);
   await assertLinkedRefusalAndPrimaryRecovery(box);
 });
 
-test('linked projection can read a borrowed staged board without closing it or changing the primary [A5,A6,A2]', async t => {
+test('clause 1: linked projection can read a borrowed staged board without closing it or changing the primary [A5,A6,A2]', async t => {
   const box = fixture(t);
   box.bump('EVENT_LOG_VERSION', 1, 2);
   const before = captureSharedBoard(box);

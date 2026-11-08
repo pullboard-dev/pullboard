@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
-import { recordGateRun } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
+import { recordGateRun } from '../../apps/lib/index.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
-import { activityWords } from '../../src/view/activity-words.js';
-import { runGate } from '../../src/gate.js';
+import { activityWords } from '../../apps/view/index.js';
+import { runGate } from '../../packages/gate/index.js';
 import { runnerExecutionServices } from '../../src/runners.js';
 import { landingExecutionServices } from '../../src/landing-shards.js';
 import { readGateReceipt, receiptStore } from '../../src/gate-run-receipt.js';
@@ -33,9 +33,9 @@ async function tab(chrome, name) {
 /** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
 async function seedBookkeeping(box, alpha) {
   box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
-  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2');
-  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1');
+  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
+  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
   box.run(alpha.web, 'claim', '3');
   const source = box.git(alpha.web, 'rev-parse', 'HEAD');
   const patch = join(box.dir, 'plain-native.patch');
@@ -93,7 +93,7 @@ test('only typed native words are translated while user quotations keep their co
   assert.equal(activityWords({ kind: 'proof-run' }).label, 'ran the proof');
 });
 
-test('native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
+test('clause 1: native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the visible plain-words scanner.');
   const box = machine(), alpha = project(box, 'plain-words');

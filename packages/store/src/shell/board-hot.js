@@ -2,6 +2,8 @@ import { ensureFactIdentityIndexes } from "../../../spec/index.js";
 import { missingFactIdentityIndexes } from "../../../spec/index.js";
 import { ensureGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
 import { missingGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
+import { ensureJobTables } from "./board-jobs-schema.js";
+import { missingJobTables } from "./board-jobs-schema.js";
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,
@@ -11,6 +13,7 @@ import { missingGrantActivationIndex } from "../../../state/src/core/relay-activ
 
 /** Each index a hot query needs; IF NOT EXISTS lets an existing board gain them on its next open. */
 const HOT_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS shout_target_id ON shout (shout_to, shout_id)',
   'CREATE INDEX IF NOT EXISTS shout_answers ON shout (shout_answers)',
   'CREATE INDEX IF NOT EXISTS shout_open_decision ON shout (shout_decision, shout_to) WHERE shout_decision = 1',
   'CREATE INDEX IF NOT EXISTS shout_open_request ON shout (shout_request) WHERE shout_request = 1',
@@ -31,15 +34,30 @@ export function ensureHotIndexes(db) {
   ensureAdditiveIndexes(db);
 }
 
+/**
+ * The seats of one original session, by session value. Why: seatFamily's peer read matches this exact LIKE, and
+ * without it SQLite walked every `a`-key on the board, about 11 ms a call on a 300,000-row board_meta [C7,#2976].
+ */
+const SESSION_PEERS_INDEX = 'board_meta_agent_session_value_v1';
+const SESSION_PEERS_SQL = `CREATE INDEX IF NOT EXISTS ${SESSION_PEERS_INDEX} ON board_meta (meta_value)
+  WHERE meta_key LIKE 'agent\\_session:%' ESCAPE '\\'`;
+
+/** True when the session-peers index is not installed yet. */
+function missingSessionPeersIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SESSION_PEERS_INDEX);
+}
+
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
 export function ensureAdditiveIndexes(db) {
   ensureFactIdentityIndexes(db);
   ensureGrantActivationIndex(db);
+  db.exec(SESSION_PEERS_SQL);
+  ensureJobTables(db);
 }
 
 /**

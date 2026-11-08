@@ -10,7 +10,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { configFromSource } from '../packages/config/index.js';
 import { gitReadSignature } from '../src/git.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec/index.js';
 import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -86,10 +86,12 @@ test('agent approval settings preserve the filename form and reject ambiguous ch
     assert.equal(config.spec, 'requirements.md');
     assert.equal(config.specAgentApproval, agentApproval);
   }
-  for (const spec of [null, [], { file: 'SPEC.md', agentApproval: null }, { file: 'SPEC.md', agentApproval: 'trust' },
-    { file: 'SPEC.md', agentApproval: 'flag', agent: 'person' }]) {
+  for (const spec of [null, [], { file: 'SPEC.md', agentApproval: null }, { file: 'SPEC.md', agentApproval: 'trust' }]) {
     assert.throws(() => configFromSource(JSON.stringify({ spec })), error => error.code === 'BAD_CONFIG');
   }
+  // Forward compatibility landed after this case: an unknown key warns and is ignored, so it can never grant approval.
+  const unknown = configFromSource(JSON.stringify({ spec: { file: 'SPEC.md', agentApproval: 'flag', agent: 'person' } }));
+  assert.equal(unknown.specAgentApproval, 'flag', 'an unknown spec key changes no approval setting');
 });
 
 test('allow suppresses approval calls and explicit refuse protects a new claim [S1,B26,P6]', t => {

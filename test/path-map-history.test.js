@@ -7,8 +7,8 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { openBoard } from '../apps/lib/index.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { checkBaseline } from '../packages/gate/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../src/board-rigor.js';
@@ -99,7 +99,7 @@ test('native check, submit and independent verification execute the old frozen p
     return JSON.parse(result.out);
   };
   json(web, 'join', 'web');
-  json(box.repo, 'add', 'web', 'Mapped frozen command', '--specs', 'G1', '--criterion', 'the moved command executes', '--check', box.command);
+  json(box.repo, 'add', 'web', 'Mapped frozen command', '--specs', 'G1', '--criterion', 'the moved command executes', '--brief', 'Files: web/old-check.mjs\nTest: the moved command executes', '--check', box.command);
   json(web, 'claim', '1');
   const before = json(web, 'show', '1').item_frozen;
   assert.equal(json(web, 'check', '1', '--yes').green, true);
@@ -167,7 +167,7 @@ test('why on an old name includes work landed at the new name [C7]', () => {
   };
   /** Build, independently check and land an actual fixture item before querying its trailer. */
   const land = (id, file, content) => {
-    json(box.repo, 'add', 'web', `Path history ${id}`, '--specs', 'G1', '--criterion', 'the named file exists', '--check', `test -f ${file}`);
+    json(box.repo, 'add', 'web', `Path history ${id}`, '--specs', 'G1', '--criterion', 'the named file exists', '--brief', `Files: ${file}\nTest: the named file exists`, '--check', `test -f ${file}`);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     json(box.web, 'claim', String(id));
     assert.equal(e2e.commitFile(box, box.web, file, content, 'feat(web): preserve moved history [G1]').status, 0);
@@ -243,7 +243,7 @@ test('a split test-name pattern stays data while its positional file follows the
   const env = { ...process.env };
   // Node's inherited test harness context would silently skip this independent nested test command.
   delete env.NODE_TEST_CONTEXT;
-  const script = `import {checkAtCommit} from ${JSON.stringify(new URL('../src/runner-private-check.js', import.meta.url).href)};
+  const script = `import {checkAtCommit} from ${JSON.stringify(new URL('../apps/runner/index.js', import.meta.url).href)};
 console.log(JSON.stringify(checkAtCommit(${JSON.stringify(box.repo)},${JSON.stringify(item)})));`;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);

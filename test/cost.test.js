@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';
@@ -24,6 +24,7 @@ import { activityInterests } from '../src/board-activity-feed.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { assertUsagePresentation } from './cockpit/usage-history-control.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -52,7 +53,7 @@ function seatUsage(box, cwd, identity) {
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import * as nativeBoard from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io);
     await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));`;
@@ -62,10 +63,10 @@ function seatUsage(box, cwd, identity) {
 
 test('an item records the tokens and cost its seats spent [N2]', () => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-claude').code, 0);
+  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(box.run(second, 'join', 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -170,7 +171,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
 
 test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', () => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-claude').code, 0);
+  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -234,10 +235,10 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
 
 test('an item records the tokens and cost its seats spent with a shared native session [N2]', () => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-codex').code, 0);
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(box.run(second, 'join', 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -307,7 +308,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
 
 test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', () => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'fixture-claude').code, 0);
+  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
@@ -399,7 +400,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
   for (const provider of ['claude', 'codex']) {
     const box = helpers.project('true');
     const model = `fixture-${provider}`;
-    assert.equal(box.run(box.web, 'join', 'web', '--model', model).code, 0);
+    assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', model).code, 0);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
     const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     let unknownId;

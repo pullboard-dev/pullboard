@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { environmentProblem } from '../../../config/src/shell/config.js';
 import { testOutcomeFields } from '../../core.js';
 import { quarantineVerdictFields } from './quarantine-verdict.js';
+import { tier1ShadowFields } from './tier1-shadow.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -84,8 +85,10 @@ function collectionFields(value) {
 export function observedFailureSignatures(value, failures) {
   if (!value || !Number.isSafeInteger(value.version) || value.version < 1 || !Array.isArray(value.failures)
     || value.failures.length !== failures.length || value.failures.some((row, index) => !row || typeof row !== 'object'
-      || row.file !== failures[index].file || row.name !== failures[index].name || !DIGEST.test(row.signature ?? ''))) return null;
-  return { version: value.version, failures: value.failures.map(({ file, name, signature }) => ({ file, name, signature })) };
+      || row.file !== failures[index].file || row.name !== failures[index].name || !DIGEST.test(row.signature ?? '')
+      || row.firstError !== undefined && !line(row.firstError, 1024))) return null;
+  return { version: value.version, failures: value.failures.map(({ file, name, signature, firstError }) => ({ file, name, signature,
+    ...(firstError === undefined ? {} : { firstError }) })) };
 }
 
 /** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
@@ -130,6 +133,9 @@ function checkedFields(value) {
   if (hasBlockingVerdict && (!blockingVerdict || version === 2 && !proof.sourceClean
     || !testOutcomes || testOutcomes.filter(row => !row.passed && !row.skipped).length !== failures.length
     || failures.some(failure => !testOutcomes.some(row => row.file === failure.file && row.name === failure.name && !row.passed && !row.skipped)))) throw bad();
+  const hasShadow = Object.hasOwn(value, 'shadow');
+  const shadow = hasShadow ? tier1ShadowFields(value.shadow, value.green) : null;
+  if (hasShadow && !shadow) throw bad();
   const load = value.load;
   if (!(version === 2 && load === null) && (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
     || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
@@ -139,6 +145,7 @@ function checkedFields(value) {
     ...(hasTestOutcomes ? { testOutcomes } : {}),
     ...(signed ? { failureSignatures: signed } : {}),
     ...(hasBlockingVerdict ? { blockingVerdict } : {}),
+    ...(hasShadow ? { shadow } : {}),
     ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
     ...(hasTiming ? { full: value.full, timing } : {}) };
 }
@@ -174,6 +181,9 @@ export function proofFields(value) {
   const testRuntimes = hasTestRuntimes ? testRuntimeRows(value.testRuntimes) : null;
   if (hasTestRuntimes && value.testRuntimes !== null && testRuntimes === null) return null;
   const actualEnvironment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
+  const hasShards = Object.hasOwn(value, 'shards');
+  const shards = hasShards ? shardRows(value.shards) : null;
+  if (hasShards && !shards) return null;
   const names = ['passed', 'failed', 'skipped'];
   if (!value.counts || !names.every(name => value.counts[name] === null
     || Number.isSafeInteger(value.counts[name]) && value.counts[name] >= 0)) return null;
@@ -181,7 +191,29 @@ export function proofFields(value) {
     environment: actualEnvironment === null ? null : { node: actualEnvironment.node, platform: actualEnvironment.platform, arch: actualEnvironment.arch },
     seat: value.seat, runner: value.runner, exitCode: value.exitCode,
     counts: Object.fromEntries(names.map(name => [name, value.counts[name]])), durationMs: value.durationMs, sourceClean: value.sourceClean,
-    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}), ...(hasReuse ? { submitReuse: true, submitReusePlan: value.submitReusePlan } : {}) };
+    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}), ...(hasReuse ? { submitReuse: true, submitReusePlan: value.submitReusePlan } : {}),
+    ...(hasShards ? { shards } : {}) };
+}
+
+/**
+ * Validate a sharded proof's per-shard results: two or more shards, each naming its repository-relative files, exit,
+ * runner and duration. Why: one receipt covers the whole proof command (RFC 0007 keys reuse on the candidate, base and
+ * tooling trees), and these rows say which slot ran which files.
+ *
+ * @param {unknown} value
+ * @returns {{ files: string[], exitCode: number|null, runner: string|null, durationMs: number }[] | null}
+ */
+function shardRows(value) {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 256) return null;
+  const rows = [];
+  for (const row of value) {
+    if (!Array.isArray(row?.files) || !row.files.length || row.files.length > 4096
+      || row.files.some(file => !line(file, 4096) || file.startsWith('/') || file.includes('\\'))
+      || row.exitCode !== null && !Number.isSafeInteger(row.exitCode) || row.runner !== null && !identity(row.runner)
+      || !Number.isSafeInteger(row.durationMs) || row.durationMs < 0) return null;
+    rows.push({ files: [...row.files], exitCode: row.exitCode, runner: row.runner, durationMs: row.durationMs });
+  }
+  return rows;
 }
 
 /** Read explicit TAP or Node reporter totals; absent counters stay unknown rather than becoming zero. */

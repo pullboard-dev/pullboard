@@ -12,8 +12,8 @@ import { createEvaluator, createSender, createWaiter, findChromeExecutable, laun
 import { chromeLaunchArgs } from './chrome-launch-args.js';
 import { assertNoKilledChromeClone } from './chrome-clone-proof.js';
 
-test('a killed test Chrome leaves no code-sign clone [C7]', { skip: process.platform !== 'darwin' || !findChromeExecutable() }, async t => {
-  await assertNoKilledChromeClone(t);
+test('a killed test Chrome leaves no code-sign clone [C7]', async () => {
+  await assertNoKilledChromeClone();
 });
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
@@ -169,12 +169,12 @@ test("a DevTools port timeout names Chrome's state [C7]", async (t) => {
   const exitedProfile = join(directory, 'exited-profile');
   const exitedMarker = join(directory, 'exited-starts');
   const exitedExecutable = join(directory, 'chrome-exits-no-port');
+  // A /bin/sh stand-in exits at once; a node one took past the whole budget to start under gate load (load 9).
   writeFileSync(exitedExecutable, [
-    '#!/usr/bin/env node',
-    "const fs = require('node:fs');",
-    "fs.appendFileSync(process.env.CHROME_STARTS, 'start\\n');",
-    'process.exit(7);',
-  ].join('\n'));
+    '#!/bin/sh',
+    "printf 'start\\n' >> \"$CHROME_STARTS\"",
+    'exit 7',
+  ].join('\n') + '\n');
   chmodSync(exitedExecutable, 0o700);
   await assert.rejects(startChrome({
     executable: exitedExecutable,

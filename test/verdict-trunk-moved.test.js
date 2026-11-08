@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const PAD = Array.from({ length: 8 }, (_, i) => `export const pad${i} = ${i};`).join('\n');
 
@@ -52,15 +54,19 @@ test('page is built', () => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with recorded landings [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), `export const page = 'built';\n${PAD}\n`);
   box.git(box.web, 'add', 'web/lib.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
   json(box.run(box.web, 'submit', '1', '--json'));
+  // A landing between submit and review moves the composed main, so the sealed submit proof is not reused and the frozen check runs here.
+  writeFileSync(join(box.repo, 'api/earlier.js'), 'export const earlier = 1;\n');
+  box.git(box.repo, 'add', 'api/earlier.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
   return { box, verdict, json };
@@ -72,14 +78,11 @@ test('a verdict after a landing that touches none of the item files is recorded 
   const item = json(box.run(box.repo, 'show', '1', '--json'));
   assert.equal(item.item_status, 'verified');
   const moved = box.git(box.repo, 'rev-parse', 'HEAD').slice(0, 12);
-  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}, judged unaffected`, 'u'));
+  assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}.*its files are unchanged`, 'u'));
 });
 
-test('a verdict after landings that keep touching a file the check reads is refused VERDICT_TRUNK_MOVED naming that file [V4,C7]', (t) => {
+test('a verdict remains valid when main changes a dependency outside the item files [V4,C7]', (t) => {
   const { box, verdict, json } = reviewWithLandings(t, { landing: 'web/shared.js', every: true });
-  assert.notEqual(verdict.code, 0, verdict.out + verdict.err);
-  const error = JSON.parse(verdict.out).error;
-  assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
-  assert.match(error.message, /reaching this review through web\/shared\.js, which test\/page\.test\.js reads/u);
-  assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'submitted');
+  assert.equal(verdict.code, 0, verdict.out + verdict.err);
+  assert.equal(json(box.run(box.repo, 'show', '1', '--json')).item_status, 'verified');
 });

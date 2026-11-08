@@ -4,8 +4,15 @@ import { twoTierReviews } from '../packages/verify/index.js';
 /** Source-bound patches retain author independence and exact replay without manufacturing proof [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { composeItemPatches } from '../packages/items/index.js';
+import { normalizeItemPatch } from '../packages/items/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';
@@ -17,6 +24,8 @@ import {
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
 } from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const COMMIT = 'a'.repeat(40);
 const PATCH = 'diff --git a/src/example.js b/src/example.js\n--- a/src/example.js\n+++ b/src/example.js\n@@ -1 +1 @@\n-old\n+new\n';
@@ -225,4 +234,84 @@ test('ordered direct-companion author refusals retain their historical code and 
     assert.deepEqual(store.getItem(replica, id), before, 'the refusal never reserves or changes the submitted item');
     assert.deepEqual(applyEngineMove(replica, { ...move, engine }, order), outcome, 'a retry returns the recorded refusal');
   }
+});
+
+/** Exercise intake through a private real CLI and inspect its persisted native patch records. */
+function intakeFixture(t) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  /** Require command success before decoding its actual JSON response. */
+  const run = (cwd, ...args) => {
+    const result = box.run(cwd, ...args, '--json');
+    assert.equal(result.code, 0, result.err + result.out);
+    return JSON.parse(result.out);
+  };
+  const item = fixtureAdd(run, box.repo, 'web', 'Patch intake case', '--specs', 'G1').item.item_id;
+  const author = run(box.web, 'whoami').id;
+  run(box.web, 'claim', String(item));
+  const source = box.git(box.web, 'rev-parse', 'HEAD');
+  // @pullboard-board-file journey: real CLI intake and native composition share this private durable board.
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  t.after(() => store.closeBoard(board));
+  return { ...box, cli: box.run, run, board, item, author, source };
+}
+
+test('patch attach accepts real format-patch headers and trailer without changing hunk bytes [V4,H16]', t => {
+  const box = intakeFixture(t);
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web/mail.txt'), 'mail body\n-- \n2.50.0\n');
+  box.git(box.web, 'add', 'web/mail.txt');
+  box.git(box.web, 'commit', '-m', 'feat(web): real mail input [G1]');
+  const mail = box.git(box.web, 'format-patch', '-1', '--stdout') + '\n';
+  assert.match(mail, /^From [a-f0-9]+ Mon Sep 17/u);
+  const expected = box.git(box.web, 'show', '--format=', '--binary', 'HEAD') + '\n';
+  submitFixture(box.board, box.item, { agentId: box.author, commit: box.source,
+    tree: box.git(box.web, 'rev-parse', box.source + '^{tree}') });
+  const file = join(box.dir, 'mail.patch');
+  writeFileSync(file, mail);
+  const attached = box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
+  assert.equal(attached.changed, true);
+  const [record] = itemPatches(box.board, box.item);
+  assert.equal(record.patch, expected);
+  assert.equal(record.author.agentId, box.author, 'mail From never grants a native author identity');
+  assert.equal(record.commit, box.source);
+  const composed = composeItemPatches(box.repo, { item_commit: box.source }, [record]);
+  assert.equal(box.git(box.repo, 'show', composed.commit + ':web/mail.txt'), 'mail body\n-- \n2.50.0');
+  const retry = box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mail', '--author', box.author, '--source', box.source);
+  assert.equal(retry.changed, false);
+  assert.throws(() => normalizeItemPatch(mail.replace('Subject:', 'Not-Subject:')), { code: 'ITEM_PATCH_FORMAT' });
+  assert.throws(() => normalizeItemPatch(mail.replace('@@ -0,0 +1,3 @@', '@@ -0,0 +1,4 @@')), { code: 'ITEM_PATCH_FORMAT' });
+});
+
+test('mixed-lane attach reports three owners and writes only unconfirmed per-lane drafts [V4,H16]', t => {
+  const box = intakeFixture(t), api = join(box.dir, 'api-owner');
+  box.git(box.repo, 'worktree', 'add', '--detach', api, 'main');
+  fixtureJoin(box.run, api, 'api');
+  const apiOwner = box.run(api, 'whoami').id;
+  submitFixture(box.board, box.item, { agentId: box.author, commit: box.source,
+    tree: box.git(box.web, 'rev-parse', box.source + '^{tree}') });
+  const changes = ['web/mail.txt', 'api/mail.txt', 'owner.txt'].map(path =>
+    `diff --git a/${path} b/${path}\nnew file mode 100644\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1 @@\n+value\n`);
+  const file = join(box.dir, 'mixed.patch'), directory = join(box.dir, 'parts');
+  writeFileSync(file, changes.join(''));
+  const before = exportBoard(box.board);
+  const result = box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory);
+  assert.equal(result.attached, false);
+  assert.equal(result.needsConfirmation, true);
+  assert.deepEqual(result.parts.map(part => part.lane), ['web', 'api', 'coordinator']);
+  assert.deepEqual(result.parts.map(part => part.owners), [[box.author], [apiOwner], ['coordinator']]);
+  for (const [n, part] of result.parts.entries()) {
+    assert.equal(part.patch, changes[n]);
+    assert.equal(readFileSync(part.file, 'utf8'), changes[n]);
+    assert.equal(box.tryGit(box.repo, 'apply', '--check', part.file).status, 0, 'each exact owner draft applies to the source');
+  }
+  assert.deepEqual(itemPatches(box.board, box.item), []);
+  assert.deepEqual(exportBoard(box.board), before, 'draft planning never attaches, confirms or mutates the board');
+  const text = box.run(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source);
+  assert.equal(text.needsConfirmation, true);
+  const collision = box.cli(box.repo, 'patch', 'attach', String(box.item), file, '--key', 'mixed', '--author', box.author, '--source', box.source, '--out', directory, '--json');
+  assert.equal(collision.code, 1);
+  assert.equal(JSON.parse(collision.out).error.code, 'ITEM_PATCH_OUTPUT');
+  assert.equal(readFileSync(result.parts[0].file, 'utf8'), changes[0]);
 });

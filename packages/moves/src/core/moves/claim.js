@@ -13,8 +13,8 @@ import { LINE_CAPACITY_ENGINE } from "../../../../../src/line-capacity-engine.js
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by claim, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
-import { barReadySetting } from "../../../../../src/bar-ready-setting.js";
-import { firstRefusal } from "../../../../../src/board-item-read.js";
+import { barReadySetting } from "../bar-ready-setting.js";
+import { firstRefusal } from "../../../../store/core.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../../src/engine-metadata.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.js";
@@ -47,7 +47,7 @@ function minimumEngine(args, board, at) {
   const foreign = item && hasForeignDependencies(item);
   const withdrawn = item && localDependencyIds(item).some(dependency => board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(dependency)?.item_status === 'withdrawn');
   const expected = board && validId && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_expected_build_minutes:${id}`);
-  return Math.max(expected || args[1]?.buildBudgetMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.itemFolder === true ? ITEM_FOLDER_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(expected || args[1]?.buildBudgetMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.itemFolder === true ? ITEM_FOLDER_ENGINE : 1, args[1]?.adoptCorrection === true || args[1]?.refreshPolicy === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 
@@ -68,14 +68,14 @@ export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   "HELD": "take another item: pullboard next",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
   "ITEM_HELD": "take another item with pullboard next while the coordinator holds this one",
-  "LANE_HELD": "wait for the lane: pullboard next --wait 9 (minutes)",
+  "LANE_HELD": "take other work with pullboard next; nothing for this seat: end your turn",
   "NOT_CLAIMABLE": "take open work: pullboard next",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NO_ITEM": "find the item id: pullboard list --all",
   "NO_POLICY": "restore and commit pullboard.json, then run the command again",
   "ONE_CLAIM": "submit or release the item you hold: pullboard release <id> --reason <code> --note \"why\"",
   "PENDING_REFREEZE": "the coordinator runs pullboard refreeze <id>",
-  "REOPEN_HELD_FOR_BUILDER": "wait until the named deadline, or ask the builder to run pullboard release <id> --reason ROUTED_ELSEWHERE",
+  "REOPEN_HELD_FOR_BUILDER": "ask the builder to run pullboard release <id> --reason ROUTED_ELSEWHERE, then take other work with pullboard next",
   "ROUTE": "take an item your route covers: pullboard next",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\"",

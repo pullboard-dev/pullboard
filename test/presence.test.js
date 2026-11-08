@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** Seat identity survives heartbeat-based presence changes on a real SQLite board [B3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -15,6 +15,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -25,7 +26,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   const observedAt = Date.now();
@@ -74,7 +75,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { importSeatObservations } = await import('../packages/store/index.js');
   const { dispatchWork } = await import('../packages/store/index.js');
-  const { dispatchHealth } = await import('../src/dispatch-health.js');
+  const { dispatchHealth } = await import('../packages/sentinels/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -213,7 +214,7 @@ test('local heartbeats revive a seat without changing exported history or a remo
 
 test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { relaySnapshot } = await import('../src/relay-presentation.js');
+  const { relaySnapshot } = await import('../packages/pages/index.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const helpers = createE2eHelpers();
@@ -246,7 +247,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { readFileSync } = await import('node:fs');
   const { DatabaseSync } = await import('node:sqlite');
-  const { projectState } = await import('../src/cli/view-state.js');
+  const { projectState } = await import('../apps/cli/src/shell/cli/view-state.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -382,7 +383,7 @@ test('read commands never refresh presence while committed writes and hooks do [
   /** Reuse production parsing/dispatch with the same private identity and captured streams. */
   box.run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
   // Complete the genuine baseline before measuring hooks, rather than racing its background event.
-  const added = await box.run(box.repo, 'add', 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
+  const added = await fixtureAdd(box.run, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
   const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
@@ -504,7 +505,7 @@ test('checkpoint fingerprints retain hidden-seat heartbeats without treating clo
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const { exportBoard } = await import('../packages/store/index.js');
-  const { relayPresentation, presentationDigest } = await import('../src/relay-presentation.js');
+  const { relayPresentation, presentationDigest } = await import('../packages/pages/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -590,7 +591,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../packages/state/index.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { nativeBoardPorts } = await import('../src/native-board.js');
+  const { nativeBoardPorts } = await import('../apps/lib/index.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const f = goneClaimFixture(t);
@@ -664,7 +665,7 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
 test('gone maintenance leaves unknown imported holders and submitted reviews alone [B3,V1,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { releaseGoneClaims } = await import('../src/gone-claims.js');
+  const { releaseGoneClaims } = await import('../packages/sentinels/index.js');
   const { submitFixture } = await import('./board-submit-fixture.js');
   const f = goneClaimFixture(t);
   const id = f.claim();

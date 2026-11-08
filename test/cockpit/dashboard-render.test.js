@@ -1,9 +1,9 @@
 /** Pure populated Dashboard HTML from deterministic data; native wiring remains in the audit journey [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardHtml } from '../../src/view/dashboard-render.js';
-import { dashboardModel } from '../../src/view/dashboard-model.js';
-import { roadmapSummary } from '../../src/view/roadmap-summary.js';
+import { dashboardHtml } from '../../apps/view/src/core/view/dashboard-render.js';
+import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
+import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
 import { dashboardData } from './view-data.js';
 import { compareFlowWindows } from '../../packages/stats/src/core/stats-flow.js';
 
@@ -197,4 +197,19 @@ test('seeded event windows reach Dashboard rows through the canonical comparison
     assert.ok(html.includes('data-stats-comparison="'+name+'" data-current="'+values[0]+'" data-previous="'+values[1]+'" data-change="'+values[2]+'"'),name+' preserves its canonical values');
   }
   assert.equal(JSON.stringify(history),original,'the pure renderer does not change recorded inputs');
+});
+
+test('Dashboard has no Pipeline section and prints no raw milliseconds; The last two hours stays [N26]', () => {
+  const input = dashboardData({ populated: true });
+  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
+  const current = { since:'2026-10-28T10:00:00.000Z', until:'2026-10-28T12:00:00.000Z', landed:2, agentHours:4, agentHoursPerLanding:2, idleShare:0.5, submitsPerItem:1.5, rejectRate:0.25, shoutsPerLanding:1,
+    idleReasons:{'nothing-eligible':0.1,held:0.1,'review-family':0.1,'main-red':0.1,unknown:0.1}, stageShares:{build:0.2,rework:0.2,reviewWait:0.2,review:0.2,land:0.2} };
+  model.comparison = { version:1, available:true, durationMinutes:120, current, previous:{ ...structuredClone(current), landed:1 },
+    change:{ landed:1,agentHours:0,agentHoursPerLanding:0,idleShare:null,submitsPerItem:0,rejectRate:0,shoutsPerLanding:0,
+      idleReasons:{'nothing-eligible':0,held:0,'review-family':0,'main-red':0,unknown:0},stageShares:{build:0,rework:0,reviewWait:0,review:0,land:0} } };
+  model.pipeline = { count: 1, limit: 20, items: [], totals: {}, causes: {}, unmeasuredGaps: [], evidence: 'raw' };
+  const html = dashboardHtml(model);
+  assert.ok(!/aria-label="Pipeline"|dash-pipeline|data-pipeline|>Pipeline</u.test(html), 'no Pipeline section, even when the API supplies the data');
+  assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
+  assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
 });

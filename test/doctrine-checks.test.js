@@ -6,6 +6,8 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from '
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -28,7 +30,7 @@ function checkedProject(fields, extraRows = []) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: add the quality doctrine');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   return box;
 }
@@ -41,6 +43,36 @@ function commitWeb(box, files, message) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
+/** Create and claim a fresh web item from main so it cannot stack on an unverified candidate. */
+function nextWebItem(box, title) {
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.ok(Number.isSafeInteger(id) && id > 0, `the board returns a real item id: ${added.out}`);
+  const web = join(box.dir, `web-${id}`);
+  const source = box.git(box.repo, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
+  assert.match(fixtureJoin(box.run, web, 'web', '--model', 'Fixture').out, /joined as web-/);
+  assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
+  return { id, web };
+}
+
+/** Write a scenario's files in its own native item worktree and commit them through hooks. */
+function commitWebAt(box, web, files, message) {
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(web, 'web', name), text);
+  box.git(web, 'add', '-A');
+  const committed = box.tryGit(web, 'commit', '-q', '-m', message);
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
+}
+
+/** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
+function assertDoctrineReport(output, expected) {
+  const text = output.endsWith('\n') ? output.slice(0, -1) : output;
+  const footer = /\nnext: pullboard next --(?:wait \d+|take)$/u.exec(text);
+  assert.ok(footer, 'doctrine check appends its exact navigation footer');
+  assert.equal(text.slice(0, footer.index), expected);
+}
+
 /** Replace the rule's committed fields on main and try to commit them through the hooks. */
 function editRule(box, from, to) {
   const file = join(box.repo, 'DOCTRINE.md');
@@ -51,7 +83,7 @@ function editRule(box, from, to) {
   return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("a doctrine rule's check holds its count [D1,D3]", () => {
+test("clause 1: a doctrine rule's check holds its count [D1,D3]", () => {
   const box = checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
   // A check that exits other than 0 or 1 cannot count, so it refuses by name.
@@ -63,37 +95,42 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.match(uncounted.err, /Q4 The keep file stays\. cannot count: its check exited 3/);
   assert.equal(uncounted.code, 1, uncounted.out);
 
-  // A rise above the committed count is refused, naming the rule, the counts and the new line.
+  // A rise reports what it would refuse during this rule's twenty-clean-gate trial.
+  assert.equal(box.run(box.web, 'claim', '1').code, 0, 'the refused uncounted check reopened item 1');
   commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
-  assert.doesNotMatch(rose.err, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
-  assert.equal(rose.code, 1, rose.out);
-  assert.match(rose.err, /RATCHET_ROSE/);
-  assert.match(rose.err, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
-  assert.match(rose.err, /web\/b\.html:1:TODO three/);
-  assert.doesNotMatch(rose.err, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
+  const roseOutput = `${rose.out}${rose.err}`;
+  assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
+  assert.equal(rose.code, 0, rose.err);
+  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
+  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+  assert.match(roseOutput, /web\/b\.html:1:TODO three/);
+  assert.doesNotMatch(roseOutput, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
 
-  // A changed file that gains a problem is refused even when the total falls.
-  commitWeb(box, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
-  const gained = box.run(box.web, 'submit', '1');
-  assert.equal(gained.code, 1, gained.out);
-  assert.match(gained.err, /RATCHET_ROSE/);
-  assert.match(gained.err, /web\/b\.html gains 1 problem/);
-  assert.match(gained.err, /web\/b\.html:1:TODO three/);
+  // A later gate reports a new per-file problem even when the total falls.
+  const gainedItem = nextWebItem(box, 'Clear the old markers');
+  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
+  const gained = box.run(gainedItem.web, 'submit', String(gainedItem.id));
+  const gainedOutput = `${gained.out}${gained.err}`;
+  assert.equal(gained.code, 0, gained.err);
+  assert.match(gainedOutput, /would refuse RATCHET_ROSE \(report-only, 1\/20 clean gates\)/);
+  assert.match(gainedOutput, /web\/b\.html gains 1 problem/);
+  assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
 
   // A fall passes and is shown as N, was M.
-  commitWeb(box, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
-  const fell = box.run(box.web, 'submit', '1');
+  const fellItem = nextWebItem(box, 'Finish the page');
+  commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
+  const fell = box.run(fellItem.web, 'submit', String(fellItem.id));
   assert.equal(fell.code, 0, fell.err);
   assert.match(fell.out, /Q1 Web pages carry no TODO markers\. · 1, was 2 · holding/);
-  const report = box.run(box.web, 'doctrine', 'check');
+  const report = box.run(fellItem.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
-  assert.equal(report.out.trim(), [
+  assertDoctrineReport(report.out, [
     'Q1 Web pages carry no TODO markers. · 1, was 2 · holding',
     'Q3 Api work keeps the TODO count. · 1, was 2 · holding',
     'Q4 The keep file stays. · 0, was 0 · holding',
   ].join('\n'));
-  const json = JSON.parse(box.run(box.web, 'doctrine', 'check', '--json').out);
+  const json = JSON.parse(box.run(fellItem.web, 'doctrine', 'check', '--json').out);
   assert.deepEqual(json.rules.map(({ id, count, committed, holds }) => ({ id, count, committed, holds })),
     [{ id: 'Q1', count: 1, committed: 2, holds: true }, { id: 'Q3', count: 1, committed: 2, holds: true }, { id: 'Q4', count: 0, committed: 0, holds: true }]);
   assert.deepEqual(json.rules[0].problems, ['web/a.html:1:TODO two']);
@@ -132,7 +169,7 @@ test("a doctrine rule's check holds its count in watch mode and nightly [D1,D3]"
   assert.match(rose.out, /^Q2 Web pages stay TODO-free overnight\. · 4, was 3 · rose$/m);
 });
 
-test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", () => {
+test("clause 2: a doctrine rule's check holds its count when its row is demoted [D1,D3]", () => {
   const box = checkedProject('count: 2');
   const file = join(box.repo, 'DOCTRINE.md');
   const committed = readFileSync(file, 'utf8');
@@ -152,13 +189,14 @@ test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", 
 
   const report = box.run(box.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
-  assert.equal(report.out.trim(), 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding', 'doctrine check still lists the rule');
+  assertDoctrineReport(report.out, 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding');
 
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
-  assert.equal(rose.code, 1, rose.out);
-  assert.match(rose.err, /RATCHET_ROSE/);
-  assert.match(rose.err, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+  const roseOutput = `${rose.out}${rose.err}`;
+  assert.equal(rose.code, 0, rose.err);
+  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
+  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
 });
 
 
@@ -184,7 +222,8 @@ test('a submit hold runs scoped checks only for affected paths or checker code [
   const mainCommit = box.git(box.repo, 'rev-parse', 'HEAD');
   const seen = [];
   const run = async () => holdDoctrineAsync(box.web, { mainCommit, commit: box.git(box.web, 'rev-parse', 'HEAD'),
-    runCheck: async (_commit, command) => { seen.push(command); return { problems: [], broken: '', seconds: 0 }; } });
+    // Main's own measure runs once per main commit (#2575); only the candidate's runs show the scoping.
+    runCheck: async (commit, command) => { if (commit !== mainCommit) seen.push(command); return { problems: [], broken: '', seconds: 0 }; } });
   commitWeb(box, { 'unrelated.txt': 'unrelated\n' }, 'feat(web): unrelated [G1]');
   await run();
   assert.deepEqual(seen, ['true']);

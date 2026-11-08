@@ -1,13 +1,17 @@
 export { carryingCapacity } from './src/core/carrying-capacity.js';
 export { readCarryingCapacity } from './src/shell/carrying-capacity-read.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
+export { workFreeReleases, readWorkFreeReleases } from './src/core/work-free-releases.js';
 export { buildTimeStats, buildTimeLines } from './src/core/stats-build-time.js';
 export {
   nativeToolCallIds,
+  nativeLastPrompt,
 } from './src/core/exit-rules-calls.js';
 export {
   repeatedExitFailure,
   exitRulesDecision,
+  contextCeiling,
+  exitContextDecision,
 } from './src/core/exit-rules-policy.js';
 export {
   replayHistory,
@@ -89,6 +93,11 @@ export {
   checkpointAfterMove,
 } from './src/shell/cost-checkpoint.js';
 export {
+  USAGE_CHECKPOINT_ENV,
+  drainUsageCheckpoints,
+  usageDueDirectory,
+} from './src/shell/cost-due.js';
+export {
   usageCheckpoint,
 } from './src/shell/cost-ledger.js';
 export {
@@ -160,3 +169,6 @@ export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMil
 
 export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
 export { buildCalibration } from './src/core/build-calibration.js';
+export { isProofAgent, proofAgentIds } from './src/shell/stats.js';
+
+export { idleSkipMinutes } from './src/core/idle-skip-minutes.js';

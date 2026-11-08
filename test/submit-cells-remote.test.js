@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { remoteSubmitCells, submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
+import { remoteSubmitCells } from '../apps/cli/src/shell/submit-cells-remote.js';
+import { submitCellsRemoteCommand } from '../apps/cli/src/shell/submit-cells-remote.js';
 
 test('remote cells loads pinned main tooling and treats candidate tooling as data [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'cells-remote-test-'));
@@ -18,7 +19,9 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
   try {
     git('init', '--quiet');
     put('package.json', '{"type":"module"}\n');
-    put('packages/gate/index.js', 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }\n');
+    put('bin/cells-plan.json', '{"version":1,"cells":[]}\n');
+    const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }\n';
+    put('packages/gate/index.js', trustedGate);
     put('packages/landing/index.js', 'export function withMainCheckout(){}\n');
     put('bin/cells-submit-checks.js', `export async function requireSubmitCells(root, main, source, item, services) {
       if (JSON.parse(item.item_frozen).criterion !== 'fixture' || services.readCutItems()[0].item_id !== 7 || !services.cacheEligible()
@@ -36,6 +39,15 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
     const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
     assert.deepEqual(result, { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] });
+
+    put('packages/gate/index.js', trustedGate);
+    put('bin/cells-submit-checks.js', "export async function requireSubmitCells() { throw new Error('CELL_DIAGNOSTIC: refusing candidate'); }\n");
+    git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'refusing checker');
+    const refusingMain = git('rev-parse', 'HEAD');
+    const refusingCommand = submitCellsRemoteCommand({ main: refusingMain, source, criterion: 'fixture', cutRows: [{ item_id: 7 }] });
+    const refused = spawnSync('/bin/sh', ['-c', refusingCommand], { cwd: root, env, encoding: 'utf8' });
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /cells checker failed: Error: CELL_DIAGNOSTIC: refusing candidate/u);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -68,5 +80,28 @@ test('remote cells rejects altered output and a changed cut authority snapshot [
     await assert.rejects(remoteSubmitCells(root, main, main, item, lease, readCuts, root), { code: 'RUNNER_RESULT_INVALID' });
     corrupt = false; changed = true; reads = 0;
     await assert.rejects(remoteSubmitCells(root, main, main, item, lease, readCuts, root), { code: 'CELLS_SUBMIT' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test('remote cell analysis accepts a generic project without core checker files [C7,V4]', () => {
+  const root = mkdtempSync(join(tmpdir(), 'cells-remote-generic-'));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
+  try {
+    git('init', '--quiet');
+    writeFileSync(join(root, 'README.md'), 'generic project\n');
+    git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'generic');
+    const main = git('rev-parse', 'HEAD');
+    const command = submitCellsRemoteCommand({ main, source: main, criterion: 'fixture', cutRows: [] });
+    const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
+    const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
+    assert.equal(result.acceptedMain, main);
+    assert.equal(result.source, main);
+    assert.deepEqual(result.cells, []);
+    assert.deepEqual(result.existingCuts, []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

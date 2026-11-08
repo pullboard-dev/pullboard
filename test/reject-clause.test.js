@@ -4,13 +4,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const CRITERION = 'The page renders its title. The page renders its footer.';
 const TITLE_CLAUSE = 'The page renders its title.';
@@ -226,7 +228,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   let board;
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'A quoted public rejection', '--criterion', CRITERION,
+  const added = fixtureAdd(box.run, box.repo, 'web', 'A quoted public rejection', '--criterion', CRITERION,
     '--specs', 'G1', '--check', 'test -f web/page.html', '--route', 'light',
     '--brief', 'Files: web/page.html\nTest: assert the rendered title and footer.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
@@ -242,7 +244,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   const reviewer = join(box.dir, 'clause-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   box.env.CODEX_THREAD_ID = 'independent-clause-review-fixture';
-  assert.equal(box.run(reviewer, 'join', 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'api').code, 0);
   const reserved = box.run(reviewer, 'next', '--verify', String(id), '--json');
   assert.equal(reserved.code, 0, reserved.out || reserved.err);
   assert.equal(JSON.parse(reserved.out).item.item_id, id);

@@ -12,7 +12,7 @@
   ["src/relay-sender-main.js","apps/lib/src/shell/relay-sender-main.js","rule"],
   ["src/submit-handoff-worker.js","apps/lib/src/shell/submit-handoff-worker.js","rule"]
  ],
- "reexports": [],
+ "reexports": ["src/index.js", "src/native-board.js"],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},
   {"cell":"resources","imports":1,"before":true},

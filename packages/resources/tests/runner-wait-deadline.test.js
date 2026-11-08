@@ -75,16 +75,22 @@ require('node:module').syncBuiltinESMExports();\n`);
   return { ...box, requests, starts, stderrLog, settingsFile };
 }
 
-/** Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override. */
-async function observe(predicate, description) {
-  const until = Date.now() + 10_000; // budget: private Git and SSH startup; no production deadline extension.
+/**
+ * Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override.
+ * An infrastructure requeue renews the runner deadline by design (#1953), so a phase that follows one passes
+ * a budget covering the admission deadline plus the renewed one.
+ */
+async function observe(predicate, description, budgetMs = 10_000) {
+  const until = Date.now() + budgetMs; // budget: private Git and SSH startup; no production deadline extension.
   while (!predicate()) {
     if (Date.now() >= until) throw new Error('fixture did not reach ' + description);
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
 
-test('a gate run waiting for an unreachable runner falls back to a local slot after the deadline and names the runner [C7,Q1,Q2]', async () => {
+test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
+  // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
+  // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
   const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -99,37 +105,26 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     assert.equal(idle.runner, undefined, 'an idle compatible local slot is not hidden by registered non-GUI runners');
     idle.release();
     held = await takeResource({ name: 'gate', scope: 'machine', root: box.repo, capacity: 1, agent: 'real-local-holder' });
-    const marker = join(box.dir, 'ran-locally');
-    const command = 'node -e ' + shellQuote(`require('node:fs').writeFileSync(${JSON.stringify(marker)},'actual local command'); console.log('DEADLINE_LOCAL_EXECUTION')`);
+    const command = 'node -e ' + shellQuote("console.log('DEADLINE_LOCAL_EXECUTION')");
     pending = runThroughGate(box.repo, box.env, command, { item: 'deadline-case', requests: box.requests });
     await observe(() => existsSync(box.requests) && readFileSync(box.requests, 'utf8').includes('"dropped":true'), 'the actual SSH transport drop');
-    const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
-    await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
-    const first = queue().line.find(row => row.item === 'deadline-case');
-    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
-    const resources = cli(box.repo, box.env, 'resources');
-    assert.equal(resources.status, 0, fixtureResultContext(resources));
-    assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
-    assert.match(resources.stdout, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'the actual dropped runner and reason are named');
-    const status = cli(box.repo, box.env, 'status');
-    assert.equal(status.status, 0, fixtureResultContext(status));
-    assert.match(status.stdout, /runner wait deadline/iu, 'ordinary status also names a run past its runner deadline');
-    const current = queue().line.find(row => row.item === 'deadline-case');
-    assert.equal(current.since, first.since, 'fallback preserves the original queue age');
-    assert.equal(existsSync(marker), false, 'the deadline never bypasses a live local holder');
-    held.release(); held = null;
     const result = await pending; pending = null;
     assert.equal(result.status, 0, fixtureResultContext(result));
-    assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u);
-    assert.equal(gateResult(result.stdout).runner, undefined, 'the command actually executes locally');
-    assert.match(result.stderr, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'fallback emits the named runner reason');
+    assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u, 'the command ran through the runner stand-in, which shares this machine\'s filesystem');
+    assert.ok(gateResult(result.stdout).runner, 'the requeued run executed on the registered runner, not in the held local slot');
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-    assert.equal(calls.filter(call => !call.healthProbeFailed).length, 1, 'a quarantined runner gets no second job after the deadline');
-    assert.ok(calls.every(call => call.dropped || call.healthProbeFailed), 'other SSH calls are only the down-host health observations, never another job');
+    assert.equal(calls.filter(call => call.dropped).length, 1, 'only the first transport is dropped');
+    assert.ok(calls.filter(call => !call.healthProbeFailed && !call.dropped).length >= 1, 'a single lost transport does not quarantine the runner: the run is dispatched to it again');
+    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline');
+    const resources = cli(box.repo, box.env, 'resources');
+    assert.equal(resources.status, 0, fixtureResultContext(resources));
+    assert.doesNotMatch(resources.stdout, /runner wait deadline/iu, 'no run is overdue, so public resources names no deadline');
+    held.release(); held = null;
+    const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     assert.equal(queue().holders.length + queue().line.length, 0, 'all private leases drain');
   } finally {
     held?.release();
-    if (pending) await pending; // Release the held slot even on a missing-deadline assertion, then drain the owned controller.
+    if (pending) await pending; // Release the held slot even on a failed assertion, then drain the owned controller.
     for (const [index, key] of ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].entries()) {
       if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
     }
@@ -141,7 +136,7 @@ test('disabled local capacity and runner-only work refuse by name at the runner 
     const box = fixture();
     const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
     writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: runnerOnly ? 1 : 0, browserSlots: runnerOnly ? 1 : 0 }));
-    const module = pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href;
+    const module = pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href;
     const source = `import {withGateSlot} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}
 try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
@@ -166,7 +161,7 @@ test('a registered runner that never answers is canceled at the deadline and the
     pending = runThroughGate(box.repo, box.env, 'node -e "console.log(\'STALLED_RUN_LOCAL\')"', { item: 'stalled-case', requests: box.requests });
     await observe(() => existsSync(box.starts), 'the non-answering SSH stand-in actually starting');
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
-    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket');
+    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket', 3 * STAND_IN_BOOT_BUDGET_MS + 10_000); // budget: the admission deadline, then the renewed deadline after the worker-unresponsive requeue (#1953).
     const waiting = queue().line.find(row => row.item === 'stalled-case');
     assert.match(waiting.runnerDeadline.branch, /local gate slots busy/u);
     assert.match(waiting.runnerDeadline.runners[0].reason, /unreachable/u);
@@ -335,7 +330,7 @@ test('a first runner freed after the queue deadline executes with its captured s
     const release = join(box.dir, 'release-runner'), released = join(box.dir, 'runner-released');
     try {
       const tooling = committedToolingSnapshot(join(import.meta.dirname, '../../..'), box.env);
-      const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
+      const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
       const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
       const script = `import {writeFileSync,existsSync} from 'node:fs';
 import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
@@ -380,7 +375,8 @@ test('an overdue runner-only request refuses busy capacity with its next step in
   await withPrivateDeadlineMachine(box, async settings => {
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
-    const held = await takeResource(options);
+    // The holder takes the free runner on its first poll with a budget no loaded machine can outrun; at the fixture's 60ms a late first poll would count as an overdue late dispatch and its startup budget could expire, hiding the runner behind a non-busy reason.
+    const held = await takeResource({ ...options, runnerWaitMs: 60_000 });
     try {
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60 }), error => error.code === 'RUNNER_WAIT_DEADLINE'
         && /busy/u.test(error.message) && /then retry/u.test(error.message));
@@ -437,7 +433,7 @@ test('a failed late dispatch cannot buy another startup budget on a different fr
       assert.equal(late.runner.host, runners[0].host);
       assert.equal(late.lateRunnerDispatch.budgetMs, 60);
       second.release(); second = null;
-      const requeued = late.requeueRunner('transport-lost'); late = null;
+      const requeued = late.requeueRunner('transport-lost', { quarantine: false }); // a quarantined requeue starts a fresh attempt on purpose (10d8e44f17, #2657) late = null;
       await assert.rejects(requeued, { code: 'RUNNER_WAIT_DEADLINE' }, 'the same original request has spent its one late start');
       const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
       assert.equal(pool.holders.length + pool.line.length, 0, 'refusal cleans the transferred original ticket');
@@ -512,7 +508,7 @@ test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q
 
 test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
   const box = fixture({ dropFirst: false });
-  const gateUrl = pathToFileURL(join(process.cwd(), 'src/gate.js')).href;
+  const gateUrl = pathToFileURL(join(process.cwd(), 'packages/gate/index.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}
 let calls = 0;

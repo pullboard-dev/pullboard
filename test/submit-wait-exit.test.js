@@ -1,13 +1,14 @@
 /** The public wait flag ends at the actual gate outcome, independently of review [V4,B3]. */
 /** @pullboard-test-loads bin/pullboard.js */
 import assert from 'node:assert/strict';
+import { driverRecord } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { BIN } from './submit-main-red-fixture.js';
@@ -113,7 +114,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   const script = join(box.directory, 'checkout-barrier.mjs');
   writeFileSync(script, [
     "import { existsSync,writeFileSync } from 'node:fs';",
-    `import { exactStart } from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};`,
+    `import { exactStart } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};`,
     "if(process.cwd().includes('/submit-handoffs/') && process.cwd().endsWith('/source')) {",
     ` writeFileSync(${JSON.stringify(ready)},JSON.stringify({git:process.ppid,gitStart:exactStart(process.ppid)}));`,
     ' const deadline=Date.now()+120000;',
@@ -135,9 +136,9 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   let job;
   try { job = submitHandoff(board, box.item); } finally { board.db.close(); }
   assert.equal(job.state, 'queued', 'the checkout barrier precedes all gate holder/waiter admission');
-  const workerFile = join(box.root, '.git/pullboard/submit-handoffs', job.id, 'worker.json');
-  await helpers.waitFor(() => existsSync(workerFile), 'the real worker incarnation receipt', 30_000); // budget: hang ceiling for actual owned-worker identity before signaling it.
-  worker = JSON.parse(readFileSync(workerFile, 'utf8'));
+  const boardFile = join(box.root, '.git/pullboard/board.sqlite');
+  await helpers.waitFor(() => driverRecord(boardFile, job.id)?.started, 'the real driver incarnation record', 30_000); // budget: hang ceiling for actual owned-driver identity before signaling it.
+  worker = driverRecord(boardFile, job.id);
   assert.ok(worker.started);
   assert.equal(exactStart(worker.pid), worker.started, 'only this owned fixture worker may be terminated');
   process.kill(worker.pid, 'SIGKILL');

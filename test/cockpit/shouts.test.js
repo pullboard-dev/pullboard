@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { register, shout as shoutOnBoard } from '../../src/board.js';
-import { nativeBoardPorts } from '../../src/native-board.js';
+import { nativeBoardPorts } from '../../apps/lib/index.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, project, build, startView, styleOf, element, storage, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, earlier, shoutsAt, press, pressedInto } from './fixture.js';
 import { assertFirstStateDelay, press as sharedPress } from './stable.js';
@@ -251,7 +251,8 @@ test('a short code chip at a line end stays whole, and long code stays one chip 
   }
 });
 
-test('real Chrome styles shout code and item text without growing linked lines [N26]', { timeout: 120_000 }, async (t) => {
+  // Since 639c16dbb5 the item panel shows the criterion under Done when and the brief in .item-panel-brief.
+test('clause 1: real Chrome styles shout code and item text without growing linked lines [N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for rendered shout checks.');
 
@@ -288,9 +289,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#chain [data-item=\"1\"]')");
     await assertFirstStateDelay(chrome, t);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
+    await chrome.waitFor('innerWidth === 1280 && document.querySelector("#detail .item-panel-brief code.inline")?.getBoundingClientRect().width > 0');
     const desktopBrief = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const code=document.querySelector('#detail .text.muted code.inline'), line=code?.parentElement;
+      const code=document.querySelector('#detail .item-panel-brief code.inline'), line=code?.parentElement;
       const rect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
       return {display:code&&getComputedStyle(code).display,width:rect?.width,lineWidth:lineRect?.width};
     })())`));
@@ -344,7 +345,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
         linkedButtons: [...document.querySelectorAll('#feed > .shout')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('a.ref[data-go]').length,
         previewLinks: shout?.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
         outsideHtml: outside?.innerHTML, askNestedButtons: [...(ask?.querySelectorAll('button') || [])].filter(link => link.parentElement.closest('button')).length,
-        criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
+        criterionHtml: itemDetail.querySelector('.item-panel-expand-text')?.innerHTML, briefHtml: itemDetail.querySelector('.item-panel-brief')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,
@@ -393,9 +394,9 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375 && document.querySelector("#feed > .shout")?.getBoundingClientRect().width > 0');
     await chrome.click("document.querySelector('[data-tab=items]')");
-    await chrome.waitFor('document.querySelector("[data-pane=items]:not([hidden])") && document.querySelector("#detail .text.muted code.inline")?.getBoundingClientRect().width > 0');
+    await chrome.waitFor('document.querySelector("[data-pane=items]:not([hidden])") && document.querySelector("#detail .item-panel-brief code.inline")?.getBoundingClientRect().width > 0');
     const phoneBrief = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const code=document.querySelector('#detail .text.muted code.inline'), line=code?.parentElement;
+      const code=document.querySelector('#detail .item-panel-brief code.inline'), line=code?.parentElement;
       const rect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
       return {display:code&&getComputedStyle(code).display,width:rect?.width,lineWidth:lineRect?.width};
     })())`));

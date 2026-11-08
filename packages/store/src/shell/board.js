@@ -39,6 +39,7 @@ import { verdictsFor } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
+import { companionWindowProblem } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { GUARDS } from "../../../state/index.js";
@@ -70,12 +71,15 @@ import { requestCompanion } from "./board-request-companion.js";
 import { editItem } from "./board-edit-item.js";
 import { validateItemEdit } from "./board-edit-item.js";
 import { attachItemPatch } from "./board-attach-item-patch.js";
+import { objectItemPatch } from "./board-attach-item-patch.js";
 import { removeItemPatch } from "./board-remove-item-patch.js";
 import { prepareClaim as preparedClaim } from "./board-claim.js";
 import { claim as applyPreparedClaim } from "./board-claim.js";
 import { release } from "./board-release.js";
 import { submit } from "./board-submit.js";
+import { prepareSubmit } from "./board-submit.js";
 import { sealClauseInspection } from "./board-submit.js";
+import { sealStrictRenames } from "./board-submit.js";
 import { reviewReleaseNoteProblem } from "./board-review-release-note.js";
 import { reviewOffer } from "./board-review-offer.js";
 import { reserveReview } from "./board-reserve-review.js";
@@ -108,6 +112,7 @@ import { applyRehomeItem } from "./board-apply-rehome-item.js";
 import { approveOutside } from "./board-approve-outside.js";
 import { setLaneLead } from "./board-set-lane-lead.js";
 import { activityDeliveryState } from "./board-activity-delivery.js";
+import { activityInterruptWasDelivered } from "./board-activity-delivery.js";
 import { recordActivityDelivery } from "./board-activity-delivery.js";
 import { actOnActivity } from "./board-act-on-activity.js";
 import { openHandoff } from "./board-open-handoff.js";
@@ -148,6 +153,8 @@ export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item
 export { atomic, logEvent };
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect } from "../core/board-landing-test-defects.js";
+export { recordSelectorGap, selectorGapCandidate } from "../core/board-selector-gap.js";
+export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../core/board-accepted-reland.js";
 export { landingLeaseMove, landingLeaseState } from "../core/board-landing-lease.js";
 export { boardBusyError } from "./board-access.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
@@ -303,9 +310,10 @@ export { reviewQueue } from "./board-query.js";
  * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor }) {
+export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
   const family = reviewRouting.seatFamily(board, agentId);
   return {
+    companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
     routeAllows: (found) => {
       const route = routeOf(board, agentId);
@@ -318,7 +326,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
-      const holder = reviewHolder(board, found);
+      const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
@@ -422,9 +430,10 @@ export {
   editItem,
   validateItemEdit,
   attachItemPatch,
+  objectItemPatch,
   removeItemPatch,
   release,
-  submit, sealClauseInspection,
+  submit, prepareSubmit, sealClauseInspection, sealStrictRenames,
   reviewReleaseNoteProblem,
   reviewOffer,
   reserveReview,
@@ -457,6 +466,7 @@ export {
   approveOutside,
   setLaneLead,
   activityDeliveryState,
+  activityInterruptWasDelivered,
   recordActivityDelivery,
   actOnActivity,
   openHandoff,
@@ -470,9 +480,16 @@ export function prepareClaim(board, id, options) {
   return preparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-/** Claim with the original guards, revalidated against the prepared database snapshot. */
+/** Claim with the original guards, retrying stale snapshots caused by concurrent native writes. */
 export function claim(board, id, options) {
-  return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+    } catch (error) {
+      if (!(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= 5) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(attempt + 1, 5));
+    }
+  }
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit-handoff-state.js";
