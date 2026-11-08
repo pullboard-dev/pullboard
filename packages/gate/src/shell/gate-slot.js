@@ -292,6 +292,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   let healthyTransportRetry = false;
+  let healthyDeadlineRetry = false;
   try {
     while (true) {
       lease.source = source;
@@ -347,25 +348,39 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         infrastructureAttempts.push(failure);
         lease.infrastructureAttempts = [...infrastructureAttempts];
-        // A separate Node process cannot prove that a worker which missed READY can accept a job.
         const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
           || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
-        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7].
-        const health = cleanup || admissionDeadline || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
+        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
+        // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
+        // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
+        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
-        if (health?.healthy && healthyTransportRetry) {
+        if (health?.healthy && !admissionDeadline && healthyTransportRetry) {
           const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
           refused.runnerDiagnostic = diagnostic;
           throw refused;
         }
-        if (health?.healthy) healthyTransportRetry = true;
+        // An answering runner that misses READY twice leaves the runner in service and refuses only this job's wait.
+        if (health?.healthy && admissionDeadline && healthyDeadlineRetry) {
+          const refused = new Refused('RUNNER_WAIT_DEADLINE', `runner ${lease.runner.host} answers SSH and Node but missed its admission deadline again; the runner stays in service; check this machine's load, then retry`);
+          refused.runnerDiagnostic = diagnostic;
+          refused.infrastructureAttempts = [...infrastructureAttempts];
+          throw refused;
+        }
+        if (health?.healthy) {
+          if (admissionDeadline) healthyDeadlineRetry = true;
+          else healthyTransportRetry = true;
+        }
         const runnerUnavailable = { host: lease.runner.host,
-          reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
+          reason: cleanup ? error.message : admissionDeadline ? health?.healthy
+            ? 'worker did not become ready before its admission deadline; confirming SSH and Node observation succeeded'
+            : 'worker did not become ready before its admission deadline'
             : setup ? error.message : health?.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
           diagnostic, until: cleanup ? 'the pinned worker verifies exact-job cleanup on its next health probe'
-            : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
-              : health?.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
+            : health?.healthy ? 'the original ticket is readmitted'
+              : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
+                : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
         try {

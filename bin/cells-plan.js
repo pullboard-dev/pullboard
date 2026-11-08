@@ -33,7 +33,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
-import { cachedCellsRun } from '../src/cells-cache.js';
+import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../packages/codemap/index.js';

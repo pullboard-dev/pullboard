@@ -1,5 +1,4 @@
 /** Bounded transport health observations never execute or certify a project's tests [C7]. */
-import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { recoveryIdentity } from '../../../resources/index.js';
@@ -20,6 +19,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
+import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
 
@@ -56,7 +56,7 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   const remote = discoverNode ? 'exec "${SHELL:-/bin/sh}" -lc ' + word(command) : command;
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', `ConnectTimeout=${Math.max(2, Math.floor(timeoutMs / 1_000) - 1)}`, '--', runner.host, remote];
-  const child = spawn('ssh', args, { env: environment(), stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawnSsh(args, { env: environment(), stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '', stderr = '', error = null, timedOut = false, kill;
   /** Keep a misbehaving transport bounded without changing any native execution budget. */
   const stop = () => {

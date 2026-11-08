@@ -1,6 +1,6 @@
 /** End processes a dead job left under a runner's jobs folder, so an idle proof can pass again [C7]. */
-import { spawn } from 'node:child_process';
 import { shellWord } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 
 /**
@@ -31,7 +31,7 @@ export function stopScript(root, liveJobs = []) {
 export async function stopLeakedRunnerJobs(runner, { liveJobs = [] } = {}) {
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=5', '--', runner.host, stopScript(runner.root, liveJobs)];
-  const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawnSsh(args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'ignore'] });
   let output = '';
   child.stdout.on('data', bytes => { output = (output + bytes).slice(0, 4096); });
   const timer = setTimeout(() => child.kill('SIGKILL'), 20_000);

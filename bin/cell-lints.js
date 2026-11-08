@@ -19,7 +19,7 @@ import { mainCommit } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
 import { lowerCellLintBaseline } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
-import { cachedCellsRun } from '../src/cells-cache.js';
+import { cachedCellsRun } from '../packages/codemap/index.js';
 
 withCellLintParser(compile => {
   const parsers = { importsIn: sources => importsWithCompiler(sources, compile), commonJsIn: sources => commonJsWithCompiler(sources, compile) };

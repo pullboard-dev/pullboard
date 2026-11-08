@@ -54,10 +54,22 @@ function handoffEvents(box, id, jobState) {
  * Run one dispatcher drain on the fixture's repository and return what it printed.
  * Why: the drain's sweep reports a hand-off it could not end on stderr only, so a failed case quotes it.
  */
-function drainOnce(box, source) {
-  const run = spawnSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
-  assert.equal(run.status, 0, `the drain exits 0\n${run.stdout}${run.stderr}`);
-  return `${run.stdout}${run.stderr}`;
+async function drainOnce(box, source, swept = () => true) {
+  // The submit's own dispatcher can hold the one dispatcher place, so a drain beside it defers and sweeps nothing:
+  // drain again until the sweep's effect is observable on the board, never until one named process has ended.
+  let run;
+  await box.helpers.waitFor(() => { // budget: hang ceiling for the submit dispatcher to leave, not a timing assertion.
+    run = spawnSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
+    assert.equal(run.status, 0, `the drain exits 0\n${run.stdout}${run.stderr}`);
+    return swept();
+  }, 'a drain whose sweep shows on the board', 120000).catch(() => { /* the case's own assertion quotes the log */ });
+  // The dispatcher logs a failed sweep here, not on its output; quote it so a missed requeue names its cause.
+  let logged = '';
+  try { logged = readFileSync(join(box.dir, 'machine-home', 'handoff-queue', 'dispatcher.log'), 'utf8'); } catch { /* no log: nothing failed */ }
+  // Name every dispatcher log under the fixture, and the drive record the sweep judges, so a missed requeue shows its cause.
+  const found = spawnSync('find', [box.dir, '-name', 'dispatcher.log'], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  for (const file of found) { try { logged += `\n[${file}]\n${readFileSync(file, 'utf8')}`; } catch { /* unreadable log */ } }
+  return `${run.stdout}${run.stderr}${logged}`;
 }
 
 test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', async t => {
@@ -84,7 +96,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);
-  const swept = drain();
+  const swept = await drainOnce(box, source, () => state(box, box.id).job.id !== first.id);
   const requeued = state(box, box.id);
   assert.notEqual(requeued.job.id, first.id, `clause 1: a successor job carries the same source\n${swept}\n${JSON.stringify(requeued.job)}`);
   assert.equal(requeued.job.retryOf, first.id);
@@ -92,7 +104,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   assert.equal(requeued.job.requeuedFor, 'worker-gone');
   assert.equal(requeued.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
   assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: one board event records the ended job');
-  drain();
+  await drain();
   assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: a second drain adds no event for the same item');
 
   const shown = box.run(box.web, 'show', String(box.id));
@@ -127,13 +139,13 @@ test('clause 1: a drain ends a hand-off whose folder no longer exists as infrast
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);
-  const swept = drain();
+  const swept = await drainOnce(box, source, () => !['queued', 'running'].includes(state(box, box.id).job.state));
   const ended = state(box, box.id);
   assert.notEqual(ended.job.state, 'queued', `clause 1: a ghost queued job is not left in the gate\n${swept}\n${JSON.stringify(ended.job)}`);
   assert.notEqual(ended.job.state, 'running');
   assert.equal(ended.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
   const ends = () => handoffEvents(box, box.id, ended.job.state);
   assert.equal(ends(), 1, 'clause 1: one board event records the ended job');
-  drain();
+  await drain();
   assert.equal(ends(), 1, 'clause 1: a second drain adds no event');
 });

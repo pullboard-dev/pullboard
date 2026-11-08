@@ -44,7 +44,7 @@ export function source(name = 'shared failure [G1]', expected = 2) {
 /** Build and claim one private board whose accepted main already has a named red test. */
 export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', affectedTests = 'node test/runner.js', mainRed = true, handoff = false, waitMainRedBaseline = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };

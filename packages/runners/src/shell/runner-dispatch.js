@@ -8,6 +8,7 @@ import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -252,7 +253,7 @@ async function runInController(root, command, options, ports) {
     /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
-    const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawnSsh(request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '', cleanupDetails = null;

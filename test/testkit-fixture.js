@@ -96,6 +96,21 @@ export function fixturePolicy(box, fields) {
 }
 
 /**
+ * Write a fixture project's policy files before its first commit, setting exactly the fields the test names.
+ *
+ * Why: the hand-policy check sends tests here instead of writing pullboard.json or SPEC.md by hand; unlike
+ * fixtureHandoffPolicy it forces no gate and no hand-off, so a test keeps the policy it declares.
+ *
+ * @param {string} repo - The fixture repository root.
+ * @param {{ config?: object, spec?: string }} policy - The pullboard.json object, and the SPEC.md text when the test needs one.
+ * @returns {void}
+ */
+export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));
+  if (spec !== undefined) writeFileSync(join(repo, 'SPEC.md'), spec);
+}
+
+/**
  * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
  *
  * Why: policy files are written once here, so a policy rule change is met for every test.

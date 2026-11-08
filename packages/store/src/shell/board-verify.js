@@ -35,6 +35,8 @@ import { moveItem } from "./board.js";
 import { escalate } from "./board.js";
 import { postRigorNotices } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../src/review-gate-receipt-engine.js';
+import { gateReceiptProblem } from './board.js';
 import { reservedRelaxation } from './board-review-family.js';
 import { itemReviewPolicy } from '../../../verify/index.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
@@ -95,6 +97,9 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       board.nativePorts.quarantine.validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
         commit: review?.head ?? found.item_commit, requireGreen: true });
     }
+    // A verdict with no gate receipt would be recorded as INSUFFICIENT_EVIDENCE and count toward the send-back hold (#3737).
+    const pendingGate = engine >= REVIEW_GATE_RECEIPT_ENGINE ? gateReceiptProblem(board, getItem(board, id) ?? {}) : null;
+    if (pendingGate) throw pendingGate;
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     const item = moveItem(board, id, verb, {
       transition,

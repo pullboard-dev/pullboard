@@ -72,7 +72,7 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   const value = JSON.parse(submitted.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const lines = [];
-  const io = { cwd: box.web, nativeBoard, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  const io = { cwd: box.web, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
     { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
     { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
@@ -80,6 +80,9 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted');
   assert.equal(onBoard(box, board => store.verdictsFor(board, id).length), 0, 'expiry creates no review verdict');
 });
+
+/** Real ship runs a hook-checked commit, a main merge and the gate: 8-20 s measured on an idle seat, so the 8 s default raced it [V4,B3,C7]. */
+const SHIP_WAIT_MS = 60_000;
 
 /** A fixture reviewer releases the actual --wait only after observing its durable submit. */
 async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
@@ -91,7 +94,7 @@ async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
   child.stdout?.on('data', chunk => { observedOut += chunk; });
   child.stderr?.on('data', chunk => { observedErr += chunk; });
   try {
-    await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+    await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal', SHIP_WAIT_MS); // budget: measured 8-20 s per real ship run, ceiling 60 s
   } catch (error) {
     t.diagnostic(JSON.stringify({ phase: 'await-submit', exitCode: child.exitCode,
       status: onBoard(box, board => store.getItem(board, id).item_status), stdout: observedOut, stderr: observedErr }));
@@ -104,7 +107,7 @@ async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
     store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', digest: item.item_frozen_digest,
       head: item.item_commit, reason: 'CRITERION_MET', note: 'Independent fixture reviewer accepts the real submission.', policy: 'any', check: 'green' });
   });
-  await helpers.waitFor(() => child.exitCode !== null, 'the accepted verdict to finish ship');
+  await helpers.waitFor(() => child.exitCode !== null, 'the accepted verdict to finish ship', SHIP_WAIT_MS); // budget: measured 8-20 s per real ship run, ceiling 60 s
   const completed = await pending;
   assert.equal(completed.status, 0, completed.context);
   const document = JSON.parse(completed.stdout);

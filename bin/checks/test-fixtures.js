@@ -36,6 +36,7 @@ export const FIXTURE_HELPERS = {
   tempdir: 'test/fixture-child.js',
   'raw-cli': 'test/testkit-fixture.js',
   model: 'test/testkit-fixture.js',
+  'hand-policy': 'test/testkit-fixture.js',
 };
 
 const MESSAGES = {
@@ -45,7 +46,7 @@ const MESSAGES = {
   'repo-read': 'reads a repository file from the test own directory outside a world-pin comment; declare @pullboard-world-pin or use a fixture',
   hex64: 'holds a 64-character hex literal; keep it in a shared fixture helper or list it as a world pin',
   'env-spread': 'spreads process.env next to a PULLBOARD_ key in a file that spawns bin/pullboard.js; build the child environment with kit.env()',
-  'hand-policy': 'writes pullboard.json, SPEC.md, bin/cells-plan.json or settings.json by hand; declare the policy with kit.world({ policy })',
+  'hand-policy': `writes pullboard.json, SPEC.md, bin/cells-plan.json or settings.json by hand; declare the policy with fixtureProjectPolicy in ${FIXTURE_HELPERS['hand-policy']}`,
   'raw-board': 'opens a board or adds an item in process outside the kit; use kit.board(), or mark a store unit test of addItem with // fixture-subject: addItem',
 };
 

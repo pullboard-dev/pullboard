@@ -8,6 +8,7 @@ import { sampleRunnerLoad } from './runner-load.js';
 import { carriedRunnerTrunk } from './runner-policy.js';
 import { remoteWorkerLaunch } from './runner-remote-tooling.js';
 import { shellWord } from './runner-remote-tooling.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';
@@ -16,7 +17,6 @@ import { effectiveRunners } from './runner-slots.js';
 import { refreshRunnerMeasurements } from './runner-slots.js';
 import { transportText } from './runner-result.js';
 import { stopLeakedRunnerJobs } from './runner-leak-stop.js';
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 /** How long a health probe may take: an SSH round trip plus, on first contact after a landing, one runtime install. */
@@ -37,7 +37,7 @@ export async function probeRunnerJob(runner, identity, { signal } = {}) {
   const request = { nonce, job: identity.job, recovery: identity.recovery, ...(runner.root ? { root: runner.root } : {}) };
   const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime,
     ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
-  const child = spawn('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+  const child = spawnSsh(['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote], { env: sshEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
   sendCapsule(child, capsule);
   const transport = ownedTransportCompletion(child, { termMs: 500, drainMs: 500 });
@@ -75,7 +75,7 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
     (restart ? ' --restart ' : ' --health ') + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
-  const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawnSsh(args, { env: sshEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
   sendCapsule(child, capsule);
   let output = '', stderr = '', stderrBytes = 0, timedOut = false, error = null, failure = null, kill;
   /** Bound the health connection and fully observe its close before releasing recovery ownership. */

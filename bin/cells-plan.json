@@ -438,10 +438,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/cells-cache.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1743,6 +1739,10 @@
     },
     {
       "path": "src/move-history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/248.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -3485,6 +3485,11 @@
     }
   ],
   "allowedEdges": [
+    "codemap->git",
+    "runners->config",
+    "runners->kernel",
+    "runners->resources",
+    "runners->transport",
     "activity->store",
     "apps/cli->doctrine",
     "apps/cli->gate",

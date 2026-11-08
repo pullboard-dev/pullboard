@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
-import { checkReceiptKey } from '../packages/git/index.js';
-import { readCheckReceipt } from '../packages/git/index.js';
-import { writeCheckReceipt } from '../packages/git/index.js';
-import { receiptLine } from '../packages/git/index.js';
+import { checkReceiptKey } from '../../../git/index.js';
+import { readCheckReceipt } from '../../../git/index.js';
+import { writeCheckReceipt } from '../../../git/index.js';
+import { receiptLine } from '../../../git/index.js';
 /** Cache the cells checks per exact repository state so a repeat on unchanged inputs replays in well under a second [C7]. */
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -14,7 +14,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { gitSpawnSync } from '../packages/git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 const KEEP = 60;
 
