@@ -94,6 +94,36 @@ function captureClaimWatchdogSnapshot(ctx, board, ports = {}) {
 }
 
 /**
+ * Tell the coordinator once per five-minute window that claims were kept because most seats went quiet together.
+ * Why once: the sweep runs every ten minutes and a stalled machine is one event, not one per sweep.
+ */
+function announceMachineStall(board, stall, shout = message => insertShout(board, message)) {
+  const window = String(Math.floor(Date.parse(stall.observedAt) / 300_000));
+  const sent = atomic(board, () => {
+    const key = 'machine_stall_window';
+    if (board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key)?.meta_value === window) return false;
+    board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, window);
+    return true;
+  });
+  if (sent) shout({ from: 'sentinel', to: 'coordinator', text: stall.lateByMs
+      ? `Machine stall: the sentinel tick ran ${Math.round(stall.lateByMs / 60_000)} minutes late with ${stall.quiet} of ${stall.claimed} claimed seats quiet, so no claim was released for no heartbeat in this window.`
+      : `Machine stall: ${stall.quiet} of ${stall.claimed} claimed seats missed their heartbeats together, so no claim was released for no heartbeat in this window.`, lanes: [], detail: { cause: 'MACHINE_STALL', ...stall } });
+}
+
+/**
+ * Record this sweep's start and return the time since the previous one, 0 when none is recorded.
+ * Why: a sweep that starts far later than its cadence means the machine stalled, and every seat looks quiet for it (#3712).
+ */
+function noteSweepTick(board, now) {
+  const key = 'claim_sweep_at';
+  return atomic(board, () => {
+    const previous = Date.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key)?.meta_value ?? '');
+    board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, new Date(now).toISOString());
+    return Number.isFinite(previous) ? Math.max(0, now - previous) : 0;
+  });
+}
+
+/**
  * Record every claimed worktree's changed files, then apply the idle, stalled and returned-claim checks that read
  * those worktrees. Why here: the person's rule (#2427) is that a board command does only its own job, so this runs
  * from `sentinel run` (the View schedules it every ten minutes), never on claim, release or next.
@@ -102,7 +132,9 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   const items = ports.items ?? listItems(board);
   const agents = ports.agents ?? listAgents(board);
   (ports.recordClaimWorktrees ?? recordClaimWorktrees)(board, items, agents, { now: ctx.clock.now() });
+  ctx.sweepGapMs = noteSweepTick(board, ctx.clock.now().getTime());
   const snapshot = (ports.captureLapsedClaims ?? captureLapsedClaims)(ctx, board, actor);
+  if (ctx.machineStall) announceMachineStall(board, ctx.machineStall, ports.shout);
   if (snapshot) {
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
     try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
