@@ -85,13 +85,14 @@ test('clause 1: two infrastructure stops retry on two other runners, waiting 30 
 
 test('clause 2: only after the 30 minute window the gate stops as infrastructure naming the runners tried and the last code [C7]', { timeout: 150_000 }, t => {
   const result = run(fixture(t), 1000);
-  assert.deepEqual(result.sleeps, [30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 300_000, 300_000], 'back-off doubles to 5 minutes');
-  assert.equal(result.calls, 9, 'nine runs fit the window');
+  assert.deepEqual(result.sleeps, [30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 300_000, 300_000, 150_000], 'back-off doubles to 5 minutes and the last wait is cut to the rest of the 30 minute window');
+  assert.equal(result.calls, 10, 'ten runs fit the window, the last after the cut wait');
   assert.equal(result.hosts[3], result.hosts[0], 'with every runner tried the least recently tried is next');
   assert.match(result.outcome.message, /30-minute retry window/u);
   for (const host of HOSTS) assert.ok(result.outcome.message.includes(host), `names ${host}`);
   assert.match(result.outcome.message, /last code was \S+ on /u);
   const failures = result.outcome.attempts.filter(attempt => attempt.kind === 'transport-lost');
-  assert.equal(failures.length, 9);
-  assert.equal(failures.at(-1).waitedSeconds, 300);
+  assert.equal(failures.length, 10);
+  assert.equal(failures.at(-2).waitedSeconds, 150);
+  assert.equal(failures.at(-1).waitedSeconds, 0, 'the stop comes only once the whole window has passed');
 });

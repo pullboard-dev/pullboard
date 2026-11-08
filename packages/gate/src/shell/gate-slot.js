@@ -395,9 +395,11 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // Each stop rotates to a runner not yet tried, waits 30 s doubling to 5 min, and the window is 30 min from the first stop (#3365).
         infrastructureStartedAt ??= retryPolicy.now();
         triedRunners.splice(0, triedRunners.length, ...triedRunners.filter(host => host !== failure.runner), failure.runner);
-        const waitMs = boundedRetry ? infrastructureBackoffMs(infrastructureAttempts.length, retryPolicy) : 0;
+        // The last wait is cut to the rest of the window, so the gate keeps retrying until the full 30 minutes have passed.
+        const windowLeftMs = retryPolicy.windowMs - (retryPolicy.now() - infrastructureStartedAt);
+        const waitMs = boundedRetry ? Math.max(0, Math.min(infrastructureBackoffMs(infrastructureAttempts.length, retryPolicy), windowLeftMs)) : 0;
         failure.waitedSeconds = waitMs / 1000;
-        if (boundedRetry && retryPolicy.now() - infrastructureStartedAt + waitMs > retryPolicy.windowMs) {
+        if (boundedRetry && windowLeftMs <= 0) {
           lease.infrastructureAttempts = [...infrastructureAttempts, failure];
           const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runners ${triedRunners.join(', ')} all stopped on infrastructure through the ${Math.round(retryPolicy.windowMs / 60_000)}-minute retry window; the last code was ${failure.code} on ${failure.runner}; inspect the retained runner diagnostics before retrying`);
           refused.infrastructureAttempts = [...infrastructureAttempts, failure];
