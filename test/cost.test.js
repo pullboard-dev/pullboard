@@ -61,12 +61,24 @@ function seatUsage(box, cwd, identity) {
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }
 
+/**
+ * A project whose web seat joins with the model the case attributes usage to.
+ * Why: the shared project already joins web-1 with the fixture model, and rejoining one seat with another model is refused ALREADY_JOINED (04384c0971).
+ * The seat joins on the strong route: the model table maps these fixture names to mid, and the fixture items need strong (b95e1aa538).
+ */
+function costProject(model) {
+  const box = helpers.project('true', undefined, { withWorktree: false });
+  const web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  assert.equal(fixtureJoin(box.run, web, 'web', '--model', model, '--route', 'strong').code, 0);
+  return { ...box, web };
+}
+
 test('an item records the tokens and cost its seats spent [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -170,8 +182,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
 });
 
 test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -234,11 +245,10 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
 });
 
 test('an item records the tokens and cost its seats spent with a shared native session [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-codex').code, 0);
+  const box = costProject('fixture-codex');
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -269,8 +279,8 @@ test('an item records the tokens and cost its seats spent with a shared native s
   usage(150, 15);
   seatRun(box, second, identity, ['claim', String(last)]);
   const sharing = detail();
-  assert.equal(sharing.shared, true, 'a peer’s shared record marks this item without impersonating this seat');
-  assert.equal(sharing.inputTokens, null);
+  assert.equal(sharing.splitByTime, true, 'a peer’s shared record splits this item’s share by claimed time without impersonating this seat');
+  assert.equal(sharing.shared, false);
   usage(250, 25);
   seatUsage(box, box.web, identity);
   usage(300, 30);
@@ -288,13 +298,12 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.deepEqual(shared.seats.sort(), seats);
   const a = JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).usage;
   const b = JSON.parse(box.run(box.repo, 'show', String(last), '--json').out).usage;
-  assert.equal(a.shared, true);
-  assert.equal(b.shared, true);
-  assert.equal(a.inputTokens, null);
-  assert.equal(b.inputTokens, null);
-  assert.equal(a.knownInputTokens, 70, '50 solo before overlap and 20 after; shared150 is not charged again');
-  assert.equal(b.knownInputTokens, 0);
-  assert.equal(shared.inputTokens + a.knownInputTokens + b.knownInputTokens, 220);
+  assert.equal(a.splitByTime, true);
+  assert.equal(b.splitByTime, true);
+  assert.equal(a.shared, false);
+  assert.equal(b.shared, false);
+  assert.equal(a.inputTokens + b.inputTokens, 220, '50 solo before overlap and 20 after, plus the shared 150 split once by claimed time');
+  assert.ok(a.inputTokens >= 70, 'the first item keeps its own solo tokens');
   assert.equal(totals.models.find((row) => row.model === 'fixture-codex').knownInputTokens, 220, 'model known subtotal counts shared usage once');
   assert.equal(JSON.stringify({ totals, a, b }).includes(session), false);
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
@@ -307,8 +316,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
 
 
 test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
@@ -398,9 +406,8 @@ test('an item records the tokens and cost its seats spent when metadata precedes
 
 test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', () => {
   for (const provider of ['claude', 'codex']) {
-    const box = helpers.project('true');
     const model = `fixture-${provider}`;
-    assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', model).code, 0);
+    const box = costProject(model);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
     const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     let unknownId;
