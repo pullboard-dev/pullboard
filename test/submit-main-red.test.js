@@ -210,8 +210,8 @@ test('an exact main red with an open repair retains its reviewer repair link [V4
 
 test('submit refuses changed failure details, an unaccounted stage, and a frozen check red differently from main [V4,B3]', t => {
   for (const options of [
-    // No open repair owns the case here, so the changed details are judged by exact signature, not by case.
-    { candidate: source('shared failure [G1]', 3), mainRed: false },
+    // The check names the case's file, so it is the item's own and keeps the exact signature (neighbouring cases pass by name).
+    { candidate: source('shared failure [G1]', 3), mainRed: false, check: 'node test/runner.js test/inherited.test.js' },
     { gateSuffix: '; exit 7' },
     { check: 'node test/runner.js', candidate: source('shared failure [G1]', 3), mainRed: false },
   ]) {

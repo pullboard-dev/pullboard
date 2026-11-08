@@ -98,7 +98,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
 export function fileMainRed(box) {
   const result = cli(box, box.root, 'add', 'core', 'Main red: inherited assertion needs repair', '--specs', 'G1',
     '--criterion', 'The inherited assertion passes on main [test].', '--check', 'node test/runner.js test/inherited.test.js',
-    '--route', 'mid', '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
+    '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
