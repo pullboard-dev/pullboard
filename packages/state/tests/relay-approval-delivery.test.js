@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real native approvals survive page work and keep refusal identity [H15,H12]. */
 import assert from 'node:assert/strict';
