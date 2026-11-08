@@ -53,6 +53,7 @@ function workerTransport(local) {
  */
 async function main(argument) {
   const { file, job, local = false, ...options } = JSON.parse(argument ?? '{}');
+  if (local) options.tooling = false;
   const board = openBoard(file);
   const transport = workerTransport(local);
   try {

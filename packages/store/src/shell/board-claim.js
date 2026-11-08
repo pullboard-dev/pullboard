@@ -11,6 +11,7 @@ import {
   exitContinuationProblem,
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
+import { awaitingGateOrReview } from "./submit-handoff-read.js";
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
   boardWriteSnapshot,
@@ -47,8 +48,10 @@ import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
+import { cappedRoute } from "../../../seats/index.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
+import { seatGone } from "./seat-presence.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
@@ -62,7 +65,7 @@ import {
 } from "./board-event-log.js";
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30 }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -99,11 +102,12 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         );
       },
       routeAllows: (found) => {
-        const route = routeOf(board, agentId);
+        // The CLI caps the route by the model this session declared (#3678); the cap only narrows the joined route.
+        const route = cappedRoute(routeOf(board, agentId), routeCap);
         // Only light work needs a diagnosis; a light seat reaching above its route is refused ROUTE (#2886).
         const diagnosisProblem = route === 'light' && found.item_route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
         if (diagnosisProblem) return diagnosisProblem;
-        return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
+        return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; ${route === routeOf(board, agentId) ? 'you joined on' : 'the model this session declared serves'} the ${route} route. Take your next item: pullboard next`);
       },
       buildScopeFits: found => isRenewal(found) || (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE ? null : expectedBuildProblem(found, buildBudgetMinutes),
       dependenciesVerified: (found) => {
@@ -150,7 +154,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
             return null;
           }
         }
-        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null;
+        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal, seatGone }) : null;
       },
       correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
       laneOpen: (found) => {
@@ -172,7 +176,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
-            .all(agentId, now(board), id).filter(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+            .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
@@ -184,7 +188,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
           .all(agentId, now(board), id, agentId)
-          .find(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+          .find(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {
