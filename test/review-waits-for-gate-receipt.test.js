@@ -22,7 +22,7 @@ async function running(t) {
   return { box, id, reviewer: box.seats.outside };
 }
 
-test('next --verify skips an item while its gate runs and offers it once the gate receipt exists [C7,V4]', async t => {
+test('clause 1: next --verify skips an item while its gate runs and offers it once the gate receipt exists [C7,V4]', async t => {
   const { box, id, reviewer } = await running(t);
   const waiting = await cli(box, reviewer.path, ['next', '--verify', '--wait', '0']);
   assert.notEqual(waiting.document?.item?.item_id, id, waiting.out + waiting.err);
@@ -33,7 +33,7 @@ test('next --verify skips an item while its gate runs and offers it once the gat
   assert.equal(offered.document.item.item_id, id, 'the finished gate makes it reviewable');
 });
 
-test('a direct reserve of an item whose gate has no result is refused with the reason, then succeeds [C7,V4]', async t => {
+test('clause 1: a direct reserve of an item whose gate has no result is refused with the reason, then succeeds [C7,V4]', async t => {
   const { box, id, reviewer } = await running(t);
   const refused = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
   assert.notEqual(refused.code, 0, refused.out);
@@ -45,7 +45,7 @@ test('a direct reserve of an item whose gate has no result is refused with the r
   assert.equal(store.getItem(box.board, id).item_review_by, reviewer.id);
 });
 
-test('a reject finding no gate receipt is refused and never recorded toward the send-back hold [C7,V4]', async t => {
+test('clause 2: a reject finding no gate receipt is refused and never recorded toward the send-back hold [C7,V4]', async t => {
   const { box, id, reviewer } = await running(t);
   gate(box, id, 'green');
   const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
