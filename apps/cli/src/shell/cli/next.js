@@ -8,7 +8,7 @@ import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { awaitingGateOrReview } from '../../../../../packages/store/index.js';
-import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { sessionSeatReaders } from './seat-ports.js';
@@ -161,6 +161,7 @@ export async function nextOnce(ctx, values) {
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
+      if (!claim.renewed) await shoutReviewCoverStuck(target, board, ordered, holder);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
@@ -278,8 +279,6 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
-  const coverPause = !held && reviewFamilyBuildPause(ctx.info, board, ctx.config, me);
-  if (coverPause) return { reasons: [...(reasons ?? []), coverPause], idleReason: 'review-family' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
