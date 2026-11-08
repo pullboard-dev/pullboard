@@ -43,7 +43,8 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   run(box, box.web, 'submit', '1');
   // Main moving after the submit makes its proof unreusable, so the review runs the frozen check itself.
-  box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: main moves after the submit');
+  // The move changes a file: an empty commit leaves the composed tree alone and the proof stays reusable.
+  assert.equal(helpers.commitFile(box, box.repo, 'notes/main-moves.txt', 'main moved\n', 'chore: main moves after the submit [G1]').status, 0);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   run(box, reviewer, 'join', 'web');
   writeFileSync(moveHead, 'armed');
