@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Render the real roadmap card with explicit summary presentation values at phone and desktop widths [N26]. */
 import assert from 'node:assert/strict';
