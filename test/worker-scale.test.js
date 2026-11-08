@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { parseWorkerBudget } from '../packages/config/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { openGatedWebBoard } from './worker-scale-fixture.js';
+import { fixtureAddItem, fixtureRegister, openGatedWebBoard } from './worker-scale-fixture.js';
 import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 import { planWorkerScale } from '../apps/cli/src/shell/worker-scale.js';
 import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
@@ -190,12 +190,12 @@ test('an unreadable or malformed ledger refuses instead of granting a fresh budg
 test('the board observation counts every live local seat and held claims and reviews as busy [B26,C7]', t => {
   let at = Date.parse('2026-10-28T12:00:00Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
-  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
-  const builder = store.register(board, { lane: 'web', path: '/fixture/builder' });
-  const reviewer = store.register(board, { lane: 'web', path: '/fixture/reviewer' });
-  const idle = store.register(board, { lane: 'web', path: '/fixture/idle' });
+  fixtureRegister(board, { lane: 'coordinator', path: '/fixture/main' });
+  const builder = fixtureRegister(board, { lane: 'web', path: '/fixture/builder' });
+  const reviewer = fixtureRegister(board, { lane: 'web', path: '/fixture/reviewer' });
+  const idle = fixtureRegister(board, { lane: 'web', path: '/fixture/idle' });
   const freeze = item => ({ text: item.item_title, digest: `synthetic:${item.item_id}` });
-  const add = title => store.addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files: web/${title}.js` });
+  const add = title => fixtureAddItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files: web/${title}.js` });
   const claimed = add('claimed');
   store.claim(board, claimed, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
   const reviewed = add('reviewed');

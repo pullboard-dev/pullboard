@@ -121,3 +121,41 @@ export function returnHostedBranch(runner, folder, branch, options = {}) {
   if (!REF.test(branch ?? '')) throw new Error(`hosted item folder refuses ref ${JSON.stringify(branch)}`);
   return runInHostedItemFolder(runner, folder, ['git', 'push', '--quiet', 'origin', `HEAD:refs/heads/${branch}`], options);
 }
+
+/**
+ * Push a runner-hosted item folder's branch to the coordinator's repository, in one SSH run, for submit [C7].
+ * A folder on another branch, or with uncommitted or untracked work, is refused before anything is pushed.
+ * Why: submit reads the board and gates on the coordinator, so the runner hands over Git history and never writes the board.
+ * @param {{ host: string, builderRoot?: string, root?: string }} runner A registered runner record.
+ * @param {{ itemId: number|string, branch: string }} plan The claimed item and its branch.
+ * @param {{ ssh?: string, timeoutMs?: number }} [options] The SSH client and an optional wall bound.
+ * @returns {Promise<{ folder: string, head: string|null, problem: null|{ code: 'HOSTED_BRANCH_MISMATCH'|'DIRTY'|'HOSTED_PUSH_FAILED', message: string } }>}
+ *   The runner folder and the commit it pushed, or the named problem the caller refuses with.
+ */
+export async function pushHostedItemBranch(runner, { itemId, branch }, options = {}) {
+  checkHosted(runner, itemId, [branch]);
+  const folder = hostedItemFolderPath(runner, itemId), b = shellWord(branch);
+  const script = [
+    `cd ${shellWord(folder)} || exit 6`,
+    'current=$(git symbolic-ref --quiet --short HEAD || true)',
+    `if [ "$current" != ${b} ]; then printf 'branch %s\\n' "$current"; exit 3; fi`,
+    'if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then exit 4; fi',
+    'head=$(git rev-parse HEAD) || exit 6',
+    `git push --quiet origin ${shellWord(`HEAD:refs/heads/${branch}`)} 1>&2 || exit 5`,
+    "printf 'head %s\\n' \"$head\"",
+  ].join('\n');
+  const run = await runOnRunnerShell(runner, script, options);
+  const where = `runner ${runner.host} folder ${folder}`;
+  const refused = (code, message) => ({ folder, head: null, problem: { code, message } });
+  if (run.status === 3) {
+    const current = run.stdout.match(/^branch (.*)$/mu)?.[1] || 'a detached HEAD';
+    return refused('HOSTED_BRANCH_MISMATCH', `${where} is on ${current}, not the claimed branch ${branch}; switch it back to ${branch} on the runner and submit again`);
+  }
+  if (run.status === 4) return refused('DIRTY', `${where} has uncommitted or untracked files; commit them on the runner first, the gate must check what you submit`);
+  const head = run.stdout.match(/^head ([0-9a-f]{40,64})$/mu)?.[1];
+  if (run.status !== 0 || !head) {
+    const said = run.error ?? (run.stderr.trim().slice(-400) || `status ${run.status}`);
+    return refused('HOSTED_PUSH_FAILED', `${where} could not push ${branch} to the coordinator: ${said}; if the coordinator branch moved, run git pull origin ${branch} on the runner, then submit again`);
+  }
+  return { folder, head, problem: null };
+}
