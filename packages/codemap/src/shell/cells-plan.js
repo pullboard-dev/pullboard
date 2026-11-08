@@ -87,6 +87,21 @@ export function inPlanScope(file) {
   return /^(?:src|relay)\//u.test(file) || /^bin\/.*\.[cm]?js$/u.test(file);
 }
 
+/** The reason every stay row for a sealed engine snapshot carries, kept in one place so rows and the rule agree. */
+export const MOVE_HISTORY_REASON = 'canonical engine identity retained in src during package moves';
+
+/**
+ * The reason a path is placed by rule, or null: any src/move-history/<digits>.json is a stay with the stay rows' reason.
+ * Each landing that adds an engine writes the next snapshot, so waiting for a plan row would jam that landing (#3225).
+ * Every check that reports unplaced paths asks this one function, whether or not the plan lists the file.
+ *
+ * @param {string} file - A repository-relative path.
+ * @returns {string|null} The placement reason, or null when the path is not an engine history snapshot.
+ */
+export function moveHistoryPlacement(file) {
+  return /^src\/move-history\/\d+\.json$/u.test(file) ? MOVE_HISTORY_REASON : null;
+}
+
 /** Translate a dry-run cell to its one-word plan name, so seeds and rules agree on one vocabulary. */
 export function planCellName(cell) { return CELL_NAMES[cell] ?? cell; }
 

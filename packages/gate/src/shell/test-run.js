@@ -7,7 +7,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { tmpdir } from 'node:os';
+import {
+  availableParallelism,
+  loadavg,
+  tmpdir,
+} from 'node:os';
+import { setTimeout as sleep } from 'node:timers/promises';
 import {
   isAbsolute,
   join,
@@ -140,13 +145,35 @@ function localReason() {
 }
 
 /**
+ * Hold a local start until the one-minute load is under one per core, so test runs never pile onto a busy
+ * machine while it has no runner to send them to [C7]. Returns what the run says about its start.
+ *
+ * @param {{ read?: () => number[], cores?: number, wait?: (ms: number) => Promise<unknown>, pollMs?: number, maxWaitMs?: number, onWait?: (state: object) => void }} [options]
+ * @returns {Promise<{ load: number, cores: number, waitedMs: number, note: string }>}
+ */
+export async function localLoadStart({ read = loadavg, cores = availableParallelism(), wait = sleep, pollMs = 2000, maxWaitMs = 10 * 60_000, onWait } = {}) {
+  const started = Date.now();
+  let load = read()[0];
+  while (load >= cores && Date.now() - started < maxWaitMs) {
+    onWait?.({ state: 'local-load', load, cores });
+    process.stderr.write(`pullboard test: load ${load.toFixed(1)} on ${cores} cores; waiting for it to drop under ${cores} before a local start\n`);
+    await wait(pollMs);
+    load = read()[0];
+  }
+  const waitedMs = Date.now() - started;
+  const under = load < cores;
+  return { load, cores, waitedMs, note: `load-aware local start at load ${load.toFixed(1)} on ${cores} cores${waitedMs >= pollMs ? ` after ${Math.round(waitedMs / 1000)}s waiting` : ''}${under ? '' : ' (wait cap reached)'}` };
+}
+
+/**
  * Run named test files through a gate slot, which deals them to the registered runners first (#1054); the focused
  * runner (pullboard.json affectedTests) gives each file its timeout. A red file is compared with main's recorded
- * result for that file, so a failure main already has reads as known.
+ * result for that file, so a failure main already has reads as known. A single named file skips that comparison
+ * unless compareMain is set.
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -158,6 +185,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   const { runProfiledShellAsync, withGateSlot } = await import('./gate.js');
   const started = Date.now();
   const admission = testRunnerAdmission();
+  const noRunners = !(loadMachineSettings().runners ?? []).length;
+  const loadStart = noRunners && !admission.runnerOnly ? await localLoadStart({ onWait }) : null;
   // The claim stays live for the whole run: a long runner wait must not look like a gone seat (#3430).
   const run = await whileSeatAlive(root, () => inCleanCheckout(root, async (checkout) => {
     let full = false;
@@ -181,8 +210,12 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
-    ...(run.executionRunner ? {} : { local: localReason() }) };
-  if (!run.isGreen) {
+    ...(run.executionRunner ? {} : { local: loadStart ? `${localReason()}; ${loadStart.note}` : localReason() }) };
+  // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
+  // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
+  const skipMain = !affected && paths.length === 1 && !compareMain;
+  if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
+  if (!run.isGreen && !skipMain) {
     const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
       execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
