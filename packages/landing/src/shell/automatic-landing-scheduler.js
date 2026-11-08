@@ -195,7 +195,7 @@ export async function recoverAutomaticLanding(root, workerUrl, { schedule = sche
     // The recorded worker is gone mid-batch: note its pid and how long the batch sat unattended, for the replacement to record (#2912).
     const since = Date.parse(job.running.at ?? '') || Date.now();
     const adopted = { pid: job.running.pid, gapSeconds: Math.max(0, Math.round((Date.now() - since) / 1000)), at: new Date().toISOString() };
-    await withPending(directory, () => { if (readMainAudit(file)?.id === job.id) saveMainAudit(file, { ...job, adopted }); });
+    await withPending(directory, () => { if (readMainAudit(file)?.id === job.id) { const { running: _dead, ...rest } = job; saveMainAudit(file, { ...rest, adopted }); } });
   }
   await schedule(job.root, job.dueAt, workerUrl, job.backoff ? { backoff: job.backoff } : {});
   return true;

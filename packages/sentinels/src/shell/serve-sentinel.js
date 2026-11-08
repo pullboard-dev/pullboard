@@ -47,7 +47,7 @@ function refreshCanary(root, signal) {
 
 /** Start after the view listens; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
 export function startServeSentinel({ projectRoot, run = refreshBoard, projects = listProjects,
-  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false } = {}) {
+  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
   const lifetime = new AbortController();
   let pending = null;
@@ -78,14 +78,14 @@ export function startServeSentinel({ projectRoot, run = refreshBoard, projects =
     }).catch(onError).finally(() => { recovering = null; });
     return recovering;
   };
-  const liveness = every(livenessTick, LANDING_LIVENESS_INTERVAL_MS);
+  const liveness = liveEvery(livenessTick, LANDING_LIVENESS_INTERVAL_MS);
   liveness.unref?.();
   const timer = every(tick, HEALTH_SENTINEL_INTERVAL_MS);
   timer.unref?.();
   return {
     /** Stop the interval and wait for the exact active child to finish shutting down. */
     async close() {
-      cancel(timer); cancel(liveness); lifetime.abort();
+      cancel(timer); liveCancel(liveness); lifetime.abort();
       await Promise.all([pending, recovering, canaryWatch.close()]);
     },
   };

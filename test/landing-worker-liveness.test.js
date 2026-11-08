@@ -42,7 +42,8 @@ test('clause 1, clause 2: a dead landing worker mid-batch is replaced and the ad
 test('the view sentinel checks landing liveness every minute, inside the two minute bar [C7]', async () => {
   const timers = []; const recovered = [];
   const observer = startServeSentinel({ projects: () => [{ root: '/one' }, { root: '/one' }], enabled: () => true,
-    every: (callback, ms) => { timers.push({ callback, ms }); return { unref() {} }; }, cancel: () => {},
+    every: () => ({ unref() {} }), cancel: () => {},
+    liveEvery: (callback, ms) => { timers.push({ callback, ms }); return { unref() {} }; }, liveCancel: () => {},
     run: async () => {}, runCanary: async () => {}, canary: () => ({ close: async () => {} }),
     recover: async root => { recovered.push(root); } });
   const liveness = timers.find(timer => timer.ms === LANDING_LIVENESS_INTERVAL_MS);
