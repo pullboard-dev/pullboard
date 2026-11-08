@@ -16,7 +16,7 @@ import {
   MOVES,
   IN_STATE,
   REOPEN_FIRST_REFUSAL_ENGINE,
-} from "../../../../src/machine.js";
+} from "../../../state/index.js";
 import { firstRefusal } from "./board-item-read.js";
 import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
 import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";

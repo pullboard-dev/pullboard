@@ -13,11 +13,12 @@ import { listAgents } from '../../../store/index.js';
 import { listItems } from '../../../store/index.js';
 import { reviewHolder } from '../../../store/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
+import { canonicalFamily } from '../../../store/index.js';
 import { eligibilityProblem } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 
 /** The declared review-capacity deadline, independent of a test's execution budget. */
-export const REVIEW_WAKE_WAIT_MS = 10 * 60_000;
+export const REVIEW_WAKE_WAIT_MS = 5 * 60_000;
 
 /** Stable action keys survive repeat scans and a new submitted head starts a fresh wake episode. */
 function actionId(item, action, seat = '') {
@@ -49,13 +50,10 @@ function waitingReviews(board) {
   }).sort((a, b) => a.since.localeCompare(b.since) || a.item.item_id - b.item.item_id).map(row => row.item);
 }
 
-/** Reserve each free seat once, so a queue wakes the capacity it can actually use. */
+/** A builder may review independently; exclude only seats already holding another review. */
 function freeSeats(board) {
   const items = listItems(board);
-  const now = board.clock.now().toISOString();
-  return withLocalSeatPresence(board, listAgents(board)).filter(seat => !items.some(item =>
-    item.item_status === 'claimed' && item.item_owner === seat.agent_id && item.item_lease_until > now
-    || reviewHolder(board, item) === seat.agent_id));
+  return withLocalSeatPresence(board, listAgents(board)).filter(seat => !items.some(item => reviewHolder(board, item) === seat.agent_id));
 }
 
 /** Record a native intent while the sweep's private resource lease excludes concurrent local dispatchers. */
@@ -72,8 +70,11 @@ async function askPerson(ctx, board, ordered, item, reason) {
   const prefix = `#${item.item_id} needs an independent reviewer:`;
   if (board.db.prepare('SELECT 1 FROM shout WHERE shout_from=? AND shout_to=? AND substr(shout_text,1,?)=?').get('coordinator', 'person', prefix.length, prefix)) return;
   await reserveAction(ctx, board, ordered, item, 'person');
+  const builder = canonicalFamily(board, item.item_builder_family);
+  const otherFamilies = [...new Set(listAgents(board).map(seat => canonicalFamily(board, seat.agent_family)).filter(family => family && family !== builder))];
+  const required = otherFamilies.join(' or ') || `a declared vendor different from ${builder || 'the builder'}`;
   await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: 'person', lanes: [], decision: true,
-    text: `#${item.item_id} needs an independent reviewer: ${reason}. Register an eligible seat with pullboard join <lane> --wake <executable>, or start its review session.` }]);
+    text: `#${item.item_id} needs an independent reviewer: ${reason.slice(0, 80)}; required reviewer family: ${required.slice(0, 64)}. Enroll with pullboard join <lane> --family <vendor> --wake <executable>.` }]);
 }
 
 /** Run wake commands outside all board writes; only the primary coordinator supplies review capacity. */
@@ -92,7 +93,7 @@ async function dispatchReviewCapacity(ctx, board, ordered) {
     const seats = freeSeats(board).filter(seat => eligible(board, item, seat, ctx.config));
     const awake = seats.find(seat => seat.presence === 'live' && !used.has(seat.agent_id));
     if (awake) { used.add(awake.agent_id); continue; }
-    const registered = seats.filter(seat => seat.presence === 'idle' && hasSeatWake(ctx.info, { boardId: identity, seat }));
+    const registered = seats.filter(seat => ['idle', 'gone'].includes(seat.presence) && hasSeatWake(ctx.info, { boardId: identity, seat }));
     if (!registered.length) { await askPerson(ctx, board, ordered, item, 'no eligible local wake command is registered'); continue; }
     let failed = false;
     for (const seat of registered.filter(seat => !used.has(seat.agent_id))) {

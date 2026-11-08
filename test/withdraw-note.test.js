@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('clause 1: withdraw with no reason shows the positional form and --note is accepted as the reason [C7]', async (t) => {
   const helpers = createE2eHelpers();
@@ -11,7 +12,7 @@ test('clause 1: withdraw with no reason shows the positional form and --note is 
   isolated.env.PULLBOARD_MODEL = 'Withdraw note fixture';
   const box = helpers.project('true', isolated);
   for (const title of ['First withdraw probe', 'Second withdraw probe']) {
-    const added = box.run(box.repo, 'add', 'web', title, '--criterion', 'A marker exists [test]', '--check', 'true');
+    const added = fixtureAdd(box.run, box.repo, 'web', title, '--criterion', 'A marker exists [test]', '--check', 'true');
     assert.equal(added.code, 0, `${added.out}${added.err}`);
   }
   const bare = box.run(box.repo, 'withdraw', '1');

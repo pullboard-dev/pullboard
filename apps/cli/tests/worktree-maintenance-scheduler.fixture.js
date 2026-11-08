@@ -15,12 +15,46 @@ import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { copyCommittedPackageFiles } from '../../../test/package-copy-fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { isolateTestMachine } from '../../../packages/gate/index.js';
 import { processCensus } from '../../runner/index.js';
 import { maintenanceGit } from '../src/shell/worktree-maintenance-archive.js';
 import { scheduleWorktreeMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
 import { runScheduledMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
+
+const FIXTURE_CONFIG = {
+  gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', landing: { manualOverride: true },
+  lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
+  shared: ['docs/'],
+};
+const FIXTURE_SPEC = `# Demo spec
+
+## G · Goals
+- G1 [approved, must] The page renders. | gate: web test
+- G2 [approved, must] The API answers. | gate: api test
+`;
+
+/** Copy and commit the shipped runtime before init installs hooks in this private repo. */
+function projectWithCommittedRuntime(sandbox) {
+  const repo = join(sandbox.dir, 'repo');
+  fs.mkdirSync(repo);
+  sandbox.git(repo, 'init', '-q', '-b', 'main');
+  const box = { ...sandbox, repo };
+  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
+  const inheritedModel = sandbox.env.PULLBOARD_MODEL;
+  delete sandbox.env.PULLBOARD_MODEL;
+  const initialized = sandbox.run(repo, 'init');
+  assert.equal(initialized.code, 0, initialized.err || initialized.out);
+  sandbox.git(repo, 'config', 'user.name', 'Test Agent');
+  sandbox.git(repo, 'config', 'user.email', 'agent@example.com');
+  if (inheritedModel !== undefined) sandbox.env.PULLBOARD_MODEL = inheritedModel;
+  fs.writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(FIXTURE_CONFIG, null, 2));
+  fs.writeFileSync(join(repo, 'SPEC.md'), FIXTURE_SPEC);
+  sandbox.git(repo, 'add', '-A');
+  sandbox.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  return box;
+}
 
 function project(t, enabled) {
   const root = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-timer-fixture-')));
@@ -41,8 +75,7 @@ export function registerMaintenanceSchedulerTests() {
     isolateTestMachine(sandbox.env, sandbox.dir);
     sandbox.env.PULLBOARD_BACKGROUND_VIEW = '0';
     sandbox.env.PULLBOARD_BACKGROUND_RELAY = '0';
-    const box = helpers.project('true', sandbox, { withWorktree: false });
-    copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
+    const box = projectWithCommittedRuntime(sandbox);
     const common = fs.realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim());
     const directory = join(common, 'pullboard', 'worktree-maintenance'), marker = join(directory, 'timer.json');
     const configFile = join(box.repo, 'pullboard.json'), owned = new Map();
@@ -138,12 +171,36 @@ export function registerMaintenanceSchedulerTests() {
     assert.equal(fs.existsSync(join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance')), false);
   });
 
-  test('native live and unknown timer process observations retain exact registration without another child [B3,C7,N26]', async t => {
-    const ctx = project(t, true), directory = join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance');
+  test('clause 1: scheduling a timer asks Git for no worktree list when the common directory is the primary .git [C7]', async t => {
+    const ctx = project(t, true), shim = privateFixtureFiles('pullboard-git-shim-').root, log = join(shim, 'calls.log');
+    t.after(() => fs.rmSync(shim, { recursive: true, force: true }));
+    const real = cp.execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+    fs.writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "$@" >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
+    const directory = join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance');
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     fs.writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
     const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
       { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim().split(/\s+/u).join(' ');
+    fs.writeFileSync(join(directory, 'timer.json'), JSON.stringify({ version: 1, token: randomUUID(), pid: process.pid, started,
+      dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: ctx.info.root, common: ctx.info.commonDir }) + '\n', { mode: 0o600 });
+    const path = process.env.PATH;
+    process.env.PATH = `${shim}:${path}`;
+    try {
+      assert.equal((await scheduleWorktreeMaintenance(ctx)).reason, 'existing-timer');
+      assert.equal((await scheduleWorktreeMaintenance(ctx)).reason, 'existing-timer');
+    } finally { process.env.PATH = path; }
+    const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
+    assert.ok(calls.length > 0, 'the shim saw the scheduler run Git');
+    assert.doesNotMatch(calls, /worktree list/u, 'no worktree list ran');
+  });
+
+  test('native live and unknown timer process observations retain exact registration without another child [B3,C7,N26]', async t => {
+    const ctx = project(t, true), directory = join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance');
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
+    const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='], {
+      encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+    }).trim().split(/\s+/u).join(' ');
     const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
       dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: ctx.info.root, common: ctx.info.commonDir };
     const file = join(directory, 'timer.json'), bytes = JSON.stringify(owner) + '\n';

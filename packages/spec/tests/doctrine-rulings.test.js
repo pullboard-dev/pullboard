@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { parseSpec } from '../src/shell/spec.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 /** Send one move through the agent API's executeMove, as an agent tool or the relay would. */
 function apiMove(box, cwd, move) {
@@ -45,7 +46,7 @@ test('a ruling the person approves reaches every agent once [D1,D3,B27]', (t) =>
   const box = e2e.project('true');
   const other = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', other);
-  const joined = box.run(other, 'join', 'web', '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, other, 'web', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const checkouts = [box.repo, box.web, other];
   const oldHeads = checkouts.map(path => box.git(path, 'rev-parse', 'HEAD'));

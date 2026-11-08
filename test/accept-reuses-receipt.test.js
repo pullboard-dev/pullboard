@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileFixtureItem } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('accept reuses sealed submit receipts when clean plan derivation is unavailable [C7]', { timeout: 180000 }, async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
@@ -28,7 +29,7 @@ test('accept reuses sealed submit receipts when clean plan derivation is unavail
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'receipt-reuse-reviewer-session';
-  const joined = box.run(reviewer, 'join', 'web', '--model', 'receipt-reuse-reviewer');
+  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'receipt-reuse-reviewer');
   assert.equal(joined.code, 0, joined.err || joined.out);
   // This leaves the reviewed commit unchanged while making clean-plan derivation unavailable.
   writeFileSync(join(reviewer, 'reviewer-note.tmp'), 'uncommitted reviewer-local note');

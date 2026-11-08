@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js Change: return the canonical result from the handler Test case: test/handler.test.js asserts the canonical result';
 
@@ -17,13 +19,13 @@ test('next offers a strong seat diagnose #N for undiagnosed light work while a l
   const seat = (name, route) => {
     const path = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', path, '-b', `web/${name}`);
-    const joined = box.run(path, 'join', 'web', '--route', route, '--model', `Diagnose ${name} fixture`);
+    const joined = fixtureJoin(box.run, path, 'web', '--route', route, '--model', `Diagnose ${name} fixture`);
     assert.equal(joined.code, 0, joined.err);
     return path;
   };
   const light = seat('light', 'light');
   const strong = seat('strong', 'strong');
-  const added = box.run(box.repo, 'add', 'web', 'Light correction', '--route', 'mid', '--criterion', 'the handler returns the canonical result [test]',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Light correction', '--route', 'mid', '--criterion', 'the handler returns the canonical result [test]',
     '--check', 'true', '--brief', 'Files: web/handler.js\nTest: test/handler.test.js', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

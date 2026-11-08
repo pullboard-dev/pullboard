@@ -18,13 +18,14 @@ import {
 import {
   submissionPaths,
 } from '../src/shell/trusted-policy.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('reclaim at newer main submits only the item edits, without reverting coordinator policy [L3,V4]', () => {
   const box = e2e.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Reclaimed work', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Reclaimed work', '--specs', 'G1',
     '--criterion', 'the owned file exists', '--check', 'test -f web/reclaimed.txt', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);

@@ -17,7 +17,6 @@ import { runLandingBatch } from '../../landing/index.js';
 import { runLandingCandidate } from '../../landing/index.js';
 import { shardProcesses } from '../../landing/index.js';
 import { runLandingShards } from '../../landing/index.js';
-import { runLandingWorker } from '../../landing/index.js';
 import { landingWaivers } from '../../landing/index.js';
 import { landingPorts } from '../../../test/landing-ports-fixture.js';
 import { runShell } from '../src/shell/shell-run.js';
@@ -123,7 +122,6 @@ test('missing landing providers refuse before admission or work can begin [B3,R3
       checkLease() { called = true; } }), /explicit canonical operation ports/u);
   }
   await assert.rejects(runLandingShards({ root: '/missing-landing-parser' }), /explicit process census parser/u);
-  await assert.rejects(runLandingWorker({ root: '/missing-landing-parser' }, {}), /explicit process census parser/u);
   assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
   assert.equal(called, false, 'missing providers never read the board or enter the lease callback');
 });

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
+import { fixtureProjectPolicy } from './testkit-fixture.js';
 import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck, withAuditedMain } from '../packages/gate/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
@@ -12,6 +13,8 @@ import { repoInfo } from '../packages/git/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { createHash } from 'node:crypto';
+import { passingMainReds } from '../packages/landing/index.js';
+import { turnedGreenAt } from '../packages/landing/index.js';
 
 const head = 'a'.repeat(40);
 const proof = {
@@ -38,12 +41,6 @@ function fixtureGit(cwd, ...args) {
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
     'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[name];
   return runFixtureGit(args, { cwd, env });
-}
-
-/** Commit the current policy alongside each private Git fixture before native item writes use it. */
-function fixturePolicy(repo) {
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['test/'] } } }));
-  writeFileSync(join(repo, 'SPEC.md'), '# Audit fixture\n## G\n- G1 [approved, must] The fixture keeps its proof. | gate: true\n');
 }
 
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
@@ -86,7 +83,10 @@ function auditFixture(t) {
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/a.test.js'), '');
   writeFileSync(join(repo, 'test/b.test.js'), '');
-  fixturePolicy(repo);
+  fixtureProjectPolicy(repo, {
+    config: { gate: 'true', lanes: { core: { owns: ['test/'] } } },
+    spec: '# Audit fixture\n## G\n- G1 [approved, must] The fixture keeps its proof. | gate: true\n',
+  });
   fixtureGit(repo, 'init', '-q', '-b', 'main');
   fixtureGit(repo, 'add', '-A');
   fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
@@ -197,4 +197,35 @@ test('the existing native policy witness rolls back a main move after audit with
   })), writer), error => error.code === 'POLICY_SNAPSHOT_STALE');
   assert.equal(store.getItem(db, id).item_status, 'open');
   assert.equal(store.events(db, { itemId: id }).some(event => ['withdraw', 'fact'].includes(event.event_kind)), false);
+});
+
+test('clause 1: a Main red item whose file turned green names the landing that turned it green [C7]', () => {
+  const [a, b, c] = ['a', 'b', 'c'].map(ch => ch.repeat(40));
+  const content = 'd'.repeat(40);
+  const file = 'test/x.test.js';
+  // The cache also stores each result under a content key; it is no commit and must never be named as the landing.
+  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } }, [content]: { [file]: { result: 'green' } },
+    [b]: { [file]: { result: 'green' } }, [c]: { [file]: { result: 'green', receiptId: 'run-9' } } };
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}` };
+  const rows = passingMainReds([item], c, entries, [c, b, a]);
+  assert.deepEqual(rows.map(row => [row.item, row.main, row.turnedGreen]), [[7, c, b]]);
+  assert.equal(turnedGreenAt(entries, c, file, [c, b, a]), b);
+  assert.equal(turnedGreenAt(entries, c, file, [c]), c, 'a lineage without older commits names main itself');
+});
+
+test('clause 2: a Main red item whose file is still red on main stays open [C7]', () => {
+  const a = 'a'.repeat(40);
+  const file = 'test/x.test.js';
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}` };
+  assert.deepEqual(passingMainReds([item], a, { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } } }), []);
+  assert.deepEqual(passingMainReds([item], a, {}), []);
+});
+
+test('clause 2: a file red only on cases other than the item\'s named failures keeps the item open [C7]', () => {
+  const a = 'a'.repeat(40);
+  const file = 'test/x.test.js';
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}`,
+    item_check_baseline: { testEvidence: { failedCases: [{ file, name: 'old case' }] } } };
+  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'different case' }] } } };
+  assert.deepEqual(passingMainReds([item], a, entries), []);
 });

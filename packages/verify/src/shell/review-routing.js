@@ -57,7 +57,7 @@ export function reviewWait(board, item, reads = board.nativePorts) {
 }
 
 /** A free eligible seat interrupts new work after the configured wait; reservation guards still decide eligibility. */
-export function overdueReview(board, item, starveMinutes = 10, reads = board.nativePorts) {
+export function overdueReview(board, item, starveMinutes = 5, reads = board.nativePorts) {
   const wait = reviewWait(board, item, reads);
   return Boolean(wait && wait.ageMs > starveMinutes * 60_000);
 }
