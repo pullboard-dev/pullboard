@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileRuntimeCapReport } from '../core/file-runtime-cap.js';
 import { fileRuntimeCapFailure } from '../core/file-runtime-cap.js';
 import { readTestValueTimings } from './test-value-timing.js';
+import { receiptStore } from './gate-run-receipt.js';
 
 /** The newest measured wall time per file across every receipt sidecar in a gate receipt store. */
 export function receiptFileRuntimes(store) {
@@ -25,6 +26,12 @@ export function receiptFileRuntimes(store) {
   return Object.fromEntries([...newest].map(([file, row]) => [file, row.durationMs]));
 }
 
+/** The newest receipt runtime per file for the repository a checkout belongs to; none when it keeps no receipts. */
+export function rootReceiptRuntimes(root) {
+  const store = receiptStore(root);
+  return store ? receiptFileRuntimes(store) : {};
+}
+
 /** List every file whose last receipt runtime is over the cap, slowest first, for the coordinator to file split items. */
 export function filesOverRuntimeCap(store) {
   return fileRuntimeCapReport({}, receiptFileRuntimes(store)).over;
@@ -37,6 +44,6 @@ export function topLevelCaseTimes(events) {
 }
 
 /** The refusal message for one file just run against its last known runtime, or null when it stays within the cap. */
-export function fileRuntimeCapRefusal(file, durationMs, history, events) {
-  return fileRuntimeCapFailure(file, durationMs, history[file], topLevelCaseTimes(events));
+export function fileRuntimeCapRefusal(file, durationMs, history, events, cap) {
+  return fileRuntimeCapFailure(file, durationMs, history[file], topLevelCaseTimes(events), cap);
 }

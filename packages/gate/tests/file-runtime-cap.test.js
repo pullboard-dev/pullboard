@@ -1,6 +1,15 @@
 /** The two-minute file cap refuses a candidate that pushes a file past it, naming the file and a split seam [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { receiptStore } from '../src/shell/gate-run-receipt.js';
+import { receiptFileRuntimes } from '../src/shell/file-runtime-cap.js';
+import { retainTestValueTimings } from '../src/shell/test-value-timing.js';
 import { FILE_RUNTIME_CAP_MS } from '../src/core/file-runtime-cap.js';
 import { fileRuntimeCapFailure } from '../src/core/file-runtime-cap.js';
 import { fileRuntimeCapOutput } from '../src/core/file-runtime-cap.js';
@@ -34,4 +43,37 @@ test('clause 1: the split seam falls back to a generic cut without per-test time
   assert.match(splitSeam(tests), /60s in the first file|110s in the first file/);
   assert.throws(() => fileRuntimeCapFailure('f', Number.NaN, 0), /missing test file runtime/);
   assert.throws(() => fileRuntimeCapFailure('f', 1, 0, [], 0), /positive finite/);
+});
+
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
+
+test('clause 1: real file dispatch reads each file\'s last runtime from the receipt history and refuses a candidate that grows past the cap, naming the file and its split seam [C7]', t => {
+  const files = privateFixtureFiles('pullboard-runtime-cap-');
+  const directory = files.root;
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  runFixtureGit(['-C', directory, 'init', '-q', '-b', 'main']);
+  runFixtureGit(['-C', directory, 'config', 'user.name', 'Fixture']);
+  runFixtureGit(['-C', directory, 'config', 'user.email', 'fixture@example.test']);
+  files.write('pullboard.json', JSON.stringify({ gate: 'true' }));
+  files.write('package.json', JSON.stringify({ type: 'module' }));
+  const body = name => `import {test} from 'node:test'; test('${name} one [C7]', async()=>{await new Promise(done=>setTimeout(done,700));}); test('${name} two [C7]', async()=>{await new Promise(done=>setTimeout(done,700));});\n`;
+  files.write('grew.test.js', body('grew'));
+  files.write('steady.test.js', body('steady'));
+  runFixtureGit(['-C', directory, 'add', '-A']);
+  runFixtureGit(['-C', directory, 'commit', '-qm', 'fixture']);
+  // Two receipts hold the files' last runtimes: grew.test.js took 100 ms, steady.test.js was already past the cap at 1300 ms.
+  const store = receiptStore(directory);
+  assert.ok(store, 'the fixture repository keeps a receipt store');
+  assert.ok(retainTestValueTimings(store, '11111111-1111-4111-8111-111111111111', { files: [{ path: 'grew.test.js', durationMs: 100 }, { path: 'steady.test.js', durationMs: 1_300 }] }));
+  assert.deepEqual(receiptFileRuntimes(store), { 'grew.test.js': 100, 'steady.test.js': 1_300 });
+  const env = Object.assign({}, process.env);
+  env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
+  env.PULLBOARD_FILE_RUNTIME_CAP_MS = '1000';
+  const run = (...named) => runFixtureChild(process.execPath, [runner, ...named], { cwd: directory, encoding: 'utf8', detached: true, env });
+  const refused = run('grew.test.js');
+  assert.notEqual(refused.status, 0, 'a file that grew from 100 ms past the cap fails the run');
+  assert.match(refused.stderr + refused.stdout, /grew\.test\.js now takes \d+s \(was 1s, \+\d+s\), over the 1s file cap; split seam: cut (?:after test 1 of 2 \("grew one \[C7\]"\)|before the last test \("grew two \[C7\]"\))/u);
+  const listed = run('steady.test.js');
+  assert.equal(listed.status, 0, listed.stderr + listed.stdout);
+  assert.doesNotMatch(listed.stderr + listed.stdout, /file cap/u, 'a file already over the cap that does not grow is only listed, not refused');
 });
