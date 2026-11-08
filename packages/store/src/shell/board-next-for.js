@@ -387,7 +387,8 @@ export function greenReviewFor(board, who) {
 /**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
- * machine; a red gate returns the item to its builder, so it stays offered.
+ * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
+ * which no build can fix and next never hands out (#3796).
  *
  * Only a job for the item's current head counts: a job left from an older head proves nothing about new work.
  *
@@ -402,6 +403,7 @@ export function gateAtHead(board, entry) {
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+    : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
 }

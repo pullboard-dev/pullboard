@@ -9,6 +9,7 @@ export { staleStateSnapshot } from './src/shell/stale-state-snapshot.js';
 
 export { captureLapsedClaims, pinClaimHandoff } from './src/shell/stale-state-capture.js';
 export { sweepClaims } from './src/shell/claim-sweep.js';
+export { unaccountedRedFindings, redIsUnaccounted, firstUnparsedLine } from './src/shell/unaccounted-red-detector.js';
 export { landingFailureFindings, landingFailureObservation } from './src/shell/landing-failure.js';
 export { reviewFamilyCover, reviewFamilyBuildPause, reviewFamilyBacklog, shoutReviewCoverStuck, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG, REVIEW_COVER_PAUSE_TAIL, shoutConflictedReviews } from './src/shell/review-family-cover.js';
 
