@@ -25,7 +25,7 @@ export { PULLBOARD_COMMANDS, cockpitPage as cliCockpitRenderer$cockpitPage } fro
 export { LANDING_COALESCE_MS, executeBoardLanding, landAfterAcceptance, run as commandsLand$run } from "./src/shell/commands/land.js";
 export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run, submitHere } from "./src/shell/commands/submit.js";
 export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/shell/generated-docs.js";
-export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, gateCheckoutPool, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from "./src/shell/submit-handoff-origin.js";
+export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from "./src/shell/submit-handoff-origin.js";
 export { sealSubmitHandoffQueue } from "./src/shell/submit-handoff-seal.js";
 export { context as context } from "./src/shell/cli.js";
 export { withBoard as withBoard } from "./src/shell/cli.js";

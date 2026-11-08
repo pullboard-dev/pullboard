@@ -35,18 +35,6 @@ export function submitHandoffRoot(commonDir, job) {
   return join(commonDir, 'pullboard', 'submit-handoffs', job.id, 'source');
 }
 
-/**
- * Where the coordinator keeps the gate checkouts idle between gates: inside the repository's own Git folder, beside
- * the hand-off folders, on whatever disk the repository is on. No setting, volume or path is special to one
- * operating system (#3700).
- *
- * @param {string} commonDir - The repository's common Git folder.
- * @returns {string}
- */
-export function gateCheckoutPool(commonDir) {
-  return join(commonDir, 'pullboard', 'gate-checkouts');
-}
-
 /** Install finite worker authority only after checking the exact native queued source on this board. */
 export function bindSubmitHandoffOrigin(ctx, board, itemId, jobId) {
   const job = submitHandoff(board, itemId);

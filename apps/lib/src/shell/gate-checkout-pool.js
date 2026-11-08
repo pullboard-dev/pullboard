@@ -9,6 +9,7 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 
@@ -17,6 +18,18 @@ const SLOT = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
 /** A kept checkout no gate has borrowed for a day is removed, so a burst of parallel gates does not keep its trees. */
 export const GATE_CHECKOUT_IDLE_MS = 24 * 3_600_000;
+
+/**
+ * Where the coordinator keeps gate checkouts idle between gates: beside the folder that holds every gate's hand-off
+ * folder, so inside the repository's own Git folder, on whatever disk the repository is on. No setting, volume or
+ * path is special to one operating system (#3700).
+ *
+ * @param {string} root - A gate's checkout place: <hand-offs>/<job>/source.
+ * @returns {string} <hand-offs>/../gate-checkouts.
+ */
+export function gateCheckoutPool(root) {
+  return join(dirname(dirname(dirname(root))), 'gate-checkouts');
+}
 
 /**
  * A Git runner: takes Git's arguments and returns whether it succeeded, its trimmed output and its error text, never

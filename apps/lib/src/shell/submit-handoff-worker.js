@@ -45,7 +45,7 @@ import { releaseLease } from '../../../../packages/jobs/index.js';
 import { borrowGateCheckout } from './gate-checkout-pool.js';
 import { discardGateCheckout } from './gate-checkout-pool.js';
 import { returnGateCheckout } from './gate-checkout-pool.js';
-import { gateCheckoutPool } from '../../../cli/index.js';
+import { gateCheckoutPool } from './gate-checkout-pool.js';
 
 /** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
 function gateGit(args) {
@@ -302,7 +302,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   const cleanup = () => {
     const owned = attached;
     attached = false;
-    try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(request.commonDir), root, commit: request.commit }); }
+    try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
     finally { if (owned) cleanupToolSnapshot(request); }
   };
   /**
@@ -331,7 +331,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     if (existsSync(root)) discardGateCheckout(gateGit, request.commonDir, root);
     // A kept checkout moved to the candidate writes only the files that differ, not the whole tree per gate (#3700).
     let checkout;
-    try { checkout = borrowGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(request.commonDir), root, commit: request.commit }); }
+    try { checkout = borrowGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
     catch (error) { throw new Refused('SUBMIT_HANDOFF_SOURCE', error.message); }
     attached = true;
     process.stderr.write(`PULLBOARD_GATE_CHECKOUT ${JSON.stringify(checkout)}\n`);

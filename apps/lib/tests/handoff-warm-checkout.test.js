@@ -19,7 +19,6 @@ import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 import { fixtureOpenBoard } from '../../../test/testkit-fixture.js';
 import { fixtureHandoffPolicy } from '../../../test/testkit-fixture.js';
-import { gateCheckoutPool } from '../../cli/index.js';
 
 /** Demand a genuine CLI success before reading its native document. */
 function document(result) {
@@ -29,7 +28,7 @@ function document(result) {
 
 /** The kept checkouts' folders, as the pool holds them between gates. */
 function keptCheckouts(commonDir) {
-  const pool = gateCheckoutPool(commonDir);
+  const pool = join(commonDir, 'pullboard', 'gate-checkouts');
   return existsSync(pool) ? readdirSync(pool).filter(name => !name.startsWith('.')).map(name => join(pool, name)) : [];
 }
 
