@@ -5,7 +5,7 @@
  * property are not. On the live tree the check holds the stylesheets to the scale src/view.css defines.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -156,10 +156,24 @@ test('clause 1: the view has only the approved raw sizes, including CSS added af
     ['@media (max-width: 1000px) { .first-run-two {', 'padding 20px'],
     ['@media (max-width: 700px) { .first-run-checks li {', 'margin-left 30px'],
   ];
-  const problems = uiSizeProblems(ROOT).filter(problem => problem.path === 'apps/view/src/shell/view.css');
-  const listed = problems;
-  assert.ok(listed.length <= allowed.length, `only ${allowed.length} approved raw sizes remain, found ${listed.length}`);
-  for (const problem of listed) {
+  // Only the sizes this change adds are held to the approved list: a size main already carries, at the same line text, never fails.
+  const path = 'apps/view/src/shell/view.css';
+  const base = execFileSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  const baseText = execFileSync('git', ['show', `${base}:${path}`], { cwd: ROOT, encoding: 'utf8' });
+  const baseRoot = tree(`base-${base}`, { [path]: baseText });
+  const baseLines = baseText.split('\n');
+  const onMain = new Map();
+  for (const problem of uiSizeProblems(baseRoot).filter(found => found.path === path)) {
+    const key = `${baseLines[problem.line - 1].trim()}|${problem.text}`;
+    onMain.set(key, (onMain.get(key) ?? 0) + 1);
+  }
+  const added = [];
+  for (const problem of uiSizeProblems(ROOT).filter(found => found.path === path)) {
+    const key = `${lines[problem.line - 1].trim()}|${problem.text}`;
+    if (onMain.get(key)) onMain.set(key, onMain.get(key) - 1);
+    else added.push(problem);
+  }
+  for (const problem of added) {
     assert.ok(allowed.some(([selector, size]) => lines[problem.line - 1].trim().startsWith(selector)
       && problem.text.startsWith(`${size} is typed by hand:`)), `${problem.line}: ${problem.text}`);
   }

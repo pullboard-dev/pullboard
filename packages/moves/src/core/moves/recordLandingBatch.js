@@ -10,7 +10,7 @@ import {
   carriesFlakeDiagnostics,
 } from "../../../../../src/flake-engine.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../../src/land-engine.js";
-import { landingBatches } from "../../../../git/core.js";
+import { latestLandingBatch } from "../../../../git/core.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { landingTestDefects } from "../../../../../src/board-landing-test-defect-history.js";
@@ -24,7 +24,7 @@ function existingEngine(args, board, at) {
   if (board) {
     if (landingTestDefects(board).length) return LANDING_ENVIRONMENT_ENGINE;
     const id = args[0]?.batch?.id;
-    if (landingBatches(board).some(batch => batch.id === id && carriesLandingEnvironment(batch))) return LANDING_ENVIRONMENT_ENGINE;
+    if (carriesLandingEnvironment(latestLandingBatch(board, id))) return LANDING_ENVIRONMENT_ENGINE;
   }
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
   if (args[0]?.batch?.state === 'trunk') return LOCAL_LANDING_ENGINE;
@@ -33,7 +33,7 @@ function existingEngine(args, board, at) {
   if (args[0]?.batch?.invariantEvidence !== undefined) return SUBMISSION_PROOF_ENGINE;
   if (board) {
     const id = args[0]?.batch?.id;
-    const prior = id && landingBatches(board).find(batch => batch.id === id);
+    const prior = id && latestLandingBatch(board, id);
     if (prior?.invariantEvidence) return SUBMISSION_PROOF_ENGINE;
     if (prior && ['items', 'candidates'].some(key => Array.isArray(prior[key]) && prior[key].some(entry => entry && Object.hasOwn(entry, 'reviewedCommit')))) return VERDICT_REVIEW_ENGINE;
   }

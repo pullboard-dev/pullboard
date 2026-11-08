@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/stage.css apps/view/src/shell/view/dashboard.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css apps/view/src/shell/view/item-panel.css apps/view/src/shell/view/item-rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
@@ -8,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { joinFixtureSeat } from '../testkit-fixture.js';
 import { openShoutConversation, SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
 
@@ -19,7 +21,7 @@ function sendBackWithClause(box, project, id, note, clause) {
 }
 
 
-test('clause 1: the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
+test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the 320px check.');
 
@@ -36,6 +38,9 @@ test('clause 1: the view never scrolls sideways at 320px [N26]', { timeout: 120_
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project");
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.click("document.querySelector('[data-tab=\"items\"]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
@@ -118,7 +123,7 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
   }
 });
 
-test('clause 1: no box carries a coloured edge [N26]', async () => {
+test('no box carries a coloured edge [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -128,8 +133,7 @@ test('clause 1: no box carries a coloured edge [N26]', async () => {
   try {
     const page = await openPage(view);
     const style = await styleOf(view);
-    // Every border drawn on one side of a box is nothing, or a 1px divider in a neutral line colour (--line, or the
-    // softer --line-soft the Cost, item panel and first-run dividers use since ad61bcc68c, 639c16dbb5 and 0de17112c6).
+    // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
     const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
     assert.ok(sides.length > 0);
     assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line(?:-soft)?\))$/.test(side)), [], 'no coloured or thick bar on one edge');
@@ -142,7 +146,7 @@ test('clause 1: no box carries a coloured edge [N26]', async () => {
     await view.stop();
   }
 });
-test("clause 1: the authenticated local view assembles its shared and private styles [N26]", async () => {
+test("the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -249,7 +253,7 @@ test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 
   }
 });
 
-test('clause 1: the board reads at a glance from the status bar [N26]', { timeout: 180_000 }, async (t) => {
+test('the board reads at a glance from the status bar [N26]', { timeout: 180_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for status bar checks.');
 
@@ -276,7 +280,7 @@ test('clause 1: the board reads at a glance from the status bar [N26]', { timeou
   box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4', '--reason', 'Arrange fixture release');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
-  box.run(second, 'join', 'web');
+  joinFixtureSeat(box, second, 'web');
   box.run(second, 'shout', 'all', 'Free when you need me.');
   box.run(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
   box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
@@ -304,7 +308,8 @@ test('clause 1: the board reads at a glance from the status bar [N26]', { timeou
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
       const s = getComputedStyle(row), why = row.querySelector('.meta .item-reason');
       return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
-        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, stage: row.querySelector('.item-stage')?.getAttribute('aria-label') ?? null,
+        stage: row.querySelector('.item-stage')?.dataset.stage ?? null, stageDetail: row.querySelector('.stage-detail')?.textContent ?? null,
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .row-side > .chip [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
         border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
@@ -372,14 +377,13 @@ test('clause 1: the board reads at a glance from the status bar [N26]', { timeou
         assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.reject, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
           `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
         assert.equal(row['6'].why?.code, 'BEHAVIOR_MISMATCH', `${at}: the row keeps its native reason code in the tooltip`);
-        // A lane hold keeps its warning edge; dependency waits show the approved Gated stage naming the blocker. Review stays gold.
+        // A lane hold keeps its warning edge; dependency waits use the approved plain linked chip. Review stays gold.
         for (const id of ['4']) {
           const [red, green, blue] = row[id].border;
           assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
         }
         assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [true, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
-        // Since 1484ea02be a dependency wait shows the approved native stage, Gated with its blocker named in the detail.
-        assert.equal(row['3'].stage, 'Gated: by #2', `${at}: the stage names the native dependency`);
+        assert.deepEqual([row['3'].stage, row['3'].stageDetail], ['gated', 'by #2'], `${at}: the row's stage names the native dependency`);
         const [tr, tg, tb] = row['5'].tint;
         assert.ok(tr >= tg && tg > tb && row['5'].tint.join() !== row['1'].tint.join(), `${at}: a row waiting on a verdict is shaded gold: ${JSON.stringify([row['5'].tint, row['1'].tint])}`);
         if (scheme === 'dark') {
@@ -643,7 +647,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
   }
 });
 
-test('clause 1: targets are 44px for touch and compact under a mouse [N26]', { timeout: 150_000 }, async (t) => {
+test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 150_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for target size checks.');
   const box = machine();

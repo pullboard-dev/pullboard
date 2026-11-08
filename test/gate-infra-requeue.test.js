@@ -88,7 +88,7 @@ test('after 3 retries a runner that keeps dropping ends as an infrastructure sto
   assert.ok(result.calls <= 8, `bounded: ${result.calls} runs`);
 });
 
-for (const kind of ['transport', 'cleanup', 'deadline']) {
+for (const kind of ['transport', 'cleanup']) {
   test(`a runner that keeps failing (${kind}) is avoided: the same candidate completes on the healthy second runner, no red [C7]`, t => {
     const box = fixture(t, { second: true });
     const result = scenario(box, [], undefined, { brokenFirstHost: kind });
@@ -104,6 +104,14 @@ for (const kind of ['transport', 'cleanup', 'deadline']) {
   });
 }
 
+test('clause 1: a runner that keeps hitting its wait deadline stops GATE_INFRA_EXHAUSTED for the coordinator, never a red to the builder [C7]', t => {
+  const box = fixture(t, { second: true });
+  const result = scenario(box, [], undefined, { brokenFirstHost: 'deadline' });
+  assert.equal(result.refused, 'GATE_INFRA_EXHAUSTED', `a wait deadline is infrastructure and the bounded retries end as such: ${JSON.stringify(result)}`);
+  assert.equal(result.calls, 4, 'the first attempt and exactly 3 retries');
+  assert.ok(result.said.every(line => /RUNNER_UNAVAILABLE.*requeueing the same candidate/u.test(line)), result.said.join('\n'));
+});
+
 test('a test failure goes red on its first attempt and is never requeued [C7]', t => {
   const box = fixture(t);
   const thrown = scenario(box, ['red']);
@@ -116,13 +124,13 @@ test('a test failure goes red on its first attempt and is never requeued [C7]', 
   assert.deepEqual(red.attempts, []);
 });
 
-test('infrastructure failures are named by code, a dropped runner or a locked board; real failures are not [C7]', async () => {
-  for (const code of ['RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'BOARD_BUSY', 'SLOT_DB_LOCKED', 'MERGE_CHECK_FAILED']) {
+test('clause 1: infrastructure failures are named by code, a dropped runner, an invalid runner result (#3303) or a locked board; real failures are not [C7]', async () => {
+  for (const code of ['RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'BOARD_BUSY', 'SLOT_DB_LOCKED', 'MERGE_CHECK_FAILED', 'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST']) {
     assert.equal(infrastructureFailure(new Refused(code, 'fixture')), code);
   }
   assert.equal(infrastructureFailure(Object.assign(new Error('runner x disconnected'), { name: 'RunnerDropped' })), 'TRANSPORT_LOST');
   assert.equal(infrastructureFailure(Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' })), 'DATABASE_LOCKED');
-  for (const code of ['GATE_RED', 'CHECK_RED', 'RUNNER_SECRET', 'RUNNER_RESULT_INVALID', 'HEAD_NOT_NEW']) {
+  for (const code of ['GATE_RED', 'CHECK_RED', 'RUNNER_SECRET', 'HEAD_NOT_NEW']) {
     assert.equal(infrastructureFailure(new Refused(code, 'database is locked in the test output')), null, code);
   }
   // With no healthy executor the candidate waits in the queue rather than going red, then runs once one answers.
@@ -161,4 +169,40 @@ test('a runner that failed earlier and recovered takes the rerun when the other 
   }, { healthy: async () => true, wait: async () => {} });
   assert.deepEqual(used, ['runner-a', 'runner-b', 'runner-a'], 'a, now recovered, re-enters the pool after b fails');
   assert.equal(result, 'GREEN on runner-a');
+});
+
+test('lock stops wait without spending runner retries, bounded on their own, and a lost lease stays a counted retry [C7]', async () => {
+  assert.equal(infrastructureFailure(new Refused('RESOURCE_LEASE_LOST', 'the queued resource lease disappeared during item renewal')), 'RESOURCE_LEASE_LOST');
+  let calls = 0;
+  const { result, attempts, lockWaits } = await submitUntilSettled(async () => {
+    calls += 1;
+    if (calls <= 4) throw new Refused(calls % 2 ? 'SLOT_DB_LOCKED' : 'BOARD_BUSY', 'fixture');
+    return 'GREEN';
+  }, { healthy: async () => true, wait: async () => {} });
+  assert.equal(result, 'GREEN', 'four lock failures, more than the 3 runner retries, still end green');
+  assert.deepEqual(attempts, [], 'lock waits are not runner attempts');
+  assert.equal(lockWaits.count, 4);
+  calls = 0;
+  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('BOARD_BUSY', 'fixture'); },
+    { healthy: async () => true, wait: async () => {}, lockWaitLimit: 5 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && /last BOARD_BUSY/u.test(error.message));
+  assert.equal(calls, 6, 'the first attempt and exactly the lock wait bound of reruns');
+  calls = 0;
+  const lost = await submitUntilSettled(async () => { calls += 1; if (calls === 1) throw new Refused('RESOURCE_LEASE_LOST', 'fixture'); return 'GREEN'; }, { healthy: async () => true, wait: async () => {} });
+  assert.equal(lost.attempts.length, 1, 'a lost lease is a counted runner retry, as #3303 requires');
+  assert.equal(lost.lockWaits.count, 0);
+});
+
+test('clause 2: each infrastructure rerun records its code once, before the rerun is admitted [C7]', async () => {
+  const order = [];
+  let calls = 0;
+  const { result } = await submitUntilSettled(async () => {
+    calls += 1;
+    order.push(`run ${calls}`);
+    if (calls === 1) throw new Refused('GIT_READ_INFRASTRUCTURE', 'fixture: git read failed');
+    if (calls === 2) throw new Refused('TRANSPORT_LOST', 'fixture: runner lost');
+    return 'green';
+  }, { say: () => {}, wait: async () => {}, healthy: async () => true,
+    onInfrastructure: async rerun => { order.push(`record ${rerun.code} after attempt ${rerun.attempt}`); } });
+  assert.equal(result, 'green');
+  assert.deepEqual(order, ['run 1', 'record GIT_READ_INFRASTRUCTURE after attempt 1', 'run 2', 'record TRANSPORT_LOST after attempt 2', 'run 3']);
 });

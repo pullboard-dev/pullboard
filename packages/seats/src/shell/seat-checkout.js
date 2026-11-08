@@ -1,5 +1,6 @@
 import { AGENT_SESSION_IDS } from '../../../kernel/src/core/discovery.js';
 import { repoInfo } from '../../../../src/git.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { isClean } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { bindLocalSession } from './agent-session.js';
@@ -66,9 +67,10 @@ export function seatLeadLine(seat, item, held) {
  * Choose or open the matching lane seat, retaining ordinary checkout ownership and lane guards.
  *
  * The CLI supplies the board readers, the session digest reader and the worktree opener as one explicit port,
- * so the seats cell never loads the board, the person cell or the CLI's commands.
+ * so the seats cell never loads the board, the person cell or the CLI's commands. `repoInfoOf` reads a seat's checkout and
+ * is a port so a test can name a Windows checkout whose commonDir uses the other slash spelling [C7].
  */
-export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { store, sessionDigest, openWorktree }) {
+export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { store, sessionDigest, openWorktree, repoInfoOf = repoInfo }) {
   const held = item.item_status === 'claimed';
   const occupied = new Set(store.listItems(board).filter(entry => entry.item_status === 'claimed'
     && entry.item_parent_id === null).map(entry => entry.item_owner));
@@ -76,7 +78,7 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
   function freeCheckout(agent) {
     if (held) return agent.agent_id === item.item_owner;
     if (occupied.has(agent.agent_id)) return false;
-    try { return repoInfo(agent.agent_path).commonDir === ctx.info.commonDir
+    try { return sameCommonDir(repoInfoOf(agent.agent_path).commonDir, ctx.info.commonDir)
       && isClean(agent.agent_path) && untracked(agent.agent_path).length === 0; }
     catch { return false; }
   }
@@ -85,7 +87,7 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
   // B5: the invoking seat takes several claims, each in its own item folder, so its live claims never send it to a new seat.
   const own = store.agentById(board, me.id);
   const ownFits = own && own.agent_lane === item.item_lane && store.ROUTES.indexOf(own.agent_route) >= store.ROUTES.indexOf(item.item_route)
-    && (held ? item.item_owner === own.agent_id : true) && repoInfo(own.agent_path).commonDir === ctx.info.commonDir;
+    && (held ? item.item_owner === own.agent_id : true) && sameCommonDir(repoInfoOf(own.agent_path).commonDir, ctx.info.commonDir);
   let agent = ownFits ? own : held ? available.find((seat) => seat.agent_id === item.item_owner) : available[0];
   let created = false;
   if (!agent) {
@@ -95,7 +97,7 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
     created = true;
   }
   const target = agent.agent_path === ctx.info.root ? ctx : contextAt({ ...ctx.io, cwd: agent.agent_path });
-  if (target.info.commonDir !== ctx.info.commonDir) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
+  if (!sameCommonDir(target.info.commonDir, ctx.info.commonDir)) throw new Refused('NOT_YOUR_CHECKOUT', 'the selected lane seat no longer belongs to this board; run pullboard next again');
   await bindLocalSession(target.info, { agent: agent.agent_id, digest: sessionDigest() });
   return { context: target, seat: { agent: agent.agent_id, lane: agent.agent_lane, path: target.info.root, created } };
 }
