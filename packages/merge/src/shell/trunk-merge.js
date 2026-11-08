@@ -13,15 +13,16 @@ import { mechanicalConflictFiles } from './mechanical-merge.js';
  * @param {string} root
  * @param {string} commit
  * @param {string} [retainedRef]
+ * @param {{ raw?: boolean }} [options] - raw: name every file Git reports, even those landing resolves mechanically
  * @returns {{ ref: string, commit: string, files: string[] | null }}
  */
-export function trunkMerge(root, commit, retainedRef = trunkRef(root)) {
+export function trunkMerge(root, commit, retainedRef = trunkRef(root), { raw = false } = {}) {
   const checkout = mainCheckout(root);
   const branchRef = checkout?.branch ?? retainedRef;
   if (!branchRef?.startsWith('refs/heads/')) throw new Refused('NO_TRUNK', 'no trunk branch was recorded; check out the trunk branch in the main checkout once and run pullboard inbox');
   const tip = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--verify', '--quiet', branchRef + '^{commit}'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   if (tip.status !== 0) throw new Refused('NO_TRUNK', 'the recorded trunk branch has no readable tip; check out the trunk branch in the main checkout once and run pullboard inbox');
-  const files = mechanicalConflictFiles(root, tip.stdout.trim(), commit);
+  const files = mechanicalConflictFiles(root, tip.stdout.trim(), commit, { raw });
   if (files === null) throw new Refused('MERGE_CHECK_FAILED', 'Git could not check the candidate against the trunk; use Git 2.38 or newer, restore its objects and retry');
   return { ref: branchRef, commit: tip.stdout.trim(), files: files.length ? files : null };
 }

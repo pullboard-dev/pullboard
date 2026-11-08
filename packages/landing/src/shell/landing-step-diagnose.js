@@ -33,6 +33,7 @@ import { changedFiles } from './landing-known-main.js';
 import { repeatedBlockedCause } from '../core/runner-source-hold.js';
 import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
 import { repeatedLandingNotice } from '../core/runner-source-hold.js';
+import { LANDING_FAULT_CODES } from '../core/automatic-landing-retry.js';
 
 /**
  * The compare port a landing reads base main through: main's receipts on the landing's board, a missing one enqueued
@@ -288,7 +289,7 @@ export function namedFailures(gate) {
  * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
  */
 // A locked board or slot database means the run never started, not that the batch or an item failed.
-export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
+export const LANDING_FAULTS = new Set(LANDING_FAULT_CODES);
 
 /** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
 export function landingFault(error) {

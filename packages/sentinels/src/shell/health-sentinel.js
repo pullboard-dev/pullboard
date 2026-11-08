@@ -15,8 +15,12 @@ import {
   normalizedHealthFindings,
 } from "../../../../src/board-health-receipts.js";
 
-/** A missing board or an explicitly disabled sentinel has no observation to publish. */
-export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, returnRejected = false }) {
+/**
+ * A missing board or an explicitly disabled sentinel has no observation to publish. `gateDrives(db, now)` adds the
+ * findings for gate drives that renew their lease with no step (the drive cell's own detector, which this cell may
+ * not import); the CLI's sentinel command passes it, so the production loop shouts each one as Stuck [C7].
+ */
+export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, gateDrives = () => [], returnRejected = false }) {
   if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
   try {
@@ -26,6 +30,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     const { dispatch } = dispatchHealth(readBoardSnapshot(db, { now: () => now }), config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     report.stuck.push(...tooling(now, last ? JSON.parse(last.event_detail).active : []));
+    report.stuck.push(...gateDrives(db, now));
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();

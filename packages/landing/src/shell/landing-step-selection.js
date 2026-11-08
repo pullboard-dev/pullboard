@@ -56,6 +56,25 @@ export function heldTestDefects(root, board, trunk, landingPorts, { defects = st
   });
 }
 
+/**
+ * Close each defect on this trunk whose recorded failing cases pass in a recorded run at the trunk commit, one
+ * closeLandingTestDefect move each, so landings at later trunk commits are not held by it again [C7].
+ * Why: heldTestDefects releases on a run at the current tip only, and every landing moves the tip, so the automatic
+ * lander refused #3304 LAND_TEST_DEFECT again one landing after its test was recorded green (#3694).
+ */
+export async function closePassedTestDefects({ root, board, trunk, write, say = () => {} }, { defects = store.landingTestDefects, comparison = cachedMainComparison } = {}) {
+  const closed = [];
+  for (const defect of defects(board)) {
+    if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item) || !defectPassedAtTrunk(root, trunk, defect, comparison)) continue;
+    const result = await write('closeLandingTestDefect', [{ agentId: 'coordinator', branch: defect.branch, test: defect.test, item: defect.item, commit: trunk.commit }]);
+    if (result) {
+      closed.push(result);
+      say(`landing closes test defect #${defect.item} (${defect.test}): its cases passed at ${trunk.commit.slice(0, 10)}`);
+    }
+  }
+  return closed;
+}
+
 /** Keep each verdict's recorded executor distinct from the actual landing host. */
 export function environmentWarnings(board, items, environment) {
   return items.flatMap(entry => {

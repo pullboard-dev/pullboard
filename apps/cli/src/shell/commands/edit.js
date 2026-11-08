@@ -18,7 +18,6 @@ import {
 /** The pullboard edit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import {
-  checkBaseline,
   prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
@@ -38,6 +37,7 @@ import {
   idArg,
   launchBaseline,
   ordered,
+  CHECKOUT_LEASES,
 } from '../cli.js';
 
 /** Run `pullboard edit` and return its exit code. */
@@ -96,10 +96,25 @@ export async function run(io, args) {
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
-  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
+  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
-  if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
+  if (change.checkBaseline?.result === 'pending') {
+    // The baseline worker measures it on a runner like any gate run; --wait only waits for its recorded result,
+    // so an edit never runs the check on this machine itself [C7,#2520].
+    await launchBaseline(ctx, board, id, change.checkBaseline);
+    if (values.wait) {
+      // The recorded move is complete; do not hold checkout authority while the worker measures.
+      CHECKOUT_LEASES.get(io)?.release();
+      CHECKOUT_LEASES.delete(io);
+      /** Whether this edit's own baseline request is still being measured. */
+      const measuring = () => {
+        const baseline = store.getItem(board, id).item_check_baseline;
+        return baseline?.result === 'pending' && baseline.request === change.checkBaseline.request;
+      };
+      while (measuring()) await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
   io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
   for (const warning of evidenceWarnings) io.err(warning.message);
   io.say(`edited #${id}`);

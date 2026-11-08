@@ -13,6 +13,7 @@ import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
+import { LANDING_DEFECT_CLOSE_ENGINE } from "../../../../src/landing-defect-close-engine.js";
 import { Refused } from "../../../kernel/core.js";
 
 
@@ -53,5 +54,28 @@ export function recordLandingTestDefect(board, { agentId, test, hash, blob, trun
     const defect = { test, hash, blob, trunkBlob, names: [...new Set([...(previous?.names ?? []), ...names])], item, batchId, branch, ...(audit ? { audit: audit.audit } : {}) };
     logEvent(board, agentId, 'landing-test-defect', item, { engine: audited ? TEST_ECONOMICS_ENGINE : requireOpen ? MAIN_AUDIT_ENGINE : LANDING_ENVIRONMENT_ENGINE, defect });
     return defect;
+  });
+}
+
+/**
+ * Close an open trunk test defect once its recorded failing cases passed in a recorded run at a trunk commit, so it no
+ * longer holds landings at later trunk commits; a later red of the same cases files a new defect that holds again [C7].
+ * Why: the release read a recorded run at the current trunk tip only, and every landing moves the tip, so the automatic
+ * lander refused #3304 LAND_TEST_DEFECT again one landing after its cases passed (#3694). Closing an already closed or
+ * replaced defect records nothing and returns null.
+ */
+export function closeLandingTestDefect(board, { agentId, branch, test, item, commit }) {
+  if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator closes a landing test defect');
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < LANDING_DEFECT_CLOSE_ENGINE) throw new Refused('ENGINE_VERSION', `closing landing test defects requires engine ${LANDING_DEFECT_CLOSE_ENGINE}`);
+  if (typeof branch !== 'string' || !branch || branch.length > 1024 || /[\r\n\0]/u.test(branch)
+    || typeof test !== 'string' || !test || test.length > 4096 || /[\r\n\0]/u.test(test)
+    || !Number.isSafeInteger(item) || item < 1 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit ?? '')) {
+    throw new Refused('LAND_TEST_DEFECT', 'closing a landing test defect needs its trunk branch, test, repair item and the trunk commit its cases passed at');
+  }
+  return atomic(board, () => {
+    if (!landingTestDefects(board).some(defect => defect.branch === branch && defect.test === test && defect.item === item)) return null;
+    const closed = { branch, test, item, commit };
+    logEvent(board, agentId, 'landing-test-defect-closed', item, { engine: LANDING_DEFECT_CLOSE_ENGINE, closed });
+    return closed;
   });
 }

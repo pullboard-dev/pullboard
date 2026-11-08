@@ -8,6 +8,7 @@ import {
 } from '../../../../src/board-landing-lease.js';
 import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { LANDING_BACKOFF_MAX_MS } from '../core/automatic-landing-retry.js';
 import { coordinatorHolder } from '../../../seats/index.js';
 import {
   localLandingEntry,
@@ -55,6 +56,9 @@ export async function renewWithBackoff(renew, { now = Date.now, pausing = pause,
 export async function takeLandingResource({ board, write, branch, onWait, onLost, refresh = async () => {} }) {
   const token = randomUUID();
   const parameters = { agentId: 'coordinator', token, branch, pid: process.pid, localHeartbeat: true };
+  // A scheduled wake that follows a back-off names it, so the lease request's event records why this landing started late [C7].
+  const backoffMs = Number(process.env.PULLBOARD_LANDING_BACKOFF_MS);
+  const backoff = Number.isSafeInteger(backoffMs) && backoffMs > 0 && backoffMs <= LANDING_BACKOFF_MAX_MS ? { backoffMs } : {};
   let generation = null;
   let timer;
   let watchdog;
@@ -105,7 +109,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         } else result = { holder: current.holder, position: current.line.indexOf(entry) + 1, acquired: false, generation: null };
         rememberLocalLanding(board, { ...entry, until: new Date(board.clock.now().getTime() + 30_000).toISOString() });
       } else {
-        result = await write('landingLeaseMove', [{ ...parameters, action: 'request' }]);
+        result = await write('landingLeaseMove', [{ ...parameters, action: 'request', ...backoff }]);
         const acknowledged = result.acquired ? result.holder : landingLeaseState(board).line.find(value => value.token === token);
         if (acknowledged) rememberLocalLanding(board, acknowledged);
         queued = !result.acquired;

@@ -140,3 +140,17 @@ export function jobsOf(db, { kind, item = null }) {
     : db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_item = ? ORDER BY job_created, job_id').all(kind, item);
   return rows.map(row => jobView(db, row.job_id));
 }
+
+/**
+ * Every job of one kind whose driver holds a live lease, each as its job view. Why a lease filter: a board keeps every
+ * gate job it ever ran, and a watch over live drivers must not read them all on every scan.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{kind: string, now?: number}} filter
+ * @returns {ReturnType<typeof viewOf>[]}
+ */
+export function leasedJobs(db, { kind, now = Date.now() }) {
+  if (!kind) throw new Refused('JOB_FIELDS', 'Listing leased jobs needs a kind: pass { kind }.');
+  return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done' ORDER BY job_created, job_id")
+    .all(kind, now).map(row => jobView(db, row.job_id));
+}

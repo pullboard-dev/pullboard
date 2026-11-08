@@ -147,6 +147,16 @@ export async function withGateSlot(root, action, options = {}) {
 }
 
 /**
+ * Whether this machine has a registered runner a gate run can go to, read from the machine settings.
+ * Why: a check baseline goes to a runner whenever one exists, never to this machine (#2520).
+ *
+ * @param {{ runners: { effectiveRunners: (settings: object) => object[] } }} executionServices
+ */
+export function runnersRegistered(executionServices) {
+  return executionServices.runners.effectiveRunners(loadMachineSettings()).length > 0;
+}
+
+/**
  * The gate's live-load dispatch policy (#2509): on when gate.loadAwareDispatch is on, and by default for any
  * fleet with a measured runner (its cores are known, so 1.5x cores means something); off only when set off.
  * refreshRunnerMeasurements reads the same rule, so the gate measures exactly what it dispatches by.

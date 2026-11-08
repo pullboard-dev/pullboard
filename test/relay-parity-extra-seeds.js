@@ -10,6 +10,7 @@ import { revisionReference } from '../packages/spec/index.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { preparePersonRequest } from '../packages/person/core.js';
+import { closeLandingTestDefect } from '../packages/store/index.js';
 
 /** Outside metadata is synthetic fixture input; these calls make no GitHub or owner-authentication assurance claim. */
 export async function seedOutside(context) {
@@ -42,8 +43,10 @@ export async function seedLandingObservations(context) {
     id: 'parity-synthetic-waiver', test: 'test/parity-synthetic.test.js', until: '2099-01-01T00:00:00Z', reason: 'Synthetic projection fixture; no real test waiver' }));
   await exercise('recordLandingFlake', () => store.recordLandingFlake(board, { agentId: 'coordinator', test: 'test/parity-synthetic.test.js',
     hash: 'a'.repeat(64), names: ['Synthetic projection observation'], lane: box.lane, batchId: randomUUID() }));
-  await exercise('recordLandingTestDefect', () => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: 'test/parity-synthetic-defect.test.js',
+  const defect = await exercise('recordLandingTestDefect', () => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: 'test/parity-synthetic-defect.test.js',
     hash: 'b'.repeat(64), blob: head, trunkBlob: null, names: ['Synthetic projection defect'], lane: box.lane, batchId: randomUUID(), branch: 'refs/heads/main' }));
+  if (defect) await exercise('closeLandingTestDefect', () => closeLandingTestDefect(board, { agentId: 'coordinator', branch: defect.branch,
+    test: defect.test, item: defect.item, commit: head }));
 }
 
 /** Membership data exercises projection only; key-handover signature verification is deliberately outside this fixture. */

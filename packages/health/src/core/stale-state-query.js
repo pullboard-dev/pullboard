@@ -68,7 +68,7 @@ function activity(board, item, actor, anchor, kind, seats, workObservation, now,
 }
 
 /** Board events that renew or restate a claim; none of them is work on it. */
-const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
+export const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
 /** A claim shows as stalled after this much idle time, and is released at the second (#1225). */
 export const CLAIM_STALL_MS = 20 * 60_000;
 /** A holder who committed this recently is never returned by the progress rule (#2251). */

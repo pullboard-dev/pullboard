@@ -55,3 +55,23 @@ export function gateDriverGone(record, now) {
   if (record.verdictAt !== null && now - record.verdictAt < RECORDING_MS) return false;
   return record.owner !== null && record.leaseUntil < now;
 }
+
+/** How long a live gate drive may go without a step before the sentinel calls it stuck: the drive cell's own stall bound. */
+export const GATE_DRIVE_STUCK_MS = 20 * 60_000;
+
+/**
+ * The stall of a gate drive whose driver holds a live lease but wrote no step for GATE_DRIVE_STUCK_MS, or null.
+ * Why the live lease: a lapsed lease is a gone driver, which gateDriverGone and the health sweep already end; a live
+ * one with no step is a driver that renews while it waits, which nothing else names (#2828, 7 Nov).
+ *
+ * @param {{ id: string, item: number|null, step: string, leaseOwner: string|null, leaseUntil: number, steps: { name: string, at: number }[] } | null} view
+ * @param {number} now - Epoch milliseconds.
+ * @returns {{ job: string, item: number|null, owner: string, lastStep: string, since: number, idleMs: number } | null}
+ */
+export function gateDriveStall(view, now) {
+  if (!view || !view.leaseOwner || view.leaseUntil < now || view.step === 'done' || !view.steps.length) return null;
+  if (view.steps.some(step => step.name === 'verdict')) return null;
+  const last = view.steps.reduce((latest, step) => (step.at > latest.at ? step : latest));
+  const idleMs = now - last.at;
+  return idleMs >= GATE_DRIVE_STUCK_MS ? { job: view.id, item: view.item, owner: view.leaseOwner, lastStep: last.name, since: last.at, idleMs } : null;
+}

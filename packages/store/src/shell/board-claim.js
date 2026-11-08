@@ -50,6 +50,7 @@ import { canTake } from "../../../seats/index.js";
 import { cappedRoute } from "../../../seats/index.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
+import { seatGone } from "./seat-presence.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
@@ -152,7 +153,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
             return null;
           }
         }
-        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null;
+        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal, seatGone }) : null;
       },
       correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
       laneOpen: (found) => {

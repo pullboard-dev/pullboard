@@ -5,6 +5,7 @@ import { BAR_SIGN_GRANT_ENGINE } from '../../../../src/bar-sign-grant-engine.js'
 import { Refused } from '../../../kernel/core.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';
+import { QUEUED_START_GRANT_ENGINE } from '../../../../src/queued-start-grant-engine.js';
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt', 'completeSubmitHandoff']);
@@ -16,6 +17,20 @@ function target(move, registry) {
     lane: move.args?.[0]?.item?.item_lane, creating: true };
   if (registry[move.operation]?.itemIdFirstArgument) return { item: move.args?.[0] };
   return null;
+}
+
+/**
+ * Whether this move starts the queued gate job this seat queued for the item it still holds. Why: a gate can wait in the
+ * handoff queue longer than the claim's lease; the job was admitted under the live claim, so its start is not a new item
+ * change, and refusing it AGENT_GRANT_EXPIRED left the gate never run and returned red (#3129). Another seat's claim
+ * since then makes the item no longer this seat's, so the start is still refused.
+ */
+function startsQueuedSubmit(board, move, item, actor) {
+  if (move.engine < QUEUED_START_GRANT_ENGINE || move.operation !== 'startSubmitHandoff' || move.args?.[1]?.hookProjection
+    || item?.item_status !== 'claimed' || item.item_owner !== actor) return false;
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${item.item_id}`);
+  const job = row ? JSON.parse(row.meta_value) : null;
+  return job?.state === 'queued' && job.agentId === actor && job.id === move.args?.[1]?.job;
 }
 
 /** Resolve existing accepted ids with the mutation's SQLite affinity; defer malformed/missing ids. */
@@ -72,7 +87,7 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
   const live = claims.filter(claim => claim.item_lease_until > now);
   const previous = board.db.prepare("SELECT event_id FROM event WHERE event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(actor);
   if (((own && !(own.item_lease_until > now)) || (previous && !live.length))
-    && !completesAdmittedSubmit(board, move, item, actor)) {
+    && !completesAdmittedSubmit(board, move, item, actor) && !startsQueuedSubmit(board, move, item, actor)) {
     throw new Refused('AGENT_GRANT_EXPIRED', `${actor} has no live item claim; claim work before changing an item`,
       'claim the intended item, or shout the coordinator if its claim is unavailable');
   }

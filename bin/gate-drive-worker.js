@@ -24,5 +24,8 @@ if (process.argv[1] && resolve(process.argv[1]) === ENTRY) {
   // The board's module graph reaches the worker through the lib front door; load it once this entry runs.
   Promise.all([import('../apps/lib/src/core/native-board.js'), import('../apps/lib/src/shell/submit-handoff-worker.js')])
     .then(([nativeBoard, worker]) => worker.driveSubmitHandoff(requestFile, { nativeBoard, owner }))
-    .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+    // Once its result is recorded the driver exits at once: a leaked handle (a socket, a timer) or a stalled run's stage
+    // must not keep it holding a handoff slot (#3108, #3661). A stopped driver's own handler frees its lease and exits.
+    .then(outcome => { if (!outcome?.stopped) process.exit(process.exitCode ?? 0); },
+      error => { process.stderr.write(`${error.message}\n`); process.exit(1); });
 }

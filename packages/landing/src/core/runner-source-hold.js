@@ -1,10 +1,14 @@
 /** A batch refused RUNNER_SOURCE retries a few times, then its items wait for a new head or main [C7]. */
+import { LANDING_FAULT_CODES } from './automatic-landing-retry.js';
 
 /** Automatic landing retries a RUNNER_SOURCE refusal at most this many times before holding the item. */
 export const RUNNER_SOURCE_RETRIES = 3;
 
 /** Prefix for automatic holds created after the same landing cause blocks two batches. */
 export const REPEATED_LANDING_HOLD = 'landing-repeat-v1:';
+
+/** Landing faults never count as a repeated cause: the machinery failed, not the item [C7,#3693]. */
+const FAULTS = new Set(LANDING_FAULT_CODES);
 
 /** Decode only a well-formed automatic repeat hold; other coordinator holds retain their own lifetime. */
 export function repeatedLandingHold(reason) {
@@ -152,7 +156,8 @@ export function repeatedBlockedCause(batches, item) {
   /** Extract only recorded refusal codes and named culprit cases for this item's exact accepted head. */
   const causes = batch => {
     const found = [];
-    if (batch.refusal?.code) found.push({ kind: 'refusal', key: batch.refusal.code, detail: batch.refusal.message ?? batch.refusal.code });
+    // Why: #2550 was parked after two batches whose only reds were runner refusals; a fault is retried, never held.
+    if (batch.refusal?.code && !FAULTS.has(batch.refusal.code)) found.push({ kind: 'refusal', key: batch.refusal.code, detail: batch.refusal.message ?? batch.refusal.code });
     for (const culprit of batch.culprits ?? []) {
       if (culprit.id !== item.item_id || culprit.commit !== item.item_commit) continue;
       for (const test of culprit.tests ?? []) if (test.file && test.name) {

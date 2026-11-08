@@ -8,6 +8,8 @@ import { Refused } from '../../../kernel/index.js';
 import { GATE_DRIVE_KIND } from '../core/gate-drive.js';
 import { gateDriveJobId } from '../core/gate-drive.js';
 import { gateDriveRecord } from '../core/gate-drive.js';
+import { gateDriveStall } from '../core/gate-drive.js';
+import { leasedJobs } from '../../../jobs/index.js';
 
 /**
  * The count of steps with this name already on the job, the seq the next one takes.
@@ -84,4 +86,30 @@ export function readGateDrive(db, handoff) {
   try { view = jobView(db, gateDriveJobId(handoff)); }
   catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   return gateDriveRecord(handoff, view);
+}
+
+/**
+ * Health findings for every gate drive that renews its lease but wrote no step for 20 minutes: one Stuck notice per
+ * drive job, naming its item and job. The sentinel's health scan reads these, so the coordinator hears of a hung gate
+ * the same hour, while the drive cell ends and retries it on its own.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle, read only.
+ * @param {Date} now
+ * @returns {{ key: string, cause: string, item: number|null, subject: string, title: string, since: string, ageMinutes: number,
+ *   why: string, next: string, command: null, owner: { role: 'coordinator', who: 'coordinator' }, detail: object }[]}
+ */
+export function stalledGateDriveFindings(db, now) {
+  const at = now.getTime();
+  let views;
+  try { views = leasedJobs(db, { kind: GATE_DRIVE_KIND, now: at }); }
+  catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
+  return views.map(view => gateDriveStall(view, at)).filter(Boolean).map(stall => {
+    const minutes = Math.floor(stall.idleMs / 60_000);
+    return { key: `GATE_DRIVE_STALLED:job:${stall.job}`, cause: 'GATE_DRIVE_STALLED', item: stall.item,
+      subject: stall.item ? `#${stall.item}` : `job ${stall.job}`, title: 'gate drive renews its lease with no step',
+      since: new Date(stall.since).toISOString(), ageMinutes: minutes,
+      why: `gate drive job ${stall.job} (driver ${stall.owner}) wrote no step for ${minutes} min after ${stall.lastStep}, while its lease stays live`,
+      next: `read the gate's worker.log for #${stall.item ?? '?'}; the drive cell ends and reruns a stalled gate once, then ends it as infrastructure`,
+      command: null, owner: { role: 'coordinator', who: 'coordinator' }, detail: { job: stall.job, driver: stall.owner, lastStep: stall.lastStep } };
+  });
 }

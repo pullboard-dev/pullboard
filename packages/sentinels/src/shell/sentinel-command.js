@@ -45,7 +45,7 @@ export function resumeSentinels({ ctx, withBoard }) {
 }
 
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, healthOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly = false }) {
   // Dead submit workers end before the board scan, so the sweep never reports a gate as running with no worker (#2627).
   await sweepSubmitHandoffs?.();
   return withBoard(ctx, async board => {
@@ -72,7 +72,8 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
           ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
         await ordered({ ...ctx, io }, board, 'recordSpecApprovalBaseline', [{ agentId: 'coordinator', baseline }]);
       }
-      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator' });
+      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator',
+        ...(stalledGateDrives ? { gateDrives: stalledGateDrives } : {}) });
       if (observation) {
         try { await ordered(ctx, board, 'recordHealthFindings', [{ agentId: me.id, ...observation }]); }
         catch (error) { if (!(error instanceof Refused) || error.code !== 'HEALTH_SCAN_STALE') throw error; }
@@ -94,10 +95,13 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
   });
 }
 
-/** Keep command parsing separate from the CLI's process and server setup. */
-export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs }) {
+/**
+ * Keep command parsing separate from the CLI's process and server setup. `stalledGateDrives(db, now)` is the drive
+ * cell's detector for gate drives that renew their lease with no step; the health scan shouts each as Stuck.
+ */
+export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, healthOnly: Boolean(values['health-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly: Boolean(values['health-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

@@ -37,6 +37,7 @@ import { itemFiles } from "../../../items/index.js";
 import { itemFileCollisions } from "../../../items/index.js";
 import { itemCollisionPlan } from "../../../items/index.js";
 import { firstRefusalReason } from "../../../items/index.js";
+import { seatGone } from "./seat-presence.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../state/index.js";
@@ -324,7 +325,7 @@ export function nextFor(board, options) {
       reasons.push(rework.mode === 'policy-unknown' ? `#${entry.item_id} waits for accepted takeover and maintenance policy` : `#${entry.item_id} is reserved for ${rework.mode === 'builder' ? rework.builder : `the ${rework.builderFamily} family`}`);
       continue;
     }
-    const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
+    const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true, seatGone });
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
