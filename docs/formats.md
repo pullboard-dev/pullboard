@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `233` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `248` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -230,6 +230,8 @@ Engine 85 (`LANDING_ENVIRONMENT_ENGINE`) records the actual executor's exact `{p
 An optional `landing.environment` in `pullboard.json` requires all three exact fields. The matching machine must also opt into this board with `pullboard settings landing.pool on`; `off` removes its opt-in. Machine settings store the board IDs in `landing.pools`. A constrained landing runs on that matching, opted-in coordinator host; generic SSH runners are not members of a board's landing pool. Omitting the policy retains normal runner selection. A mismatch is refused before creating or gating a batch.
 
 Engine 85 also adds `recordLandingTestDefect`. A red batch whose bisection finds no item culprit records a neutral repair item and a `landing-test-defect` event with its test path, content hash, red-tree blob, original trunk blob, failure names, batch ID and trunk branch. Its batch remains `test-defect`, and further landings on that trunk stop before another gate runs. A committed correction to the test on the trunk, or live existing waivers covering every recorded failure, releases the hold. Candidate-only changes and uncommitted edits do not release it. A waiver keeps the red tree and its waived failures explicit. Existing culprit and flake diagnosis retain their meanings; older engines cannot revise or finish a batch carrying these fields.
+
+A later `closeLandingTestDefect` move records a `landing-test-defect-closed` event (`closed`: trunk branch, test path, repair item and trunk commit) when a landing finds the defect's recorded failing cases passing in a recorded run at the trunk commit. The closed defect no longer holds landings at later trunk commits; a new red of the same cases files a new defect that holds the trunk again. Older engines cannot apply the move.
 
 Engine 90 records the parent session a seat joined under and stamps each verdict with its assurance: independent when the builder's and reviewer's recorded parents differ, procedural when either is unknown (#1102). Review eligibility, next and the queue exclude any seat sharing a parent with an author. Older engines replay their recorded verdicts with no parent recorded.
 The unassigned signing engine (`PERSON_SIGNING_ENGINE`) signs person moves with a passkey. `setPersonSigning` records a `person_signing` event: anyone may turn signing on, and turning it off is the person's move, carrying out a request whose relay stamp and exact document the event keeps as `request`, `presence` and `intent`; an off counts only when that document turns signing off and its digest is the one the stamp signed. `proposePersonMove` records a terminal-started person move as a `person_proposal` event and keeps the exact request in `board_meta` as `person_proposals`, for the passkey device to show; it grants nothing. While signing is on, every replica refuses with `PERSON_SIGNED` a person-only move (a row or sentinel decision, an answer, hold, fact or waiver as the person, or any move the person makes) unless it carries out a recorded phone request whose sender carries the relay's passkey stamp; that request's claim, refusal and coordinator-request receipts still pass. Older engines refuse both moves with `ENGINE_VERSION`, and moves recorded before signing was turned on replay as before.
@@ -349,6 +351,23 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
+| `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
+| `job` | `job_kind` | `TEXT` | `NOT NULL` |
+| `job` | `job_item` | `INTEGER` | `nullable` |
+| `job` | `job_candidate` | `TEXT` | `nullable` |
+| `job` | `job_base` | `TEXT` | `nullable` |
+| `job` | `job_step` | `TEXT` | `NOT NULL`; `DEFAULT 'queued'` |
+| `job` | `job_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_lease_owner` | `TEXT` | `nullable` |
+| `job` | `job_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_created` | `INTEGER` | `NOT NULL` |
+| `job` | `job_updated` | `INTEGER` | `NOT NULL` |
+| `job_step` | `job_step_id` | `INTEGER` | `PRIMARY KEY` |
+| `job_step` | `job_step_job` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_name` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
+| `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -388,11 +407,13 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_item_id_event_id` | `event` | `item_id`, `event_id` | no |
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
+| `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
+| `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
@@ -454,7 +475,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
@@ -467,7 +488,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `release` | builder | `reasonCode`, optional `reason` |
 | `submit` | builder | `commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize` |
 | `reserve` | reviewer | `until` |
-| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
+| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`, optional `machine` (native machine verdict with each frozen command and authenticated receipt) |
 | `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey`, typed-pipeline `pipelineCause` (fixed category; other retains explanation) |
 | `bar-sharpen` | coordinator | `clause`, `clauseText`, `barKey`, `to`, `digest` |
 | `strong-rejection-notice` | coordinator | `engine`, `route`, `builder`, `rejections` |
@@ -862,6 +883,8 @@ Coordinator-authored check timing is stored at additive `board_meta` key `item_c
 `QUARANTINE_CORE_ENGINE` adds optional structured `testOutcomes` to native gate receipts and seals them through `recordGateRun`. Each row carries the committed relative file, exact test name, actual `passed` boolean and `skipped` boolean; missing or incomplete evidence remains unknown. The normal controller observes native events before reporters, excludes cancelled work and duplicate identities, and binds complete result frames to its private run timing id. Test workers do not inherit that id. Source inventories and the private canonical receipt bind the recorded rows; replay uses those sealed facts without consulting receiver files.
 
 At this floor, two executed opposite verdicts for one file/name on the same tree create one `test-quarantine` event naming both runs and one owner-lane repair item. Direct-suite and partial main-comparison observations do not prove a quarantine. Subsequent recorded executions of the exact file/name advance the clean streak; skips and unrelated passes add nothing, a failure resets it, and the first 20 consecutive passes or verification of the repair item releases it. Legacy events keep their prior lifecycle. The existing accepted-main quarantine opt-in controls reporting. New quarantines still execute and report and retain the actual raw exit code, failed counts and blocking verdict. They grant no landing waiver or proof promotion; nonblocking authority is a separate successor.
+
+`SHADOW_TIER1_ENGINE` adds an optional `shadow` fact to native version-two gate receipts, recorded by `recordProofRun` and `recordGateRun` beside the real verdict. It holds `version`, `tier` (1), `verdict`, `real`, `differs` and `reasons`: the verdict tier 1 alone (V4: static checks on the changed files, the item's check, and the tests its change can reach, plus cells only for cell-structure changes) would give. A red run naming no failing test is a static or check failure and stays red; a failing test counts only when the change reaches it, and an unknown reach counts every failing test. The fact is report-only: the receipt's `green`, `exitCode` and `failures` are as run, and nothing reads `shadow` to decide a verdict. An older engine replays the move without it.
 
 `LEDGER_QUARANTINE_ENGINE` makes the typed flake ledger quarantine what it proves. From this engine a `recordFlakeObservation` move files, for every active ledger flake without an active quarantine (rows recorded before this engine included), the ledger's open repair item or a new one with a `flake-repair` event, and one `test-quarantine` event with `ledger: true` naming the flake observation ids as `runs`. A row whose quarantine was lifted after its last sighting stays released until a newer sighting. The landing ratchet counts a ledger-backed quarantine as justified by its own red-and-green proof, however old; a withdrawn or verified repair lifts it. An older engine replays the move without filing.
 A release names a reason code from `INELIGIBLE`, `ROUTED_ELSEWHERE`, `BLOCKED`, `BUDGET` or `OTHER` (with its text in the note); the code is the `reasonCode` of the `release` event. Coded releases need the release-reasons engine; genuinely earlier recorded releases retain their meaning.

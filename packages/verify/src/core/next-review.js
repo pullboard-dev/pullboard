@@ -147,7 +147,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   // An empty read has no move to authorize. The write authority repeats selection atomically
   // when a candidate exists, so a stale read can never reserve another reviewer's work.
   if (nextFor) {
-    const preview = nextFor(board, { ...selection, verify: true });
+    const preview = nextFor(board, { ...selection, verify: true, sessionIds: selection.skipIds });
     if (!preview.item) return preview;
   }
   const { omitIds = [], ...reservationSelection } = selection;

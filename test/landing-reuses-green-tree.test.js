@@ -1,6 +1,7 @@
 /** A landing whose merged tree is exactly the item's green gated tree reuses that gate instead of rerunning [C7,#2902]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,8 +19,7 @@ function fixture(t, job = {}) {
   t.after(() => store.closeBoard(board));
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Reuse a proven tree' });
   board.db.prepare('UPDATE item SET item_frozen_digest = ? WHERE item_id = ?').run('digest', id);
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`submit_handoff:${id}`,
-    JSON.stringify({ version: 1, id: 'job-1', agentId: 'core-1', commit: COMMIT, executionTree: TREE, digest: 'digest', state: 'green', gateGreen: true, ...job }));
+  recordSubmitHandoff(board.db, id, { version: 1, id: 'job-1', agentId: 'core-1', commit: COMMIT, executionTree: TREE, digest: 'digest', state: 'green', gateGreen: true, ...job });
   return { board, id };
 }
 

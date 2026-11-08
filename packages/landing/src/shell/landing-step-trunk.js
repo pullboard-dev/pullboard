@@ -1,4 +1,5 @@
 import { prepareFlakeLanding } from './landing-step-publish.js';
+import { checkFlakeRatchet } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -7,6 +8,7 @@ import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
+import { requireNoLockOnlyRed } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
@@ -16,6 +18,7 @@ import { runLandingCliSmoke } from './landing-cli-smoke.js';
 import { submitHandoff } from '../../../store/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
+import { landingStaticRefusal } from './landing-static-checks.js';
 import { Refused } from '../../../kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
@@ -78,8 +81,9 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   const runGate = services.gateGroup ?? gateGroup;
   const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
   if (proven) {
-    await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } });
-    smoke(state.batch.root);
+    await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
+    smoke(state.batch.root, { record: true });
     state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
     return proven;
   }
@@ -93,7 +97,9 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   try { gate = await runGate(state, label, { localTrunk: true, ...options }); }
   finally { await staticChecks; }
   const checked = await staticChecks;
-  if (checked.error) throw checked.error;
+  if (checked.error) throw landingStaticRefusal(state.batch.root, state.batch.base, checked.error, state.config.staticChecks);
+  // A lock wait that ran no case is infra: the landing fault path retries it [C7,#3314].
+  if (!gate.isGreen && !waivedProof(state, gate)) requireNoLockOnlyRed(gate);
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
@@ -187,6 +193,18 @@ export async function flakeRatchetOrBlock(state) {
     await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
     return false;
+  }
+}
+
+/**
+ * Ask the flake ratchet before the batch merges or gates. A refusal records the batch blocked FLAKE_RATCHET, starts no
+ * gate run and is thrown so the landing exits as refused. The publish step still checks again for a flake proven during
+ * the gate. Why: a batch the ratchet would refuse spent a whole gate first [C7].
+ */
+export async function flakeRatchetBeforeGate(state) {
+  try { checkFlakeRatchet(state); } catch (error) {
+    if (error?.code === 'FLAKE_RATCHET') await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    throw error;
   }
 }
 

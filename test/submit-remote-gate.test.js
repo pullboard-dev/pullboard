@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,6 +19,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { remoteSubmitAnalysis } from '../apps/cli/src/shell/submit-remote-gate.js';
 import { remoteGateWanted } from '../apps/cli/src/shell/submit-remote-gate.js';
+import { submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
 
 // Captured before any patching, so the fake runner's own processes never count as the controller's.
 const unpatchedExecFileSync = childProcess.execFileSync;
@@ -41,7 +43,7 @@ export function record(root, step, url) { appendFileSync(join(root, '.git', 'tru
  * Build a controller repository whose main holds recording tooling and whose candidate replaces every tool with a bomb,
  * plus a separate runner clone checked out at the candidate.
  */
-function fixture(t, { red = false, flaky = 0, brokenMain = false } = {}) {
+function fixture(t, { red = false, flaky = 0, brokenMain = false, cellsPlan = false, warmFails = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'submit-remote-gate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const env = gitEnv();
@@ -76,13 +78,29 @@ export function submitGatePlan(root, config, options) {
     proofCommand: config.affectedTests + ' ./test/a.test.js', phases: [], testTiers: null, testRunner: config.affectedTests };
 }
 export async function submitGateAdmission(root) { record(root, 'admission', import.meta.url); return { browser: false, gui: false }; }
-`);
+${cellsPlan ? `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+export function readAcceptedCells(root, commit) {
+  const file = join(root, '.git', 'produced-' + commit);
+  return existsSync(file) ? { available: true, commit, produced: readFileSync(file, 'utf8') } : { available: false, cause: 'missing-artifact' };
+}
+export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk }) {
+  record(root, 'inventory', import.meta.url);
+  if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new Error('missing ports');
+  if (${warmFails}) throw new Error('fixture producer failed');
+  writeFileSync(join(root, '.git', 'produced-' + commit), 'trunk ' + trunk);
+}
+` : ''}`);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
+  if (cellsPlan) {
+    put('bin/cells-plan.json', '{}\n');
+    put('packages/outbox/index.js', 'export function withFileLock() {}\n');
+  }
   put('bin/cells-submit-checks.js', `${brokenMain ? "import { transferredCellsInventories } from './record.js';\n" : ''}import { record } from './record.js';
 export async function requireSubmitCells(root, main, source, item, services) {
   record(root, 'cells', import.meta.url);
   if (JSON.parse(item.item_frozen).criterion !== 'fixture criterion' || services.readCutItems()[0].item_id !== 7) throw new Error('lost authority');
-  return { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] };
+  return { acceptedMain: main, source, cells: ['trusted-main', ...(services.acceptedArtifact ? ['inventory ' + services.acceptedArtifact.produced] : [])], existingCuts: [] };
 }
 `);
   put('bin/cells-inventory-cache.js', 'export function transferredCellsInventories() { return null; }\n');
@@ -231,4 +249,42 @@ test('clause 1: analysis loads main\'s own tooling, never an installed copy that
 test('clause 3: a real import failure in pinned main\'s own tooling still refuses RUNNER_RESULT_INVALID [C7]', async t => {
   const box = fixture(t, { brokenMain: true });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_RESULT_INVALID' });
+});
+
+test('clause 1: a cold accepted inventory is produced on the runner with main as its trunk, and the controller runs only git [C7]', async t => {
+  const box = fixture(t, { cellsPlan: true });
+  const { value, seen } = await controllerSpawns(() => remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')));
+  // The runner's cell analysis read the inventory it produced itself, bound to the controller's pinned main.
+  assert.deepEqual(value.cells.cells, ['trusted-main', `inventory trunk ${box.main}`]);
+  assert.deepEqual(Object.keys(value.steps), ['placement', 'static', 'composition', 'inventory', 'cells', 'selection', 'admission']);
+  assert.ok(value.notes.includes(`submit cells inventory: produced on the runner for ${box.main.slice(0, 12)}`));
+  const steps = readFileSync(join(box.runner, '.git', 'trusted-steps.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  const inventory = steps.find(row => row.step === 'inventory');
+  assert.equal(realpathSync(inventory.root), realpathSync(box.runner));
+  assert.match(inventory.url, /pullboard-trusted-main-/u);
+  assert.notEqual(inventory.pid, process.pid);
+  // Nothing was produced in the controller's checkout, and the controller started no process but git.
+  assert.equal(existsSync(join(box.controller, '.git', 'trusted-steps.jsonl')), false);
+  assert.equal(existsSync(join(box.controller, '.git', `produced-${box.main}`)), false);
+  assert.deepEqual(seen.filter(command => basename(command.split(' ')[0]) !== 'git'), []);
+});
+
+test('clause 2: a runner that cannot produce the accepted inventory stops as pending infrastructure, never the builder\'s red, and the coordinator build stays the fallback [C7]', async t => {
+  const box = fixture(t, { cellsPlan: true, warmFails: true });
+  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')),
+    error => error.name === 'CellsInventoryInfrastructureError' && error.code === 'CELLS_INVENTORY_PENDING' && error.retryable === true
+      && error.commit === box.main && /fixture producer failed/u.test(error.message));
+  // The queued gate's settle loop hands that stop to the coordinator's inventory build for main, then reruns the same
+  // candidate: no attempt is spent and nothing goes red for the builder.
+  const built = [];
+  let runs = 0;
+  const settled = await submitUntilSettled(async () => {
+    runs += 1;
+    if (runs === 1) return remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts'));
+    return 'same candidate after the coordinator build';
+  }, { waitInventory: async commit => { built.push(commit); return { waited: 1 }; }, healthy: async () => true, wait: async () => {} });
+  assert.deepEqual(built, [box.main]);
+  assert.equal(runs, 2);
+  assert.equal(settled.result, 'same candidate after the coordinator build');
+  assert.deepEqual(settled.attempts, []);
 });

@@ -10,6 +10,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import { fileFixtureItem } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -39,7 +40,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   commitFixtureFiles(box, ['pullboard.json', 'SPEC.md']);
   box.web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
-  const joined = box.run(box.web, 'join', 'web');
+  const joined = fixtureJoin(box.run, box.web, 'web');
   assert.match(joined.out, /joined as web-1/u);
 
   const oldId = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Old frozen citation', route: 'strong',

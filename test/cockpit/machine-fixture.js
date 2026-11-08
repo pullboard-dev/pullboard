@@ -17,6 +17,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
+import { joinFixtureSeat } from '../testkit-fixture.js';
+import { withoutPullboardEnv } from '../e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../../bin/pullboard.js');
 const scratch = [];
@@ -43,7 +45,7 @@ function machine() {
   writeFileSync(join(dir, 'bin', 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(dir, 'bin', 'pullboard'), 0o755);
   const env = {
-    ...process.env,
+    ...withoutPullboardEnv(process.env),
     PATH: `${join(dir, 'bin')}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -129,7 +131,8 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } =
   const branch = `web/${name.replace(/[^a-z]/g, '')}`;
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
-  box.run(web, 'join', 'web');
+  // The seat joins on the strong route so it can claim the strong fixture items.
+  joinFixtureSeat(box, web, 'web');
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 

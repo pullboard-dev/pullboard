@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { JOB_SCHEMA_SQL } from "./board-jobs-schema.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./board-checkpoint.js";
 import {
   SCHEMA,
@@ -58,7 +59,7 @@ export function requireRuntimePorts(ports) {
   if (!ports.enginePorts.store || typeof ports.enginePorts.store.openBoard !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.store.');
   if (!ports.enginePorts.registry || typeof ports.enginePorts.registry !== 'object' || Array.isArray(ports.enginePorts.registry)) throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.registry.');
   for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'withSeatPresence', 'minimumOperationEngine', 'sealSourceAdvanceReturn', 'sealSourceAdvance', 'sealItemPatchFollow',
-    'prepareTrainLanding', 'prepareNativeTrainLanding', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
+    'prepareTrainLanding', 'prepareNativeTrainLanding', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt', 'sealOwnershipWait',
     'requireOutsideReceipt', 'signedMoveProblem', 'requireCoordinatorHold', 'requireBound',
     'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson',
     'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender', 'credentialActor']) {
@@ -154,7 +155,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA, migrate, storeTriggers)), onDiagnostic);
+      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers)), onDiagnostic);
     }
     guardMoves(board);
     // Writable commands catch up old writers or missing local projections once. Read-only open

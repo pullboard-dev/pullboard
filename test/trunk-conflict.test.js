@@ -10,6 +10,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { computedReturnArgs } from '../packages/landing/index.js';
 import { trunkMerge } from '../packages/merge/index.js';
 import { returnUnmergeable } from '../packages/verify/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -22,7 +24,7 @@ function reservedConflictFixture() {
   const box = helpers.project('true');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  const id = json(box.run(box.repo, 'add', 'web', 'Show the list', '--criterion', 'web/list.html exists', '--json')).item.item_id;
+  const id = json(fixtureAdd(box.run, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists', '--json')).item.item_id;
   json(box.run(box.web, 'claim', String(id), '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/list.html'), '<ul>from the branch</ul>\n');
@@ -31,10 +33,10 @@ function reservedConflictFixture() {
   json(box.run(box.web, 'submit', String(id), '--json'));
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review-one');
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   const other = join(box.dir, 'api-2');
   box.git(box.repo, 'worktree', 'add', '-q', other, '-b', 'api/review-two');
-  json(box.run(other, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, other, 'api', '--json'));
   return { box, json, id, reviewer, other };
 }
 

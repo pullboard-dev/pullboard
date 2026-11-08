@@ -2,10 +2,13 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { claimOverlapLines } from '../../../../../packages/activity/index.js';
 import { claimOverlaps } from '../../../../../packages/items/index.js';
+import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
+import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
+import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { sessionSeatReaders } from './seat-ports.js';
@@ -32,6 +35,7 @@ import { relayLinked } from '../../../../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { openItemFolder } from '../item-folder.js';
+import { liveFolderRefusal } from '../item-folder.js';
 import { claimOrdered } from './claim.js';
 import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
@@ -87,14 +91,22 @@ export async function nextOnce(ctx, values) {
     values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   }
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
+  if (!values.verify) {
+    const waiting = withBoardRead(ctx, board => {
+      const me = whoAmI(ctx, board);
+      return store.ownershipWaiting(board, me.id === COORDINATOR ? COORDINATOR : me.lane);
+    });
+    if (waiting.length) return { ownershipWaiting: waiting };
+  }
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
     checkMainVerifier(ctx, board, values);
     return nextReview(ctx, board, whoAmI(ctx, board), values, {
       ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
-      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
-      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+      nextFor: reviewPreview,
+      idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
+      mainRedReviewItems, agentSessionDigest,
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values));
@@ -119,11 +131,33 @@ export async function nextOnce(ctx, values) {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
     if (held) {
-      const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+      // A claim made to wait after it was taken (pullboard edit --after) is parked, not served on every call: it is released
+      // as waiting on the unmet items, its folder and branch stay, and the seat selects other work instead (#3723).
+      const unmet = localDependencyIds(item).filter(id => !['verified', 'withdrawn'].includes(store.itemById(board, id)?.item_status));
+      if (unmet.length) {
+        await ordered(target, board, 'release', [item.item_id, holder.id,
+          `waiting on ${unmet.map(id => `#${id}`).join(', ')} to be verified; parked by next, folder and branch kept`,
+          { blockedOn: unmet, worktreeSnapshot: claimWorktreeSnapshot(target.info.root) }, 'BLOCKED']);
+        return { retry: true, retryDetail: { phase: 'parked claim', item: item.item_id, code: 'WAITING', message: `#${item.item_id} waits on ${unmet.map(id => `#${id}`).join(', ')}` } };
+      }
+      let itemFolder;
+      try { itemFolder = await openNextFolder(target, board, holder, item.item_id); }
+      catch (error) {
+        // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
+        // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
+        if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_SESSION_LIVE') throw error;
+        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder held by another live session: ${error.message}`, 'OTHER']);
+        return { retry: true, retryDetail: { phase: 'held folder', item: item.item_id, code: error.code, message: error.message } };
+      }
       return { item, held, shared, reviewSkipped, reasons,
         ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
     }
     ctx.io.nextPhase?.('claim', item.item_id);
+    // A folder another live session holds would refuse after the claim, and the same item would be picked again on
+    // every next; the caller leaves it out and selects the next eligible item, while an explicit claim still refuses (#3688).
+    const live = await liveFolderRefusal(target, board, holder, item.item_id);
+    if (live) return { retry: true, skipItem: item.item_id,
+      retryDetail: { phase: 'claim', item: item.item_id, code: live.code, message: live.message } };
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
@@ -136,6 +170,12 @@ export async function nextOnce(ctx, values) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
+function reviewPreview(board, selection) {
+  const reviewHeartbeats = new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
+  return store.nextFor(board, { ...selection, reviewHeartbeats });
 }
 
 /** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
@@ -187,7 +227,7 @@ function nextPick(ctx, board, values) {
       return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
     })()
     : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 5, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
@@ -205,7 +245,7 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item))
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
-  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
@@ -238,6 +278,8 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
+  const coverPause = !held && reviewFamilyBuildPause(ctx.info, board, ctx.config, me);
+  if (coverPause) return { reasons: [...(reasons ?? []), coverPause], idleReason: 'review-family' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
