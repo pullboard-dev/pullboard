@@ -128,7 +128,7 @@ test('moves stay local while the machine credential expires, then replay after s
   runFixtureGit(['commit', '-q', '-m', 'test: prepare private ordered claim'], { cwd: box.root, env: box.env });
   const agentRoot = join(box.root, '..', 'claim-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/auth-claim', agentRoot], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL); // the later joins name a family, so they register again instead of answering already joined
+  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL, '--route', 'strong'); // strong takes the seeded items; the later joins name a family, so they register again instead of answering already joined
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent joins before the credentials are revoked');
   await revokeCredential(box, state.agentTokens.coordinator.id);
   const linkBeforeMark = readFileSync(box.linkFile);
