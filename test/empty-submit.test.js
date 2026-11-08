@@ -1,6 +1,12 @@
+/** @pullboard-test-input source-tree */
 /** A submit with no change against main is refused before any gate and names the folder with the work [C7,V4]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -43,4 +49,16 @@ test('an empty submit with no folder holding the item names the next step [C7,V4
   const refusal = JSON.parse(result.out).error;
   assert.equal(refusal.code, 'EMPTY_SUBMIT');
   assert.match(refusal.message, /commit the work/u);
+});
+
+test('clause 1: src/empty-submit.js is gone and its leaf sits in the app:cli cell [C7]', () => {
+  assert.equal(existsSync(join(ROOT, 'src/empty-submit.js')), false);
+  assert.equal(existsSync(join(ROOT, 'apps/cli/src/shell/empty-submit.js')), true);
+});
+
+test('clause 2: the cells plan check and the cells edges check both pass [C7]', () => {
+  for (const args of [['bin/cells-plan.js', '--check'], ['bin/checks/cells-edges.js']]) {
+    const run = spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(run.status, 0, `${args.join(' ')} exited ${run.status}: ${run.stderr}`);
+  }
 });
