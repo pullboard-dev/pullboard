@@ -41,8 +41,8 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   run(box, box.repo, 'add', 'web', 'Moving review', '--specs', 'G1', '--check', check, '--brief', 'Files: web/feature.js\nTest: the frozen check', '--criterion', 'The feature matches the caller.', '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\n', 'feat(web): moving review feature [G1]').status, 0);
-  const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   run(box, box.web, 'submit', '1');
+  const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   // Main moving after the submit makes its proof unreusable, so the review runs the frozen check itself.
   // The move changes a file the check names: a move that misses the check's files leaves the submit proof reusable.
   assert.equal(helpers.commitFile(box, box.repo, 'web/stamp.txt', 'moved\n', 'chore: main moves after the submit [G1]').status, 0);
