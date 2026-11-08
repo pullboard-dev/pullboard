@@ -73,7 +73,7 @@ process.stdout.write(JSON.stringify({ result, failure, attempts, probes, waits: 
   return { ...JSON.parse(child.stdout), localRan: existsSync(marker) };
 }
 
-test('clause 4: with one runner, a coordinator-side slowdown that misses the deadline leaves that runner in service [C7]', () => {
+test('clause 1, clause 3, clause 4: with one runner, a coordinator-side slowdown that misses the deadline leaves that runner in service [C7]', () => {
   const run = deadline();
   assert.equal(run.failure, undefined, JSON.stringify(run.failure));
   assert.equal(run.probes, 1, 'the missed deadline ran the same load-tolerant confirming probe');
@@ -88,7 +88,7 @@ test('clause 4: with one runner, a coordinator-side slowdown that misses the dea
   assert.equal(run.holders.length, 0);
 });
 
-test('clause 4: an answering runner that misses its deadline again refuses only the job as a wait-deadline failure [C7]', () => {
+test('clause 1, clause 4: an answering runner that misses its deadline again refuses only the job as a wait-deadline failure [C7]', () => {
   const run = deadline({ drops: 2 });
   assert.equal(run.failure?.code, 'RUNNER_WAIT_DEADLINE');
   assert.match(run.failure.message, /only-runner answers SSH and Node but missed its admission deadline again/u);
@@ -99,7 +99,7 @@ test('clause 4: an answering runner that misses its deadline again refuses only 
   assert.equal(run.holders.length, 0);
 });
 
-test('clause 4: a runner whose confirming probe fails after a missed deadline is still quarantined [C7]', () => {
+test('clause 2, clause 3: a runner whose confirming probe fails after a missed deadline is still quarantined [C7]', () => {
   const run = deadline({ gateSlots: 1, drops: 99, answers: false });
   assert.equal(run.probes, 4, 'the probe and its three retries all failed first');
   assert.equal(run.waits[0].probe, false);
