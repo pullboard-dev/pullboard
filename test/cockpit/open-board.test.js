@@ -234,6 +234,18 @@ async function openState(chrome, address, state, shot) {
   return seen;
 }
 
+/** Open the Items tab with one plain click, as a person would, since the list is only drawn there. */
+async function openItems(chrome) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await chrome.waitFor("!!document.querySelector('[data-tab=\"items\"]')", 30_000); // budget: hang ceiling for a page that is still loading.
+      return await press(chrome, "document.querySelector('[data-tab=\"items\"]')", { native: false });
+    } catch (error) {
+      if (attempt >= 4 || !/navigated or closed/.test(String(error?.message ?? error))) throw error; // a page mid-navigation is retried once it settles.
+    }
+  }
+}
+
 /** The checks every open-board screen passes: shown alone, one heading, no Try again and none of the old jargon. */
 function alone(seen, heading, { allow = '' } = {}) {
   assert.equal(seen.shown, true, `${seen.state}: the screen shows`);
@@ -420,9 +432,10 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     assert.deepEqual(absent.live, ['Still looking on this computer']);
     assert.ok(!absent.controls.includes('Try again'), 'there is no Try again to press');
     stand.local = view.base;
+    await openItems(chrome); // the one click: pages open on the Dashboard, and the list is drawn on Items.
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the next re-check, one round trip and the first board read.
     const shown = JSON.parse(await chrome.stable("JSON.stringify({ note: document.getElementById('local-note').hidden, side: document.querySelector('.side').getClientRects().length > 0, clicks: window.__clicks })"));
-    assert.deepEqual(shown, { note: true, side: true, clicks: 0 }, 'the board shows with its sidebar, the open-board screen gone, and nobody clicked');
+    assert.deepEqual(shown, { note: true, side: true, clicks: 1 }, 'the board shows with its sidebar, the open-board screen gone, and only the Items click was made');
 
     // The browser asks: the discovery waits, as Chrome holds it, and the page says so. The person allows it, and the
     // board opens with no click on the page.
@@ -432,15 +445,17 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     assert.deepEqual(asking.live, ['Waiting for you to click Allow']);
     await chrome.stable("(() => { window.__access = 'granted'; return true; })()");
     await stand.release();
+    await openItems(chrome);
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the released discovery and the first board read.
-    assert.equal(await chrome.stable('window.__clicks'), 0, 'nobody clicked on the page');
+    assert.equal(await chrome.stable('window.__clicks'), 1, 'only the Items click was made on the page');
 
     // The browser said no: once the person turns access back on, the page carries on by itself.
     await chrome.stable("(() => { sessionStorage.clear(); return true; })()");
     await openState(chrome, '?blocked', 'blocked');
     await chrome.stable("(() => { window.__access = 'granted'; return true; })()");
+    await openItems(chrome);
     await chrome.waitFor(opened, 30_000); // budget: hang ceiling for the next re-check and the first board read.
-    assert.equal(await chrome.stable('window.__clicks'), 0, 'nobody clicked on the page');
+    assert.equal(await chrome.stable('window.__clicks'), 1, 'only the Items click was made on the page');
 
     // The view answers, but its first board list fails once with a 503, as a busy view can, and the next one succeeds:
     // the problem screen it met gives way to the board by itself, with the sidebar back, and nobody clicks.
@@ -453,6 +468,7 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     await chrome.stable('refresh().then(() => true, () => true)');
     await chrome.send('Page.navigate', { url: HOSTED + '/?recover' });
     try {
+      await openItems(chrome);
       await chrome.waitFor('performance.timeOrigin !== ' + departingTime + ' && ' + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
     } catch (error) {
       const page = await chrome.stable("JSON.stringify({ href: location.href, states: window.__states, state: document.getElementById('local-note')?.dataset.state, hidden: document.getElementById('local-note')?.hidden, board: document.querySelector('#chain')?.textContent.slice(0, 120) })").catch((failure) => failure.message);
@@ -463,7 +479,7 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     assert.deepEqual(stand.failedDocuments, [recoveredDocument], 'the recovering document, not the departing page, met the 503');
     const recovered = JSON.parse(await chrome.stable("JSON.stringify({ states: window.__states, state: document.getElementById('local-note').dataset.state, side: document.querySelector('.side').getClientRects().length > 0, clicks: window.__clicks })"));
     assert.ok(recovered.states.includes('problem'), `the failed list showed the problem screen first: ${JSON.stringify(recovered.states)}`);
-    assert.deepEqual({ state: recovered.state, side: recovered.side, clicks: recovered.clicks }, { state: '', side: true, clicks: 0 }, 'then the board shows, the problem screen gone and the sidebar back, and nobody clicked');
+    assert.deepEqual({ state: recovered.state, side: recovered.side, clicks: recovered.clicks }, { state: '', side: true, clicks: 1 }, 'then the board shows, the problem screen gone and the sidebar back, and only the Items click was made');
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
     assert.deepEqual(stand.failures, [], 'the stand-in hosted page was served');
   } finally {
@@ -504,6 +520,7 @@ test('the link invitation closes, stays closed and comes back [N26,H5]', async t
     await chrome.send('Page.navigate', { url: view.link.href });
     await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
     await chrome.stable('sharingReady');
+    await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
     assert.equal(await chrome.stable("document.querySelector('#share-note b')?.textContent"), 'Open your boards on any device');
     assert.equal(await chrome.stable("document.querySelector('#share-note .share-txt > span')?.textContent"), 'Sign in to use pullboard.dev while on the go.');
     assert.deepEqual(JSON.parse(await chrome.stable("JSON.stringify((() => { const a = document.querySelector('#share-note .share-txt a'); return a ? [a.textContent, a.href, a.target, a.rel] : null; })())")), ['How the relay works', 'https://pullboard.dev/relay/', '_blank', 'noopener']);
@@ -517,6 +534,7 @@ test('the link invitation closes, stays closed and comes back [N26,H5]', async t
     await chrome.send('Page.reload');
     await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
     await chrome.stable('sharingReady');
+    await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
     assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), true, 'the machine remembers dismissal after reload');
     assert.equal(await chrome.stable("document.querySelector('#share-again').textContent"), 'Link boards to pullboard.dev…');
     await press(chrome, "document.querySelector('#share-again')");
@@ -565,6 +583,7 @@ test('the link invitation closes, stays closed and comes back [N26,H5]', async t
     await chrome.send('Page.reload');
     await chrome.waitFor("data?.project?.root && !document.body.classList.contains('loading')");
     await chrome.stable('sharingReady');
+    await openItems(chrome); // the first-run Dashboard hides the card, so a person opens Items first.
     assert.equal(await chrome.stable("document.querySelector('#share-note').hidden"), true);
     assert.equal(await chrome.stable("document.querySelector('#share-again').hidden"), true, 'no entry when sharing is unavailable');
     assert.deepEqual(failures, []);

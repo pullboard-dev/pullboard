@@ -3,6 +3,7 @@ import { recordedVerificationComparison } from '../../../../../packages/verify/i
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
+import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
@@ -112,12 +113,35 @@ export async function nextHere(io, values) {
   if (defaultLoop) io.defaultLoop = true;
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
-  try { return await nextWithProgress(io, values, progress); }
+  try {
+    const code = await nextWithProgress(io, values, progress);
+    sayCoordinatorCallouts(io);
+    return code;
+  }
+  catch (error) {
+    // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    sayCoordinatorCallouts(io);
+    throw error;
+  }
   finally {
     progress.stop(); await monitor?.close();
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Last line of every next: unanswered coordinator call-outs older than 15 minutes, so a builder passes them on [N2,C7].
+ * Why: sentinel and builder shouts to the coordinator sat unanswered for hours with nothing telling anyone.
+ * Best effort and read-only: a board that cannot be read adds no line.
+ *
+ * @param {any} io
+ */
+function sayCoordinatorCallouts(io) {
+  try {
+    const line = withBoardRead(context(io), board => coordinatorCalloutLine(board, board.clock.now().getTime()));
+    if (line) io.say(line);
+  } catch { /* a missing or unreadable board has no call-outs to report */ }
 }
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
@@ -323,6 +347,8 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
+    // An item whose folder another live session holds stays out of this next's selection (#3688).
+    if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
