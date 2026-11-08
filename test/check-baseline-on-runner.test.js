@@ -27,7 +27,7 @@ function dispatched(requests) {
   return existsSync(requests) ? readFileSync(requests, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.workerStarted) : [];
 }
 
-test('edit --check on a board with a registered runner dispatches the baseline there and starts no local test process [C7]', { timeout: 240_000 }, () => {
+test('edit --check on a board with a registered runner dispatches the baseline there and starts no local test process [C7]', { timeout: 240_000 }, async () => {
   const box = e2e.project('true');
   const bin = join(box.dir, 'ssh-bin');
   const worker = join(box.dir, 'worker');
@@ -55,5 +55,6 @@ test('edit --check on a board with a registered runner dispatches the baseline t
     assert.ok(cwd.startsWith(worker), `the ${tag} baseline ran in the runner's checkout, not on this machine: ${cwd}`);
     assert.doesNotMatch(cwd, /pullboard-check-base-/u, `the ${tag} baseline used no local temporary clone`);
   }
-  assert.ok(dispatched(requests).length > 0, 'the registered runner stand-in started its native worker for the baselines');
+  // The stand-in writes its record as its SSH session closes, which can trail the recorded baseline by a moment.
+  await e2e.waitFor(() => dispatched(requests).length > 0, 'the registered runner stand-in recorded its native worker', 30_000); // budget: SSH stand-in record ceiling, not a timing claim.
 });

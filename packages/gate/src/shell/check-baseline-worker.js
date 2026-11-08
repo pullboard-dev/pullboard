@@ -18,6 +18,7 @@ import { checkBaseline } from './check-baseline.js';
 import { runnerBaseline } from './check-baseline.js';
 import { runnerBaselineCommand } from './check-baseline.js';
 import { withGateSlot } from './gate-slot.js';
+import { runnersRegistered } from './gate-slot.js';
 import {
   codeIsFromMain,
   gitChildEnv,
@@ -114,11 +115,11 @@ function mainSource(root, commit) {
  * @param {string} root
  * @param {number} id
  * @param {{ command: string, main: string }} expected
- * @param {{ runnersRegistered?: () => boolean, runnerExecutionServices?: () => any, landingExecutionServices?: () => any }} services
+ * @param {{ gateExecutionServices?: () => Promise<{ runners: object, landing: object }> }} services
  */
 async function measureBaseline(root, id, expected, services) {
-  if (!services.runnersRegistered?.()) return checkBaseline(root, expected.command, { main: expected.main });
-  const runners = services.runnerExecutionServices();
+  const executionServices = await services.gateExecutionServices?.();
+  if (!executionServices || !runnersRegistered(executionServices)) return checkBaseline(root, expected.command, { main: expected.main });
   const source = mainSource(root, expected.main);
   if (!source) return { command: expected.command, main: expected.main, result: 'unavailable', reason: 'the captured main commit could not be read for a runner' };
   return withGateSlot(root, async lease => {
@@ -127,7 +128,7 @@ async function measureBaseline(root, id, expected, services) {
     const run = await lease.executionServices.runners.runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source,
       browser: lease.browser, metadata: lease.runMetadata });
     return runnerBaseline(expected, run, (Date.now() - started) / 1000);
-  }, { executionServices: { runners, landing: services.landingExecutionServices() }, runnerOnly: true, remote: true,
+  }, { executionServices, runnerOnly: true, remote: true,
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }
 

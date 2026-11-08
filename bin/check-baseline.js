@@ -18,12 +18,8 @@ if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? 
   const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import('../packages/outbox/index.js');
   const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
   const { runCheckBaselineWorker } = await import('../packages/gate/index.js');
-  // The baseline runs on a registered runner like any gate run; these are the gate slot's runner and landing services [C7,#2520].
-  const { runnerExecutionServices } = await import('../packages/runners/index.js');
-  const { landingExecutionServices } = await import('../packages/landing/index.js');
-  const { loadMachineSettings } = await import('../packages/config/index.js');
-  /** Whether this machine has a registered runner to send the baseline to. */
-  const runnersRegistered = () => runnerExecutionServices().effectiveRunners(loadMachineSettings()).length > 0;
-  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, runnersRegistered, runnerExecutionServices, landingExecutionServices }); }
+  // The baseline runs on a registered runner like any gate run, under the light gate-slot services [C7,#2520].
+  const { gateSlotServices } = await import('./gate-slot-services.js');
+  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, gateExecutionServices: gateSlotServices }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;
