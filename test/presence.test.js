@@ -730,3 +730,32 @@ test('native and ordered gone releases retain coded evidence and historical even
     if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
   }
 });
+
+test('ready work waiting past the limit while agents are idle warns the coordinator once [B3,N2,C7]', async t => {
+  const { warnIdleReady, REVIEW_WAKE_WAIT_MS } = await import('../packages/sentinels/index.js');
+  const { heartbeatSeat, listAgents, withLocalSeatPresence, dispatchWork } = await import('../packages/store/index.js');
+  const ports = { listAgents, withLocalSeatPresence, dispatchWork };
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-idle-ready-'));
+  let at = Date.parse('2026-10-24T12:00:00Z');
+  const board = openBoard(join(root, 'board.sqlite'), { now: () => new Date(at) });
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  const ordered = async (ctx, target, operation, args) => store[operation](target, ...args);
+  const warnings = () => board.db.prepare("SELECT shout_from, shout_text FROM shout WHERE shout_to='coordinator' ORDER BY shout_id").all();
+  store.register(board, { lane: 'coordinator', path: join(root, 'main') });
+  const seat = store.register(board, { lane: 'web', path: join(root, 'web-seat') });
+  const other = store.register(board, { lane: 'api', path: join(root, 'api-seat') });
+  const ready = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Ready control', criterion: 'A seat takes it', check: 'true' });
+  store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Waiting control', criterion: 'Waits on the ready control', check: 'true', after: [ready] });
+  const beat = () => { for (const id of [seat, other]) heartbeatSeat(board, id); };
+  at += REVIEW_WAKE_WAIT_MS - 1_000; beat();
+  await warnIdleReady({ config: {} }, board, ordered, ports);
+  assert.deepEqual(warnings(), [], 'a seat idle under the limit is not reported');
+  at += 2_000; beat();
+  await warnIdleReady({ config: {} }, board, ordered, ports);
+  const first = warnings();
+  assert.equal(first.length, 1, 'only the seat beside ready work is reported; the api seat waits on --after');
+  assert.match(first[0].shout_text, new RegExp(`^${seat} has held nothing for 5 min while #${ready} is ready`, 'u'));
+  at += 60_000; beat();
+  await warnIdleReady({ config: {} }, board, ordered, ports);
+  assert.equal(warnings().length, 1, 'the same idle spell is reported once');
+});
