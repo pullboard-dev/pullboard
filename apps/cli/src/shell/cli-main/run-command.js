@@ -34,8 +34,8 @@ export async function runCommand(argv, io) {
     ? (await import('../cli-help.js')).selectedHelp(command, first, second, rest, values) : null;
   if (help) return await (await COMMANDS.help()).run(io, args, help);
   try {
-    if (values.as === 'person' && !['answer', 'decisions', 'fact', 'hold', 'add', 'edit'].includes(command) && !(command === 'bar' && first === 'sign')) {
-      throw new Refused('USAGE', '--as person works with answer, decisions, fact --never-again, hold, add, edit, or bar sign');
+    if (values.as === 'person' && !['answer', 'decisions', 'fact', 'hold', 'add', 'edit', 'milestone'].includes(command) && !(command === 'bar' && first === 'sign')) {
+      throw new Refused('USAGE', '--as person works with answer, decisions, fact --never-again, hold, add, edit, milestone ship, or bar sign');
     }
     const load = COMMANDS[command];
     if (!load) return (await import('../cli-help.js')).unknownCommand(io, command);

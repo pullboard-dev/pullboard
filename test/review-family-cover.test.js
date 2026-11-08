@@ -40,7 +40,7 @@ process.exitCode = 0;
   registerSeatWake(repoInfo(seat.path), store.boardId(box.board), seat.id, executable);
 }
 
-test('clause 2: three waiting green reviews pause new builds at five minutes, with an explanation and no claim [C7,#3076]', async t => {
+test('clause 2: three waiting green reviews are reported at five minutes, with an explanation, and builds continue [C7,#3076,#3792]', async t => {
   const box = await reviewFamilyFixture(t);
   const candidate = box.add('New build waits for independent cover', { route: 'strong', brief: 'Files: web/candidate.js\nTest: the review stays available.' });
   assert.equal(REVIEW_WAKE_WAIT_MS, REVIEW_COVER_WAIT_MS, 'sweep and build advice use the same five-minute deadline');
@@ -48,19 +48,10 @@ test('clause 2: three waiting green reviews pause new builds at five minutes, wi
   assert.equal(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor), null);
   box.advance(1);
   assert.match(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor), /3 waiting green reviews.*another family/u);
-  for (const args of [['next'], ['next', '--build'], ['next', '--take']]) {
-    const next = await cli(box, box.seats.actor.path, args);
-    assert.equal(next.document.item ?? null, null, args.join(' '));
-    if (args.length === 1) {
-      // Plain next is the never-waiting default loop: it ends the turn with the reason instead of refusing.
-      assert.match(next.document.next, /end your turn/u, args.join(' '));
-      assert.match(next.document.reasons.join(' '), /independent review cover/u, args.join(' '));
-      continue;
-    }
-    assert.equal(next.document.error.code, 'NOTHING_FREE', args.join(' '));
-    assert.match(next.document.error.message, /independent review cover/u);
-  }
-  assert.equal(store.getItem(box.board, candidate).item_status, 'open');
+  // Builds never wait on review cover [#3792]: next claims the candidate and the backlog is shouted instead.
+  const next = await cli(box, box.seats.actor.path, ['next']);
+  assert.equal(next.document.item.item_id, candidate);
+  assert.equal(store.getItem(box.board, candidate).item_status, 'claimed');
 });
 
 test('next --take retains existing claims and still reserves an eligible independent review during a cover pause [C7,#3076]', async t => {
@@ -161,7 +152,7 @@ test('clause 1: the coordinator hears about an item-conflicted review once, not 
 
 });
 
-test('clause 2: the NOTHING_FREE refusal names the cover pause in its first reason line, before held and waiting counts [C7,#3741]', async t => {
+test('clause 2: a cover backlog no longer stops next --build [C7,#3741,#3792]', async t => {
   const box = await reviewFamilyFixture(t);
   const held = box.add('Held by the coordinator', { route: 'strong', brief: 'Files: web/held.js\nTest: the review stays available.' });
   store.holdItem(box.board, held, { agentId: 'coordinator', reason: 'Fixture hold' });
@@ -169,10 +160,7 @@ test('clause 2: the NOTHING_FREE refusal names the cover pause in its first reas
   box.advance(REVIEW_COVER_WAIT_MS);
   const pause = reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor);
   assert.ok(pause);
+  // The pause wording is advice only [#3792]: next --build still hands out the build.
   const next = await cli(box, box.seats.actor.path, ['next', '--build']);
-  assert.equal(next.document.error.code, 'NOTHING_FREE');
-  const message = next.document.error.message.replace(/^lane [^:]+: /u, '');
-  assert.ok(message.startsWith(`no item is free; ${pause}; `), `the pause is the first reason line: ${message}`);
-  assert.ok(message.includes('1 item is held by coordinator'), 'the held count still follows');
-  assert.ok(message.indexOf('held by coordinator') > message.indexOf(pause));
+  assert.ok(next.document.item, 'a build is handed out despite the cover backlog');
 });

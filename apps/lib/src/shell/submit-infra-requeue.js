@@ -128,6 +128,8 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
       }
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
+      // A spent gate retry window (30 min across runners) is the whole retry: stop now, and the board shouts once (#3365).
+      if (error.infrastructureWindowSpent === true) throw Object.assign(exhausted(attempts, error), { windowSpent: true });
       if (attempts.length > retries) throw exhausted(attempts, error);
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);

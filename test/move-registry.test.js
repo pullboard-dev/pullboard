@@ -287,6 +287,14 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
 installStaleStateRegistryCases();
 
 /** Exercise each live invariant without mutating the accepted source or a historical oracle. */
+/** Proves the named 145 pair passes while any other duplicate engine number still fails [C7,V4]. */
+test('clause 1: a new duplicate engine number outside the named historical exception still fails [C7,V4]', () => {
+  const base = { registry: {}, sources: [], nextSteps: {} };
+  assert.deepEqual(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }] }), [], 'the named pair is the one exception');
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }, { name: 'THIRD_ENGINE', number: 145 }] }).join(), /duplicate or invalid engine number 145/u);
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'NEW_ENGINE', number: 146 }, { name: 'OTHER_NEW_ENGINE', number: 146 }] }).join(), /duplicate or invalid engine number 146/u);
+});
+
 test('registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
   const declaration = { operation: 'sample', engine: 1, itemIdFirstArgument: true, nextSteps: { SAMPLE: 'repair the sample' } };
   const input = { registry: { sample: declaration }, leaves: [{ name: 'SAMPLE_ENGINE', number: 1 }],
@@ -310,9 +318,11 @@ test('shipped engine records and the legacy replay retain their first committed 
 
 installRegistryMergeCase();
 
-/** Proves the seven formerly unregistered refusal codes each carry a non-empty recovery step [C7]. */
-test('clause 1: seven refusal codes each have a recovery next step [C7]', () => {
-  for (const code of ['BAD_IDLE_SKIPS', 'WRONG_BRANCH', 'ITEM_FOLDER_DIRTY', 'SUBMIT_HANDOFF_NOT_LAUNCHED', 'LAND_STALLED', 'RUNNER_RESULT_SIGNATURE', 'RUNNER_RESULT_SOURCE']) {
+/** Proves every refusal code a registered move declares carries a non-empty recovery step, with no fixed count [C7]. */
+test('clause 1: every refusal a registered move raises has a recovery next step [C7]', () => {
+  const codes = new Set(Object.values(MOVE_REGISTRY).flatMap(declaration => Object.keys(declaration.nextSteps ?? {})));
+  assert.ok(codes.size > 0, 'the registry declares refusal codes to check');
+  for (const code of codes) {
     assert.equal(typeof NEXT_STEPS[code], 'string', code);
     assert.notEqual(NEXT_STEPS[code].trim(), '', code);
   }
