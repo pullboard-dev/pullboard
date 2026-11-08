@@ -38,7 +38,7 @@ function runnerProject({ healthDown = false } = {}) {
   installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, starts, healthDown, workerHealthDown: healthDown });
   box.env.PATH = `${sshBin}:${box.env.PATH}`;
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    runners: [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 3000 } : {}) } }));
+    runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } }));
   return { box, marker, remoteHome, starts, main: box.git(box.repo, 'rev-parse', 'HEAD') };
 }
 
@@ -79,7 +79,7 @@ test('with gate.runnersOnly on, a main comparison, the CLI smoke and the cells-p
 });
 
 test('with gate.runnersOnly on and no runner free, each check queues to the runner deadline and never runs locally [C7,#3011]', { timeout: 240_000 }, async () => {
-  const { box, marker, main, remoteHome } = runnerProject({ healthDown: true });
+  const { box, marker, main } = runnerProject({ healthDown: true });
   const module = pathToFileURL(resolve(import.meta.dirname, '../packages/landing/src/shell/main-red.js')).href;
   const out = await inChild(box, `
     const { compareMainFailures } = await import(${JSON.stringify(module)});
@@ -89,14 +89,9 @@ test('with gate.runnersOnly on and no runner free, each check queues to the runn
     const smoke = await settle(() => landing.smokeCommit(${JSON.stringify(box.repo)}, ${JSON.stringify(main)}));
     process.stdout.write(JSON.stringify({ compare, plan, smoke }));
   `);
-  // The stand-in still answers worker commands, so the comparison either queues (no verdict, runnerOnly) or ran on the runner (a receipt); it never ran locally.
-  if (out.compare.files.length) assert.ok(out.compare.files.every(row => row.receiptId), `a comparison verdict came from a run with no runner receipt: ${JSON.stringify(out.compare)}`);
-  else assert.equal(out.compare.runnerOnly, true, JSON.stringify(out.compare));
-  // The pinned-worker recovery may restart the stand-in worker between checks, so a later check either queues to its
-  // deadline or runs on the runner; it never runs as a local process.
-  for (const [name, result] of [['plan', out.plan], ['smoke', out.smoke]]) {
-    assert.ok(result.code === 'RUNNER_WAIT_DEADLINE' || result.message.includes(remoteHome) || /on runner/u.test(result.message), `${name} neither queued nor ran on a runner: ${result.message}`);
-  }
-  assert.ok(out.plan.code === 'RUNNER_WAIT_DEADLINE' || out.smoke.code === 'RUNNER_WAIT_DEADLINE', 'at least one check queued to the runner deadline');
+  assert.deepEqual(out.compare.files, []);
+  assert.equal(out.compare.runnerOnly, true, JSON.stringify(out.compare));
+  // No runner is registered while this machine has an idle local slot: every check waits for the runner deadline.
+  for (const [name, result] of [['plan', out.plan], ['smoke', out.smoke]]) assert.equal(result.code, 'RUNNER_WAIT_DEADLINE', `${name} did not queue: ${result.message}`);
   assert.equal(existsSync(marker), false, 'no check fell back to a local process');
 });
