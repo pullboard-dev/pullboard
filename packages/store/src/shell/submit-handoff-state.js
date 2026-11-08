@@ -148,6 +148,22 @@ export function requireSubmitHandoffHookProof(board, id, job, projection) {
   return projection;
 }
 
+/**
+ * End an item's queued or running hand-off because the item is withdrawn, in the withdrawal's own board write.
+ * Why: a record leaves queued only when a worker writes a result, so a withdrawn item's hand-off stayed queued and could
+ * still be started (#2800 and #3291 on 6 Nov); an ended record makes startSubmitHandoff start nothing [C7].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @returns {Record<string, any> | null} The ended record, or null when the item had no queued or running hand-off.
+ */
+export function endWithdrawnHandoff(board, id) {
+  if (typeof board.enginePorts?.submitHandoffEngines !== 'function' || typeof board.enginePorts?.shadowJob !== 'function') return null;
+  const job = submitHandoff(board, id);
+  if (!job || !['queued', 'running'].includes(job.state)) return null;
+  return record(board, id, { ...job, state: 'ended', reason: 'withdrawn', completedAt: now(board) });
+}
+
 /** Exactly one detached worker enters the existing canonical submit path. */
 export function startSubmitHandoff(board, id, options) {
   return atomic(board, () => {
