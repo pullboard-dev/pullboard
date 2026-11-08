@@ -163,8 +163,12 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
 }
 
 
-/** How long an accept's landing wake waits, so accepts made together coalesce into one landing [B35]. */
-export const LANDING_COALESCE_MS = 10_000;
+/**
+ * How long an accept's landing wake waits before it starts: none, so the lander starts the accepted item's landing at
+ * once (the scheduler's own 1 s floor still applies). Why: a 10 s wait to gather accepts into one batch was a batching
+ * delay, and batches hold one item (Corey 5 Nov); accepts made while a landing runs still go to that one worker [C7].
+ */
+export const LANDING_COALESCE_MS = 0;
 
 /**
  * Run board-owned landing after acceptance; the caller catches this entire post-verdict effect.

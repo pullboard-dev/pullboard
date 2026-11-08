@@ -9,6 +9,7 @@ import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
+import { sweepToolTrees } from '../../../../packages/items/index.js';
 import { touchToolTree } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
@@ -22,6 +23,7 @@ import { closeBoard as closeRawBoard } from '../../../../apps/lib/index.js';
 import { deadWorker } from './handoff-worker-alive.js';
 import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
@@ -60,36 +62,52 @@ function copyTools(toolRoot, target) {
     filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
 }
 
+/** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
+const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
 /**
- * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per commit under the OS temp
- * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
- * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
+ * A digest of the git ids of what a worker runs (bin, apps, packages, src and package.json at HEAD). Why: two commits
+ * with the same tooling trees need one snapshot, and a merge of main that changed only tests or docs must copy nothing [C7].
  */
-function toolsSnapshot(toolRoot, job, commonDir) {
+function toolingDigest(toolRoot) {
+  const ids = TOOLING_PATHS.map(path => {
+    const id = tryGit(toolRoot, ['rev-parse', `HEAD:${path}`]);
+    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout) ? `${path}=${id.stdout}` : `${path}=absent`;
+  });
+  return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
+}
+
+/**
+ * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per tooling tree under the OS
+ * temp dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else
+ * gets a private per-job copy. Why: every submit copied 3,762 files, and keying by commit still copied one per submit
+ * because each submit merges main first; the tooling trees change only a few times a day [C7].
+ */
+export function toolsSnapshot(toolRoot, job, commonDir) {
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
     && realpathSync(top.stdout) === realpathSync(toolRoot)
     && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
-  if (clean && existsSync(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`))) {
-    touchToolTree(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`));
-    return join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  const shared = clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null;
+  if (shared && existsSync(shared)) {
+    touchToolTree(shared);
+    // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
+    sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
+    return shared;
   }
-  assertToolTreeRoom({ commonDirs: [commonDir] });
+  assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   if (!clean) {
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copyTools(toolRoot, tools);
     return tools;
   }
-  const shared = join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
-  if (existsSync(shared)) return shared;
   const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
     copyTools(toolRoot, staging);
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
-    // A concurrent submit won the rename; its finished snapshot is the same commit's tools.
+    // A concurrent submit won the rename; its finished snapshot is the same tooling.
     if (!existsSync(shared)) throw error;
   }
   return shared;
