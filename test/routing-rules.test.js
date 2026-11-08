@@ -264,7 +264,7 @@ test('computed review filtering preserves native urgency, skip and omit ordering
   assert.deepEqual(store.events(f.board), before, 'all ordering probes remain read-only');
 });
 
-test('a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', t => {
+test('clause 1 and clause 2: a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', t => {
   const f = fixture(t), waiting = f.add(), own = f.add();
   f.submit(waiting);
   store.claim(f.board, own, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });
