@@ -7,6 +7,7 @@ import { reviewEligibility } from '../packages/verify/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../packages/store/index.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { RELEASE_REASONS } from '../src/release-reasons.js';
 import { effectiveAgentParent } from '../packages/seats/index.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
@@ -261,4 +262,21 @@ test('computed review filtering preserves native urgency, skip and omit ordering
   assert.equal(next({ skipIds: [first] }).item?.item_id, second);
   assert.equal(next({ omitIds: [first] }).item?.item_id, second);
   assert.deepEqual(store.events(f.board), before, 'all ordering probes remain read-only');
+});
+
+test('a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', t => {
+  const f = fixture(t), waiting = f.add(), own = f.add();
+  f.submit(waiting);
+  store.claim(f.board, own, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });
+  const claimed = store.getItem(f.board, own);
+  /** Record the claim's own queued gate in the given terminal state, as the handoff worker does. */
+  const gate = (state, code) => recordSubmitHandoff(f.board.db, own, { id: `fixture-job-${state}`, commit: 'c'.repeat(40), agentId: 'core-2', digest: claimed.item_frozen_digest, state, at: '2026-11-04T19:32:13.780Z', error: { code, message: 'fixture', next: 'fixture' } });
+  const seat = store.agentById(f.board, 'core-2');
+  assert.deepEqual([dispatchWork(f.board, seat).item?.item_id, dispatchWork(f.board, seat).held], [own, true], 'with no gate the claim is held');
+  gate('red', 'GATE_RED');
+  assert.equal(dispatchWork(f.board, seat).item?.item_id, own, 'a red gate returns the claim to its builder');
+  gate('infrastructure', 'GATE_INFRA_EXHAUSTED');
+  const offered = dispatchWork(f.board, seat);
+  assert.deepEqual([offered.item?.item_id, offered.review], [waiting, true], 'an infrastructure stop frees the seat for the waiting review');
+  assert.notEqual(dispatchWork(f.board, store.agentById(f.board, 'core-1')).item?.item_id, waiting, 'its builder is still never offered its own review');
 });
