@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { proveBatches, shardPassStore } from '../packages/gate/src/shell/proof-shards.js';
+import { BATCH_DROP_LIMIT, proveBatches, shardPassStore } from '../packages/gate/src/shell/proof-shards.js';
 import { readTestOutcomes, formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { INFRASTRUCTURE_CODES, submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
 import { privateFixtureFiles } from './fixture-child.js';
@@ -60,27 +60,33 @@ test('clause 1: a gate rerun after RUNNER_UNAVAILABLE runs only the shard with n
   const calls = [];
   const attempts = [];
   const notes = [];
+  let poisoned = null;
   const settled = await submitUntilSettled(async number => {
-    // Attempt 1: the gate lease's own runner drops mid-proof; the three slot shards pass for this tree.
-    const gate = attempt({ calls, drop: (files, lane) => number === 1 && lane === 'gate'
-      ? Object.assign(new Error('runner fixture-a dropped'), { code: 'RUNNER_UNAVAILABLE', runnerHost: 'fixture-a' }) : null });
+    // Attempt 1: the batch the gate lease runs first drops its runner on every lane it lands on, past the requeue bound
+    // (BATCH_DROP_LIMIT), so the attempt ends on infrastructure; the three other batches pass for this tree.
+    const gate = attempt({ calls, drop: (files, lane) => {
+      if (number !== 1) return null;
+      if (lane === 'gate' && !poisoned) poisoned = files.join();
+      return files.join() === poisoned ? Object.assign(new Error('runner fixture-a dropped'), { code: 'RUNNER_UNAVAILABLE', runnerHost: 'fixture-a' }) : null;
+    } });
     attempts.push(gate);
-    return proveBatches('/controller', gate.execution, { files: FILES, filesCommand, takeSlot: gate.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, say: line => notes.push(line) });
+    return proveBatches('/controller', gate.execution, { files: FILES, filesCommand, takeSlot: gate.takeSlot, batchFiles: 1, retryMs: 10, freeSlots: FILES.length - 1, say: line => notes.push(line) });
   }, { healthy: async () => true, wait: async () => {} });
   assert.ok(INFRASTRUCTURE_CODES.has('RUNNER_UNAVAILABLE'));
   assert.deepEqual(settled.attempts.map(row => row.code), ['RUNNER_UNAVAILABLE'], 'the real rerun loop treated the drop as infrastructure');
   const [first, second] = attempts;
   const firstCalls = calls.filter(call => call.timingRunId === first.timingRunId);
   const secondCalls = calls.filter(call => call.timingRunId === second.timingRunId);
-  assert.equal(firstCalls.length, FILES.length, 'attempt 1 fanned every file out');
+  assert.deepEqual([...new Set(firstCalls.flatMap(call => call.files))].sort(), FILES, 'attempt 1 fanned every file out');
   const dropped = firstCalls.find(call => call.lane === 'gate').files;
+  assert.equal(firstCalls.filter(call => call.files.join() === dropped.join()).length, BATCH_DROP_LIMIT + 1, 'the dropped batch went back on the queue up to the bound');
   assert.deepEqual(secondCalls.map(call => call.files), [dropped], 'the rerun ran only the dropped shard\'s files');
   assert.match(notes.join('\n'), /reuses 3 of 4 files that passed for tree cccccccccccc; running 1/u);
 
   const merged = settled.result;
   assert.equal(merged.isGreen, true);
   assert.deepEqual(merged.shards.map(shard => shard.files).flat().sort(), FILES, 'the combined receipt names every file exactly once');
-  const passedFirst = firstCalls.filter(call => call.lane === 'slot').map(call => call.files);
+  const passedFirst = firstCalls.filter(call => call.lane === 'slot' && call.files.join() !== dropped.join()).map(call => call.files);
   const reusedRows = merged.shards.filter(shard => passedFirst.some(files => files.join() === shard.files.join()));
   assert.deepEqual(reusedRows, passedFirst.map(files => ({ files, exitCode: 0, runner: `runner-${files[0]}`, durationMs: 1000 + files.length })),
     'each passed shard enters the receipt with the files, exit, runner and duration it ran with');

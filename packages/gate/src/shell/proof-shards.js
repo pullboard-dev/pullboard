@@ -95,6 +95,13 @@ export const PROOF_BATCH_FILES = 3;
 export const SHARD_RETRY_MS = 5_000;
 
 /**
+ * How many times one batch may go back on the queue after a runner drop before the next drop refuses the proof.
+ * Why a bound: a batch that takes down every runner it lands on must end the gate on infrastructure, where the whole
+ * gate rerun keeps every passed batch (#3699), rather than circle the queue forever.
+ */
+export const BATCH_DROP_LIMIT = 2;
+
+/**
  * Codes that mean a slot request found no runner slot in time, or that a batch's runner dropped under it: the batch
  * goes back on the queue and the request asks again while batches remain. Any other refusal is the proof's own.
  */
@@ -192,8 +199,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
  * Run the proof files from a queue of small batches. The gate's own lease is one lane; while batches remain the gate
  * keeps asking for more runner slots with `takeSlot`, and each slot it gets is one more lane. Every lane pulls the
  * next batch as soon as it is free, so no batch waits behind another while a slot is free, and a slot the pool frees
- * mid-proof joins at once. A batch whose runner drops goes back on the queue for any lane; the gate's own lane stays
- * until the queue is empty, so a busy pool only slows the proof, never refuses it. With no `takeSlot` (no runners),
+ * mid-proof joins at once. A batch whose runner drops, on a slot or on the gate's own lease, goes back on the queue for
+ * any lane, up to BATCH_DROP_LIMIT times. After a drop of its own the gate's lane leaves the queue to the slot lanes it
+ * still has and asks for another slot; it pulls again only when no slot lane runs, so the proof keeps going on any lane
+ * the gate has or gets. The gate's own lane stays until the queue is empty, so a busy pool only slows the proof. With no `takeSlot` (no runners),
  * the one lane pulls every batch at once and runs them as one command, as a local gate always has. A single batch with
  * nothing reused returns null, and the caller runs today's single command.
  *
@@ -236,7 +245,8 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
   const closed = () => failure !== null || !queue.length && !inflight;
   /**
    * Run pulled batches on one lane in the original file order. A green run is recorded for a later run of the same tree
-   * as soon as it settles. A runner drop on a slot lane puts the batches back first in the queue and ends that lane.
+   * as soon as it settles. A runner drop on a lane that may requeue puts the batches back first in the queue, unless one
+   * has already gone back BATCH_DROP_LIMIT times, and returns the drop; any other failure refuses the proof.
    */
   const run = async (lane, pulled, requeue) => {
     const wanted = new Set(pulled.flatMap(batch => batch.files));
@@ -246,24 +256,46 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
       const result = await lane(batchFiles);
       if (passes && result?.isGreen === true) passes.record({ files: [...batchFiles], run: result, timingRunId, at: new Date().toISOString() });
       settled.push({ index: pulled[0].index, files: batchFiles, run: result });
+      return null;
     } catch (error) {
-      if (requeue && slotLost(error)) { queue.unshift(...pulled); throw error; }
+      if (requeue && slotLost(error) && pulled.every(batch => (batch.drops ?? 0) < BATCH_DROP_LIMIT)) {
+        for (const batch of pulled) batch.drops = (batch.drops ?? 0) + 1;
+        queue.unshift(...pulled);
+        return error;
+      }
       failure ??= error;
+      return null;
     } finally { inflight -= 1; notify(); }
   };
-  /** The gate's own lease: pulls until the queue closes, waiting while other lanes still run batches that may come back. */
+  let gateDropped = false;
+  /**
+   * The gate's own lease: pulls until the queue closes, waiting while other lanes still run batches that may come back.
+   * After its own runner dropped a batch, it leaves the queue to any slot lane still running and pulls again only when
+   * none runs, once something has changed: a batch settled or came back, or a slot request ended without a slot.
+   */
   const gateLane = async () => {
+    let rest = false;
     while (!closed()) {
-      if (!queue.length) { await changed; continue; }
-      await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), false);
+      if (!queue.length || rest || gateDropped && slots > 0) { rest = false; await changed; continue; }
+      const dropped = await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), Boolean(takeSlot));
+      if (dropped) {
+        gateDropped = true;
+        rest = true;
+        say(`proof batch returned to the queue: the gate's own runner dropped it (${dropped.code ?? dropped.name})`);
+        grow();
+      }
     }
   };
-  /** One more slot's lane: pulls the next batch until the queue is empty. */
+  /** One more slot's lane: pulls the next batch until the queue is empty; a dropped runner ends the lane. */
   const slotLane = async lane => {
     slots += 1;
     mostSlots = Math.max(mostSlots, slots);
-    try { while (!closed() && queue.length) await run(lane, queue.splice(0, 1), true); }
-    finally { slots -= 1; }
+    try {
+      while (!closed() && queue.length) {
+        const dropped = await run(lane, queue.splice(0, 1), true);
+        if (dropped) throw dropped;
+      }
+    } finally { slots -= 1; notify(); }
   };
   /** Ask for one more slot until a lane on it ends with the queue empty; no slot or a dropped runner asks again. */
   const request = async () => {
@@ -282,6 +314,8 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
         try { await takeSlot(lane => { const work = slotLane(lane); admitted(); return work; }, { closed }); }
         catch (error) {
           if (closed()) return;
+          // Wake the gate's lane: after a drop of its own it pulls again when no slot lane runs.
+          notify();
           if (!slotLost(error)) {
             say(`a proof slot request stopped (${error?.code ?? error?.message}); its batches stay on the queue`);
             return;

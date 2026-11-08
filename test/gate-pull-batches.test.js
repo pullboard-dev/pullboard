@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { takeResource } from '../packages/resources/index.js';
-import { freeRunnerSlots, proveBatches, shardSlotOptions } from '../packages/gate/src/shell/proof-shards.js';
+import { BATCH_DROP_LIMIT, freeRunnerSlots, proveBatches, shardSlotOptions } from '../packages/gate/src/shell/proof-shards.js';
 import { formatTestOutcomes, readTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { privateFixtureFiles } from './fixture-child.js';
 import { waitForCondition } from './runner-fixture-state.js';
@@ -152,6 +152,75 @@ test('clause 1: a batch whose runner drops returns to the queue and runs once on
   assert.notEqual(reruns[1].lane, 'slot-1', 'it ran again on another lane');
   assert.equal(merged.isGreen, true);
   assert.deepEqual(merged.shards.flatMap(shard => shard.files).sort(), files, 'the receipt names every file once; the dropped attempt is not in it');
+});
+
+/** A green fixture run, or a runner drop on the named lane's first batch only. */
+function dropFirstOn(dropLane, timingRunId, calls) {
+  return async (lane, files) => {
+    calls.push({ lane, files });
+    await Promise.resolve();
+    if (lane === dropLane && calls.filter(call => call.lane === dropLane).length === 1) {
+      throw Object.assign(new Error(`runner of ${lane} dropped`), { code: 'RUNNER_UNAVAILABLE', runnerHost: 'fixture-a' });
+    }
+    return batchRun(timingRunId, lane, files);
+  };
+}
+
+/** A runner-lease execution whose gate lane runs batches through `run`. */
+function runnerExecution(run, timingRunId) {
+  return { gateLease: { runner: { host: 'fixture-gate' }, executionServices: { runners: {
+    runOnRunnerAsync: (root, command) => run('gate', command.slice(COMMAND.length).split(' ').map(file => file.replace(/^\.\//u, ''))) } } },
+  remoteCommand: filesCommand(FILES), remoteOptions: { source: { commit: COMMIT, tree: TREE }, metadata: { timingRunId } } };
+}
+
+test('clause 1: a batch whose runner drops on the gate\'s own first lane returns to the queue and runs once on a slot lane [C7]', async () => {
+  const timingRunId = randomUUID();
+  const calls = [];
+  const run = dropFirstOn('gate', timingRunId, calls);
+  let slotsTaken = 0;
+  const takeSlot = async lane => { slotsTaken += 1; const label = `slot-${slotsTaken}`; return lane(files => run(label, files)); };
+  const files = FILES.slice(0, 12);
+  const notes = [];
+  const merged = await proveBatches('/controller', runnerExecution(run, timingRunId), { files, filesCommand, takeSlot, freeSlots: 2, batchFiles: 2, retryMs: 10, passes: null, say: line => notes.push(line) });
+  const dropped = calls[0];
+  assert.equal(dropped.lane, 'gate', 'the drop happened on the gate\'s own first lane');
+  const reruns = calls.filter(call => call.files.join() === dropped.files.join());
+  assert.equal(reruns.length, 2, 'the dropped batch ran again');
+  assert.match(reruns[1].lane, /^slot-/u, 'it ran again on a slot lane, not back on the lane that dropped it');
+  assert.equal(merged.isGreen, true, 'the drop did not refuse the proof');
+  assert.deepEqual(merged.shards.flatMap(shard => shard.files).sort(), files, 'the receipt names every file once; the dropped attempt is not in it');
+  assert.match(notes.join('\n'), /proof batch returned to the queue: the gate's own runner dropped it \(RUNNER_UNAVAILABLE\)/u);
+});
+
+test('clause 1: when the gate\'s own lane drops a batch and no slot can be had, the gate asks for one and then runs the batch again itself [C7]', async () => {
+  const timingRunId = randomUUID();
+  const calls = [];
+  const run = dropFirstOn('gate', timingRunId, calls);
+  let requests = 0;
+  const takeSlot = async () => { requests += 1; throw Object.assign(new Error('no runner slot'), { code: 'RUNNER_WAIT_DEADLINE' }); };
+  const files = FILES.slice(0, 6);
+  const merged = await proveBatches('/controller', runnerExecution(run, timingRunId), { files, filesCommand, takeSlot, freeSlots: 0, batchFiles: 2, retryMs: 10, passes: null });
+  assert.ok(requests >= 1, 'the gate asked for another slot after its own drop');
+  assert.ok(calls.every(call => call.lane === 'gate'), 'with no slot to be had, the gate\'s own lane ran every batch');
+  assert.equal(calls.filter(call => call.files.join() === calls[0].files.join()).length, 2, 'the dropped batch ran once more');
+  assert.equal(merged.isGreen, true);
+  assert.deepEqual(merged.shards.flatMap(shard => shard.files).sort(), files, 'every file once');
+});
+
+test('clause 1: a batch that drops every runner it lands on refuses the proof after BATCH_DROP_LIMIT returns, so the gate reruns on infrastructure [C7]', async () => {
+  const timingRunId = randomUUID();
+  const calls = [];
+  const poison = new Set([FILES[0]]);
+  const run = async (lane, files) => {
+    calls.push({ lane, files });
+    await Promise.resolve();
+    if (files.some(file => poison.has(file))) throw Object.assign(new Error('runner dropped'), { code: 'RUNNER_UNAVAILABLE' });
+    return batchRun(timingRunId, lane, files);
+  };
+  const takeSlot = async lane => lane(files => run('slot', files));
+  await assert.rejects(proveBatches('/controller', runnerExecution(run, timingRunId), { files: FILES.slice(0, 6), filesCommand, takeSlot, freeSlots: 2, batchFiles: 2, retryMs: 10, passes: null }),
+    error => error.code === 'RUNNER_UNAVAILABLE');
+  assert.equal(calls.filter(call => call.files.some(file => poison.has(file))).length, BATCH_DROP_LIMIT + 1, 'the batch ran once and went back BATCH_DROP_LIMIT times');
 });
 
 test('clause 2: with no runners registered the same path runs the batches in one local lane [C7]', { timeout: 30_000 }, async t => {
