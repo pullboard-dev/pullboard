@@ -19,6 +19,7 @@ import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
 import { frozenRowGates } from '../core/frozen-clause.js';
+import { barTestFiles } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 import { criterionClauses } from '../../../state/index.js';
 
@@ -289,8 +290,11 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
     .map(receipt => ({ receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null,
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
-  // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
-  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
+  // The brief's Test: files, which submit runs with the proof; a [test] clause naming no file of its own cites them.
+  const briefFiles = barTestFiles(item).brief;
+  // Tests are matched in files this item changed or its check or bar names: those are the tests written for this bar.
+  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || briefFiles.includes(file)
+    || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
   // A case defined in a fixture module counts for the ran test file that loads it (#3441).
   const sources = new Map([...readBlobs(root, candidates.map(file => `${head}:${file}`))].map(([spec, text]) => [spec.slice(head.length + 1), text]));
   const outcomesOf = (receipt, index, options) => ownedOutcomes(receiptOutcomes(commonDir, receipt, head, options),
@@ -317,6 +321,11 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
       const testWords = words(run.test);
       const shared = [...testWords].filter(word => clauseWords.has(word)).length;
       if (cited || (shared >= 3 && shared * 2 >= testWords.size)) evidence.push({ ...run, why: cited ? 'test cites the clause' : `${shared} shared words` });
+    }
+    // A test clause that names no file of its own cites the brief's Test: files the exact-head gate ran, with their
+    // outcomes: submit runs those files whatever the selection says, so a green gate leaves no gap (#3533, #3253) [C7].
+    if (!evidence.length && clause.kind === 'test' && !namedTestFiles(clause.text).length) {
+      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
     }
     // A test clause that names no file and no case still has the item's own check: the executed cases of the check's
     // files, run by the submit gate at this head, are its recorded run. Why: on 6 Nov 18 of 28 rejects in 90 minutes
