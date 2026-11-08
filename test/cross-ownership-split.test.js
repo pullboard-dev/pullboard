@@ -58,3 +58,28 @@ test('clause 3: both refusals next step files the coordinator piece with --after
   const claimed = JSON.parse(box.run(box.web, 'claim', String(id), '--json').out).error;
   assert.match(claimed.next ?? claimed.nextStep ?? JSON.stringify(claimed), SPLIT, 'claim names the split');
 });
+
+test('clause 1: a lane seat files the coordinator piece --after its own claimed item, and a plain add into the coordinator lane still refuses AGENT_GRANT_LANE, through the real CLI [C7,#3278]', () => {
+  const box = fixture();
+  const lane = add(box, box.repo, 'web', 'It works [test].', LANE_BRIEF);
+  assert.equal(lane.code, 0, JSON.stringify(lane.doc));
+  const laneId = lane.doc.item?.item_id ?? lane.doc.item_id;
+  const piece = (...extra) => fixtureAdd(box.run, box.web, 'coordinator', 'Cross item: coordinator piece', '--route', 'strong', '--specs', 'G1',
+    '--criterion', HOOK, '--brief', 'Files:\n- .githooks/pre-commit\nTest:\n- web/a.test.js', ...extra, '--json');
+  const plain = piece();
+  assert.notEqual(plain.code, 0, 'a plain add into the coordinator lane is refused');
+  assert.equal(JSON.parse(plain.out).error.code, 'AGENT_GRANT_LANE');
+  const unclaimedSplit = piece('--after', String(laneId));
+  assert.notEqual(unclaimedSplit.code, 0, '--after an item the seat does not hold is refused');
+  assert.equal(JSON.parse(unclaimedSplit.out).error.code, 'AGENT_GRANT_LANE');
+  assert.equal(box.run(box.web, 'claim', String(laneId)).code, 0);
+  const claimedPlain = piece();
+  assert.notEqual(claimedPlain.code, 0, 'a claimed seat plain add is still refused');
+  assert.match(JSON.parse(claimedPlain.out).error.code, /^AGENT_GRANT_(ITEM|LANE)$/u);
+  const split = piece('--after', String(laneId));
+  assert.equal(split.code, 0, split.out + split.err);
+  const filed = JSON.parse(split.out).item;
+  assert.equal(filed.item_lane, 'coordinator');
+  const shown = JSON.parse(box.run(box.repo, 'show', String(filed.item_id), '--json').out);
+  assert.match(JSON.stringify(shown), new RegExp(String(laneId)), 'the piece waits on the lane item');
+});

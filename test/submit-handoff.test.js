@@ -57,9 +57,34 @@ test('queue preparation retries a real peer commit and still bounds continuous c
   } finally { peer.db.close(); board.db.close(); }
 });
 
+/** The board a queued-hand-off test drives directly, opened once here so the raw-board count does not grow. */
+const queueBoard = box => openBoard(box.boardFile, undefined, { gitRoot: box.web });
+
+test('clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', t => {
+  const box = fixture(t);
+  const board = queueBoard(box);
+  try {
+    const item = getItem(board, box.id);
+    const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit: box.commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), executionCommit: box.commit,
+      executionTree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), digest: item.item_frozen_digest,
+      companionDigest: null, leaseMs: 7_200_000 };
+    const queued = writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner);
+    const done = completeSubmitHandoff(board, box.id, { agentId: item.item_owner, job: queued.job.id,
+      result: { code: 1, error: { code: 'TEST_FAILURE', message: 'one test file failed in the queued gate', next: 'fix it' } } });
+    assert.equal(done.state, 'red');
+    const renew = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='renew' ORDER BY event_id DESC LIMIT 1").get(box.id);
+    const detail = JSON.parse(renew.event_detail);
+    assert.equal(detail.queuedRedReturn, true);
+    assert.equal(detail.submitOutcome.code, 'TEST_FAILURE');
+    assert.equal(detail.submitOutcome.digest, item.item_frozen_digest);
+    assert.equal(detail.submitOutcome.pipelineCause.type, 'test-failure');
+  } finally { board.db.close(); }
+});
+
 test('a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', t => {
   const box = fixture(t);
-  const board = fixtureBoard(box);
+  const board = queueBoard(box);
   try {
     const item = getItem(board, box.id);
     const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
@@ -76,11 +101,6 @@ test('a queued gate stopped by an infrastructure Git read stays claimed and is n
     assert.equal(texts.some(row => row.to_ === item.item_owner && /Fix it, commit and submit again/u.test(row.text)), false);
   } finally { board.db.close(); }
 });
-
-/** Open the fixture's board from its builder checkout. */
-function fixtureBoard(box) {
-  return openBoard(box.boardFile, undefined, { gitRoot: box.web });
-}
 
 /**
  * Queue a fresh gate for the fixture's claimed item and complete it with one refusal, as the worker records it.
@@ -112,7 +132,7 @@ function assertMachineStop(box, board, error) {
 
 test('machine refusals RUNNER_RESULT_INVALID, RESOURCE_LEASE_LOST, GIT_SYNC_LOCK_BUSY and GIT_SYNC_REMOTE end infrastructure, stay claimed and shout the coordinator, clause 1 of #3111 [C7]', t => {
   const box = fixture(t);
-  const board = fixtureBoard(box);
+  const board = queueBoard(box);
   try {
     for (const code of ['RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST', 'GIT_SYNC_LOCK_BUSY', 'GIT_SYNC_REMOTE']) {
       assertMachineStop(box, board, { code, message: `the machine refused with ${code}`, next: 'retry once the machine recovers' });
@@ -122,7 +142,7 @@ test('machine refusals RUNNER_RESULT_INVALID, RESOURCE_LEASE_LOST, GIT_SYNC_LOCK
 
 test('a worker that exits on a signal without a terminal result ends the same way, clause 2 of #3111 [C7]', t => {
   const box = fixture(t);
-  const board = fixtureBoard(box);
+  const board = queueBoard(box);
   try {
     assertMachineStop(box, board, { code: 'SUBMIT_HANDOFF_EXIT', message: 'the queued gate worker exited on SIGTERM before it recorded a result', next: 'retry' });
   } finally { board.db.close(); }
@@ -131,7 +151,7 @@ test('a worker that exits on a signal without a terminal result ends the same wa
 test('GATE_RED and MERGE_CONFLICT still return a red to the builder, clause 3 of #3111 [C7]', t => {
   for (const code of ['GATE_RED', 'MERGE_CONFLICT']) {
     const box = fixture(t);
-    const board = fixtureBoard(box);
+    const board = queueBoard(box);
     try {
       const { done } = completeQueued(box, board, { code, message: `the source is red: ${code}`, next: 'fix it and submit again' });
       assert.equal(done.state, 'red', `${code} is a red`);
@@ -411,7 +431,9 @@ function mainAdvanceFixture(t) {
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'node bin/run-tests.js test/feature.test.js',
+  // The web lane owns the runner and the test, so claiming the item is not a cross-ownership refusal [C7,#2650].
+  const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'bin/', 'test/'] } };
+  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node bin/run-tests.js test/feature.test.js',
     affectedTests: 'node bin/run-tests.js', submit: { handoff: true } }) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');

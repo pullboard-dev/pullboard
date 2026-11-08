@@ -398,12 +398,13 @@ function endUnstarted(file, name, launch, error, admission = NO_ADMISSION) {
  *   an idle dispatcher with queued tickets waits before it logs why it launched nothing, and a
  *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone, and
  *   how often a drain that stays busy runs that sweep again (sweepEveryMs), the admission that records each gate's
- *   driver on its board (the drive cell's, from bin/handoff-worker-dispatcher.js), and onPass, run once a pass to renew
- *   the dispatcher's job row.
+ *   driver on its board (the drive cell's, from bin/handoff-worker-dispatcher.js), onPass, run once a pass to renew
+ *   the dispatcher's job row, and `running`, the workers this dispatcher started, kept across drains so a drain retried
+ *   after a transient failure still frees each of their slots when it exits.
  * @returns {Promise<{ started: string[], deferred?: true }>} Jobs this dispatcher started, in order; deferred when another
  *   dispatcher held the machine, which then drains every repository's tickets.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {} } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {}, running = new Map() } = {}) {
   reuseResourceConnections(); // One connection per process for every slot call below, so passes never leak handles [C7,#3338].
   const started = [];
   const sweeps = repeatingSweep(sweep, sweepEveryMs);
@@ -431,7 +432,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
     // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
     await sweeps.now();
-    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps.due, admission, onPass); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps.due, admission, onPass, running); }
     finally { await sweeps.settled(); lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -497,14 +498,20 @@ function passCapacity(capacity) {
  * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
  * next submit starts a fresh dispatcher [C7,#2990].
  */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweepIfDue = () => {}, admission = NO_ADMISSION, onPass = () => {}) {
-  const running = new Map();
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweepIfDue = () => {}, admission = NO_ADMISSION, onPass = () => {}, running = new Map()) {
   let wake = () => {};
   let lastLaunchAt = Date.now();
   let lastError = 'none';
   let prunedAt = 0;
   while (waitingTickets().length || running.size) {
-    lock.renew();
+    // A locked slot database costs this renewal only: the lease is freed only when this process ends, never by age, so
+    // a missed renewal loses nothing, and the next pass renews again. Why: on 8 Nov a renewal that met a 10 s lock
+    // ended the dispatcher six times in 95 minutes (#3717) [C7].
+    try { lock.renew(); }
+    catch (error) {
+      if (!RETRIED_SLOT_ERRORS.has(error?.code)) throw error;
+      logDispatcher(`dispatcher lock not renewed: ${error.code} ${error.message}; retrying on the next pass`);
+    }
     // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
     try { onPass(); } catch (error) { logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
@@ -547,6 +554,10 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
         endUnstarted(file, name, launch, error, admission); continue;
       }
       rmSync(file);
+      // The worker holds its own slot from here: a dispatcher that exits for any reason leaves it held while the worker
+      // runs and freed when the worker ends, so a successor never starts a second set of workers beside the running ones.
+      try { if (!slot.handOver?.(worker.pid)) logDispatcher(`worker ${launch.job} slot kept by the dispatcher: the worker's start identity is unreadable`); }
+      catch (error) { logDispatcher(`worker ${launch.job} slot kept by the dispatcher: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
       lastLaunchAt = Date.now();
       rememberHandoffRoot(launch.directory);
       started.push(launch.job);

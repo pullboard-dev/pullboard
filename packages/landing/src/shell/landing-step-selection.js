@@ -47,14 +47,49 @@ export function defectPassedAtTrunk(root, trunk, defect, comparison = cachedMain
   return Array.isArray(failures) && failures.length > 0 && !failures.some(row => defect.names.includes(row.name));
 }
 
-/** A test defect holds every batch on its trunk until the committed test changes, every failure is waived, or its cases pass at the trunk tip. */
-export function heldTestDefects(root, board, trunk, landingPorts, { defects = store.landingTestDefects, comparison = cachedMainComparison } = {}) {
-  return defects(board).filter(defect => {
-    if (defect.branch !== trunk.branch) return false;
+/** The repair item statuses under which a test defect still holds its trunk: its repair is still outstanding [C7]. */
+export const HOLDING_DEFECT_STATUSES = Object.freeze(new Set(['open', 'claimed', 'submitted']));
+
+/**
+ * The live board status of a test defect's repair item, or null when the board has no such item here.
+ * Why: a defect is recorded once and kept until its cases pass, so a hold read without its item's live status kept the
+ * trunk held by withdrawn #3304 and left accepted items for the coordinator to land by hand on 8 Nov (#3761).
+ */
+export function defectItemStatus(board, defect, getItem = store.getItem) {
+  if (!Number.isSafeInteger(defect?.item)) return null;
+  try { return getItem(board, defect.item)?.item_status ?? null; } catch { return null; }
+}
+
+/**
+ * Whether a test defect still holds its trunk, read live from the board on every call: its repair item is open, claimed
+ * or submitted. A withdrawn, accepted or landed item holds nothing. A defect whose item this board cannot read keeps
+ * its hold, so an unreadable record never lands work past a real red.
+ */
+export function defectStillHolds(board, defect, getItem = store.getItem) {
+  const status = defectItemStatus(board, defect, getItem);
+  return status === null || HOLDING_DEFECT_STATUSES.has(status);
+}
+
+/**
+ * A test defect holds every batch on its trunk while its repair item is open, claimed or submitted, until the committed
+ * test changes, every failure is waived, or its cases pass at the trunk tip. Each held defect carries its item's live
+ * `status`, so the refusal names it [C7].
+ */
+export function heldTestDefects(root, board, trunk, landingPorts, { defects = store.landingTestDefects, comparison = cachedMainComparison, getItem = store.getItem } = {}) {
+  return defects(board).flatMap(defect => {
+    if (defect.branch !== trunk.branch) return [];
+    if (!defectStillHolds(board, defect, getItem)) return [];
+    const status = defectItemStatus(board, defect, getItem);
     const blob = testBlob(root, trunk.commit, defect.test);
-    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts))
+    const holds = !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts))
       && !defectPassedAtTrunk(root, trunk, defect, comparison);
+    return holds ? [{ ...defect, status: status ?? undefined }] : [];
   });
+}
+
+/** The LAND_TEST_DEFECT refusal text for the defects holding a trunk, naming each repair item and its live status [C7]. */
+export function testDefectHoldMessage(held) {
+  return `this trunk is held by ${held.map(defect => `#${defect.item ?? '?'} (${defect.status ?? 'status unreadable'}; ${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`;
 }
 
 /**
@@ -67,6 +102,8 @@ export async function closePassedTestDefects({ root, board, trunk, write, say = 
   const closed = [];
   for (const defect of defects(board)) {
     if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item)) continue;
+    // A defect whose repair item was withdrawn or landed holds nothing, so its test is not run for it (#3761).
+    if (!defectStillHolds(board, defect)) continue;
     if (!defectPassedAtTrunk(root, trunk, defect, comparison)) {
       await measureHeldTest(root, trunk, defect, onWait, measure);
       if (!defectPassedAtTrunk(root, trunk, defect, comparison)) continue;
@@ -110,7 +147,8 @@ export function environmentWarnings(board, items, environment) {
 /** Keep the submitted identity and, when different, its sealed checked composition. */
 export function landingEntry(item) {
   return { id: item.item_id, commit: item.item_commit,
-    ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}) };
+    ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}),
+    ...(item.item_withdrawn_dependencies?.length ? { withdrawnDependencies: item.item_withdrawn_dependencies } : {}) };
 }
 
 /**
@@ -219,7 +257,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
         continue; // Verdict order is unchanged; this item leads the next eligible batch.
       }
       for (const file of files) touched.set(file, item.item_id);
-      ready.push(item);
+      // A withdrawn dependency is met, and the batch entry says so, so the record shows why the item went ahead [C7].
+      const withdrawn = dependencies.filter((id) => all.find((other) => other.item_id === id)?.item_status === 'withdrawn' && !all.find((other) => other.item_id === id)?.item_merged_commit);
+      ready.push(withdrawn.length ? { ...item, item_withdrawn_dependencies: withdrawn } : item);
       if (firstReady) break;
     }
   }
