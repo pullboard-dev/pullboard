@@ -22,7 +22,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 
 /** The test file whose recorded defect holds the fixture trunk. */
 const HELD = 'web/held.test.js';
-const HELD_TEXT = "import test from 'node:test'; test('held case', () => {});\n";
+const HELD_TEXT = "import test from 'node:test'; test('held case', () => { throw new Error('the recorded defect'); });\n";
 
 /** Read one of the fixture's private wake records, or null. */
 function record(box, name = 'pending.json') {
