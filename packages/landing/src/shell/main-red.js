@@ -449,6 +449,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
        * `source` runs main's exact commit on the runner from the object store, with `checkout` the repository itself.
        */
       const measureIn = async (checkout, lease, source) => {
+        // Another caller may have measured this content while this one waited for the slot: recheck after admission, so concurrent cold readers execute the file at most once [C7,#3166].
+        if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return { reused: true };
         // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
         const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
         if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
