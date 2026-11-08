@@ -59,7 +59,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
     await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
-    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"] .tl-note';
+    await chrome.stable(`(document.querySelector('#detail [data-item-panel-history]')?.click(), true)`);
+    // The timeline lists newest first, so the long note is the last note row.
+    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:not(:has(~ .tl-fact[data-timeline-kind="note"])) .tl-note';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');
