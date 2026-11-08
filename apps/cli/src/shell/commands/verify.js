@@ -6,6 +6,8 @@ import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
+import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
+import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
@@ -355,9 +357,23 @@ export async function verifyHere(ctx, id, { second, values }) {
             expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
-        const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+        let reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
           tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
+        // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
+        // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
+        const sealedMain = reused.ids || !frozenCheck(item) || reReview || companionDigest || item.item_effective_head ? null : submittedPolicyCommit(store.events(board, { itemId: id }));
+        if (sealedMain) {
+          let moveNote = '';
+          try {
+            const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
+            if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
+          } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
+          const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
+            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
+          if (sealed?.ids) reused = sealed;
+          else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
+        }
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
