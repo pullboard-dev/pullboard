@@ -22,7 +22,7 @@ import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SL
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 // Keep generated launch code as data: this classifier test never launches the browser it describes.
-const browserFixtureSource = ["import { spawn } from 'node:child_process';\nspawn('Google", " Chrome');\n"].join('');
+const browserFixtureSource = ["// pullboard: browser\nimport { spawn } from 'node:child_process';\nspawn('Google", " Chrome');\n"].join('');
 
 test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
@@ -31,7 +31,7 @@ test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t)
   writeFileSync(join(root, 'bin/run-tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
-  const admission = new URL('../src/browser-admission.js', import.meta.url).href;
+  const admission = new URL('../packages/gate/src/shell/browser-admission.js', import.meta.url).href;
   const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const commands = [
     ['browser', 'out=$(node bin/run-tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
@@ -94,7 +94,7 @@ test('shell admission preserves opaque suffixes and the existing short-slot boun
     [capture('$FILES'), true], [capture('test/core.test.js --unknown'), true],
     [capture('test/core.test.js; node launch-browser.js'), true],
   ];
-  const admission = new URL('../src/browser-admission.js', import.meta.url).href;
+  const admission = new URL('../packages/gate/src/shell/browser-admission.js', import.meta.url).href;
   const source = `import { checkNeedsBrowser, explicitCheckFiles } from ${JSON.stringify(admission)};
 const decisions = [];
 for (const [command] of ${JSON.stringify(commands)}) decisions.push(await checkNeedsBrowser(process.cwd(), command));

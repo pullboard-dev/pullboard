@@ -24,13 +24,14 @@ import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
 import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../packages/github/index.js';
 import { withGitFacts } from '../src/git.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read the real private gate invocations, retaining their exact Git heads. */
 function gateHeads(box) {
   return box.readGateCalls().trim().split('\n').map(line => JSON.parse(line).head);
 }
 
-test("publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3]", async t => {
+test("clause 1: publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3,C7]", async t => {
   const box = bridgeProject(t);
   const entries = landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
@@ -130,7 +131,7 @@ test('a pull request carries a verified-by-a-second-agent status and an outside 
   assert.ok(JSON.parse(discovered.out).verification.find(entry => entry.number === 70).intake.includes('pullboard intake'));
   collision.state = 'closed';
   const filed = await runBridgeCLI(proven, 'intake', 'https://github.com/fixture/repository/pull/70',
-    '--lane', 'web', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
+    '--lane', 'web', '--route', 'strong', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
   assert.equal(filed.code, 0, filed.err);
   const intake = JSON.parse(filed.out).item;
   assert.equal(intake.item_status, 'submitted', 'the bridge files outside work for another agent, without certifying it');
@@ -145,7 +146,7 @@ test('a pull request carries a verified-by-a-second-agent status and an outside 
   // A later independently checked item cannot hide an earlier unverified commit in the same PR.
   proven.git(proven.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: unreviewed release bump');
   const unreviewed = proven.git(proven.repo, 'rev-parse', 'HEAD');
-  const added = proven.run(proven.repo, 'add', 'web', 'independently checked later work', '--specs', 'G1',
+  const added = fixtureAdd(proven.run, proven.repo, 'web', 'independently checked later work', '--specs', 'G1',
     '--criterion', 'the later work remains correct', '--check', 'test ! -f RED', '--json');
   assert.equal(added.code, 0, added.err);
   const later = JSON.parse(added.out).item.item_id;
@@ -174,10 +175,12 @@ test('publication modes are opt-in and invalid values refuse before a push [B3,R
   for (const mode of [false, 'release', 'item']) {
     assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: mode } })).publish.pullRequest, mode);
   }
-  for (const value of [true, 'auto-merge', null, { pullRequest: 'release', merge: true }]) {
+  for (const value of [true, 'auto-merge', null]) {
     const publish = value && typeof value === 'object' ? value : { pullRequest: value };
     assert.throws(() => configFromSource(JSON.stringify({ publish })), { code: 'BAD_CONFIG' });
   }
+  // An unknown publish key is ignored with a note, not refused, since the forward-compatible reader of N26 landed (21798c7218 lineage).
+  assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: 'release', merge: true } })).publish.pullRequest, 'release');
 });
 
 test('CI findings preserve the merged item and create one linked repair, then update the same PR [B2,R3]', async t => {
@@ -336,7 +339,7 @@ test('one publish pass computes pull request coverage once with bounded git call
     const calls = readFileSync(trace, 'utf8').trim().split('\n').filter(Boolean).length;
     assert.equal(itemReads, 1, 'one native item/receipt cohort serves all open pull requests');
     assert.ok(calls <= 6, `coverage uses a bounded graph read, observed ${calls} Git processes`);
-    const added = box.run(box.repo, 'add', 'web', 'larger proof cohort', '--specs', 'G1',
+    const added = fixtureAdd(box.run, box.repo, 'web', 'larger proof cohort', '--specs', 'G1',
       '--criterion', 'another accepted native contribution', '--check', 'test ! -f RED', '--json');
     assert.equal(added.code, 0, added.err);
     landBridgeRepair(box, JSON.parse(added.out).item.item_id, 'web/three.js', { independent: true });

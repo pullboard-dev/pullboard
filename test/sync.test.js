@@ -5,6 +5,8 @@ import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Read one successful public CLI JSON response, preserving failures in the assertion. */
 function document(result, purpose) {
@@ -31,7 +33,7 @@ test('two machines share a board through git [H11]', async t => {
   document(box.run(clone, 'sync', '--json'), 'the second machine joins the same board');
   const secondSeat = join(box.dir, 'second-web');
   box.git(clone, 'worktree', 'add', secondSeat, '-b', 'web/second');
-  document(box.run(secondSeat, 'join', 'web', '--model', 'fixture', '--json'), 'join a distinct seat on machine two');
+  document(fixtureJoin(box.run, secondSeat, 'web', '--model', 'fixture', '--json'), 'join a distinct seat on machine two');
   /** Start a public CLI command so independent machines can race real Git pushes. */
   async function run(root, ...args) {
     const child = helpers.launch(box, root, process.execPath, [helpers.BIN, ...args, '--json']);
@@ -39,8 +41,8 @@ test('two machines share a board through git [H11]', async t => {
     return { code: result.code, out: child.stdoutText, err: child.stderrText };
   }
   const additions = await Promise.all([
-    run(box.repo, 'add', 'web', 'From machine one'),
-    run(clone, 'add', 'web', 'From machine two'),
+    fixtureAdd(run, box.repo, 'web', 'From machine one'),
+    fixtureAdd(run, clone, 'web', 'From machine two'),
   ]);
   const ids = additions.map(result => document(result, 'concurrent addition').item.item_id);
   assert.notEqual(ids[0], ids[1], 'competing additions receive globally ordered IDs');
@@ -51,7 +53,7 @@ test('two machines share a board through git [H11]', async t => {
   const hook = join(remote, 'hooks', 'pre-receive');
   writeFileSync(hook, '#!/bin/sh\nrm -- "$0"\nexit 1\n');
   chmodSync(hook, 0o755);
-  const retried = document(await run(box.repo, 'add', 'web', 'Survives one lost push'), 'retry the refused push').item.item_id;
+  const retried = document(await fixtureAdd(run, box.repo, 'web', 'Survives one lost push'), 'retry the refused push').item.item_id;
   for (const root of [box.repo, clone]) {
     document(box.run(root, 'sync', '--json'), 'synchronize the accepted prefix');
     const board = document(box.run(root, 'export'), 'export the converged public board');
@@ -71,7 +73,7 @@ test('Git sharing preserves offline reads, a pending move and ordinary code gate
   document(box.run(box.repo, 'sync', '--json'), 'enable Git board sharing');
   renameSync(remote, remote + '.offline');
   assert.equal(document(box.run(box.repo, 'export'), 'read the board while offline').tables.item.length, 0);
-  const refused = box.run(box.repo, 'add', 'web', 'One pending move', '--json');
+  const refused = fixtureAdd(box.run, box.repo, 'web', 'One pending move', '--json');
   assert.notEqual(refused.code, 0, 'an offline move cannot report success');
   assert.equal(JSON.parse(refused.out).error.code, 'GIT_SYNC_REMOTE');
   const pendingFile = join(box.repo, '.git', 'pullboard', 'git-sync-pending.json');
@@ -79,7 +81,7 @@ test('Git sharing preserves offline reads, a pending move and ordinary code gate
   const moveId = JSON.parse(readFileSync(pendingFile, 'utf8')).move.id;
   assert.equal(document(box.run(box.repo, 'export'), 'offline read does not apply the pending move').tables.item.length, 0);
   renameSync(remote + '.offline', remote);
-  const recovered = document(box.run(box.repo, 'add', 'web', 'One pending move', '--json'), 'retry the same public command');
+  const recovered = document(fixtureAdd(box.run, box.repo, 'web', 'One pending move', '--json'), 'retry the same public command');
   assert.equal(recovered.item.item_id, 1);
   assert.equal(existsSync(pendingFile), false);
   const exported = document(box.run(box.repo, 'export'), 'read the acknowledged pending move');
@@ -90,7 +92,7 @@ test('Git sharing preserves offline reads, a pending move and ordinary code gate
   box.git(box.repo, 'commit', '-m', 'feat(web): a code change [G1]');
   writeFileSync(join(box.repo, 'RED'), 'the code gate fails\n');
   assert.notEqual(box.tryGit(box.repo, 'push', 'origin', 'HEAD:main').status, 0, 'ordinary code pushes still run and fail the code gate');
-  document(box.run(box.repo, 'add', 'web', 'Board data while code gate is red', '--json'), 'normal Git push accepts validated board data without shipping code');
+  document(fixtureAdd(box.run, box.repo, 'web', 'Board data while code gate is red', '--json'), 'normal Git push accepts validated board data without shipping code');
   const before = box.git(box.repo, 'ls-remote', 'origin', 'refs/pullboard/board');
   const tip = before.split(/\s/u)[0];
   const wrongTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');

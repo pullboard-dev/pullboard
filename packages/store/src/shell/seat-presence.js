@@ -170,3 +170,20 @@ export function withSeatPresence(board, seats, { localOnly = false } = {}) {
 export function withLocalSeatPresence(board, seats) {
   return withSeatPresence(board, seats, { localOnly: true });
 }
+
+/** A seat silent this long is gone: the seat-gone release rule's two-minute quiet limit (#3447). */
+export const SEAT_GONE_QUIET_MS = 2 * 60_000;
+
+/**
+ * Whether a seat is gone: it has a recorded local heartbeat, that heartbeat is two minutes old or more, and the seat
+ * has written no board event in that time, the same evidence the seat-gone claim release reads. A seat with no
+ * recorded heartbeat reads as unknown, never gone, so a hook-less seat keeps what waits for it (#3447).
+ */
+export function seatGone(board, agentId) {
+  const [seat] = withLocalSeatPresence(board, [{ agent_id: agentId }]);
+  const beat = Date.parse(seat.heartbeatAt ?? '');
+  if (!Number.isFinite(beat)) return false;
+  const moved = Date.parse(board.db.prepare('SELECT max(event_at) AS at FROM event WHERE event_by=?').get(agentId)?.at ?? '');
+  const last = Number.isFinite(moved) ? Math.max(beat, moved) : beat;
+  return board.clock.now().getTime() - last >= SEAT_GONE_QUIET_MS;
+}

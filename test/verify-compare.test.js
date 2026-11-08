@@ -12,6 +12,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const CASES = `import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -67,7 +69,7 @@ function fixture(t, { missingRunner = false } = {}) {
   box.git(box.repo, 'commit', '-qm', 'chore: comparison base [G1]');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Comparison fixture', '--specs', 'G1', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(id, 1);
@@ -172,7 +174,7 @@ test('a green submission records its background comparison without a reviewer co
   assert.ok(comparison.head.id && comparison.base.id);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  const joined = box.run(reviewer, 'join', 'api', '--model', 'Comparison reviewer', '--json');
+  const joined = fixtureJoin(box.run, reviewer, 'api', '--model', 'Comparison reviewer', '--json');
   assert.equal(joined.code, 0, joined.err);
   const offered = box.run(reviewer, 'next', '--verify', '--json');
   assert.equal(offered.code, 0, offered.err);

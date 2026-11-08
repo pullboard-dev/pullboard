@@ -16,6 +16,7 @@ import {
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const MACHINE_HOME_MODULE = resolve(import.meta.dirname, '../packages/resources/index.js');
 const REAL_MACHINE_HOME = join(userInfo().homedir, '.pullboard');
@@ -49,7 +50,7 @@ test('a test that spawns claim and submit on a fixture board uses a temporary ma
   assert.equal(home, expected, 'all fixture commands resolve the same private fallback settings and resource pool');
   assert.ok(!insideRealHome(home), `fixture commands use ${home}, not ~/.pullboard`);
 
-  assert.equal(box.run(box.repo, 'add', 'web', 'Isolated work', '--specs', 'G1', '--criterion', 'it is isolated', '--check', 'true').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Isolated work', '--specs', 'G1', '--criterion', 'it is isolated', '--check', 'true').code, 0);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   mkdirSync(join(box.web, 'web'), { recursive: true });

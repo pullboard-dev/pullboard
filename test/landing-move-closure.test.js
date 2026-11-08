@@ -8,11 +8,12 @@ import { join, posix } from 'node:path';
 import { test } from 'node:test';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles, packageFiles, runnerExecutionServices } from '../packages/runners/index.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions, warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
-import { runFixtureGit } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { fixture as planFixture, git, acceptedCutItems } from './cells-plan-fixture.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
@@ -100,18 +101,35 @@ function forwardingFixture(t, fullBarrel, retain = false) {
 }
 
 /** Exercise the trusted immutable native submit guard with actual accepted source and its real import inventory. */
-function inspectForwarding(box) {
+async function inspectForwarding(box) {
+  // The accepted inventory is the background producer's completed census of main; the fixture warms it once, in a
+  // disposable machine cache, as the producer would, because a submit check never builds it itself.
+  const acceptedArtifact = await warmAcceptedCells(box.root, box.main, { withCheckout: withMainCheckout, withLock: withFileLock });
   return requireSubmitCells(box.root, box.main, box.commit, { item_frozen: JSON.stringify({ criterion: 'Remove the exact forwarding alias.' }) },
-    { withMainCheckout, parsers, withImportParseCache, readCutItems: () => acceptedCutItems(box.root, box.main),
+    { withMainCheckout, parsers, withImportParseCache, readCutItems: () => acceptedCutItems(box.root, box.main), acceptedArtifact,
       cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 }
 
+/** Keep machine-wide cache writes in a disposable directory and restore the invoking process's setting. */
+function isolateMachine(t) {
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  const directory = privateFixtureFiles('closure-machine-').root;
+  process.env.PULLBOARD_MACHINE_HOME = directory;
+  t.after(() => {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previous;
+    rmSync(directory, { recursive: true, force: true });
+  });
+}
+
 test('an unchanged retained barrel also permits its core caller to use the exact door [C7,H16]', async t => {
+  isolateMachine(t);
   const result = await inspectForwarding(forwardingFixture(t, true, true));
   assert.deepEqual(result.problems, []);
 });
 
 test('a narrow body cannot expand into a higher barrel through the alias cut [C7,H16]', async t => {
+  isolateMachine(t);
   await assert.rejects(inspectForwarding(forwardingFixture(t, false)), error => error.code === 'CELLS_SUBMIT'
     && /kernel still imports later stats/u.test(error.message));
 });

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { joinFixtureSeat, fileFixtureItem } from './testkit-fixture.js';
 
 /** Hold a private timer registration with this actual process; no detached worker is needed in these CLI cases. */
 function retainFixtureTimer(box) {
@@ -30,6 +31,13 @@ function enable(box) {
   box.git(box.repo, 'commit', '-qm', 'chore: enable private fixture maintenance');
 }
 
+/** Write bytes into an ignored folder: Git status stays clean, so cleanup may archive and remove it. */
+function writeIgnored(box, root, bytes) {
+  fs.mkdirSync(join(root, 'ignored'), { recursive: true });
+  fs.appendFileSync(join(box.repo, '.git', 'info', 'exclude'), '\nignored/\n');
+  fs.writeFileSync(join(root, 'ignored', 'unfinished.bin'), bytes);
+}
+
 /** Register only through the owning frozen check. */
 export function registerMaintenanceCliTests() {
   test('maintenance CLI defaults off and prints exactly one count and space summary [B3,C7,N26]', t => {
@@ -45,34 +53,31 @@ export function registerMaintenanceCliTests() {
     assert.equal(JSON.parse(json.out).enabled, false);
   });
 
-  test('clause 1: ordinary release archives dirty owner work before cleaning and records its recovery fact [B3,C7,N26]', t => {
+  test('clause 1: ordinary release archives ignored owner files before cleaning and records its recovery fact [B3,C7,N26]', t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
     enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    const joined = box.run(owner, 'join', 'web', '--json');
+    const joined = joinFixtureSeat(box, owner, 'web');
     assert.equal(joined.code, 0, joined.err);
-    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'light',
-      '--criterion', 'The fixture can release its own work.', '--check', 'true',
-      '--brief', 'Files: web/page.js\nChange: exercise private release\nTest: native release retains archive evidence', '--json');
-    assert.equal(added.code, 0, added.err);
-    const id = JSON.parse(added.out).item.item_id;
+    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive', diagnose: false,
+      criterion: 'The fixture can release its own work.', args: ['--specs', 'G1'],
+      brief: 'Files:\n- web/page.js\nChange:\n- Exercise private release.\nTest:\n- Native release retains archive evidence.' }).item_id;
     const claimed = box.run(owner, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
-    fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
-    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER',
-      '--note', 'Release fixture work after archival.', '--no-next', '--json');
+    writeIgnored(box, owner, bytes);
+    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
-    assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, released.err);
+    assert.equal(fs.existsSync(join(owner, 'ignored', 'unfinished.bin')), false, released.err);
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');
     const directory = join(common, 'pullboard', 'worktree-archives');
     const manifests = fs.readdirSync(directory).map(name => ({ directory: join(directory, name),
       value: JSON.parse(fs.readFileSync(join(directory, name, 'manifest.json'), 'utf8')) }));
     const archive = manifests.find(row => row.value.root === owner);
     assert.ok(archive, 'the cleanup has a persisted private recovery manifest');
-    const file = archive.value.files.find(row => row.path === 'unfinished.bin');
+    const file = archive.value.files.find(row => row.path === 'ignored/unfinished.bin');
     assert.deepEqual(fs.readFileSync(join(archive.directory, 'blobs', file.sha256)), bytes);
     const log = box.run(box.repo, 'log', String(id), '--json');
     assert.equal(log.code, 0, log.err);
@@ -80,5 +85,27 @@ export function registerMaintenanceCliTests() {
     const refused = box.run(owner, 'maintenance', '--json');
     assert.equal(refused.code, 1);
     assert.match(refused.out + refused.err, /COORDINATOR_ONLY/u);
+  });
+
+  test('clause 1: ordinary release leaves a worktree with uncommitted changes in place and records a fact naming it and its dirty paths [C7]', t => {
+    const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+    const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+    enable(box);
+    const common = retainFixtureTimer(box), owner = join(box.dir, 'web-dirty-owner');
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
+    assert.equal(joinFixtureSeat(box, owner, 'web').code, 0);
+    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private dirty release' }).item_id;
+    assert.equal(box.run(owner, 'claim', String(id), '--json').code, 0);
+    const bytes = Buffer.from([0, 7, 8, 255]);
+    fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
+    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
+    assert.equal(released.code, 0, released.err);
+    assert.deepEqual(fs.readFileSync(join(owner, 'unfinished.bin')), bytes, 'release never removes uncommitted work');
+    assert.notEqual(box.git(owner, 'status', '--porcelain').trim(), '');
+    assert.equal(fs.existsSync(join(common, 'pullboard', 'worktree-archives')), false, 'no archive, reset or clean runs on a dirty tree');
+    const log = box.run(box.repo, 'log', String(id), '--json');
+    assert.equal(log.code, 0, log.err);
+    assert.match(log.out, /Worktree kept by maintenance because it holds uncommitted changes/u);
+    assert.ok(log.out.includes('unfinished.bin') && log.out.includes(owner));
   });
 }

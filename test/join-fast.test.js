@@ -10,6 +10,7 @@ import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -65,7 +66,7 @@ test('a fresh worktree joins a board at current scale in under two seconds and c
   const worktree = join(root, 'fresh-worker');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/fresh-worker', worktree, 'HEAD'], { cwd: root, env });
   const started = performance.now();
-  const joined = run(process.execPath, [BIN, 'join', 'core', '--model', 'fixture-model'], worktree, env);
+  const joined = run(process.execPath, [...fixtureJoinArgv(BIN), 'core', '--model', 'fixture-model'], worktree, env);
   const elapsedMs = performance.now() - started;
   assert.match(joined.stdout, /joined as/u);
   assert.ok(elapsedMs < 1_800, `join took ${elapsedMs.toFixed(0)} ms on 1,000 items, 45,000 events and 23,000 shouts`); // budget: H24's 2 s ceiling gets 200 ms measurement margin.
@@ -90,7 +91,7 @@ test('a seat on a light model joins the light route, and an explicit --route sti
     const dir = join(root, '..', `${root.split('/').pop()}-${name}`);
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     runFixtureGit(['worktree', 'add', '-q', '-b', `core/${name}`, dir], { cwd: root, env });
-    const result = run(process.execPath, [BIN, 'join', 'core', ...args], dir, env);
+    const result = run(process.execPath, [...fixtureJoinArgv(BIN), 'core', ...args], dir, env);
     return result.stdout;
   };
   assert.match(joinAs('haiku', ['--model', 'claude-haiku-4-5']), /on the light route/u);

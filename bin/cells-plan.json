@@ -380,10 +380,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/landing-worker.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/runner-controller.js",
       "reason": "bin/ stays in place during the move (dry run section 1)",
       "owner": "app:runner"
@@ -439,10 +435,6 @@
     },
     {
       "path": "bin/cells-submit-checks.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/cells-cache.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1254,6 +1246,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/machine-verdict-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1416,6 +1412,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/static-tree-registry.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/main-red-failure-lines-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1563,6 +1563,11 @@
       "owner": "state"
     },
     {
+      "path": "src/ownership-wait-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1678,6 +1683,66 @@
     },
     {
       "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/242.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/243.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/shadow-tier1-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-slot-services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/244.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/item-patch-auto-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/check-cla.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/cells-edges.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/sync-spawn-in-leases.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/245.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/246.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/248.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -2065,6 +2130,30 @@
         "packages/api/src/core/api-moves.js",
         "seed"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-call-values.js",
+        "packages/gate/src/core/browser-call-values.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-launch-source.js",
+        "packages/gate/src/core/browser-launch-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-source-files.js",
+        "packages/gate/src/shell/browser-source-files.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2074,10 +2163,6 @@
     },
     {
       "path": "bin/check-baseline.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/landing-worker.js",
       "cell": "app:lib"
     },
     {
@@ -2109,10 +2194,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "src/submit-handoff-worker.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/static-style-checks.js",
       "cell": "app:cli"
     },
@@ -2127,6 +2208,14 @@
     {
       "path": "bin/main-red-refresh.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/handoff-worker-dispatcher.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "cell": "app:lib"
     }
   ],
   "engineStays": [
@@ -3394,5 +3483,44 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "codemap->git",
+    "runners->config",
+    "runners->kernel",
+    "runners->resources",
+    "runners->transport",
+    "activity->store",
+    "apps/cli->doctrine",
+    "apps/cli->gate",
+    "apps/cli->items",
+    "apps/cli->landing",
+    "apps/cli->apps/runner",
+    "apps/cli->pin",
+    "api->git",
+    "api->store",
+    "apps/lib->store",
+    "blueprints->store",
+    "doctrine->git",
+    "doctrine->store",
+    "gate->store",
+    "github->store",
+    "items->git",
+    "items->store",
+    "keys->store",
+    "landing->git",
+    "landing->pin",
+    "landing->store",
+    "link->store",
+    "merge->git",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "seats->git",
+    "sentinels->store",
+    "state->store",
+    "stats->store",
+    "sync->store"
   ]
 }

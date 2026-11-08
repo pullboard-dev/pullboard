@@ -12,6 +12,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { recordedClaimWorktrees } from '../packages/activity/index.js';
 import { sweepClaims } from '../packages/health/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const SEATS = 8;
 
@@ -53,7 +54,7 @@ test('claim, release and next start no Git in other seats\' worktrees on a board
     others.push(path);
   }
   for (const title of ['Own work', 'Next work']) {
-    const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} passes`, '--check', 'true');
+    const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', `${title} passes`, '--check', 'true');
     assert.equal(added.code, 0, added.err + added.out);
   }
   const own = store.listItems(board).find(item => item.item_title === 'Own work').item_id;

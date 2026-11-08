@@ -9,18 +9,18 @@ import { test } from 'node:test';
 /** Read a public contribution document from the checked source tree. */
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('CONTRIBUTING teaches the sign-off and the runbook names every step [I11]', () => {
+test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every step [I11]', () => {
   const contributing = read('CONTRIBUTING.md');
   assert.match(contributing, /How to sign off/u);
   assert.equal(createHash('sha256').update(contributing).digest('hex'),
-    'bc9cf801e22c57244033d2b9e69add43019278d63ca6e7adbce3d7ef94245e5d',
+    '037afc678a5b06ec9796f3084336586d389fcd58b0adb85dbf4e7d13d448679d',
     'the approved contributor guide, including the accurate CLA description, is preserved');
   for (const phrase of ['git commit -s', 'git commit --amend -s --no-edit', 'git rebase --signoff main',
     'Contributor License Agreement', 'You keep ownership', 'patents', 'We aim to reply within 7 days']) {
     assert.ok(contributing.includes(phrase), phrase);
   }
   for (const phrase of ['Apache Individual Contributor License Agreement v2.2 terms', 'Pullboard as recipient',
-    'nonprofit-bylaws sentence and form fields are omitted', 'acceptance is through the CLA bot']) {
+    'nonprofit-bylaws sentence and form fields are omitted', 'acceptance is by posting that sentence as a comment on your pull request']) {
     assert.ok(contributing.includes(phrase), phrase);
   }
   const runbook = read('docs/contributing-runbook.md');
@@ -41,7 +41,7 @@ test('CONTRIBUTING teaches the sign-off and the runbook names every step [I11]',
     'the browser tests when the change touches the view or relay',
     'outside code never runs on a machine holding credentials',
     'Sensitive paths need the owner\'s approval',
-    'Confirm the [CLA](../CLA.md) before merge', 'through the CLA bot on their first pull request',
+    'Confirm the [CLA](../CLA.md) before merge', 'as a comment on their pull request, the first time they contribute',
     'land through the merge train', 'Never use GitHub\'s merge button',
     'The contributor stays the commit author', 'Co-authored-by', 'Keep their `Signed-off-by` line',
     'The PR shows as merged, or we close it with a link to the landed commit', 'Thank them, and link the receipt',
@@ -75,4 +75,14 @@ test('the approved feature-request template routes new issues to feature [I1,C7]
   assert.equal(labels.length, 1, 'the routing label is declared exactly once');
   const label = labels[0][1].replace(/^(["'])(.*)\1$/u, '$2');
   assert.equal(label, 'feature', '#1312 requires feature rather than the legacy enhancement label');
+});
+
+test('clause 2: the contributor docs tell people to post the agreement sentence and name no CLA bot [I11]', () => {
+  const sentence = 'I have read CLA.md and I agree to it.';
+  for (const path of ['CONTRIBUTING.md', '.github/pull_request_template.md', 'docs/contributing-runbook.md']) {
+    const text = read(path);
+    assert.ok(text.includes(sentence), path + ' quotes the sentence');
+    assert.ok(/comment on (?:your|their) pull request/u.test(text), path + ' says to comment on the pull request');
+    assert.doesNotMatch(text, /CLA bot|one-click/iu, path + ' no longer mentions a CLA bot');
+  }
 });

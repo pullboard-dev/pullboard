@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
+export const REFERENCE_PARTS = 'parts-ref';
 const FRAME = '# pullboard test cache ';
 const SUMMARY = /^(?:# )?test cache: (\d+) files, (\d+) reused, (\d+) ran; top missed inputs: (.*)$/mu;
 
@@ -36,7 +37,37 @@ function load(path) {
 }
 
 /**
+ * Keep one shared [path, blob] list under the store's `lists` folder, named by its own hash, and return that name.
+ * Many parts of the same tree name the same list, so a part stays a few hundred bytes instead of the full file list [C7].
+ *
+ * @param {string} store the test-action store
+ * @param {Array<[string, string|null]>} list
+ * @returns {string} the list's name
+ */
+export function recordList(store, list) {
+  const id = name(JSON.stringify(list));
+  const directory = join(store, 'lists');
+  const path = join(directory, `${id}.json`);
+  try { statSync(path); return id; } catch { /* Not recorded yet. */ }
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  publish(path, list);
+  return id;
+}
+
+/** A part by input key: the by-reference record, or an inline one an older writer left under `parts`. */
+function loadPart(store, inputKey) {
+  return load(join(store, REFERENCE_PARTS, `${inputKey}.json`)) ?? load(join(store, 'parts', `${inputKey}.json`));
+}
+
+/** A part's list: the list itself in an older part, or the shared record a newer part names. Null when unreadable. */
+function listOf(store, value) {
+  if (Array.isArray(value)) return value;
+  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value) ? load(join(store, 'lists', `${value}.json`)) : null;
+}
+
+/**
  * Keep what one input key hashed, once: the key is content-addressed, so an existing record is already right.
+ * The file list and the runner list are stored once per distinct list and named by the part.
  *
  * @param {string} store the test-action store
  * @param {string} inputKey
@@ -44,11 +75,13 @@ function load(path) {
  */
 export function recordInputParts(store, inputKey, parts) {
   try {
-    const directory = join(store, 'parts');
+    // By-reference parts live in their own folder: a reader built before shared lists reads only `parts` and expects inline arrays.
+    const directory = join(store, REFERENCE_PARTS);
     const path = join(directory, `${inputKey}.json`);
     try { statSync(path); return; } catch { /* Not recorded yet. */ }
+    const record = { ...parts, files: recordList(store, parts.files), runner: recordList(store, parts.runner) };
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    publish(path, parts);
+    publish(path, record);
   } catch { /* The account is advisory; a store that cannot be written costs only the explanation. */ }
 }
 
@@ -85,9 +118,11 @@ function firstPathDifference(before, now) {
 export function firstChangedInput(store, before, now) {
   if (!before) return 'no earlier key';
   if (before.inputKey !== now.inputKey) {
-    const old = load(join(store, 'parts', `${before.inputKey}.json`));
-    const current = load(join(store, 'parts', `${now.inputKey}.json`));
-    if (!old || !current) return 'unknown (earlier inputs not recorded)';
+    const first = loadPart(store, before.inputKey);
+    const second = loadPart(store, now.inputKey);
+    if (!first || !second) return 'unknown (earlier inputs not recorded)';
+    const old = { ...first, files: listOf(store, first.files), runner: listOf(store, first.runner) };
+    const current = { ...second, files: listOf(store, second.files), runner: listOf(store, second.runner) };
     for (const part of [old, current]) {
       if (![part.files, part.runner, part.inputs].every(Array.isArray)) return 'unknown (earlier inputs unreadable)';
     }

@@ -1,4 +1,5 @@
 /** A genuine main move between preflight and queueing never substitutes gate authority [V4,H16,E18]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Observe only this private CLI fixture's durable job and item state. */
 function state(box) {
@@ -14,8 +16,7 @@ function state(box) {
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout=5000');
-    const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${box.id}`);
-    return { job: row ? JSON.parse(row.meta_value) : null,
+    return { job: handoffRecord(db, box.id) ?? null,
       item: db.prepare('SELECT item_status,item_commit FROM item WHERE item_id=?').get(box.id) };
   } finally { db.close(); }
 }
@@ -54,7 +55,7 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
   box.git(box.repo, 'commit', '--allow-empty', '-qm', 'chore: captured accepted main [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Main move candidate', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Main move candidate', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;

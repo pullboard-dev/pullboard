@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { nextSteps$NEXT_STEPS, nextSteps$nextStepFor } from '../apps/cli/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -21,7 +22,7 @@ function project() {
 
 /** Add one native item through the coordinator CLI and return its assigned id. */
 function add(box, lane, title, options = []) {
-  const result = box.run(box.repo, 'add', lane, title, '--specs', lane === 'api' ? 'G2' : 'G1', ...options, '--json');
+  const result = fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1', ...options, '--json');
   assert.equal(result.code, 0, result.err || result.out);
   return JSON.parse(result.out).item.item_id;
 }
