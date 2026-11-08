@@ -58,3 +58,48 @@ export function requireNoLockOnlyRed(gate, readLog = path => readFileSync(path, 
   try { text = String(readLog(gate.logPath)); } catch { return; }
   if (text.includes('[SLOT_DB_LOCKED]')) throw new Refused('SLOT_DB_LOCKED', 'the local-trunk guards never ran: resources.sqlite stayed locked; the landing retries');
 }
+
+/** A shard's settled line: `# landing shard 2/6 attempt 1 on host: refused (runner refused: SLOT_DB_LOCKED) in 47407 ms`. */
+const SHARD_LINE = /^# landing shard (\S+) attempt \d+ on \S+: (\w+)(?: \(([^)]*)\))?/u;
+/** A runner that could not run tests: its refusal, a lost transport, or a run-tests queue that never started. */
+const RUNNER_REFUSAL = /runner refused: ([A-Z_]+)|runner transport lost|\[([A-Z_]+)\] never ran/u;
+
+/**
+ * The runner refusal codes of a red gate log that names no failing case, or null when any test decided against it.
+ * Null when a TAP case is `not ok`, a `# fail` count is above zero, a shard settled red, a shard was refused for a
+ * non-runner reason, or no runner refusal is named at all [C7,#3693].
+ *
+ * @param {string} text - The gate's whole log.
+ * @returns {string[] | null}
+ */
+export function runnerRefusalOnly(text) {
+  const codes = new Set();
+  const last = new Map();
+  for (const line of String(text).split('\n')) {
+    if (/^\s*not ok\b/u.test(line) || /^\s*# fail [1-9]/u.test(line)) return null;
+    const shard = SHARD_LINE.exec(line);
+    if (shard) last.set(shard[1], { status: shard[2], reason: shard[3] ?? '' });
+    const refusal = RUNNER_REFUSAL.exec(line);
+    if (refusal) codes.add(refusal[1] ?? refusal[2] ?? 'RUNNER_TRANSPORT_LOST');
+  }
+  for (const { status, reason } of last.values()) {
+    if (status === 'red') return null;
+    if ((status === 'refused' || status === 'infrastructure') && !RUNNER_REFUSAL.test(reason)) return null;
+  }
+  return codes.size ? [...codes].sort() : null;
+}
+
+/**
+ * A red landing gate with no failing case whose only non-green shards are runner refusals (SLOT_DB_LOCKED, a lost
+ * transport, a queue that never ran) is infrastructure: refuse LAND_RUNNER_FAULT, a landing fault that is retried and
+ * never files LAND_DIAGNOSTIC or counts toward parking [C7,#3693].
+ * Why: #2550 parked after two such gates (batches bc96678a, 30aab1ea): every shard that ran was green, so the
+ * no-culprit diagnosis refused LAND_DIAGNOSTIC twice and the repeat guard held an item that did nothing wrong.
+ */
+export function requireNoRunnerRefusalOnlyRed(gate, readLog = path => readFileSync(path, 'utf8')) {
+  if (gate.isGreen || gate.timedOut || (gate.failures ?? []).length || !gate.logPath) return;
+  let text = '';
+  try { text = String(readLog(gate.logPath)); } catch { return; }
+  const codes = runnerRefusalOnly(text);
+  if (codes) throw new Refused('LAND_RUNNER_FAULT', `the landing gate named no failing case; only runner refusals stopped it (${codes.join(', ')}); the landing retries`);
+}

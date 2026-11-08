@@ -23,7 +23,7 @@ export function recordedMoveRefusal(io, error) {
 export function requestedCommandMove(command, operation) {
   if (!command) return false;
   const forms = {
-    add: ['addItem'], companion: ['requestCompanion'], slice: ['createItemSlice'], patch: ['attachItemPatch', 'removeItemPatch'], edit: ['editItem'], merged: ['merged', 'recordTrainLanding'], move: ['rehomeItem'], submit: ['submit', 'deferOwnership'], done: ['submit', 'deferOwnership'],
+    add: ['addItem'], companion: ['requestCompanion'], slice: ['createItemSlice'], patch: ['attachItemPatch', 'removeItemPatch', 'objectItemPatch'], edit: ['editItem'], merged: ['merged', 'recordTrainLanding'], move: ['rehomeItem'], submit: ['submit', 'deferOwnership', 'attachItemPatch'], done: ['submit', 'deferOwnership', 'attachItemPatch'],
     claim: ['claim'], release: ['release'], verify: ['verify'], withdraw: ['withdraw', 'editMilestoneItems'],
     refreeze: ['refreeze'], reopen: ['reopen'], escalate: ['escalate', 'shout'],
     next: ['claim', 'reserveReview', 'reserveNextReview', 'recordNextIdle'], run: ['claim', 'release', 'submit', 'deferOwnership', 'reserveReview', 'reserveNextReview', 'verify', 'escalate', 'shout'],

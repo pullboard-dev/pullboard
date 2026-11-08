@@ -6,6 +6,7 @@
  */
 import { tryGit } from "../../../git/index.js";
 import { inPlanScope } from "../../../codemap/index.js";
+import { moveHistoryPlacement } from "../../../codemap/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** Git variables that could narrow which objects a read sees; trunk reads run without them. */
@@ -102,7 +103,7 @@ export function requirePlannedSource(root, base, commit, { deferUnplaced = false
     if (tab < 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the committed source inventory is malformed');
     if (!inPlanScope(file)) continue;
     if (!/^100(?:644|755) blob /u.test(row)) throw new Refused('CELLS_PLAN_UNPLACED', `restore a regular committed source path before placement: ${file}`);
-    if (!known.has(file)) missing.push(file);
+    if (!known.has(file) && moveHistoryPlacement(file) === null) missing.push(file);
   }
   if (missing.length && deferUnplaced) return { unplaced: missing };
   if (missing.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${missing.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
@@ -111,21 +112,28 @@ export function requirePlannedSource(root, base, commit, { deferUnplaced = false
 /** Thrown to roll back a preflight that passed; never escapes this module. */
 const PASSED = Symbol('submit preflight passed');
 
-/** A deferred proof that names no files: enough for the move's shape, never recorded. */
-const STAND_IN_PROOF = Object.freeze({ version: 1, files: [], full: false, deferred: true, reason: 'submit preflight; no proof has run yet' });
+/**
+ * A deferred proof that names only the test files the gate will run: enough for the move's shape, never recorded. Why: a
+ * [test] clause the gate ticks from a file the bar names was refused CLAUSE_UNTICKED here, before the gate could run it
+ * (#3665) [C7,V4].
+ */
+function standInProof(gateFiles = []) {
+  return Object.freeze({ version: 1, files: [...gateFiles].sort(), full: false, deferred: true, reason: 'submit preflight; no proof has run yet' });
+}
 
 /**
  * Refuse now, exactly as the submit itself would, when a board guard that needs no test result refuses.
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string }} submission
+ * @param {{ agentId: string, commit: string, tree: string, gateFiles?: Iterable<string> }} submission - gateFiles are the
+ *   test files the submit's gate will run, which tick the [test] clauses that name them
  */
-export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit, prepareSubmit }, review = {}) {
+export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses, gateFiles = [] }, { atomic, submit, prepareSubmit }, review = {}) {
   // Another seat's commit between preparation and the dry-run makes the prepared snapshot stale; prepare again from
   // the new board, bounded so a board that changes on every attempt still refuses BOARD_BUSY (#3100).
   for (let attempt = 1; ; attempt++) {
-    const options = { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) };
+    const options = { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: standInProof(gateFiles), ...(submissionSize ? { submissionSize } : {}) };
     try {
       const prepared = prepareSubmit ? prepareSubmit(board, id, options) : options;
       atomic(board, () => {

@@ -15,7 +15,7 @@ function holder(overrides = {}) {
 
 const LATER = Date.parse('2026-01-01T00:03:00.000Z');
 
-test('clause 1: a landing lease whose holder token has no live process on this machine is released by the next lander within 2 minutes, with a release event naming the reason', () => {
+test('clause 1: a landing lease whose holder token has no live process on this machine is released by the next lander within 2 minutes, with a release event naming the reason [C7]', () => {
   const reason = reclaimReason(holder(), null, { now: LATER, machine: 'machine-a' });
   assert.match(reason, /holder process gone/u, 'a dead local holder with a stale heartbeat is reclaimed with a named reason');
   assert.equal(reclaimReason(holder(), null, { now: Date.parse('2026-01-01T00:01:00.000Z'), machine: 'machine-a' }), null, 'a heartbeat younger than 2 minutes is left alone');
@@ -23,7 +23,7 @@ test('clause 1: a landing lease whose holder token has no live process on this m
   assert.equal(reclaimReason(holder({ machine: 'machine-b' }), null, { now: LATER, machine: 'machine-a' }), null, 'a foreign machine holder is never judged by local pids');
 });
 
-test('clause 2: a waiting lander never logs foreign holders require explicit release for a holder on this machine whose process is dead', () => {
+test('clause 2: a waiting lander never logs foreign holders require explicit release for a holder on this machine whose process is dead [C7]', () => {
   // The waiting loop releases any holder with a reason before it reports a wait, so no wait message names a dead local holder.
   assert.ok(reclaimReason(holder({ machine: 'machine-a' }), null, { now: LATER, machine: 'machine-a' }));
   assert.ok(reclaimReason(holder({ lineage: null }), null, { now: LATER, machine: null }), 'an unlinked board releases a dead holder at once');

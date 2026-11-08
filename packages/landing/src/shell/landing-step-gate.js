@@ -11,9 +11,13 @@ import { gateStages } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
+import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { gateVerdictOf } from './main-red-receipt.js';
+import { toolingFor } from '../../../pin/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runLocalLandingGuard } from '../core/land-local-guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../core/land-local-guard.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -242,13 +246,30 @@ export function landingRunObserver(state, config, commit) {
 function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
-  runLandingCliSmoke(state.batch.root);
+  runLandingCliSmoke(state.batch.root, { record: true });
   state.smoked.add(tree);
 }
 
 /** Run one source-pinned gate or selective floor and say how long it took, so a slow landing names its gate [C7]. */
 export function gateGroup(state, label, options) {
   return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
+}
+
+/**
+ * The tooling tree that judges this landing (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The batch worktree.
+ * @param {string} commit - The composed candidate commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function landingTooling(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
+}
+
+/** The paths that differ between two trees, or null when Git cannot say. */
+function changedPathsBetween(root, from, to) {
+  const result = tryGit(root, ['diff-tree', '-r', '--name-only', '-z', '--no-commit-id', from, to]);
+  return result.status === 0 ? result.stdout.split('\0').filter(Boolean) : null;
 }
 
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
@@ -267,6 +288,19 @@ async function runGateGroup(state, label, options) {
   // an adopting worker reran nothing and refused LAND_DIAGNOSTIC on it, so the batch stays blocked on a run that never
   // finished [C7]. Only a complete run, or an incomplete one with its own named reds, is reused.
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
+  // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
+  const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
+  const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+    generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate) });
+  if (reuse.reuse) {
+    state.say(`gate ${label}: reused #${reuse.item}'s submit receipt for tree ${tree.slice(0, 12)}; no test run started`);
+    // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
+    if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
+    const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
+    state.gates.set(tree, reused);
+    return reused;
+  }
+  if (reuse.code !== 'BATCH_OF_MANY' && reuse.code !== 'NO_RECEIPT') state.say(`gate ${label}: submit receipt not reused (${reuse.code}); running the gate`);
   const directory = join(dirname(state.batch.root), 'logs');
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
@@ -296,6 +330,9 @@ async function runGateGroup(state, label, options) {
   }
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
+  // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
+  // never reaches diagnosis or the repeat guard [C7,#3693].
+  requireNoRunnerRefusalOnlyRed({ ...gate, failures, logPath });
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:

@@ -24,16 +24,27 @@ import { waivedProof } from './landing-step-failures.js';
 import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
-import { compareMainFailures } from './main-red.js';
+import { receiptComparison } from './main-red-receipt.js';
+import { classifyMainRed } from '../../../receipt/index.js';
+import { comparisonStatus } from '../../../receipt/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { carriedMainOutcome } from './main-red.js';
 import { changedFiles } from './landing-known-main.js';
 import { repeatedBlockedCause } from '../core/runner-source-hold.js';
 import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
 import { repeatedLandingNotice } from '../core/runner-source-hold.js';
+import { LANDING_FAULT_CODES } from '../core/automatic-landing-retry.js';
+
+/**
+ * The compare port a landing reads base main through: main's receipts on the landing's board, a missing one enqueued
+ * as a main-test job and measured once [C7,#3424].
+ */
+function receiptCompare(state) {
+  return receiptComparison({ db: state.board?.db ?? null });
+}
 
 /** Require a green base for every failing file before attributing a red to an item. */
-export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
+export async function landingBaseGreen(state, failures, compare = receiptCompare(state)) {
   const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
   if (!files.length || failures.some(failure => !failure.file)) return false;
   try {
@@ -60,7 +71,7 @@ function fileOnBase(state, file) {
  * the whole batch for it kept every landing waiting on reds no batch item caused. A file no batch item changed keeps main's
  * newest cached outcome, so it is never re-measured on a runner; each measured comparison logs its start and its duration [C7,#3268].
  */
-export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file), carry = (file) => carriedMainOutcome(state.batch.root, file)) {
+export async function splitBaseRed(state, failures, compare = receiptCompare(state), onBase = (file) => fileOnBase(state, file), carry = (file) => carriedMainOutcome(state.batch.root, file)) {
   if (!failures.length || failures.some(failure => !failure.file)) return null;
   // A failing file that base main does not have is the batch's own new test, so it splits the batch [C7,#2947].
   const absent = failures.filter(failure => !onBase(failure.file));
@@ -99,9 +110,11 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
     // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
     // It is also listed apart: a lone item is charged only for reds main passes, never for these [C7,#3346].
     if (row?.result === 'red' && !(row.failures ?? []).length) unattributed.push(failure);
-    (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
+    // Main's receipt for the file decides: the case is main's own only when the receipt names it [C7,#3424].
+    (classifyMainRed([failure.name], comparisonStatus(row)).owner === 'main' ? known : own).push(failure);
   }
-  return { known, own, unattributed };
+  // Present only when a base-red file names no case at all, so a named base red never counts as unattributed [C7,#3388].
+  return unattributed.length ? { known, own, unattributed } : { known, own };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
@@ -150,7 +163,7 @@ export async function diagnose(state, failures, gate) {
 }
 
 /** Bisect a reproducible red without retrying any previously tested group. */
-export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = compareMainFailures) {
+export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = receiptCompare(state)) {
   // A live-waived red never reaches the base-main comparison: only the batch's own reds decide a split [C7,#2900].
   failures = unwaivedFailures(state.board, failures, state.landingPorts);
   // Cases base main already fails the same way are set aside; only the batch's own reds split it [C7,#2941].
@@ -276,7 +289,7 @@ export function namedFailures(gate) {
  * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
  */
 // A locked board or slot database means the run never started, not that the batch or an item failed.
-export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
+export const LANDING_FAULTS = new Set(LANDING_FAULT_CODES);
 
 /** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
 export function landingFault(error) {
