@@ -231,7 +231,7 @@ export function landingRunObserver(state, config, commit) {
 function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
-  runLandingCliSmoke(state.batch.root);
+  runLandingCliSmoke(state.batch.root, { record: true });
   state.smoked.add(tree);
 }
 
