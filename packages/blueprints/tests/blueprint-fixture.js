@@ -15,7 +15,6 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { parseSpec } from '../../spec/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { writeLegacyWebQuestions } from '../../../test/blueprint-question.fixture.js';
 
@@ -120,13 +119,6 @@ export function emptyRepo() {
   const run = (...args) => runIn(repo, ...args);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
   return { dir, repo, run, runIn, env };
-}
-
-/** The text of the one pending row in the repo's SPEC.md whose question starts with the ask. */
-export function pendingQuestion(repo, ask) {
-  const rows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8')).rows.filter((row) => row.status === 'pending' && row.text.startsWith(`${ask}: `));
-  assert.equal(rows.length, 1, `one pending "${ask}" row`);
-  return rows[0].text;
 }
 
 export const RUNNERS = 'Choices: node:test, Vitest, Jest, Mocha, pytest, Something else.';

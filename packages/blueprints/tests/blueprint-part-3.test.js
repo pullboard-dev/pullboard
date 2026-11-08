@@ -16,7 +16,6 @@ import { LEGACY_FRAMEWORK } from './blueprint-fixture.js';
 import { freshBoard } from './blueprint-fixture.js';
 import { json } from './blueprint-fixture.js';
 import { emptyRepo } from './blueprint-fixture.js';
-import { pendingQuestion } from './blueprint-fixture.js';
 import { RUNNERS } from './blueprint-fixture.js';
 import { FRAMEWORKS } from './blueprint-fixture.js';
 import { bundled } from './blueprint-fixture.js';
@@ -24,6 +23,13 @@ import { draftedTexts } from './blueprint-fixture.js';
 import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
 import { boardCreated } from './blueprint-fixture.js';
+
+/** The text of the one pending row in the repo's SPEC.md whose question starts with the ask. */
+function pendingQuestion(repo, ask) {
+  const rows = parseSpec(readFileSync(join(repo, 'SPEC.md'), 'utf8')).rows.filter((row) => row.status === 'pending' && row.text.startsWith(`${ask}: `));
+  assert.equal(rows.length, 1, `one pending "${ask}" row`);
+  return rows[0].text;
+}
 
 test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1,I1]', () => {
   // A starter's check is stored on the item, but no check baseline starts: add executes nothing
