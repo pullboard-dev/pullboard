@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Regression for a completed older shout preserving a newer person-answer draft [N26,H5,C7]. */
 import assert from 'node:assert/strict';

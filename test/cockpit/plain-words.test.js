@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Plain presentation over real native events, preserving quoted words and action identities [N26]. */
 import assert from 'node:assert/strict';

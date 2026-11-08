@@ -1,3 +1,4 @@
+// pullboard: browser
 /** A stand-in test file for test/cockpit/stable.test.js: it opens Chrome through one launcher, reports ready, and idles [C7]. */
 import { chromeLaunchArgs } from '../chrome-launch-args.js';
 import { writeFileSync } from 'node:fs';

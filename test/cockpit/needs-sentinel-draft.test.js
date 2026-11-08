@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Long native sentinel proposals keep every metadata label and value apart on both Needs-you surfaces [N26]. */
 import assert from 'node:assert/strict';

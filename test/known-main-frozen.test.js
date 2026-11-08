@@ -156,16 +156,17 @@ test('verify refuses an identical main failure without an open repair owner [V4,
   assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
 });
 
-test('a frozen case red identically on main with no owner submits, records a fact and shouts, filing nothing [V4,B3]', t => {
+test('a frozen case red identically on main with no owner records a green gate listing it main-owned, shouts, and files nothing [V4,B3,C7]', t => {
   const box = fixture(t);
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const report = JSON.parse(result.stdout);
-  assert.equal(report.gate.green, false, 'the known red stays visible in the receipt');
+  // Since #3534 the gate records green over main's own reds and names them, instead of a builder fact.
+  assert.equal(report.gate.green, true, 'a red only in main\'s own case records green');
+  assert.deepEqual(report.gate.mainOwned.map(({ file, name }) => ({ file, name })), [{ file: 'test/frozen.test.js', name: 'frozen case [G1]' }], 'the gate names the main-owned file and case');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0, 'submit files no item');
   const shown = JSON.parse(cli(box, box.root, 'show', String(box.item)).stdout);
-  assert.ok(shown.thread.some(entry => entry.type === 'fact' && entry.text.includes('unowned known main red')
-    && entry.text.includes('test/frozen.test.js') && entry.text.includes('frozen case [G1]')), 'the item names the unowned file and case');
+  assert.ok(!shown.thread.some(entry => entry.type === 'fact' && entry.text.includes('unowned known main red')), 'no builder fact is written for a main-owned red');
   const shouts = rows(box, 'SELECT * FROM shout');
   const asked = shouts.filter(row => row.shout_to === 'coordinator' && row.shout_decision === 1 && String(row.shout_text).includes('test/frozen.test.js'));
   assert.equal(asked.length, 1, 'exactly one decision shout reaches the coordinator: ' + JSON.stringify(shouts));

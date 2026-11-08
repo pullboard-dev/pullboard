@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-view-test journey
  * Real native lifecycle states are presented with one stage vocabulary across the item screens in Chrome.

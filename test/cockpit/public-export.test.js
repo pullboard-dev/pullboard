@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Public exports keep public prose and refuse private data before writing [N26]. */
 import assert from 'node:assert/strict';

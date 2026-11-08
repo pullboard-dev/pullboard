@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -354,7 +355,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
@@ -622,4 +623,15 @@ export async function startAutomaticComparison(ctx, id) {
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
       item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/**
+ * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The reviewer's checkout.
+ * @param {string} commit - The reviewed commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function toolingTree(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
 }

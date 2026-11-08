@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real native milestone ordering across lifecycle groups, queue ties and coordinator pins [N26]. */
 import assert from 'node:assert/strict';

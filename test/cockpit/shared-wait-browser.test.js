@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real Chrome regression cases for the shared wait [N26,C7]. */
 import assert from 'node:assert/strict';

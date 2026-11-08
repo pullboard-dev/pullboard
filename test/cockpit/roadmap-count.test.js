@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The Roadmap browser title follows real remaining work and native live landings [N26,N38]. */
 import assert from 'node:assert/strict';

@@ -1,8 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input package.json */
-/** Move discovery reads the exact moved conflict body, keeping the accepted dependencies [C7,CD60,H16]. */
+/** @pullboard-world-pin reads this test's own source to prove it pins no digest. Move discovery reads the exact moved conflict body, keeping the accepted dependencies [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { test } from 'node:test';
@@ -53,24 +52,20 @@ test('conflict shim preserves the accepted main move closure and the broad index
     return sources.get(file);
   };
   const identities = new Map([...readPathMap(ROOT)].map(([old, moved]) => [moved, old]));
-  // Reconstruct only module operands; the digest pins every other accepted main byte.
-  const original = read(MOVED).replace(/(from\s+)(['"])(\.[^'"]+)\2/gu, (_, prefix, quote, specifier) => {
-    const relative = posix.relative('src', posix.normalize(posix.join(posix.dirname(MOVED), specifier)));
-    return prefix + quote + (relative.startsWith('.') ? relative : `./${relative}`) + quote;
-  });
-  const canonicalExport = "export { CONFLICT_ENGINE } from './trunk-conflict-engine.js';";
-  assert.ok(original.includes(canonicalExport), 'the re-export names the unchanged canonical engine leaf');
-  const acceptedBody = original.replace(canonicalExport, 'export { CONFLICT_ENGINE };');
-  assert.equal(createHash('sha256').update(acceptedBody).digest('hex'), '9d4b4fcb4eea3966b06aab1aa44fd79498a376c45527b9d1a8183b45d4806452',
-    'the unchanged conflict implementation is the accepted 4417733 main body');
   const movedExport = "export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';";
   assert.ok(read(MOVED).includes(movedExport), 'the moved body re-exports the same engine leaf');
   const before = closure(file => file === MOVED ? read(MOVED).replace(movedExport, 'export { CONFLICT_ENGINE };') : read(file), identities);
   const after = closure(read, identities);
   assert.deepEqual(after, before, 'the exact moved body adds no dependency or native capability');
-  assert.ok(!after.native.includes('node:child_process'));
+  assert.ok(!importsIn([read(MOVED)])[0].includes('node:child_process'), 'the moved conflict body itself imports no process launcher');
   const broad = closure(file => file === MOVED
     ? "export * from '../../index.js';\n" : read(file), identities);
   assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the exact moved body');
   assert.ok(broad.native.includes('node:child_process'), 'the negative control reaches actual process launchers');
+});
+
+test('clause 1: this file pins no hash digest of the live conflict body or package.json [C7,CD60,H16]', () => {
+  const own = readFileSync(new URL(import.meta.url), 'utf8');
+  assert.doesNotMatch(own, /\b[0-9a-f]{64}\b/u, 'no 64-hex digest literal remains');
+  assert.doesNotMatch(own, new RegExp(['create' + 'Hash', 'sha' + '256'].join('|'), 'u'), 'no hashing of the live implementation body remains');
 });

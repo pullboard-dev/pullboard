@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The Dashboard and Roadmap share the approved release headline in real Chrome [N26]. */
 import assert from 'node:assert/strict';

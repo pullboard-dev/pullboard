@@ -5,6 +5,7 @@ import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitExecFileSync } from '../../../git/index.js';
+import { gitSpawn } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { bundleName } from '../core/pin-names.js';
 import { isObjectId } from '../core/pin-names.js';
@@ -77,4 +78,61 @@ export function bundleFor(repo, tree, folder) {
     rmSync(partial, { force: true });
   }
   return { path, tree, reused: false };
+}
+
+// Budget: a tree's object list and pack are held in memory; a repository tree stays far below this ceiling.
+const MAX_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Run git inside one repository through the git adapter and resolve with its stdout, or refuse with the rule that failed.
+ *
+ * Why: the process runs asynchronously, so a gate holding its lease keeps renewing it while a large tree is listed or packed.
+ *
+ * @param {string} repo - The repository or work tree folder; a linked work tree is fine.
+ * @param {string[]} args - The git arguments.
+ * @param {string} code - The refusal code if git fails.
+ * @param {Buffer | string} [input] - Bytes for stdin.
+ * @returns {Promise<Buffer>} Stdout.
+ */
+function gitIn(repo, args, code, input) {
+  return new Promise((resolve, reject) => {
+    const child = gitSpawn(['-C', repo, ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const out = [];
+    const err = [];
+    let size = 0;
+    const fail = detail => reject(new Refused(code, `git ${args[0]} failed in ${repo}: ${detail}. Check the folder is readable and holds the tree, then retry.`));
+    child.stdout.on('data', chunk => {
+      size += chunk.length;
+      if (size > MAX_BYTES) { child.kill('SIGKILL'); fail(`output over ${MAX_BYTES} bytes`); } else out.push(chunk);
+    });
+    child.stderr.on('data', chunk => err.push(chunk));
+    child.on('error', error => fail(error.message));
+    child.on('close', status => (status === 0 ? resolve(Buffer.concat(out)) : fail(Buffer.concat(err).toString('utf8').trim() || `status ${status}`)));
+    child.stdin.on('error', () => {});
+    child.stdin.end(input);
+  });
+}
+
+/**
+ * List every object id a tree holds, the tree itself, its subtrees and its blobs.
+ *
+ * @param {string} repo - The repository or work tree folder; a linked work tree is fine.
+ * @param {string} tree - A full tree id.
+ * @returns {Promise<string[]>} Unique object ids.
+ */
+export async function listTreeObjects(repo, tree) {
+  if (!isObjectId(tree)) throw new Refused('TREE_SOURCE_INVALID', 'A source is named by a full tree id; resolve the commit with pinFor first.');
+  const listing = (await gitIn(repo, ['rev-list', '--objects', tree], 'TREE_SOURCE_UNKNOWN_TREE')).toString('utf8');
+  return [...new Set(listing.split('\n').filter(Boolean).map(line => line.split(' ')[0]))];
+}
+
+/**
+ * Pack the named objects into one pack stream, ready for `git unpack-objects` on a runner.
+ *
+ * @param {string} repo - The repository or work tree folder.
+ * @param {string[]} ids - Full object ids to pack.
+ * @returns {Promise<Buffer>} The pack bytes.
+ */
+export function packObjects(repo, ids) {
+  return gitIn(repo, ['pack-objects', '--stdout', '-q'], 'TREE_SOURCE_PACK_FAILED', `${ids.join('\n')}\n`);
 }

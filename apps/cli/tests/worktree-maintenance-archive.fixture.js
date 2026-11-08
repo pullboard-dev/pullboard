@@ -10,6 +10,7 @@ import { archiveMaintenanceWorktree } from '../src/shell/worktree-maintenance-ar
 import { maintenanceArchiveMatches } from '../src/shell/worktree-maintenance-archive.js';
 import { maintenanceGit } from '../src/shell/worktree-maintenance-archive.js';
 import { maintenanceSnapshot } from '../src/shell/worktree-maintenance-archive.js';
+import { removePartialArchives } from '../src/shell/worktree-maintenance-archive.js';
 
 function project(t) {
   const directory = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-archive-fixture-')));
@@ -137,5 +138,46 @@ export function registerMaintenanceArchiveTests() {
     finally { fs.readSync = original; syncBuiltinESMExports(); }
     assert.equal(changed, true, 'real source mutation occurred during the second file observation');
     assert.equal(fs.readFileSync(leaf)[0], 2, 'changed source is retained, never reset');
+  });
+
+  test('clause 1: an archive that would leave under the larger of 10 GB or 5% free is refused with its path and bytes, and the source is untouched [C7]', t => {
+    const box = project(t), GiB = 1024 ** 3;
+    fs.mkdirSync(join(box.root, 'ignored'));
+    const leaf = join(box.root, 'ignored', 'journal.bin');
+    fs.writeFileSync(leaf, Buffer.alloc(3 * 1024 * 1024, 9));
+    const volume = (freeBytes, totalBytes) => () => ({ freeBytes, totalBytes });
+    const archives = join(box.common, 'pullboard', 'worktree-archives');
+    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { volume: volume(10 * GiB + 1024, 100 * GiB) }),
+      error => /^Error: ARCHIVE_WOULD_FILL_DISK/u.test(String(error)) && error.message.includes(box.root)
+        && error.message.includes(String(10 * GiB + 1024)) && /needs \d+ bytes/u.test(error.message));
+    assert.equal(fs.existsSync(archives), false, 'a refused archive writes nothing');
+    assert.equal(fs.readFileSync(leaf).length, 3 * 1024 * 1024, 'the source is untouched');
+    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { volume: volume(49 * GiB, 1000 * GiB) }), /ARCHIVE_WOULD_FILL_DISK/u,
+      '5% of a 1000 GiB volume is 50 GiB, which is larger than 10 GiB');
+    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { volume: () => { throw new Error('no statfs'); } }), /ARCHIVE_WOULD_FILL_DISK/u,
+      'unknown free space never permits the copy');
+    const archive = archiveMaintenanceWorktree(box.root, box.common, { volume: volume(60 * GiB, 1000 * GiB) });
+    assert.equal(maintenanceArchiveMatches(box.root, archive), true, 'enough room above the reserve archives as before');
+    assert.equal(fs.existsSync(join(archive.directory, 'pending.json')), false, 'a finished archive carries no partial marker');
+  });
+
+  test('clause 1: the next run removes an interrupted archive without a manifest, only while its source exists, and keeps finished ones [C7]', t => {
+    const box = project(t), base = join(box.common, 'pullboard', 'worktree-archives');
+    const done = archiveMaintenanceWorktree(box.root, box.common, { volume: () => ({ freeBytes: 2 ** 40, totalBytes: 2 ** 41 }) });
+    const partial = (id, root) => {
+      const directory = join(base, id);
+      fs.mkdirSync(join(directory, 'blobs'), { recursive: true, mode: 0o700 });
+      fs.writeFileSync(join(directory, 'pending.json'), JSON.stringify({ id, root }) + '\n', { mode: 0o600 });
+      fs.writeFileSync(join(directory, 'blobs', 'half'), 'half a file');
+      return directory;
+    };
+    const live = partial('11111111-1111-4111-8111-111111111111', box.root);
+    const orphan = partial('22222222-2222-4222-8222-222222222222', join(box.directory, 'removed-source'));
+    const removed = removePartialArchives(box.common);
+    assert.deepEqual(removed, ['11111111-1111-4111-8111-111111111111']);
+    assert.equal(fs.existsSync(live), false, 'the interrupted archive of a surviving source is removed');
+    assert.equal(fs.existsSync(orphan), true, 'an archive whose source is gone may be the only copy and stays');
+    assert.equal(fs.existsSync(done.directory), true, 'a finished archive is never removed');
+    assert.equal(maintenanceArchiveMatches(box.root, done), true);
   });
 }

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The approved Spec and Doctrine explanations stay directly below each row toggle on desktop and phone [N26]. */

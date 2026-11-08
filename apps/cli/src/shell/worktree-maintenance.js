@@ -12,6 +12,7 @@ import { retainedMaintenanceHealth } from './worktree-maintenance-retention.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
 import { classifyMaintenanceTree } from './worktree-maintenance-classify.js';
 import { archiveMaintenanceWorktree } from './worktree-maintenance-archive.js';
+import { removePartialArchives } from './worktree-maintenance-archive.js';
 import { maintenanceArchiveMatches } from './worktree-maintenance-archive.js';
 import { maintenanceGit } from './worktree-maintenance-archive.js';
 import { maintenanceSnapshot } from './worktree-maintenance-archive.js';
@@ -116,6 +117,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   if (!report.enabled) return report;
   const info = repoInfo(root), common = realpathSync(info.commonDir);
   return withMaintenanceLock(common, async () => {
+  removePartialArchives(common);
   const trees = registeredMaintenanceTrees(root);
   const mainRoot = trees[0].path, prior = readMaintenanceState(common), next = { version: 1, trees: {}, lastRun: report };
   const durations = maintenanceDurations(config.worktreeMaintenance);
@@ -158,7 +160,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       }
       next.trees[tree.path].dirtyFact = null;
       const allocated = maintenanceAllocatedBytes(tree.path);
-      const archive = archiveMaintenanceWorktree(tree.path, common, { now: report.at, includeMetadata: true });
+      const archive = archiveMaintenanceWorktree(tree.path, common, { now: report.at, includeMetadata: true, ...(ports.archiveVolume ? { volume: ports.archiveVolume } : {}) });
       await recordArchive(archive, fresh, ports);
       report.archived++;
       entry.archive = archive.directory;
@@ -233,7 +235,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
     const explicit = withdrawn || retired;
     const dirty = explicit ? [] : maintenanceDirtyPaths(path);
     if (dirty.length) { await keepDirty(ports, row, dirty, {}); return null; }
-    const archive = archiveMaintenanceWorktree(path, common, { now: new Date(now).toISOString() });
+    const archive = archiveMaintenanceWorktree(path, common, { now: new Date(now).toISOString(), ...(ports.archiveVolume ? { volume: ports.archiveVolume } : {}) });
     await recordArchive(archive, row, ports);
     currentTree(root, common, path, tree.head);
     const final = await ports.readSnapshot();

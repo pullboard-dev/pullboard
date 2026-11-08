@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-view-test journey
  * Counts are checked against real rendered lists and native board sets through live moves [N26]. */

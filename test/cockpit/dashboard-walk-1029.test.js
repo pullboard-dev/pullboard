@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The Dashboard follows the approved 29 Oct walk at desktop and phone widths. */
 import assert from 'node:assert/strict';

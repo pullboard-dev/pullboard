@@ -3,6 +3,7 @@ export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/shell/refusal-trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
+export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/shell/browser-admission.js";

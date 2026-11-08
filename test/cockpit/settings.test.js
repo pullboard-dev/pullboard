@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Settings are projected by the real local API, never read or changed by the page [O5,O6,N26]. */
 import assert from 'node:assert/strict';

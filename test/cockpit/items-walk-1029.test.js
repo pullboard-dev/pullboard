@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Real private native lifecycle proves presentation only, never independent review assurance [N26]. */

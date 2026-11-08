@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Native offscreen Dashboard rows remain complete and become visible on actual scrolling [N26]. */
 import assert from 'node:assert/strict';

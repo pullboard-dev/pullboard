@@ -16,6 +16,8 @@ import { landingLeaseState } from '../../../../src/board-landing-lease.js';
 import { sameEnvironment } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
+import { cachedMainComparison } from './main-red.js';
+import { cachedFailureSignatures } from './main-failure-matches.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -29,12 +31,28 @@ export function testBlob(root, commit, file) {
   return result.status === 0 ? result.stdout : null;
 }
 
-/** A test defect holds every batch on its trunk until the committed test changes or every failure is waived. */
-export function heldTestDefects(root, board, trunk, landingPorts) {
-  return store.landingTestDefects(board).filter(defect => {
+/**
+ * True when the newest recorded run of the defect's test file at the trunk commit shows every recorded failing case
+ * passing: a green file, or a red one whose named failures include none of the defect's cases. No recorded run, or one
+ * whose failures are not named, never releases. Why: fixing the code and leaving the test as it was kept the trunk held [C7].
+ */
+export function defectPassedAtTrunk(root, trunk, defect, comparison = cachedMainComparison) {
+  if (!Array.isArray(defect.names) || !defect.names.length) return false;
+  let entry;
+  try { entry = comparison(root, trunk.commit, [defect.test]).files?.find(row => row.file === defect.test); } catch { return false; }
+  if (!entry) return false;
+  if (entry.result === 'green') return true;
+  const failures = entry.result === 'red' ? cachedFailureSignatures(entry, defect.test) : undefined;
+  return Array.isArray(failures) && failures.length > 0 && !failures.some(row => defect.names.includes(row.name));
+}
+
+/** A test defect holds every batch on its trunk until the committed test changes, every failure is waived, or its cases pass at the trunk tip. */
+export function heldTestDefects(root, board, trunk, landingPorts, { defects = store.landingTestDefects, comparison = cachedMainComparison } = {}) {
+  return defects(board).filter(defect => {
     if (defect.branch !== trunk.branch) return false;
     const blob = testBlob(root, trunk.commit, defect.test);
-    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts));
+    return !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts))
+      && !defectPassedAtTrunk(root, trunk, defect, comparison);
   });
 }
 

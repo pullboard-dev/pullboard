@@ -188,17 +188,49 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
 }
 
 /**
- * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
- * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ * The accepted commits whose cells inventory a submit's cell analysis reads: main, plus the candidate's merge base
+ * when main changed a file that needs a full census since that base. Empty when main has no cells plan.
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} main - The pinned accepted main.
+ * @param {string} [source] - The pinned candidate.
+ * @returns {string[]}
  */
-export async function submitCellsInventory(root, main, source) {
-  if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return null;
+export function inventoryCommits(root, main, source) {
+  if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return [];
   const commits = [main];
   if (source) {
     const base = git(root, ['merge-base', main, source]).trim();
     const changed = base !== main ? git(root, ['diff', '--no-renames', '--name-only', '-z', main, base]).split('\0').filter(Boolean) : [];
     if (needsFullCensus(changed)) commits.push(base);
   }
+  return commits;
+}
+
+/**
+ * The inventory a runner analysis carries: the bundle when this machine already holds every accepted inventory, else
+ * none, with the commits the runner produces itself.
+ * Why: producing a main commit's inventory took a checkout and 70-110 s of this machine's CPU on every new main, the
+ * heaviest gate stage left on the coordinator (6 Nov); a runner produces it once and keeps it in its own cache (#2535).
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} main - The pinned accepted main.
+ * @param {string} [source] - The pinned candidate.
+ * @returns {Promise<{ inventory: Awaited<ReturnType<typeof submitCellsInventory>>, produce: string[] }>}
+ */
+export async function runnerCellsInventory(root, main, source) {
+  const commits = inventoryCommits(root, main, source);
+  if (commits.every(commit => readAcceptedCells(root, commit).available)) return { inventory: await submitCellsInventory(root, main, source), produce: [] };
+  return { inventory: null, produce: commits };
+}
+
+/**
+ * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
+ * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ */
+export async function submitCellsInventory(root, main, source) {
+  const commits = inventoryCommits(root, main, source);
+  if (!commits.length) return null;
   const sources = [], artifacts = [];
   let directory;
   for (const commit of commits) {

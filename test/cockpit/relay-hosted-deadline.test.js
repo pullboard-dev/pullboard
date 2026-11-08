@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real relay browser journeys and their owned setup [N26]. */
 import assert from 'node:assert/strict';

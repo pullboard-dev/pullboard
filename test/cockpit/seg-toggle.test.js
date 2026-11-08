@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** One real component keeps every segmented control's geometry and state consistent [N26]. */
 import assert from 'node:assert/strict';

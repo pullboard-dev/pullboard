@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native Activity recording, HTTP state and Chrome interactions [N26,C7]. */
 import assert from 'node:assert/strict';

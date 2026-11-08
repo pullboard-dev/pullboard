@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/item-rows.css */

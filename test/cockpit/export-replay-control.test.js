@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Export replay placement and behavior in the real static page [N26]. */
 import assert from 'node:assert/strict';

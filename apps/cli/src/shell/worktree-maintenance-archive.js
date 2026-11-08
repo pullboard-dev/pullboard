@@ -14,6 +14,11 @@ import { readdirSync } from 'node:fs';
 import { readlinkSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statfsSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -25,6 +30,7 @@ import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 const MAX_OBSERVATION_BYTES = 64 * 1024 * 1024;
 const CHUNK_BYTES = 1024 * 1024;
 const NOFOLLOW = constants.O_NOFOLLOW;
+const GIB = 1024 ** 3;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** A failed observation supplies neither a recoverable archive nor permission to erase source. */
@@ -207,11 +213,61 @@ function archiveDirectory(common, id) {
   return join(directory, '..');
 }
 
+/** Free and total bytes on the volume holding the archives; unknown space refuses the copy rather than guessing. */
+function archiveVolume(common) {
+  const state = statfsSync(common, { bigint: false });
+  return { freeBytes: state.bavail * state.bsize, totalBytes: state.blocks * state.bsize };
+}
+
+/**
+ * Refuse a copy that would leave less than the larger of 10 GB or 5% of the volume free [C7].
+ * Bytes are counted once per distinct content, as the archive stores them, so the source stays untouched when it refuses.
+ */
+function requireArchiveSpace(root, common, snapshot, volume) {
+  const seen = new Set();
+  let needed = snapshot.stagedBuffer.length + snapshot.unstagedBuffer.length;
+  for (const file of [...snapshot.files, ...(snapshot.metadata?.files ?? [])])
+    if (!seen.has(file.sha256)) { seen.add(file.sha256); needed += file.size; }
+  let space;
+  try { space = volume(common); } catch { space = null; }
+  if (!space || !Number.isFinite(space.freeBytes) || !Number.isFinite(space.totalBytes))
+    throw new Error(`ARCHIVE_WOULD_FILL_DISK: ${root} needs ${needed} bytes and the free space on the archive volume is unknown; worktree kept`);
+  const reserve = Math.max(10 * GIB, space.totalBytes * 0.05);
+  if (space.freeBytes - needed < reserve)
+    throw new Error(`ARCHIVE_WOULD_FILL_DISK: ${root} needs ${needed} bytes, ${space.freeBytes} bytes are free, and the archive volume must keep ${Math.ceil(reserve)} free; worktree kept`);
+}
+
+/**
+ * Remove an archive an interrupted run began but never finished (no manifest), and only while its source still exists [C7].
+ * An archive with a manifest, or whose source is gone, may be the only copy of that work and stays.
+ */
+export function removePartialArchives(common) {
+  const base = join(realpathSync(common), 'pullboard', 'worktree-archives'), removed = [];
+  let ids;
+  try { ids = readdirSync(base); } catch { return removed; }
+  for (const id of ids) {
+    if (!/^[a-f0-9-]{36}$/u.test(id)) continue;
+    const directory = join(base, id);
+    try {
+      const state = lstatSync(directory);
+      if (!state.isDirectory() || state.isSymbolicLink() || existsSync(join(directory, 'manifest.json'))) continue;
+      const pending = JSON.parse(readFileSync(join(directory, 'pending.json'), 'utf8'));
+      if (pending.id !== id || typeof pending.root !== 'string' || !isAbsolute(pending.root) || !existsSync(pending.root)) continue;
+      try { maintenanceGit(pending.root, ['update-ref', '-d', 'refs/pullboard/worktree-archives/' + id]); } catch { /* no ref was made */ }
+      rmSync(directory, { recursive: true, force: true });
+      removed.push(id);
+    } catch { /* an unreadable partial stays for a person to inspect */ }
+  }
+  return removed;
+}
+
 /** Save complete private bytes and a durable HEAD ref before returning any reset permission. */
-export function archiveMaintenanceWorktree(root, common, { now = new Date().toISOString(), includeMetadata = false } = {}) {
+export function archiveMaintenanceWorktree(root, common, { now = new Date().toISOString(), includeMetadata = false, volume = archiveVolume } = {}) {
   const before = maintenanceSnapshot(root, { includeMetadata });
   if (before.common !== realpathSync(common)) throw new Error('maintenance repository changed');
+  requireArchiveSpace(root, common, before, volume);
   const id = randomUUID(), directory = archiveDirectory(common, id);
+  privateWrite(join(directory, 'pending.json'), Buffer.from(JSON.stringify({ id, root }) + '\n'));
   privateWrite(join(directory, 'staged.patch'), before.stagedBuffer);
   privateWrite(join(directory, 'unstaged.patch'), before.unstagedBuffer);
   const copied = new Set();
@@ -239,6 +295,7 @@ export function archiveMaintenanceWorktree(root, common, { now = new Date().toIS
       + [...before.files, ...(before.metadata?.files ?? [])].reduce((sum, file) => sum + file.size, 0) };
   privateWrite(join(directory, 'manifest.tmp'), Buffer.from(JSON.stringify(manifest, null, 2) + '\n'));
   renameSync(join(directory, 'manifest.tmp'), join(directory, 'manifest.json'));
+  unlinkSync(join(directory, 'pending.json'));
   const archive = { directory, manifest };
   if (!maintenanceArchiveMatches(root, archive)) throw new Error('maintenance archive did not verify; source retained');
   return archive;

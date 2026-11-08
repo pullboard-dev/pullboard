@@ -30,6 +30,7 @@ import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
+import { lex } from '../packages/kernel/index.js';
 import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
@@ -56,6 +57,9 @@ import { receiptDigest } from '../packages/git/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { cellsCacheDirectory } from './cells-inventory-cache.js';
 import { publishCacheEntry } from './cells-inventory-cache.js';
+import { placeTests } from './cells-test-placement.js';
+import { planTestMove } from './cells-test-placement.js';
+import { applyTestMove } from './cells-test-placement.js';
 
 /** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
 function fixtureAnalyzerDigest() {
@@ -608,7 +612,30 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
+  if (mode === '--place-tests') {
+    if (rest.length) throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests (no arguments)');
+    const listed = tryGit(root, ['ls-files', '-z']);
+    if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --place-tests');
+    const tracked = listed.stdout.split('\0').filter(Boolean);
+    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root)).join('\n'));
+    return 0;
+  }
+  if (mode === '--move-tests') {
+    const [cell, ...paths] = rest;
+    const listed = tryGit(root, ['ls-files', '-z']);
+    if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --move-tests');
+    const tracked = listed.stdout.split('\0').filter(Boolean);
+    const planned = planTestMove({ tracked, inventory: cellInventory(root, { importsIn, commonJsIn }), plan: readPlan(root), cell, paths, lex });
+    if (planned.refused) throw new Refused(planned.refused.code, planned.refused.message);
+    /** Run one git step of the move, refusing with git's own words when it fails. */
+    const git = args => {
+      const run = tryGit(root, args);
+      if (run.status !== 0) throw new Refused('CELLS_PLAN_GIT', `git ${args[0]} failed during --move-tests: ${run.stderr.trim()}`);
+    };
+    for (const line of applyTestMove(root, planned, git)) console.log(line);
+    return 0;
+  }
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --move-tests <cell> [<path>...] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

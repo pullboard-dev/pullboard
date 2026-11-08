@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A real large board switches tabs inside the person's 100 ms interaction bar [N26]. */
 import assert from 'node:assert/strict';

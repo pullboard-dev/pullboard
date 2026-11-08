@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Dashboard keeps the rules and capacity cards while the Home tab is retired [N26,U91]. */
 import assert from 'node:assert/strict';

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The view shows sentinel drafts for the person to approve, with their proof [A6,D1,N26]. */
 import assert from 'node:assert/strict';

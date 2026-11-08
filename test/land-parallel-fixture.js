@@ -144,9 +144,10 @@ function parallelCliProject(landProject) {
   return box;
 }
 
-/** Observe a real CLI landing without replacing its configuration, lease or guardian callbacks. */
+/** Observe a real CLI landing without replacing its configuration, lease or in-process landing callbacks. */
 function startParallelCli(box, BIN) {
-  const env = { ...box.env };
+  const startup = join(box.dir, 'parallel-cli-startup.jsonl');
+  const env = { ...box.env, PULLBOARD_STARTUP_TRACE_FILE: startup, PULLBOARD_STARTUP_TRACE_ENTRY: BIN };
   for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete env[key];
   const child = startFixtureChild(process.execPath, [BIN, 'land', '--json'], {
     cwd: box.repo, env, stdio: ['ignore', 'pipe', 'pipe'],
@@ -160,7 +161,7 @@ function startParallelCli(box, BIN) {
     child.once('close', (code, signal) => resolveClose({ code, signal, stdout, stderr }));
   });
   // Count observed CLI and gate-marker bytes while the real candidates are being prepared.
-  const progress = () => stdout.length + stderr.length + [box.calls, box.trace].reduce((bytes, file) =>
+  const progress = () => stdout.length + stderr.length + [startup, box.calls, box.trace].reduce((bytes, file) =>
     bytes + (file && existsSync(file) ? readFileSync(file).length : 0), 0);
   return { child, closed, progress };
 }
@@ -182,10 +183,13 @@ export async function assertParallelCliLease({ landProject, itemWorktree, submit
     let batch;
     try {
       await waitForFixtureProgress({ child: running.child, ready: () => existsSync(box.entered),
-        progress: running.progress, description: 'the parallel CLI entered its real gate' });
+        progress: running.progress, description: 'the parallel CLI entered its real gate',
+        quietMs: 120_000 });
       ({ held, batch } = onBoard(box, board => ({ held: store.landingLeaseState(board).holder,
         batch: store.landingBatches(board).at(-1) })));
-      assert.ok(held && Number.isSafeInteger(held.guardianPid) && held.guardianPid > 0, 'the real guardian is bound to an actual lease');
+      // The landing runs as a drive job inside the command's own process (no guardian process), so the grant names that process.
+      assert.ok(held && Number.isSafeInteger(held.pid) && held.pid > 0, 'the landing lease is held by an actual process');
+      assert.doesNotThrow(() => process.kill(held.pid, 0), 'the process holding the grant is still alive');
       assert.equal(held.branch, batch.branch);
       assert.ok(Number.isSafeInteger(held.generation) && held.generation > 0);
       assert.equal(batch.parallelCandidates.length, 2, 'the CLI parsed the committed opt-in and dispatched both prefixes');
@@ -257,8 +261,8 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   ].join('\n');
   const controller = [
     "import assert from 'node:assert/strict';",
-    `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};
-${executionServicesSource(url('gate.js'))}`,
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href)}`,
     `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};`,
     `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The hosted page reads this machine's view straight, and the view answers only its own page and that one [N26,A2]. */
 import assert from 'node:assert/strict';

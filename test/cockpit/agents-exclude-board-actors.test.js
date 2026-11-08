@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Board automation remains visible as history and Needs, never as an agent seat [N26]. */
 import assert from 'node:assert/strict';

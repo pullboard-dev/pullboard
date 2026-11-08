@@ -39,6 +39,34 @@ export const RESIDENT_COMMANDS = new Set(['add', 'agents', 'answer', 'claim', 'd
 /** Unix socket paths are limited to about 104 bytes on macOS; a longer one falls back in-process. */
 const SOCKET_PATH_LIMIT = 100;
 
+/**
+ * How long a command may run in the resident process before the next command skips it and reads the board directly.
+ * Why: the process serves one command at a time, and a status that ran 6 minutes held 15 seats' commands behind it.
+ */
+export const RESIDENT_BUSY_DIRECT_MS = 250;
+/** How long a client waits for its command to start before it runs the command in-process instead [C7]. */
+export const RESIDENT_START_WAIT_MS = 1_500;
+/** The latest a resident process starts a queued command, counted from the client's send; past it the client has left. */
+export const RESIDENT_START_CUTOFF_MS = 1_000;
+
+/** The busy file a resident process writes beside its pid file while a command runs: `<pid> <started ms>`. */
+export function residentBusyFile(pidFile) {
+  return pidFile.replace(/\.pid$/u, '') + '.busy';
+}
+
+/**
+ * Whether the resident process has been running one command for longer than RESIDENT_BUSY_DIRECT_MS. Read from a file
+ * so it holds while that command blocks the process's event loop, which then answers nothing on its socket.
+ */
+export function residentBusy(pidFile, now = Date.now()) {
+  try {
+    const [pid, at] = readFileSync(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
+    if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch (error) { return error?.code === 'EPERM'; }
+}
+
 /** Find the Git metadata above a directory without starting Git: the checkout root, its Git dir and the shared one. */
 export function gitLocation(start, { walk = true } = {}) {
   let root = resolve(start);
@@ -175,7 +203,8 @@ export function startResident({ socket, pid, home }, entry, version, env) {
 /**
  * Run one command through the resident process. Resolves to its exit code, or null when the entry must run it
  * in-process: no process yet (one starts), a process loaded from other code (it retires and a new one starts), or a
- * command the process hands back. Once the process has started the command, its result is final.
+ * command the process hands back, a process busy with a long command, or a command not started within
+ * RESIDENT_START_WAIT_MS. Once the process has started the command, its result is final.
  */
 export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
   let code, place;
@@ -185,6 +214,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
     place = residentSocket(cwd, entry);
     if (!place) return Promise.resolve(null);
+    // A command already running a while would hold this one behind it; reading the board directly costs about 1 s.
+    if (residentBusy(place.pid)) return Promise.resolve(null);
   } catch { return Promise.resolve(null); }
   return new Promise((done) => {
     let started = false, finished = false, buffer = '';
@@ -193,13 +224,18 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     const settle = (status, { restart = false } = {}) => {
       if (finished) return;
       finished = true;
+      clearTimeout(waited);
       socket.destroy();
       if (restart) startResident(place, entry, code.version, env);
       done(status);
     };
+    // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
+    // running it in-process cannot run it twice.
+    const waited = setTimeout(() => { if (!started) settle(null); }, RESIDENT_START_WAIT_MS);
+    waited.unref?.();
     socket.setEncoding('utf8');
     socket.on('connect', () => {
-      socket.write(JSON.stringify({ version: 1, code: code.version, argv, cwd, env,
+      socket.write(JSON.stringify({ version: 1, code: code.version, sentAt: Date.now(), argv, cwd, env,
         tty: { stdout: Boolean(stdout.isTTY), stderr: Boolean(stderr.isTTY), columns: stdout.columns ?? null } }) + '\n');
     });
     socket.on('data', (chunk) => {

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Roadmap release panel count and shipment journey [N26]. */
 import assert from 'node:assert/strict';

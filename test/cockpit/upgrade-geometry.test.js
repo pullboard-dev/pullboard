@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real private CLI restart and upgrade presentation journey, registered by the Items and geometry checks [N26]. */
 import { copyPackageFiles } from '../../packages/runners/index.js';

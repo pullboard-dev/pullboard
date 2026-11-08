@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real-input addresses, rendered places and browser history [N38,N26]. */
 import { main as nativeTestMain } from '../native-cli-fixture.js';

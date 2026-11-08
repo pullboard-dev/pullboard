@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Approved private model names, aliases and rate matching [N26,N2]. */
 import assert from 'node:assert/strict';

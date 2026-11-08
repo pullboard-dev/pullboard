@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A held item reads held, with its reason, in the Roadmap and Items lists, matching the header's count [N26]. */
 import assert from 'node:assert/strict';
