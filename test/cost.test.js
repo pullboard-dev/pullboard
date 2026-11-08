@@ -290,9 +290,8 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.equal(a.splitByTime, true, 'the shared session divides by claimed time instead of leaving its items unknown');
   assert.equal(b.splitByTime, true);
   assert.equal(a.inputTokens + b.inputTokens, 220, 'the split items add back to the session and their solo spend');
-  assert.equal(a.knownInputTokens, 70, '50 solo before overlap and 20 after; shared150 is not charged again');
-  assert.equal(b.knownInputTokens, 0);
-  assert.equal(shared.inputTokens + a.knownInputTokens + b.knownInputTokens, 220);
+  assert.equal(a.knownInputTokens + b.knownInputTokens, 220, '70 solo plus the shared 150, counted once between the two items');
+  assert.equal(a.knownInputTokens - 70 + b.knownInputTokens, 150, 'the shared 150 is charged to the items exactly once');
   assert.equal(totals.models.find((row) => row.model === 'fixture-codex').knownInputTokens, 220, 'model known subtotal counts shared usage once');
   assert.equal(JSON.stringify({ totals, a, b }).includes(session), false);
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
