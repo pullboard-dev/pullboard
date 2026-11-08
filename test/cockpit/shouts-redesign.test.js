@@ -16,7 +16,6 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required for conversation geometry');
   const box = machine(), demo = project(box, 'shouts-redesign');
-  box.run(demo.web, 'join', 'web', '--model', 'gpt-6.1-sol');
   const longTitle = 'A long item title ' + 'bounded '.repeat(30);
   for (const title of ['Greeting', longTitle, 'Question for the person'])
     box.run(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The page greets the visitor.');
@@ -69,7 +68,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(list.rows.find(row => row.key === 'item:1').chip, 'Question open');
       assert.equal(list.decisions, false, 'there is no pinned coordinator decisions wall');
       assert.equal(list.agent.name, 'web-1');
-      assert.equal(list.agent.model, 'GPT-6.1 Sol');
+      assert.equal(list.agent.model, 'Fixture Model');
       assert.equal(list.agent.avatars, 0);
       assert.match(list.agent.title, /\+1 more item/);
       assert.match(list.agent.age, /^(now|\d+[mhd])$/);
@@ -94,7 +93,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(conversation.clamp, '3');
       assert.ok(conversation.height <= conversation.lineHeight * 3 + 1, 'long messages occupy at most three lines');
       assert.equal(conversation.more, 'Show all');
-      assert.equal(conversation.model, 'GPT-6.1 Sol');
+      assert.equal(conversation.model, 'Fixture Model');
       assert.match(conversation.clock, /^\d{1,2}:\d{2} [AP]M$/, 'the opened conversation keeps the approved person clock');
       assert.equal(conversation.avatars, 0);
       assert.notEqual(conversation.coordinatorBackground, 'rgba(0, 0, 0, 0)');
