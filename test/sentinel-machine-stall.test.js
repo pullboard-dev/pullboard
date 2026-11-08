@@ -39,13 +39,14 @@ function fixture(t, count) {
     writeFileSync(join(root, 'work.txt'), 'base\n');
     git(root, 'add', '.');
     git(root, 'commit', '-q', '-m', 'fixture');
+    git(root, 'commit', '-q', '--amend', '--no-edit', '--date', old.toISOString());
     const holder = register(board, { lane: 'core', path: root, route: 'strong' });
     const id = addItem(board, { by: 'coordinator', lane: 'core', title: `Work ${index}`, criterion: 'Work' });
     claim(board, id, { agentId: holder, lane: 'core', leaseMs: 7_200_000, freeze: () => ({ text: 'Work', digest: 'bar' }) });
     const itemRoot = `${root}-item-${id}`;
     git(root, 'worktree', 'add', '-q', '--detach', itemRoot);
     const log = git(itemRoot, 'rev-parse', '--git-path', 'logs/HEAD').trim();
-    for (const path of [join(root, 'work.txt'), join(root, '.git/logs/HEAD'), join(itemRoot, 'work.txt'), log]) utimesSync(path, old, old);
+    for (const path of [join(root, 'work.txt'), join(root, '.git/logs/HEAD'), join(itemRoot, 'work.txt'), join(itemRoot, 'pullboard.json'), log]) utimesSync(path, old, old);
     holders.push({ holder, id });
   }
   const helper = register(board, { lane: 'core', path: join(dir, 'helper'), route: 'strong' });
