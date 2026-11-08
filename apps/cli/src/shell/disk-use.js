@@ -50,16 +50,15 @@ function bytesUnder(path) {
   return total;
 }
 
-/** The newest modification time anywhere under a path, so a folder is as old as the last file written in it. */
+/** The newest modification time of any file under a path (a folder's own time only when it holds none), so an entry is as old as the last file written in it. */
 function newestMtime(path) {
   let stat;
   try { stat = lstatSync(path); } catch { return 0; }
-  let newest = stat.mtimeMs;
-  if (!stat.isDirectory()) return newest;
+  if (!stat.isDirectory()) return stat.mtimeMs;
   let names = [];
-  try { names = readdirSync(path); } catch { return newest; }
-  for (const name of names) newest = Math.max(newest, newestMtime(join(path, name)));
-  return newest;
+  try { names = readdirSync(path); } catch { return stat.mtimeMs; }
+  if (!names.length) return stat.mtimeMs;
+  return Math.max(...names.map(name => newestMtime(join(path, name))));
 }
 
 /** Which store a top-level name belongs to. */
