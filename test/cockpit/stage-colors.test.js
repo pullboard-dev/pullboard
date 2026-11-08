@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
 
 const DIR = new URL('../../apps/view/src/shell/', import.meta.url);
 const FILES = ['view.css', 'view/stage.css', 'view/item-rows.css', 'view/dashboard.css', 'view/cost.css'];
@@ -56,7 +57,7 @@ test('every stage color in the view resolves to its token, never a literal or a 
     [/\.roadmap-stage-swatch\.landed\b[^{]*\{[^}]*\}/, 'stage-merged'],
     [/\.roadmap-summary \.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.roadmap-summary \.building\b[^{]*\{[^}]*\}/, 'stage-building'],
     [/\.roadmap-summary \.waiting\b[^{]*\{[^}]*\}/, 'stage-gated'], [/\.roadmap-summary \.landed\b[^{]*\{[^}]*\}/, 'stage-merged'],
-    [/\.roadmap-summary \.landing\b[^{]*\{[^}]*\}/, 'stage-merged'], [/\.roadmap-summary-segment\.held\b[^{]*\{[^}]*\}/, 'stage-gated'],
+    [/\.roadmap-summary \.landing\b[^{]*\{[^}]*\}/, 'stage-stripe'], [/\.roadmap-summary-segment\.held\b[^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.roadmap-state\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.roadmap-state\.ready\b[^{]*\{[^}]*\}/, 'stage-ready'],
     [/\.roadmap-state\.building\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.roadmap-state\.gated\b[^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.roadmap-state\.accepted\b[^{]*\{[^}]*\}/, 'stage-merged'],
@@ -103,4 +104,13 @@ test('stage chip text on its tint is at least 4.5:1 in light and dark [N26]', ()
   }
   assert.ok(seen >= 9, 'the stage chip tints were found');
   assert.ok(!/color-mix\(in srgb, var\(--(stage|mark)-/.test(all), 'every stage mix is in oklab, as the mockup mixes it');
+});
+
+test('the Roadmap bar paints Landing from a stripe pattern its rect references, and Merged solid [N26]', () => {
+  const html = roadmapSummary({ name: 'M', summary: { total: 10, left: 6, landed: 4, landing: 2, review: 1, building: 1, waiting: 2, held: 0 } }).header;
+  assert.ok(/<pattern id="roadmap-summary-stripe"/.test(html), 'the bar defines the stripe pattern');
+  assert.match(html, /<rect class="roadmap-summary-segment landing"[^>]*fill="url\(#roadmap-summary-stripe\)"/, 'the landing rect fills from the pattern');
+  assert.doesNotMatch(html, /roadmap-summary-segment landed"[^>]*fill=/, 'the merged rect keeps its solid CSS fill');
+  assert.match(all, /\.roadmap-stripe-a \{[^}]*fill: var\(--stage-merged\)/, 'the stripe is the Merged green');
+  assert.doesNotMatch(all, /\.roadmap-summary \.landing[^{]*\{[^}]*\bfill:/, 'no CSS fill overrides the rect pattern fill');
 });

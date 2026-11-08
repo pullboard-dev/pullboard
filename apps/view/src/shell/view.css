@@ -1023,7 +1023,9 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .roadmap-summary-bar { display: block; width: 100%; height: 10px; margin: 0; border-radius: var(--radius-sm); }
 .roadmap-summary-swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .roadmap-summary .landed { background: var(--stage-merged); fill: var(--stage-merged); }
-.roadmap-summary .landing { background: var(--stage-stripe); fill: var(--stage-merged); }
+.roadmap-summary .landing { background: var(--stage-stripe); }
+.roadmap-stripe-a { fill: var(--stage-merged); }
+.roadmap-stripe-b { fill: color-mix(in oklab, var(--stage-merged) 35%, var(--surface)); }
 .roadmap-summary .review { background: var(--stage-review); fill: var(--stage-review); }
 .roadmap-summary .building { background: var(--stage-building); fill: var(--stage-building); }
 .roadmap-summary .waiting { background: var(--stage-gated); fill: var(--stage-gated); }
