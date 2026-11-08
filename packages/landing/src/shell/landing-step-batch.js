@@ -46,6 +46,7 @@ import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
 import { testHash } from './landing-step-selection.js';
 import { heldTestDefects } from './landing-step-selection.js';
+import { testDefectHoldMessage } from './landing-step-selection.js';
 import { landingEntry } from './landing-step-selection.js';
 import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
@@ -146,7 +147,7 @@ export async function land(options) {
     publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
   // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
-  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say });
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
@@ -351,7 +352,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
-  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
+  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', testDefectHoldMessage(testDefects));
   if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;

@@ -110,11 +110,14 @@ export function runFixtureChild(command, args = [], options = {}) {
     `elapsed: ${elapsedMs}ms`,
     `stderr: ${stderr}`,
   ].join('\n');
+  // A --json command prints its refusal on stdout and nothing on stderr, so a failed child also shows the start of its stdout.
+  const stdoutText = Buffer.isBuffer(result.stdout) ? result.stdout.toString('utf8') : (result.stdout ?? '');
+  const detail = [result.error?.message ?? '', result.status !== 0 && stdoutText ? `stdout: ${stdoutText.slice(0, 2000)}` : ''].filter(Boolean).join('\n');
   const failure = result.status === 0 && !result.signal && !result.error ? null : reportFixtureChildFailure({
     command, args, status: result.status, signal: result.signal, elapsedMs, stderr, env,
-    detail: result.error?.message ?? '',
+    detail,
   });
-  return { ...result, stderr: stderrIgnored ? null : result.stderr, command: [command, ...args], elapsedMs, context, failure };
+  return { ...result, stderr: stderrIgnored ? null : result.stderr, command: [command, ...args], elapsedMs, context: detail ? `${context}\n${safeFixtureDiagnostic(detail, env)}` : context, failure };
 }
 
 /**

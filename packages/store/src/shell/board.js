@@ -98,6 +98,7 @@ import { answerDecision } from "./board-answer-decision.js";
 import { appendFact } from "./board-append-fact.js";
 import { buildOrder } from "./board-build-order.js";
 import { nextFor } from "./board-next-for.js";
+import { gateAtHead } from "./board-next-for.js";
 import { holdLane } from "./board-hold-lane.js";
 import { releaseLane } from "./board-release-lane.js";
 import { holdItem } from "./board-hold-item.js";
@@ -477,6 +478,7 @@ export {
   appendFact,
   buildOrder,
   nextFor,
+  gateAtHead,
   holdLane,
   releaseLane,
   holdItem,

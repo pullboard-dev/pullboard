@@ -28,6 +28,12 @@ import { Refused } from "../../../kernel/index.js";
 /** Requeues of the same candidate after a spent gate infrastructure retry budget. */
 const EXHAUSTED_RETRIES = 2;
 /**
+ * Automatic requeues of one candidate whose gate worker died or whose gate infrastructure was spent, before the stop is
+ * final and the sentinel shouts once. Why three: a stall that kills workers can kill the first
+ * retries too, and none of those gates had a fault in its candidate (#3714).
+ */
+export const INFRASTRUCTURE_RETRY_LIMIT = 3;
+/**
  * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
  * failing (#2521), a gate whose bounded infrastructure retries were spent (#2516), and every machinery code the
  * queued worker reruns on. One set serves both sides, so a code the worker treats as infrastructure never reaches
@@ -314,9 +320,9 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
 
 /** Persist one infrastructure stop and notify the coordinator once only after the two automatic retries [C7]. */
 function recordInfrastructureStop(board, id, job, error) {
-  const exhausted = (job.infrastructureRetries ?? 0) >= 2;
+  const exhausted = (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
   if (exhausted && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted two healthy-executor recovery retries (${error.code}); restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
   return record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board),
     ...(exhausted ? { infrastructureNotified: true } : {}) });
 }
@@ -326,7 +332,7 @@ function retryStoppedHandoff(board, id, job, retryJob) {
   if (!JOB.test(retryJob) || retryJob === job.id) throw new Refused('BAD_SUBMIT_HANDOFF', 'recovery needs a fresh job identity');
   const item = getItem(board, id);
   if (job.state !== 'infrastructure' || !['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
-    || (job.infrastructureRetries ?? 0) >= 2 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
+    || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
     || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;
   // The stopped record is already the newest step of its own job, where endedSubmitHandoff reads it.
@@ -342,8 +348,8 @@ function retryStoppedHandoff(board, id, job, retryJob) {
  * Why: a missing capsule threw on every healthy sweep, so the job sat stopped with no count and no notice [C7,V4].
  */
 function spendStoppedHandoff(board, id, job, reason) {
-  if (job.state !== 'infrastructure' || (job.infrastructureRetries ?? 0) >= 2 || job.infrastructureNotified) return job;
+  if (job.state !== 'infrastructure' || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT || job.infrastructureNotified) return job;
   insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted two healthy-executor recovery retries (${job.error?.code}); its captured tools cannot be recovered (${String(reason).slice(0, 160)}). Restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
-  return record(board, id, { ...job, infrastructureRetries: 2, infrastructureNotified: true });
+    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${job.error?.code}) at ${String(job.commit).slice(0, 12)}; its captured tools cannot be recovered (${String(reason).slice(0, 160)}). Restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+  return record(board, id, { ...job, infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT, infrastructureNotified: true });
 }

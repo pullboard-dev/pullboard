@@ -159,7 +159,6 @@
   ["src/documentation/events/edit.json","apps/cli/src/shell/documentation/events/edit.json","rule"],
   ["src/documentation/events/escalate.json","apps/cli/src/shell/documentation/events/escalate.json","rule"],
   ["src/documentation/events/fact.json","apps/cli/src/shell/documentation/events/fact.json","rule"],
-  ["src/documentation/events/family.json","apps/cli/src/shell/documentation/events/family.json","rule"],
   ["src/documentation/events/flake-observation.json","apps/cli/src/shell/documentation/events/flake-observation.json","rule"],
   ["src/documentation/events/flake-repair.json","apps/cli/src/shell/documentation/events/flake-repair.json","rule"],
   ["src/documentation/events/guards.json","apps/cli/src/shell/documentation/events/guards.json","rule"],

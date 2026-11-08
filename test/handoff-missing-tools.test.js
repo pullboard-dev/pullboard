@@ -1,4 +1,4 @@
-/** A queued gate ticket whose captured tools are gone never stops the handoff dispatcher; its gate ends as infrastructure [C7]. */
+/** A queued gate ticket whose captured tools are gone never stops the handoff dispatcher; its gate stops on infrastructure and is requeued [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { takeResource } from '../packages/resources/index.js';
 import { HANDOFF_DISPATCHER_RESOURCE, drainHandoffQueue, handoffQueueDirectory, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { getItem, submitHandoff } from '../packages/store/index.js';
+import { endedSubmitHandoff, getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { gateAdmission } from '../bin/handoff-worker-dispatcher.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -63,8 +63,12 @@ test('a ticket whose tools folder is gone is ended as infrastructure and the dis
 function state(box, id) {
   // @pullboard-board-file journey: observe the persisted queue record after the dispatcher and sweep ran.
   const board = openBoard(box.boardFile);
-  try { return { item: getItem(board, id), job: submitHandoff(board, id),
-    returns: board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='submit_handoff_returned'").get(id).n }; }
+  try {
+    const job = submitHandoff(board, id);
+    return { item: getItem(board, id), job, previous: job?.retryOf ? endedSubmitHandoff(board, job.retryOf) : null,
+      gates: board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind='gate' AND job_item=?").get(id).n,
+      returns: board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='submit_handoff_returned'").get(id).n };
+  }
   finally { board.db.close(); }
 }
 
@@ -102,12 +106,29 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
   } finally { lock.release(); }
   // The production admission: the gate's drive job records that its driver never started [C7].
   await drainHandoffQueue({ capacity: 1, pollMs: 20, admission: gateAdmission });
-  const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
-  assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
-  const after = state(box, id);
-  assert.equal(after.job.id, job.id);
-  assert.equal(after.job.state, 'infrastructure', 'the lost gate stops on infrastructure');
-  assert.equal(after.job.error.code, 'SUBMIT_HANDOFF_DEAD');
+  // Hold the dispatcher seat again, so the requeued gate waits in line where the test can read it instead of running.
+  const held = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'test-dispatcher' });
+  let after;
+  try {
+    const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
+    assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
+    after = state(box, id);
+  } finally { held.release(); }
+  // A healthy sweep requeues the lost gate's exact candidate as a fresh gate, its tools rebuilt from the captured commit (#3716, #3714).
+  assert.notEqual(after.job.id, job.id, 'the stopped gate is requeued as a fresh job');
+  assert.equal(after.job.retryOf, job.id, 'the fresh job names the lost gate');
+  assert.equal(after.job.state, 'queued');
+  // The lost gate itself stopped on infrastructure with SUBMIT_HANDOFF_DEAD, never a red.
+  assert.equal(after.previous?.id, job.id);
+  assert.equal(after.previous.state, 'infrastructure', 'the lost gate stops on infrastructure');
+  assert.equal(after.previous.error.code, 'SUBMIT_HANDOFF_DEAD');
+  // Exactly one requeue: one infrastructure retry spent, and two gate jobs for the item, the lost one and its requeue.
+  assert.equal(after.job.infrastructureRetries, 1, 'one infrastructure retry is spent');
+  assert.equal(after.gates, 2, 'only one requeue happened');
+  assert.deepEqual([after.job.commit, after.job.tree, after.job.digest], [job.commit, job.tree, job.digest], 'from the same captured candidate and bar');
+  const retried = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', after.job.id, 'request.json'), 'utf8'));
+  assert.equal(existsSync(retried.tools), true, 'the requeued gate has its tools back');
+  assert.ok(tickets().some(name => name.includes(after.job.id)), 'the requeued gate waits in the dispatch queue');
   assert.equal(after.item.item_status, 'claimed', 'the builder keeps the item to resubmit');
   assert.equal(after.returns, 0, 'no builder red is recorded');
 });

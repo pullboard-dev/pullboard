@@ -87,16 +87,22 @@ export async function retryCheckBaselines(root, io, services) {
   }
 }
 
-/** Start a detached child with independent streams so the caller exits while its check is running. */
-export async function startCheckBaseline(root, id, baseline) {
+/**
+ * Start a detached child with independent streams so the caller exits while its check is running.
+ * With `wait`, the child stays attached and the result is a promise that settles once the worker has
+ * exited, so none of its writes (the result commit, the relay flush) can race the caller's next command.
+ */
+export async function startCheckBaseline(root, id, baseline, { wait = false } = {}) {
   if (baseline?.result !== 'pending') return;
   const child = spawn(process.execPath, [WORKER, root, String(id), baseline.request], {
     cwd: root, env: gitChildEnv(root), detached: true, stdio: 'ignore',
   });
+  const exited = new Promise(resolve => { child.once('exit', code => resolve({ exited: true, code })); child.once('error', () => resolve({ exited: true, code: null })); });
   await new Promise((resolve, reject) => {
     child.once('spawn', resolve);
     child.once('error', reject);
   });
+  if (wait) return exited;
   child.unref();
 }
 

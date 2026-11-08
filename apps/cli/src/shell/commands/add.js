@@ -142,16 +142,14 @@ export async function run(io, args) {
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
   if (item.checkBaseline?.result === 'pending') {
-    await launchBaseline(ctx, board, id, item.checkBaseline);
+    const exited = await launchBaseline(ctx, board, id, item.checkBaseline, { wait: Boolean(values.wait) });
     if (values.wait) {
       // The recorded move is complete; do not hold checkout authority while the worker measures.
       CHECKOUT_LEASES.get(io)?.release();
       CHECKOUT_LEASES.delete(io);
-      while (true) {
-        const baseline = store.getItem(board, id).item_check_baseline;
-        if (baseline?.result !== 'pending' || baseline.request !== item.checkBaseline.request) break;
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
+      // Return only after the worker has exited: its result commit is not its last write, and a write
+      // after this point would race the next command's claim (BOARD_BUSY).
+      await exited;
     }
   }
   io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });

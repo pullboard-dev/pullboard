@@ -865,7 +865,7 @@ export function requiredExecutorOf(value) {
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
- * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false, loopHeartbeat = false } = options;
@@ -1172,6 +1172,28 @@ export async function takeResource(options) {
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
         };
+        /**
+         * Name another live process as this lease's holder, so the slot is kept while that process lives and freed when
+         * it ends, whatever becomes of the process that took it. Returns false when the process's start identity cannot
+         * be read; the lease then stays with its taker. Why: the hand-off dispatcher took each gate worker's slot in its
+         * own name, so a dispatcher exit freed every running worker's slot at once and its successor started a second
+         * full set of workers beside them (8 Nov) [C7].
+         *
+         * @param {number} holderPid - The process that now holds the slot.
+         * @returns {boolean}
+         */
+        const handOver = holderPid => {
+          if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          const holderStarted = Number.isSafeInteger(holderPid) && holderPid > 1 ? processStarted(holderPid) : '';
+          if (!holderStarted) return false;
+          const changed = update(db, () => db.prepare('UPDATE holder SET pid = ?, started = ? WHERE token = ?').run(holderPid, holderStarted, token).changes);
+          if (!changed) {
+            lost = true;
+            clearInterval(heartbeat);
+            throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          }
+          return true;
+        };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
         const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
           infrastructureRetryCount = 0, infrastructureAttempts: priorInfrastructureAttempts = [] } = {}) => {
@@ -1232,7 +1254,7 @@ export async function takeResource(options) {
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
           ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
           waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
-          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
+          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, handOver, timingEvidence,
           ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
       }
       if (acquired.state.runnerWait) {

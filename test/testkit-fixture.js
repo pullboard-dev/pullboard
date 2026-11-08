@@ -5,6 +5,11 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 
+/** The model name fixture seats join with when a test passes `--model` itself. */
+export const FIXTURE_MODEL = 'Fixture Model';
+/** A second model name, so a later seat must register against the earlier one. */
+export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
+
 /** Normalize the two child-process result shapes used by CLI-backed fixtures. */
 function fixtureResult(result) {
   return { code: result.code ?? result.status, out: result.out ?? result.stdout ?? '', err: result.err ?? result.stderr ?? '' };
@@ -123,6 +128,26 @@ export function fixtureHandoffPolicy(box, config) {
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', submit: { handoff: true } }, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return join(box.repo, '.git', 'pullboard', 'board.sqlite');
+}
+
+/**
+ * Commit the given pullboard.json fields into a fixture project and bring its web checkout up to date.
+ *
+ * Why: a test that needs its own gate, affectedTests or landing policy declares it here instead of writing
+ * pullboard.json by hand, so a policy rule change is met in one place. Unlike fixtureHandoffPolicy it forces
+ * neither the gate nor submit.handoff, so submit still submits. First half of #3730.
+ *
+ * @param {object} box - The e2e project (repo, web, git).
+ * @param {object} policy - The pullboard.json fields to set over the project's current ones.
+ * @returns {string} The board file inside the repository's .git.
+ */
+export function fixtureCommittedPolicy(box, policy) {
+  const file = join(box.repo, 'pullboard.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...policy }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure the fixture project policy [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return join(box.repo, '.git', 'pullboard', 'board.sqlite');
 }

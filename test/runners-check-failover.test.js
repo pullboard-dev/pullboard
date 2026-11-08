@@ -11,7 +11,9 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 const SOURCE = join(import.meta.dirname, '..');
 
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
-function failover(t, { review = false, dropped = false, timedOut = false, exhausted = false, first = true } = {}) {
+// Since 4c5e2ac38d (#2512) the gate keeps one of two runners for timed checks by default; these failover cases
+// declare no kept runner, so the first configured runner takes the first attempt, as they assert [C7].
+function failover(t, { review = false, dropped = false, timedOut = false, exhausted = false, first = true, timingRunner = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-check-failover-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, 'repo');
@@ -26,7 +28,7 @@ function failover(t, { review = false, dropped = false, timedOut = false, exhaus
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: ['failed-runner', 'next-runner'].map(host => ({ host, slots: 1, browser: 1 })),
-    gate: { runnersFirst: first, runnersOnly: false, runnerWaitMs: 100, memoryFloorMB: 0 } }));
+    gate: { runnersFirst: first, runnersOnly: false, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner } }));
   writeFileSync(join(root, 'source.txt'), 'committed source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   runFixtureGit(['add', 'source.txt'], { cwd: root, env });
@@ -111,6 +113,17 @@ for (const dropped of [false, true]) {
   });
 }
 
+test('clause 1: with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
+  // gate.timingRunner 'auto' keeps failed-runner (no measured headroom or cores, so registration order) for timed checks.
+  const run = failover(t, { dropped: true, timingRunner: 'auto' });
+  assert.equal(run.failure, undefined);
+  assert.equal(run.result, 'next-runner');
+  assert.deepEqual(run.attempts, ['next-runner']);
+  assert.equal(run.localRan, false);
+  assert.equal(run.receipts.at(-1).runner.id, 'next-runner');
+  assert.equal(run.holders.length, 0);
+});
+
 test('runners-first opt-out retains the explicit local check control [C7]', t => {
   const run = failover(t, { first: false });
   assert.equal(run.result, 'local');
@@ -136,7 +149,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
-    gate: { runnersFirst: true, memoryFloorMB: 0 } }));
+    gate: { runnersFirst: true, memoryFloorMB: 0, timingRunner: false } }));
   writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   runFixtureGit(['add', 'source.txt'], { cwd: root, env });

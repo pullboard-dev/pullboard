@@ -5,6 +5,7 @@ import { addItem } from '../packages/store/index.js';
 import { claim } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { register } from '../packages/store/index.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { requireAgentGrant } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { QUEUED_START_GRANT_ENGINE } from '../src/queued-start-grant-engine.js';
@@ -24,8 +25,7 @@ function queuedFixture(t, { rivalFirst = false } = {}) {
     board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(new Date(Date.now() - MINUTE).toISOString(), id);
     claim(board, id, { agentId: register(board, { lane: 'core', path: '/rival', route: 'strong' }), lane: 'core', leaseMs: 60 * MINUTE, freeze: FREEZE });
   }
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)')
-    .run(`submit_handoff:${id}`, JSON.stringify({ id: 'job-1', agentId: builder, state: 'queued' }));
+  recordSubmitHandoff(board.db, id, { version: 1, id: 'job-1', agentId: builder, commit: 'c'.repeat(40), state: 'queued' });
   const later = new Date(Date.now() + 2 * 60 * MINUTE);
   const start = (agentId, engine = ENGINE_VERSION) => ({ version: 1, engine, id: `start-${agentId}-${engine}`, operation: 'startSubmitHandoff',
     args: [id, { agentId, job: 'job-1' }], actor: agentId });
@@ -44,4 +44,11 @@ test('clause 1: startSubmitHandoff for the job the same seat queued is admitted 
 test('clause 2: startSubmitHandoff stays refused once another seat has claimed the item [C7]', t => {
   const { board, builder, later, start } = queuedFixture(t, { rivalFirst: true });
   assert.throws(() => requireAgentGrant(board, start(builder), later), { code: /^AGENT_GRANT_/u });
+});
+
+test('clause 2: no board_meta hand-off row exists and the queued start reads the gate job on the real grant path [C7]', t => {
+  const { board, builder, id, later, start } = queuedFixture(t);
+  assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff*'").get().n, 0);
+  assert.equal(board.db.prepare("SELECT job_item FROM job WHERE job_id='job-1'").get().job_item, id);
+  assert.doesNotThrow(() => requireAgentGrant(board, start(builder), later));
 });

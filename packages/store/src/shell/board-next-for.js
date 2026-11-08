@@ -396,7 +396,7 @@ export function greenReviewFor(board, who) {
  * @param {any} entry
  * @returns {string | null}
  */
-function gateAtHead(board, entry) {
+export function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).

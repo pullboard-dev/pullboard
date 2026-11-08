@@ -3894,9 +3894,11 @@
     "model": 2,
     "raw-board": 1
   },
+  "test/worker-scale-fixture.js": {
+    "raw-board": 2
+  },
   "test/worker-scale.test.js": {
-    "tempdir": 1,
-    "raw-board": 5
+    "tempdir": 1
   },
   "test/workflows.test.js": {
     "repo-read": 2,

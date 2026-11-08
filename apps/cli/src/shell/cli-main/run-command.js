@@ -15,7 +15,10 @@ export async function runCommand(argv, io) {
   try {
     parsed = parseCommandArgs(argv);
   } catch (error) {
-    const refusal = new Refused('USAGE', `${error.message}; run pullboard help`);
+    // A parse error that names its own refusal code (REPEATED_FLAG) keeps it; any other parse error is usage.
+    const refusal = new Refused(typeof error.refusalCode === 'string' ? error.refusalCode : 'USAGE', `${error.message}; run pullboard help`);
+    // The values never parsed, so the JSON switch is read from the arguments: the refusal code must survive in --json output.
+    io.jsonMode?.(argv.includes('--json'));
     await io.prepareRefusal();
     io.refusal?.(refusal);
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.\nnext: ${io.refusalDocument(refusal).error.next}`);

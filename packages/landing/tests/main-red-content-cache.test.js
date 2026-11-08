@@ -10,12 +10,14 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const MAIN_RED = pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href;
+const CLI = join(import.meta.dirname, '../../../bin/pullboard.js');
 const KNOWN_MAIN = pathToFileURL(join(import.meta.dirname, '../src/shell/landing-known-main.js')).href;
 const ENVIRONMENT = pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href;
 const RED = "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n";
@@ -221,4 +223,31 @@ test('clause 1: a batch that changed the failing test\'s inputs is compared with
   commit(box, 'test: the item changes the red test');
   compare(box, 'landing', base);
   assert.equal(runs(box), 2, 'the landing reran main for the changed test instead of trusting the content record');
+});
+
+test('clause 3: two cold readers of the same content run main once even with free gate slots, the second waiting on the content flight [C7,#3166]', async t => {
+  const box = fixture(t);
+  const first = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  const driver = join(box.directory, 'cold-driver.mjs');
+  writeFileSync(driver, [
+    `import { compareMainFailures } from ${JSON.stringify(MAIN_RED)};`,
+    "const [root, commit] = process.argv.slice(2);",
+    "console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
+  ].join('\n'));
+  const configured = runFixtureChild(process.execPath, [CLI, 'settings', 'gateSlots', '4', '--json'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(configured.status, 0, configured.context ?? configured.stdout + configured.stderr);
+  const env = box.env;
+  const child = () => new Promise((resolve, reject) => {
+    const proc = spawn(process.execPath, [driver, box.root, first], { cwd: box.root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', chunk => { out += chunk; });
+    proc.stderr.on('data', chunk => { err += chunk; });
+    proc.on('error', reject);
+    proc.on('close', status => status === 0 ? resolve(JSON.parse(out.trim().split('\n').at(-1))) : reject(new Error(out + err)));
+  });
+  const [one, two] = await Promise.all([child(), child()]);
+  assert.equal(one.files[0].result, 'red', JSON.stringify(one));
+  assert.equal(two.files[0].result, 'red', JSON.stringify(two));
+  assert.equal(runs(box), 1, 'main executed the file once for two concurrent cold readers');
 });

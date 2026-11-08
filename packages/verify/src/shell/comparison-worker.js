@@ -16,6 +16,9 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** The file a comparison worker records its pid in; the restart plan reads the same name [C7]. */
+export const COMPARISON_WORKER_RECORD = 'worker.json';
+
 /**
  * Take the shared per-tooling tools snapshot before the builder can change branches; the request supplies no verdict authority.
  * Why: every comparison copied the whole tools tree, 1,273 folders in one audit; two comparisons at one tooling now share one folder [C7].
@@ -36,7 +39,7 @@ export async function launchComparisonWorker({ origin, commonDir, toolRoot, entr
     const worker = spawnWorker(process.execPath, [join(tools, relative(toolRoot, fileURLToPath(import.meta.url))), request],
       { cwd: origin, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
     await once(worker, 'spawn');
-    writeFileSync(join(directory, 'worker.json'), JSON.stringify({ pid: worker.pid, source, digest }) + '\n', { mode: 0o600 });
+    writeFileSync(join(directory, COMPARISON_WORKER_RECORD), JSON.stringify({ pid: worker.pid, source, digest }) + '\n', { mode: 0o600 });
     worker.unref();
   } finally { closeSync(log); }
   return { job };

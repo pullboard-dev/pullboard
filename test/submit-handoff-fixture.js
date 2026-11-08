@@ -6,6 +6,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
+import { endedSubmitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { driverRecord } from './gate-driver-fixture.js';
 import { jobView } from '../packages/jobs/index.js';
@@ -17,12 +18,15 @@ export function document(result) {
   return JSON.parse(result.out);
 }
 
-/** Read the real SQLite state without writing or inventing a proof receipt. */
-export function state(box, id) {
+/** Read the real SQLite state without writing or inventing a proof receipt; an ended job id also reads that stopped incarnation. */
+export function state(box, id, endedId) {
   // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
   const board = openBoard(box.boardFile);
-  try { return { item: getItem(board, id), job: submitHandoff(board, id) }; }
-  finally { board.db.close(); }
+  try {
+    return { item: getItem(board, id), job: submitHandoff(board, id), ended: endedId ? endedSubmitHandoff(board, endedId) : null,
+      returns: board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='submit_handoff_returned'").get(id).n,
+      shouts: board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all().map(row => row.shout_text) };
+  } finally { board.db.close(); }
 }
 
 /** Quote a private fixture path for the actual configured shell command. */

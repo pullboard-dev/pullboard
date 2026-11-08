@@ -23,13 +23,14 @@ import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
 import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { recordNextIdle } from '../src/board.js';
-import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
+import { addMilestone, editMilestoneItems, logEvent } from '../packages/store/index.js';
 import { proposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel } from '../packages/sentinels/index.js';
 import { beginSentinelRun } from '../packages/sentinels/index.js';
@@ -297,9 +298,11 @@ function recordEventContract() {
   const coordinator = ensureCoordinator(board, '/coordinator');
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
-  const builder = register(board, { lane: 'docs', path: '/builder' });
+  // A strict builder declares its vendor family when it joins; a seat that joins first without one and later names it records the family on the seat, with no separate family event.
+  const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
-  register(board, { lane: 'docs', path: '/builder', family: 'codex' });
+  register(board, { lane: 'tests', path: '/family-seat' });
+  register(board, { lane: 'tests', path: '/family-seat', family: 'codex' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });
@@ -352,12 +355,17 @@ function recordEventContract() {
   const askedAgain = shout(board, { from: builder, to: coordinator, text: 'superseding decision', lanes: ['docs', 'tests'], decision: true });
   answerDecision(board, askedAgain, { agentId: coordinator, text: 'no', lanes: ['docs', 'tests'], supersedes: implyingAnswer });
   editItem(board, first, { agentId: coordinator, after: [] });
+  // The coordinator's reversible machine-verification mark on an open item records `machineVerification` on its edit.
+  editItem(board, first, { agentId: coordinator, machineVerified: false });
   holdItem(board, first, { agentId: coordinator, reason: 'fixture item hold' });
   releaseItemHold(board, first, { agentId: coordinator });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('first') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   escalate(board, first, { agentId: builder, note: 'attempted once', attempt: '1' });
+  claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
+  // The automatic rejection escalation carries the two rejection receipts in the same event.
+  escalate(board, first, { agentId: coordinator, note: 'two rejects on the route', rejections: [{ receipt: 'r1', reason: 'TEST_FAILURE' }, { receipt: 'r2', reason: 'TEST_FAILURE' }] });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   release(board, first, builder, 'Recorded format example returns the claim before refreezing.', undefined, 'OTHER');
   editItem(board, first, { agentId: coordinator, criterion: 'Updated after claim', reason: 'the claimed bar named the wrong field' });
@@ -372,6 +380,10 @@ function recordEventContract() {
   verify(board, first, { agentId: reviewer, decision: 'ACCEPT', note: 'checked a newer composition',
     head: 'd'.repeat(40), digest: 'second', policy: 'agents',
     review: { commit: acceptedCommit, head: 'd'.repeat(40), trunk: 'b'.repeat(40), paths: ['docs/formats.md'] } });
+  // A machine acceptance needs sealed native receipts, which this fixture cannot mint; its event shape is recorded synthetically here.
+  logEvent(board, reviewer, 'accept', first, { reason: ACCEPT_REASON, commit: acceptedCommit, note: 'machine-verified: frozen check (receipt fixture)',
+    review: { commit: acceptedCommit, head: acceptedCommit, trunk: 'b'.repeat(40), paths: ['docs/formats.md'] },
+    machine: { version: 1, commands: [{ clause: 0, command: 'true', receipt: 'fixture' }] } });
   merged(board, first, { agentId: coordinator, commit: 'c'.repeat(40) });
   const batch = recordLandingBatch(board, { agentId: coordinator, batch: { version: 1, id: 'format-example', base: 'a'.repeat(40), tip: 'c'.repeat(40),
     root: '/landing', branch: 'refs/heads/main', state: 'pushed', owner: 'format-example', logPath: '/landing.log', items: [{ id: first, commit: acceptedCommit, merge: 'c'.repeat(40) }] } });
@@ -403,7 +415,7 @@ function recordEventContract() {
   for (const [head, clause] of [['6'.repeat(40), 'The title renders.'], ['7'.repeat(40), 'The footer renders.']]) {
     claim(board, ceiling, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: ceilingFreeze });
     submitFixture(board, ceiling, { agentId: builder, commit: head, tree: '8'.repeat(40) });
-    verify(board, ceiling, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    verify(board, ceiling, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
       note: 'the named rendered part is missing', clause, head, digest: 'strong-notice', policy: 'agents' });
   }
 
@@ -477,6 +489,9 @@ function recordEventContract() {
   for (const id of ['format-first', 'format-second']) recordFlakeObservation(board, {
     agentId: coordinator, lane: 'docs', observation: syntheticFlakeObservation(id, true),
   });
+  // Synthetic automatic-Submit quarantine: only its detail shape is claimed; the native Submit journeys prove how it is filed.
+  logEvent(board, coordinator, 'test-quarantine', first, { engine: AUTO_SUBMIT_QUARANTINE_ENGINE, autoSubmit: true,
+    file: 'test/synthetic.test.js', name: 'synthetic submit target', tree: 'b'.repeat(40), runs: ['format-submit-first', 'format-submit-second'] });
   // Explicitly synthetic event-contract history; no external command or gate is claimed.
   const watch = proposeSentinel(board, { agentId: coordinator, row: { name: 'format-watch', check: 'false', every: 'daily', owner: 'coordinator' } });
   decideSentinel(board, { agentId: PERSON, channel: 'view', name: watch.name, digest: watch.digest, decision: 'approve' });
@@ -771,7 +786,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
   }
 });
 
-test('[A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
+test('clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
   const board = openBoard(':memory:');
   try {
     const version = board.db.prepare('PRAGMA user_version').get().user_version;
@@ -834,6 +849,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     answer: 'answerer',
     'flake-observation': 'reporting agent',
     'flake-repair': 'reporting agent',
+    'test-quarantine': 'reporting agent',
     'health-scan': 'observing agent',
     'health-failure': 'sentinel',
     'health-resolved': 'sentinel',

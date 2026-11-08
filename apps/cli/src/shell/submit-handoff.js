@@ -52,6 +52,7 @@ import { tmpdir } from 'node:os';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { handoffRecords } from '../../../../packages/store/index.js';
@@ -552,7 +553,7 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
 export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExecutor, launch = launchCapturedWorker } = {}) {
   const jobs = withBoardRead(ctx, board => boardHandoffs(board)
     .filter(({ job }) => job.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
-      && (job.infrastructureRetries ?? 0) < 2));
+      && (job.infrastructureRetries ?? 0) < INFRASTRUCTURE_RETRY_LIMIT));
   if (!jobs.length || !(await healthy())) return 0;
   let recovered = 0;
   for (const { itemId, job } of jobs) {
@@ -567,7 +568,7 @@ export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExec
       if (!current) return;
       let retry;
       try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
-        { limit: 2, retries: current.infrastructureRetries ?? 0 }); }
+        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0 }); }
       catch (error) {
         ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
         await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));
