@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 /** Run the actual CLI without blocking the loopback provider's event loop. */
 export async function runBridgeCLI(box, ...args) {
@@ -48,6 +48,13 @@ export function bridgeProject(t, mode = 'release') {
     "console.log('1..1'); console.log('# tests 1'); console.log('# pass ' + (red ? 0 : 1)); console.log('# fail ' + (red ? 1 : 0)); console.log('# skipped 0'); process.exitCode = red ? 1 : 0;",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, scratch);
+  // Submit proves synchronously here: a queued handoff would verify before any proof receipt exists.
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: submit proves synchronously in the bridge fixture [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
@@ -83,7 +90,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
     const path = index === 0 ? box.web : join(box.dir, 'web-two');
     if (index) {
       box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', path, 'main');
-      assert.equal(fixtureJoin(box.run, path, 'web').code, 0);
+      assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
     }
     if (independent) {
       const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -93,13 +100,13 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
       } finally { store.closeBoard(board); }
     }
     const add = fixtureAdd(box.run, box.repo, 'web', `private bridge ${name}`, '--specs', 'G1',
-      '--criterion', `private ${name} remains correct`, '--check', 'test ! -f RED',
+      '--criterion', `private ${name} remains correct`, '--check', 'test ! -f RED', '--route', 'strong',
       ...(briefs[index] === undefined ? [] : ['--brief', briefs[index]]), '--json');
     assert.equal(add.code, 0, add.err);
     const id = JSON.parse(add.out).item.item_id;
     assert.equal(box.run(path, 'claim', String(id)).code, 0);
     const file = `web/${name}.js`;
-    assert.equal(box.commitFile(box, path, file, 'PASS\n', `feat(web): bridge ${name} [G1]`).status, 0);
+    assert.equal(box.commitFile(box, path, file, "export const result = 'PASS';\n", `feat(web): bridge ${name} [G1]`).status, 0);
     const commit = box.git(path, 'rev-parse', 'HEAD');
     const submitted = box.run(path, 'submit', String(id));
     assert.equal(submitted.code, 0, submitted.err);
@@ -212,7 +219,7 @@ export async function bridgeProvider(t, box) {
 export function landBridgeRepair(box, id, file, { independent = false } = {}) {
   const path = join(box.dir, `repair-${id}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/repair-${id}`, path, 'main');
-  assert.equal(fixtureJoin(box.run, path, 'web').code, 0);
+  assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
   if (independent) {
     const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try { store.register(board, { lane: 'web', path, parent: 'fixture-pr-repair-builder' }); }
@@ -222,7 +229,7 @@ export function landBridgeRepair(box, id, file, { independent = false } = {}) {
     '--check', 'test ! -f RED', '--brief', 'Change the named private web fixture and retain the linked finding.');
   assert.equal(edited.code, 0, edited.err);
   assert.equal(box.run(path, 'claim', String(id)).code, 0);
-  assert.equal(box.commitFile(box, path, file, 'PASS FIXED\n', 'fix(web): repair private CI finding [G1]').status, 0);
+  assert.equal(box.commitFile(box, path, file, "export const result = 'PASS FIXED';\n", 'fix(web): repair private CI finding [G1]').status, 0);
   const commit = box.git(path, 'rev-parse', 'HEAD');
   const submitted = box.run(path, 'submit', String(id));
   assert.equal(submitted.code, 0, submitted.err);

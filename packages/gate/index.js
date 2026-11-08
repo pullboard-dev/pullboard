@@ -6,9 +6,8 @@ export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
-export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords } from "./src/shell/browser-admission.js";
+export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/shell/browser-admission.js";
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/shell/browser-slot-guard.js";
-export { withBrowserSourceFiles, browserSourceFiles, memoryBrowserSourceFiles, snapshotBrowserSourceFiles, realBrowserSourceFiles } from "./src/shell/browser-source-files.js";
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/core/capacity-summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/core/check-baseline-format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/shell/check-baseline-worker.js";

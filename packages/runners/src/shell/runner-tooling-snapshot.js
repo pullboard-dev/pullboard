@@ -1,3 +1,4 @@
+import { controllerPolicyFingerprints } from './runner-package.js';
 /** Pin derived tooling bytes without a hand-maintained dependency list [C7,P3]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -74,12 +75,18 @@ export function captureRunnerTooling(root, { since } = {}) {
   const controllerEntry = readFileSync(join(root, 'bin/runner-controller.js'), 'utf8');
   const providers = controllerProviderReader(root, controllerEntry);
   const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
-    controllerEntry, controllerSteps: controllerSteps(root),
+    controllerEntry, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
   if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), 'src/runners.js',
     'bin/runner-controller.js', ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
   return loaded;
+}
+
+/** Re-read the pinned controller graph, so edits to helper bodies are caught even without a closure rescan. */
+function sameControllerPolicy(root, policy) {
+  return Boolean(policy) && Object.entries(policy).every(([file, digest]) =>
+    createHash('sha256').update(readFileSync(join(root, file))).digest('hex') === digest);
 }
 
 /** Refuse stale pinned bytes before parsing dependencies again; newly reached files also require a restart. */
@@ -94,6 +101,7 @@ export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
     if (readFileSync(join(root, 'src/runners.js'), 'utf8') !== loaded.controller
       || readFileSync(join(root, 'bin/runner-controller.js'), 'utf8') !== loaded.controllerEntry
       || JSON.stringify(controllerSteps(root)) !== JSON.stringify(loaded.controllerSteps)
+      || !sameControllerPolicy(root, loaded.controllerPolicy)
       || (reader?.root === resolve(root) ? reader.providers() : controllerProviderReader(root, loaded.controllerEntry)()) !== loaded.controllerProviders
       || Object.entries(loaded.files).some(([name, source]) => readFileSync(join(root, name), 'utf8') !== source)) return refuse();
   } catch (error) {
