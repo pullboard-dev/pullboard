@@ -1,8 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A landing that adds a file the cells plan does not cover places it by the plan's rule, so main's cells-plan check stays green [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -10,14 +9,14 @@ import { amendLandingEngines } from '../packages/landing/index.js';
 import { placeLandingNewFiles } from '../packages/landing/index.js';
 import { computePlan, readPlan, writePlan } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 const REASON = 'explicit bounded placement: stays in place during the move';
 
 /** Build a real two-parent item merge whose item adds the given files without touching the plan. */
 function fixture(t, added) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-land-new-file-'));
+  const { root } = privateFixtureFiles('pullboard-land-new-file-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   /** Write a synthetic source input, never a replacement for the production placement implementation. */
   function put(file, text) {
