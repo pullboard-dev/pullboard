@@ -32,7 +32,7 @@ const EXHAUSTED_RETRIES = 2;
  * final and the sentinel shouts once. Why three: a stall that kills workers can kill the first
  * retries too, and none of those gates had a fault in its candidate (#3714).
  */
-export const INFRASTRUCTURE_RETRY_LIMIT = 3;
+export const INFRASTRUCTURE_RETRY_LIMIT = 2;
 /**
  * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
  * failing (#2521), a gate whose bounded infrastructure retries were spent (#2516), and every machinery code the
