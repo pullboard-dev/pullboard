@@ -11,4 +11,5 @@ export { takeWaitShouts } from './src/shell/next-wait-shouts.js';
 export { coordinatorCalloutLine } from './src/shell/coordinator-callouts.js';
 export { calloutLine } from './src/core/coordinator-callouts.js';
 export { openCallouts } from './src/core/coordinator-callouts.js';
+export { actionableCallout } from './src/core/coordinator-callouts.js';
 export { CALLOUT_AGE_MS } from './src/core/coordinator-callouts.js';
