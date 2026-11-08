@@ -64,3 +64,13 @@ test('clause 2: the Stuck shout reaches the coordinator and the person with the 
   assert.equal(stuckShouts(box).length, 2, 'a grown count is shouted again');
   assert.match(stuckShouts(box)[1].shout_text, / has 4 green items/u);
 });
+
+test("clause 2: another family's earlier larger count does not hide this family's Stuck shout [C7,#3792]", async t => {
+  const { box, waiting } = await backlogFixture(t);
+  store.shout(box.board, { from: 'sentinel', to: 'coordinator', lanes: [], text: 'Stuck: review cover. otherfamily has 9 green items waiting for review and no live or wakeable anthropic reviewer. Wake or add one; builds continue.' });
+  const next = await cli(box, box.seats.actor.path, ['next']);
+  assert.equal(next.code, 0, next.out + next.err);
+  const shouts = stuckShouts(box).filter(row => !row.shout_text.includes('otherfamily'));
+  assert.equal(shouts.length, 1, JSON.stringify(stuckShouts(box)));
+  assert.match(shouts[0].shout_text, new RegExp(` has ${waiting.length} green items waiting for review`, 'u'));
+});

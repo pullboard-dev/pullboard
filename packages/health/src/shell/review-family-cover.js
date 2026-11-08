@@ -93,14 +93,14 @@ export function reviewFamilyBuildPause(info, board, config, seat) {
 /**
  * Raise one Stuck shout to the coordinator and the person naming how many green items wait for review and the missing
  * reviewer family. Builds never wait on review cover: this shout is how the backlog reaches whoever wakes or adds reviewers.
- * It repeats only when the waiting count grows past the newest earlier shout [#3792].
+ * It repeats only when the waiting count grows past the newest earlier shout for the same family, so one family's count never hides another's [#3792].
  */
 export async function shoutReviewCoverStuck(ctx, board, ordered, seat) {
   const backlog = reviewFamilyBacklog(ctx.info, board, ctx.config, seat);
   if (!backlog) return false;
   const count = backlog.own.length;
   const missing = [...new Set(backlog.own.flatMap(row => row.neededFamilies))].join(', ') || 'another family';
-  const last = board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE 'Stuck: review cover.%' ORDER BY shout_id DESC LIMIT 1").get();
+  const last = board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE ? ORDER BY shout_id DESC LIMIT 1").get(`Stuck: review cover. ${backlog.family} has %`);
   const before = Number(/ has (\d+) green items/u.exec(last?.shout_text ?? '')?.[1] ?? 0);
   if (count <= before) return false;
   const text = `Stuck: review cover. ${backlog.family} has ${count} green items waiting for review and no live or wakeable ${missing} reviewer. Wake or add one; builds continue.`;
