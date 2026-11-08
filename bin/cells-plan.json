@@ -1728,6 +1728,10 @@
     {
       "path": "bin/checks/cells-edges.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/sync-spawn-in-leases.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

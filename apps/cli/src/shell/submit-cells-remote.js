@@ -22,8 +22,39 @@ import {
   gitPath,
 } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { keepRunnerStderr } from './runner-stderr.js';
 import { privateCheckEnvelope } from '../../../runner/index.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
+
+const TRUSTED_RESULT = 'PULLBOARD_TRUSTED_RESULT ';
+
+/** The sentence tail that points a reader at the kept stderr, or an empty string when none was kept. */
+export function stderrNote(file) {
+  return file ? `; runner stderr is in ${file}` : '';
+}
+
+/** The refusal payload from a runner's authenticated stdout, or null when the step printed none. */
+export function trustedRefusalIn(text) {
+  for (const line of String(text).split(/\r?\n/u)) {
+    if (!line.startsWith(TRUSTED_RESULT)) continue;
+    try {
+      const refusal = JSON.parse(line.slice(TRUSTED_RESULT.length))?.refusal;
+      if (refusal && typeof refusal.code === 'string' && typeof refusal.message === 'string') return refusal;
+    } catch { /* not a refusal line */ }
+  }
+  return null;
+}
+
+/**
+ * Throw a runner's refusal as the Mac would raise it: retryable becomes the infrastructure error the queue reruns
+ * on the same candidate, anything else is that refusal code.
+ */
+export function throwTrustedRefusal(refusal) {
+  if (refusal.retryable === true) {
+    throw Object.assign(new Error(refusal.message), { name: 'CellsInventoryInfrastructureError', code: refusal.code, retryable: true });
+  }
+  throw new Refused(refusal.code, refusal.message);
+}
 
 /** Accept only a complete authenticated response for the same source, policy and board snapshot. */
 export async function remoteSubmitCells(root, main, source, item, lease, readCutItems, artifactDirectory, { collectMachinery = false } = {}) {
@@ -49,6 +80,7 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
+  const kept = keepRunnerStderr(directory, result);
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
@@ -56,12 +88,14 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
-    throw new Refused('CELLS_SUBMIT', `remote cell analysis did not return a complete pinned result; inspect ${directory}`);
+    throw new Refused('CELLS_SUBMIT', `remote cell analysis did not return a complete pinned result; inspect ${directory}${stderrNote(kept)}`);
   }
   const bytes = readFileSync(result.rawOutputPath);
   if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
     throw new Refused('RUNNER_RESULT_INVALID', 'remote cell analysis output does not match its authenticated receipt');
   }
+  const refusal = trustedRefusalIn(bytes.toString('utf8'));
+  if (refusal) throwTrustedRefusal(refusal);
   const rows = bytes.toString('utf8').split(/\r?\n/u).filter(line => line.startsWith('PULLBOARD_CELLS_RESULT '));
   let value;
   try { if (rows.length === 1) value = JSON.parse(rows[0].slice('PULLBOARD_CELLS_RESULT '.length)); } catch { /* refused below */ }
@@ -79,7 +113,14 @@ export function submitCellsRemoteCommand({ main, source, criterion, title = '', 
     throw new TypeError('cell analysis needs pinned commits, criterion and cut rows');
   }
   const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, collectMachinery })).toString('base64');
-  const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => { console.error(error?.stack ?? String(error)); process.exitCode = 1; });`;
+  // A coded refusal is a result, not a crash: print it as a trusted line and exit 0; only a codeless error exits 1 [C7].
+  const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => {
+  if (typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(error.code) && (error.name === 'Refused' || error.retryable === true)) {
+    process.stdout.write('${TRUSTED_RESULT}' + JSON.stringify({ refusal: { code: error.code, message: String(error.message ?? ''), retryable: error.retryable === true } }) + '\\n');
+    return;
+  }
+  console.error(error?.stack ?? String(error)); process.exitCode = 1;
+});`;
   return `${shellWord(node)} --input-type=module -e ${shellWord(script)}`;
 }
 
