@@ -107,11 +107,14 @@ export function bindApiFixtureMachine(t, env) {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     const markers = new Map(AGENT_SHELL_MARKERS.map(name => [name, process.env[name]]));
     for (const name of AGENT_SHELL_MARKERS) delete process.env[name];
+    // In-process landing commits merges; a runner has no Git identity of its own, so the fixture's identity binds here too.
+    const identity = new Map(['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].map(name => [name, process.env[name]]));
+    for (const name of identity.keys()) process.env[name] = env[name];
     fixtureMachineTests.add(t);
     t.after(() => {
       if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
       else process.env.PULLBOARD_MACHINE_HOME = previous;
-      for (const [name, value] of markers) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+      for (const [name, value] of [...markers, ...identity]) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
     });
   }
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
