@@ -9,11 +9,14 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
+import { fixtureCellsPlan } from './testkit-fixture.js';
+import { fixtureMachineSettings } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject } = makeLandProjectFixtures({ ...e2e,
-  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = 'coordinator-runs-no-tests-fixture'; return box; } });
+  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = FIXTURE_MODEL; return box; } });
 const landing = pathToFileURL(resolve(import.meta.dirname, '../packages/landing/index.js')).href;
 
 /** A land project whose committed tree carries a failing main test, a cells-plan check and a smoke stub; each names the HOME it ran under. */
@@ -24,7 +27,7 @@ function runnerProject({ healthDown = false } = {}) {
   mkdirSync(join(box.repo, 'packages/landing/src/shell'), { recursive: true });
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
   writeFileSync(join(box.repo, 'web/land-1.test.js'), '// RED NAME:main-red-case\n');
-  writeFileSync(join(box.repo, 'bin/cells-plan.json'), '{"cells":[]}\n');
+  fixtureCellsPlan(box.repo, '{"cells":[]}\n');
   // Each script leaves a marker only when it runs under this machine's HOME, so a local fallback is visible.
   const mark = `import { writeFileSync } from 'node:fs'; if (process.env.HOME === ${JSON.stringify(box.env.HOME)}) writeFileSync(${JSON.stringify(marker)}, 'local');`;
   writeFileSync(join(box.repo, 'bin/cells-plan.js'), `${mark}\nconsole.log('not in bin/cells-plan.json: ran-at:' + process.env.HOME);\nprocess.exit(1);\n`);
@@ -37,8 +40,8 @@ function runnerProject({ healthDown = false } = {}) {
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, starts, healthDown, workerHealthDown: healthDown });
   box.env.PATH = `${sshBin}:${box.env.PATH}`;
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } }));
+  fixtureMachineSettings(box, { gateSlots: 1, browserSlots: 1,
+    runners: healthDown ? [] : [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0, ...(healthDown ? { runnerWaitMs: 1000 } : {}) } });
   return { box, marker, remoteHome, starts, main: box.git(box.repo, 'rev-parse', 'HEAD') };
 }
 

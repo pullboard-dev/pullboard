@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Native questions retain their full text/actions while summaries name the actual item [N26,B26]. */

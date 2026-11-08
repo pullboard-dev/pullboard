@@ -61,6 +61,8 @@ function gateWaitReporter(io) {
 
 const FILE_CHARS = 32_000;
 const PACK_FILE_CHARS = 96_000;
+// Loaded by runItems on first use so importing this package stays light [C7].
+let store, digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate, missingGate;
 
 /**
  * A whole number from a flag, within bounds, or a refusal naming the flag.
@@ -459,8 +461,10 @@ export async function runItems(io, values, deps) {
   const routes = Object.keys(agents).filter((route) => store.canTake(me.route, route));
   const totals = { submitted: 0, escalated: 0 };
   const deadline = Date.now() + waitMinutes * 60_000;
+  const omitIds = []; // items whose folder another live session holds (#3688)
   while (totals.submitted + totals.escalated < limit) {
-    const found = await deps.nextOnce(ctx, { runnable: true, routes, build: true });
+    const found = await deps.nextOnce(ctx, { runnable: true, routes, build: true, omitIds });
+    if (found.skipItem) omitIds.push(found.skipItem);
     if (found.retry) continue;
     if (!found.item) {
       if (Date.now() >= deadline) {

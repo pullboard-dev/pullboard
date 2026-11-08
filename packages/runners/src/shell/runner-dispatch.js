@@ -8,6 +8,7 @@ import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
+import { spawnSsh } from '../../../transport/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -220,6 +221,22 @@ export async function serveRunnerController(ports) {
   } finally { stopWatching(); custody.close(); }
 }
 
+/**
+ * The refusal of a job whose runner went unavailable while it waited for READY. Its diagnostic's reason is
+ * runner-unavailable: the gate requeues it as cleanup-unverified, and recordRunnerFailure keeps the runner's existing
+ * quarantine instead of writing a second one, so one drop is one quarantine (#3698) [C7].
+ *
+ * @param {{ runner: { host: string }, spec: { id: string } }} request
+ * @param {{ host: string, reason: string }} unavailable - The runner's lease observation.
+ * @returns {Refused}
+ */
+export function runnerUnavailableRefusal(request, unavailable) {
+  const error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
+  error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
+    unavailable, remoteCleanup: 'unknown' };
+  return error;
+}
+
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
@@ -236,7 +253,7 @@ async function runInController(root, command, options, ports) {
     /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
-    const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawnSsh(request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '', cleanupDetails = null;
@@ -253,9 +270,7 @@ async function runInController(root, command, options, ports) {
         try {
           const unavailable = deadline.unavailable();
           if (unavailable?.host === request.runner.host) {
-            error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
-            error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
-              unavailable, remoteCleanup: 'unknown' };
+            error = runnerUnavailableRefusal(request, unavailable);
             transport.stop();
           }
         } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
