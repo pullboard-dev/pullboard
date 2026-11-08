@@ -171,19 +171,23 @@ test('a runner that failed earlier and recovered takes the rerun when the other 
   assert.equal(result, 'GREEN on runner-a');
 });
 
-test('a lost resource lease is infrastructure and waits like a lock, bounded on its own [C7]', async () => {
+test('lock stops wait without spending runner retries, bounded on their own, and a lost lease stays a counted retry [C7]', async () => {
   assert.equal(infrastructureFailure(new Refused('RESOURCE_LEASE_LOST', 'the queued resource lease disappeared during item renewal')), 'RESOURCE_LEASE_LOST');
   let calls = 0;
   const { result, attempts, lockWaits } = await submitUntilSettled(async () => {
     calls += 1;
-    if (calls <= 4) throw new Refused(calls % 2 ? 'RESOURCE_LEASE_LOST' : 'BOARD_BUSY', 'fixture');
+    if (calls <= 4) throw new Refused(calls % 2 ? 'DATABASE_LOCKED' : 'BOARD_BUSY', 'fixture');
     return 'GREEN';
   }, { healthy: async () => true, wait: async () => {} });
   assert.equal(result, 'GREEN', 'four lock failures, more than the 3 runner retries, still end green');
   assert.deepEqual(attempts, [], 'lock waits are not runner attempts');
   assert.equal(lockWaits.count, 4);
   calls = 0;
-  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('RESOURCE_LEASE_LOST', 'fixture'); },
-    { healthy: async () => true, wait: async () => {}, lockWaitLimit: 5 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && /last RESOURCE_LEASE_LOST/u.test(error.message));
+  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('BOARD_BUSY', 'fixture'); },
+    { healthy: async () => true, wait: async () => {}, lockWaitLimit: 5 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && /last BOARD_BUSY/u.test(error.message));
   assert.equal(calls, 6, 'the first attempt and exactly the lock wait bound of reruns');
+  calls = 0;
+  const lost = await submitUntilSettled(async () => { calls += 1; if (calls === 1) throw new Refused('RESOURCE_LEASE_LOST', 'fixture'); return 'GREEN'; }, { healthy: async () => true, wait: async () => {} });
+  assert.equal(lost.attempts.length, 1, 'a lost lease is a counted runner retry, as #3303 requires');
+  assert.equal(lost.lockWaits.count, 0);
 });
