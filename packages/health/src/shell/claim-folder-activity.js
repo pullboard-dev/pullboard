@@ -14,22 +14,14 @@ import { resolve } from 'node:path';
  * including empty commits whose worktree files do not change.
  */
 export function claimFolderActive(root, id, now) {
-  const itemRoot = join(dirname(root), `${basename(root)}-item-${id}`);
-  const folder = existsSync(itemRoot) ? itemRoot : root;
+  const folder = claimFolder(root, id);
   if (!existsSync(folder)) return false;
   const cutoff = now - 15 * 60_000;
   /** Only an actual filesystem timestamp in the observation's past proves recent activity. */
   const recent = stat => Number.isFinite(stat.mtimeMs) && stat.mtimeMs >= cutoff && stat.mtimeMs <= now;
   try {
-    const dotGit = join(folder, '.git');
-    const metadata = lstatSync(dotGit);
-    let gitDir = dotGit;
-    if (metadata.isFile()) {
-      const pointer = /^gitdir: (.+)\s*$/u.exec(readFileSync(dotGit, 'utf8'));
-      if (!pointer) return null;
-      gitDir = resolve(folder, pointer[1].trim());
-    } else if (!metadata.isDirectory()) return null;
-    const log = join(gitDir, 'logs', 'HEAD');
+    const log = headLog(folder);
+    if (log === null) return null;
     if (existsSync(log) && recent(lstatSync(log))) return true;
     const pending = [folder];
     let count = 0;
@@ -43,5 +35,34 @@ export function claimFolderActive(root, id, now) {
       }
     }
     return false;
+  } catch { return null; }
+}
+
+/** The claim's native item folder beside the seat checkout, or the seat checkout itself when there is none. */
+function claimFolder(root, id) {
+  const itemRoot = join(dirname(root), `${basename(root)}-item-${id}`);
+  return existsSync(itemRoot) ? itemRoot : root;
+}
+
+/** The HEAD reflog path of a checkout or linked worktree, read without Git; null when .git is unreadable. Throws when .git is missing. */
+function headLog(folder) {
+  const dotGit = join(folder, '.git');
+  const metadata = lstatSync(dotGit);
+  if (metadata.isDirectory()) return join(dotGit, 'logs', 'HEAD');
+  if (!metadata.isFile()) return null;
+  const pointer = /^gitdir: (.+)\s*$/u.exec(readFileSync(dotGit, 'utf8'));
+  return pointer ? join(resolve(folder, pointer[1].trim()), 'logs', 'HEAD') : null;
+}
+
+/**
+ * When HEAD last moved in the claim's item folder (or the seat checkout), as a canonical instant, or null when unknown
+ * or in the future. A commit always moves HEAD's reflog, so this reads commits without spawning Git (#3446).
+ */
+export function claimFolderCommitAt(root, id, now) {
+  try {
+    const log = headLog(claimFolder(root, id));
+    if (log === null || !existsSync(log)) return null;
+    const at = Math.floor(lstatSync(log).mtimeMs);
+    return Number.isFinite(at) && at <= now ? new Date(at).toISOString() : null;
   } catch { return null; }
 }

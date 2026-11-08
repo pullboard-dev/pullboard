@@ -38,8 +38,12 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   store.claim(box.board, id, { agentId: box.seats.builder.id, lane: 'web', leaseMs,
     freeze: item => ({ text: item.item_title, digest: 'lease-lapse-fixture' }) });
   box.advance(62 * MINUTE);
-  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them.
-  for (const holder of prefixHolders) heartbeatSeat(box.board, holder);
+  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them. Each
+  // also records fresh work on its claim: a heartbeat alone no longer keeps a claim 40 minutes past its lease (#3446).
+  prefixHolders.forEach((holder, n) => {
+    heartbeatSeat(box.board, holder);
+    store.appendFact(box.board, unknownIds[n], { agentId: holder, kind: 'note', text: 'Prefix holder still working.' });
+  });
   return { box, id, unknownIds };
 }
 
@@ -53,6 +57,8 @@ test('clause 1: the next native write frees a lapsed idle claim with one origina
   assert.equal(Date.parse(window.until) - box.clock.now().getTime(), MINUTE, 'the original lease duration, not the stale age or current configuration');
   const report = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth: () => ({ findings: [] }) });
   assert.ok(report.waiting.some(entry => entry.cause === 'CLAIM_EXPIRED' && entry.item === id));
+  // The window waits only for a builder who can come back; a gone seat's window ends at once (#3447).
+  heartbeatSeat(box.board, box.seats.builder.id);
   assert.throws(() => store.claim(box.board, id, { agentId: box.seats.actor.id, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'new', digest: 'new' }) }),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER');
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');
@@ -75,7 +81,9 @@ test('a live holder heartbeat vetoes expiry, and a gone checkout with no activit
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write retains active holder.']);
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(itemById(box.board, id).item_status, 'claimed');
-  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims.length, 0);
+  // The live heartbeat vetoes lease-lapse expiry; the idle release for a holder with no work for 40 minutes is #3446's.
+  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims
+    .filter(row => row.idle === undefined).length, 0);
   box.advance(62 * MINUTE);
   const missing = store.register(box.board, { lane: 'web', path: box.root + '-missing-worktree', family: 'Fixture unknown work' });
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');

@@ -42,7 +42,7 @@ export function observeDirtyRunnerTooling(now, previous = [], root = TOOL_ROOT) 
     const paths = [row.slice(3)];
     if (/[RC]/u.test(row.slice(0, 2))) paths.push(rows[++index]);
     for (const path of paths) {
-      if (!path || !/^(?:package\.json$|(?:src|bin)\/|packages\/[^/]+\/(?:src\/|(?:index|core)\.js$))/u.test(path)) continue;
+      if (!path || !/^(?:package\.json$|(?:src|bin)\/|apps\/lib\/src\/|packages\/[^/]+\/(?:src\/|(?:index|core)\.js$))/u.test(path)) continue;
       let changedAt;
       try { const stat = lstatSync(join(root, path)); changedAt = Math.max(stat.mtimeMs, stat.ctimeMs); }
       catch {
