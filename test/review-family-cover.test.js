@@ -135,9 +135,7 @@ test('clause 2: the NOTHING_FREE refusal names the cover pause in its first reas
   const next = await cli(box, box.seats.actor.path, ['next', '--build']);
   assert.equal(next.document.error.code, 'NOTHING_FREE');
   const message = next.document.error.message.replace(/^lane [^:]+: /u, '');
-  const lines = message.split('; ');
-  assert.equal(lines[0], 'no item is free');
-  assert.equal(lines[1], pause, 'the pause is the first reason line');
+  assert.ok(message.startsWith(`no item is free; ${pause}; `), `the pause is the first reason line: ${message}`);
   assert.ok(message.includes('1 item is held by coordinator'), 'the held count still follows');
   assert.ok(message.indexOf('held by coordinator') > message.indexOf(pause));
 });
