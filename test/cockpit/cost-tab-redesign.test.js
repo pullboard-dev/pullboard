@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The Cost overview renders the server analytics contract in Chrome [N26]. */
