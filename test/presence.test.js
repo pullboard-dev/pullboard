@@ -563,7 +563,7 @@ test('a write after a heartbeat uploads once [B3,H16]', {
   assert.equal(fresh.snapshotTrace.length, 1, 'fresh presence needs only the ordered checkpoint');
   assert.equal(aged.snapshotTrace.length, 1, 'the changed aged presentation is published once before the second write');
   assert.equal(stale.snapshotTrace.length, 1, 'the ordered checkpoint includes the refreshed presence without another upload');
-  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('withItemSession')), 'the sole checkpoint comes from the ordered write');
+  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('withItemSession')), 'the sole checkpoint comes from the ordered write: ' + JSON.stringify(stale.snapshotTrace[0].callers));
   const observedAt = fixtureDatabase(presenceFile, db => db.prepare('SELECT at FROM heartbeat WHERE seat=?').get(heartbeat[0].seat).at);
   assert.notEqual(observedAt, agedAt, 'the successful native write really refreshed the heartbeat');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -598,6 +598,9 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const id = f.claim();
   const lastSeen = store.agentById(f.board, f.owner).heartbeatAt;
   const prefix = exportBoard(f.board);
+  // The sentinel ticked when the claim began, so the half-hour gap before the next tick is a late tick and the
+  // machine-stall hold keeps the quiet seat's claim; the opt-in rule under test is the only release at its boundary.
+  await f.scan();
   f.advance(1_800_000 - 1);
   await f.scan();
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'one millisecond before gone retains the two-hour lease');
@@ -640,6 +643,8 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
   assert.equal(loadConfig(f.box.repo).claims.releaseGone, false);
   assert.equal(configFromSource('{"claims":{"releaseGone":true}}').claims.releaseGone, true);
   assert.throws(() => configFromSource('{"claims":{"releaseGone":"true"}}'), error => error.code === 'BAD_CONFIG');
+  // As above: a sentinel tick at the claim makes each half-hour jump a late tick, which holds the quiet seat's claim.
+  await f.scan(false);
   f.advance(1_800_000);
   await f.scan(false);
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'off preserves the ordinary lease');
