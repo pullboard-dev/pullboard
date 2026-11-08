@@ -483,7 +483,7 @@ test('clause 1: a budget setting is optional, off by default and validated [N2]'
 
 const model = 'm';
 
-test('a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
+test('clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   const now = Date.parse('2026-11-08T12:00:00Z');
