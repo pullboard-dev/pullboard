@@ -1,6 +1,8 @@
-/** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: clause 1 reads the repository tree to prove the file moved; clause 2 runs the repository cells checks. */
 /** The cells checks replay a saved answer for an unchanged commit, tree and diff, and miss on any change [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -8,9 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { cachedCellsRun } from '../src/cells-cache.js';
-import { cellsCacheEnabled } from '../src/cells-cache.js';
-import { cellsStateKey } from '../src/cells-cache.js';
+import { cachedCellsRun, cellsCacheEnabled, cellsStateKey } from '../packages/codemap/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 
@@ -112,4 +112,16 @@ test('lint checker entry modules and their transitive helpers invalidate receipt
   writeFileSync(entry, `import ${JSON.stringify(helper)}; // entry v2\n`);
   run(root, ['cell-lints', '--check'], 0, counter, options);
   assert.equal(counter.n, 3, 'a changed entry misses both caches');
+});
+
+test('clause 1: src/cells-cache.js is gone and its leaf sits in the codemap cell [C7]', () => {
+  assert.equal(existsSync(join(ROOT, 'src/cells-cache.js')), false);
+  assert.equal(existsSync(join(ROOT, 'packages/codemap/src/shell/cells-cache.js')), true);
+});
+
+test('clause 2: the cells plan check and the cells edges check both pass [C7]', () => {
+  for (const args of [['bin/cells-plan.js', '--check'], ['bin/checks/cells-edges.js']]) {
+    const run = spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(run.status, 0, `${args.join(' ')} exited ${run.status}: ${run.stderr}`);
+  }
 });

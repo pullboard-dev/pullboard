@@ -438,10 +438,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/cells-cache.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -3465,6 +3461,7 @@
     }
   ],
   "allowedEdges": [
+    "codemap->git",
     "runners->config",
     "runners->kernel",
     "runners->resources",
