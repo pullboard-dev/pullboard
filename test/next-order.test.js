@@ -270,7 +270,9 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   assert.equal(next.code, 0, `${next.out}\n${next.err}`);
   assert.equal(JSON.parse(next.out).item.item_lane, 'app', 'the suggested command reaches work through the normal claim');
   const idle = helpers.project('true');
-  const empty = JSON.parse(idle.run(idle.repo, 'next', '--json').out).error;
+  const rawIdle = idle.run(idle.repo, 'next', '--json');
+  console.error('DEBUG9', JSON.stringify(rawIdle));
+  const empty = JSON.parse(rawIdle.out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
   assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
 });
@@ -988,6 +990,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
     '--reason', 'Focus across both kinds of next work', '--window', '{"activeItems":2}', '--json'));
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
+  console.error('DEBUG33', JSON.stringify(picked));
   assert.equal(picked.item.item_id, focused, 'a focused build outranks an outside review');
   assert.equal(picked.review, false);
   box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--no-next', '--json'));
