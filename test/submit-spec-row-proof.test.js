@@ -185,7 +185,7 @@ function unreportedTest(dir, caseName) {
 /** The exact-head submit receipts the gate wrote for the item, read from the gate's own receipt files. */
 function submitReceipts(repo, head) {
   const folder = join(repo, '.git', 'pullboard', 'gate-receipts');
-  return readdirSync(folder).map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')))
+  return readdirSync(folder).filter(name => name.endsWith('.json')).map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')))
     .filter(receipt => receipt.kind === 'submit' && receipt.head === head);
 }
 
