@@ -380,6 +380,10 @@ function recordEventContract() {
   verify(board, first, { agentId: reviewer, decision: 'ACCEPT', note: 'checked a newer composition',
     head: 'd'.repeat(40), digest: 'second', policy: 'agents',
     review: { commit: acceptedCommit, head: 'd'.repeat(40), trunk: 'b'.repeat(40), paths: ['docs/formats.md'] } });
+  // A machine acceptance needs sealed native receipts, which this fixture cannot mint; its event shape is recorded synthetically here.
+  logEvent(board, reviewer, 'accept', first, { reason: ACCEPT_REASON, commit: acceptedCommit, note: 'machine-verified: frozen check (receipt fixture)',
+    review: { commit: acceptedCommit, head: acceptedCommit, trunk: 'b'.repeat(40), paths: ['docs/formats.md'] },
+    machine: { version: 1, commands: [{ clause: 0, command: 'true', receipt: 'fixture' }] } });
   merged(board, first, { agentId: coordinator, commit: 'c'.repeat(40) });
   const batch = recordLandingBatch(board, { agentId: coordinator, batch: { version: 1, id: 'format-example', base: 'a'.repeat(40), tip: 'c'.repeat(40),
     root: '/landing', branch: 'refs/heads/main', state: 'pushed', owner: 'format-example', logPath: '/landing.log', items: [{ id: first, commit: acceptedCommit, merge: 'c'.repeat(40) }] } });
