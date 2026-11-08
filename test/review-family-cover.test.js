@@ -113,3 +113,30 @@ test('clause 3: doctor names missing registered family wakes and clears each res
   const restored = await cli(box, box.root, ['doctor']);
   assert.equal(restored.document.problems.some(problem => problem.code === 'REVIEW_FAMILY_COVER' && problem.message.startsWith(family)), false);
 });
+
+test('clause 1: a green review no live seat may verify never counts toward the build pause [C7,#3741]', async t => {
+  const box = await reviewFamilyFixture(t);
+  box.advance(REVIEW_COVER_WAIT_MS);
+  // The caller is the only author, so every live seat that could verify is absent: nobody may render these reviews.
+  assert.equal(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.builder), null, 'reviews only their author could render do not pause builds');
+  assert.ok(reviewFamilyCover(box.info, box.board, box.config, box.seats.builder.id).waiting.every(row => row.renderable === false));
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  assert.match(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.builder), /3 waiting green reviews/u, 'a live seat that may verify them makes them count again');
+});
+
+test('clause 2: the NOTHING_FREE refusal names the cover pause in its first reason line, before held and waiting counts [C7,#3741]', async t => {
+  const box = await reviewFamilyFixture(t);
+  const held = box.add('Held by the coordinator', { route: 'strong', brief: 'Files: web/held.js\nTest: the review stays available.' });
+  store.holdItem(box.board, held, { agentId: 'coordinator', reason: 'Fixture hold' });
+  box.add('New build waits for independent cover', { route: 'strong', brief: 'Files: web/candidate.js\nTest: the review stays available.' });
+  box.advance(REVIEW_COVER_WAIT_MS);
+  const pause = reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor);
+  assert.ok(pause);
+  const next = await cli(box, box.seats.actor.path, ['next', '--build']);
+  assert.equal(next.document.error.code, 'NOTHING_FREE');
+  const lines = next.document.error.message.split('; ');
+  assert.equal(lines[0], 'no item is free');
+  assert.equal(lines[1], pause, 'the pause is the first reason line');
+  assert.ok(next.document.error.message.includes('1 item is held by coordinator'), 'the held count still follows');
+  assert.ok(next.document.error.message.indexOf('held by coordinator') > next.document.error.message.indexOf(pause));
+});

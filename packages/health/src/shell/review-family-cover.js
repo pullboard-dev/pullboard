@@ -13,6 +13,8 @@ import { eligibilityProblem } from '../../../verify/index.js';
 
 export const REVIEW_COVER_WAIT_MS = 5 * 60_000;
 export const REVIEW_COVER_BACKLOG = 3;
+/** The pause reason ends with this text; the idle answer lists it before every other reason [#3741]. */
+export const REVIEW_COVER_PAUSE_TAIL = 'new builds wait for independent review cover';
 
 /** Read source-bound green submissions once, including younger work in the family's backlog count. */
 function greenReviews(board, items, at) {
@@ -31,7 +33,7 @@ function greenReviews(board, items, at) {
  * Observe declared vendor cover using the native board eligibility guards and local wake capabilities.
  * This is routing advice only: ordered claim/reservation guards never read these private observations.
  */
-export function reviewFamilyCover(info, board, config) {
+export function reviewFamilyCover(info, board, config, callerId = null) {
   if (config.verify?.family === 'off') return { missingFamilies: [], waiting: [] };
   const items = listItems(board);
   const seats = withLocalSeatPresence(board, listAgents(board)).filter(seat => seat.agent_id !== 'coordinator');
@@ -46,6 +48,9 @@ export function reviewFamilyCover(info, board, config) {
     covered: seats.some(seat => families.get(seat.agent_id) && families.get(seat.agent_id) !== row.family
       && !reviewing.has(seat.agent_id) && (seat.presence === 'live' || wakeable.has(seat.agent_id))
       && !eligibilityProblem(board, row.item, seat, { policy: config.verify?.policy, familyPolicy: 'require' })),
+    // A review no live seat may verify (every live seat is an author or shares the author's parent) cannot be helped by cover [#3741].
+    renderable: seats.some(seat => (seat.presence === 'live' || wakeable.has(seat.agent_id) || seat.agent_id === callerId) && !reviewing.has(seat.agent_id)
+      && !eligibilityProblem(board, row.item, seat, { policy: config.verify?.policy, familyPolicy: 'off' })),
     neededFamilies: declared.filter(family => family !== row.family),
   }));
   return { missingFamilies, waiting };
@@ -56,8 +61,8 @@ export function reviewFamilyBuildPause(info, board, config, seat) {
   if (config.verify?.family === 'off') return null;
   const family = canonicalFamily(board, seatFamily(board, seat.agent_id ?? seat.id));
   if (!family) return null;
-  const { waiting } = reviewFamilyCover(info, board, config);
-  const own = waiting.filter(row => row.family === family);
+  const { waiting } = reviewFamilyCover(info, board, config, seat.agent_id ?? seat.id);
+  const own = waiting.filter(row => row.family === family && row.renderable);
   if (own.length < REVIEW_COVER_BACKLOG || !own.some(row => !row.covered && row.ageMs >= REVIEW_COVER_WAIT_MS)) return null;
-  return `${family} has ${own.length} waiting green reviews and no eligible live or wakeable reviewer from another family; new builds wait for independent review cover`;
+  return `${family} has ${own.length} waiting green reviews and no eligible live or wakeable reviewer from another family; ${REVIEW_COVER_PAUSE_TAIL}`;
 }
