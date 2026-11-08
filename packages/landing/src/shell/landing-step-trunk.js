@@ -67,6 +67,9 @@ export function provenTreeGate(board, items, tree) {
   const job = submitHandoff(board, items[0].id);
   if (!item || !job || job.state !== 'green' || job.gateGreen === false || job.executionTree !== tree
     || job.commit !== items[0].commit || job.digest !== item.item_frozen_digest) return null;
+  // A submit that deferred affected files to landing never ran them, so its green proves only part of this tree.
+  const state = { board, batch: { items } };
+  if (deferredSelections(state).length) return null;
   return { isGreen: true, tree, failures: [], logPath: null, reusedSubmitGate: job.id };
 }
 

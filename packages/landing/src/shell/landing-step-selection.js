@@ -147,7 +147,8 @@ export function environmentWarnings(board, items, environment) {
 /** Keep the submitted identity and, when different, its sealed checked composition. */
 export function landingEntry(item) {
   return { id: item.item_id, commit: item.item_commit,
-    ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}) };
+    ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}),
+    ...(item.item_withdrawn_dependencies?.length ? { withdrawnDependencies: item.item_withdrawn_dependencies } : {}) };
 }
 
 /**
@@ -256,7 +257,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
         continue; // Verdict order is unchanged; this item leads the next eligible batch.
       }
       for (const file of files) touched.set(file, item.item_id);
-      ready.push(item);
+      // A withdrawn dependency is met, and the batch entry says so, so the record shows why the item went ahead [C7].
+      const withdrawn = dependencies.filter((id) => all.find((other) => other.item_id === id)?.item_status === 'withdrawn' && !all.find((other) => other.item_id === id)?.item_merged_commit);
+      ready.push(withdrawn.length ? { ...item, item_withdrawn_dependencies: withdrawn } : item);
       if (firstReady) break;
     }
   }

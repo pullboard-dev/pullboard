@@ -103,6 +103,10 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
     throw new Refused('AGENT_GRANT_EXPIRED', `${actor} has no live item claim; claim work before changing an item`,
       'claim the intended item, or shout the coordinator if its claim is unavailable');
   }
+  // The split step: a lane seat files the coordinator piece of a cross-ownership item --after its own live claimed
+  // item, and nothing else into the coordinator lane; every other add there still refuses AGENT_GRANT_LANE [C7,#3278].
+  if (move.operation === 'addItem' && scope.lane === 'coordinator'
+    && live.some(claim => [].concat(move.args?.[0]?.after ?? []).map(String).includes(String(claim.item_id)))) return;
   if ((claims.length && !own) || (live.length && scope.creating)) {
     throw new Refused('AGENT_GRANT_ITEM', `${actor} may change only its live claimed item${live.length === 1 ? ` #${live[0].item_id}` : 's'}`,
       'finish or release the claim, then claim the intended item; use shout for coordination');

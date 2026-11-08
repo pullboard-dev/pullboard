@@ -4,6 +4,8 @@ import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.j
 /**
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
+ *
+ * @pullboard-world-pin the clock-budget case copies the shipped scanner entry into its fixture.
  */
 import { landingPorts } from './landing-ports-fixture.js';
 import { executionServices } from './gate-execution-fixture.js';
@@ -30,10 +32,10 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -161,6 +163,14 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   assert.equal(fixturePackage.scripts.gate, gateScript, 'the real package gate command is preserved verbatim');
   writeFileSync(join(root, 'package.json'), JSON.stringify(fixturePackage, null, 2) + '\n');
   copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(root, 'test/wall-clock-budgets.js'));
+  // The shipped scanner entry delegates to the gate package after the cells move.
+  const scanner = join(root, 'packages/gate/src/shell');
+  mkdirSync(scanner, { recursive: true });
+  copyFileSync(resolve(import.meta.dirname, '../packages/gate/src/shell/wall-clock-budgets.js'), join(scanner, 'wall-clock-budgets.js'));
+  writeFileSync(join(root, 'packages/gate/index.js'), "export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
+  // The scanner lists tracked files through the git package; the fixture supplies a plain git launcher for it.
+  mkdirSync(join(root, 'packages/git'), { recursive: true });
+  writeFileSync(join(root, 'packages/git/index.js'), "import { execFileSync } from 'node:child_process';\nexport const gitExecFileSync = (args, options) => execFileSync('git', args, options);\n");
   writeFileSync(join(root, 'bin/pullboard.js'), `if (process.argv.slice(2).join(' ') !== 'spec check') process.exit(2);
 process.stdout.write('fixture spec check reached\\n');
 `);
@@ -195,6 +205,9 @@ assert.ok(Date.now() - started < 500, 'planted assertion without a budget commen
   assert.equal(existsSync(suiteMarker), true, 'a clean scanner result continues into the suite');
 });
 
+/** The persona name the gate fixtures join under. */
+const FIXTURE_AGENT = 'Test Agent';
+
 /**
  * A repo whose coordinator holds item #1, with this gate. Every run of the gate first adds a line
  * to runs.log beside the repo, so a test can count the runs.
@@ -218,16 +231,25 @@ function repoWithGate(gate, check = '') {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
+  // The fixture's checks and gates are their own test runs, not children of this one.
+  delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}` }));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}`, lanes: { build: { owns: ['WORK', 'RED', 'fixtures/'] } } }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  const added = run('add', 'coordinator', 'Work', ...(check ? ['--check', check, '--wait'] : []));
+  const added = run('add', 'build', 'Work', '--route', 'mid', '--brief', 'Files:\n- fixtures/WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
-  assert.equal(run('claim', '1').status, 0);
+  // Submissions need their own committed delta; main itself is not an item change. Accepted main is the primary
+  // checkout's HEAD, so the item work lives in a linked worktree and the primary checkout stays on main.
+  const work = join(dir, 'work');
+  git('worktree', 'add', '-q', '-b', 'coordinator/item-1', work);
+  const workGit = (...args) => runFixtureGit(args, { cwd: work, env });
+  writeFileSync(join(work, 'WORK'), 'item change\n');
+  workGit('add', 'WORK');
+  workGit('commit', '-q', '-m', 'chore: make the fixture item change');
   const runs = () => {
     try {
       return readFileSync(join(dir, 'runs.log'), 'utf8').split('\n').filter(Boolean).length;
@@ -235,7 +257,12 @@ function repoWithGate(gate, check = '') {
       return 0;
     }
   };
-  return { dir, repo, env, git, run, runs };
+  const runAt = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: work, env, encoding: 'utf8' });
+  const joined = runAt('join', 'build', '--model', FIXTURE_AGENT);
+  assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
+  const claimed = runAt('claim', '1');
+  assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
+  return { dir, repo: work, primary: repo, env, git: workGit, primaryGit: git, run: runAt, runs };
 }
 
 test('pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
@@ -364,7 +391,7 @@ test('gate before the first commit names the uncommitted config [I1,C7]', () => 
   assert.match(firstRefusal.message, /git add pullboard\.json/u, 'the refusal gives the concrete staging command');
 
   const committed = repoWithGate('true');
-  committed.git('switch', '--detach', 'HEAD');
+  committed.primaryGit('switch', '--detach', 'HEAD');
   const missingCoordinator = committed.run('gate', '--json');
   assert.equal(missingCoordinator.status, 1);
   const missingRefusal = JSON.parse(missingCoordinator.stdout).error;
@@ -496,7 +523,7 @@ test('submit runs the gate itself: a stamp written by hand never stands in for a
   writeFileSync(join(box.repo, 'RED'), 'red\n');
   box.git('add', 'RED');
   box.git('commit', '-q', '-m', 'chore: turn the gate red');
-  writeFileSync(join(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
+  writeFileSync(resolve(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
   const refused = box.run('submit', '1');
   assert.equal(refused.status, 1, refused.stdout);
   assert.match(refused.stderr, /GATE_RED/);
@@ -511,7 +538,7 @@ test('submit runs the gate even on a tree an earlier run passed, which a plain g
   assert.equal(box.runs(), 1, 'outside submit, the stamp still saves a run');
   const submitted = box.run('submit', '1');
   assert.equal(submitted.status, 0, submitted.stderr);
-  assert.match(submitted.stdout, /gate green in \d+s/);
+  assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; item check green; full gate: /mu);
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
@@ -586,14 +613,16 @@ test('output after the match', async () => {
   const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
   const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
   const commands = [
-    captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`),
+    // On a miss the run's own output is printed unpiped, so a red baseline records why it was red and the
+    // check's masked-exit rule still passes it (#2463).
+    `${captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`)} || { printf '%s\\n' "$out"; exit 1; }`,
     captured('yes | grep -q y'),
     captured('sh -c "exit 7" | tail -1'),
   ];
   for (const command of commands) {
     const item = repoWithGate('true', command);
     const baseline = JSON.parse(item.run('show', '1', '--json').stdout).item_check_baseline;
-    assert.equal(baseline.result, 'green', 'background baselines preserve last-stage semantics');
+    assert.equal(baseline.result, 'green', `background baselines preserve last-stage semantics: ${JSON.stringify({ command, reason: baseline.reason })}`);
     const checked = item.run('check', '1', '--yes');
     assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
     const submitted = item.run('submit', '1', '--json');
@@ -822,9 +851,10 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
     const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
-    assert.equal(box.run(cwd, 'claim', String(id)).code, 0);
+    const claimed = box.run(cwd, 'claim', String(id));
+    assert.equal(claimed.code, 0, `claim: ${claimed.err}${claimed.out}`);
     for (const [path, text] of files) writeFileSync(join(cwd, path), text);
-    assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0);
+    assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0, 'the item change commits');
     rmSync(box.env.DEFER_MARKER, { force: true });
     const submitted = box.run(cwd, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err + submitted.out);
@@ -835,7 +865,10 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   /** Accept one submitted item as the coordinator, at its exact commit. */
   const accept = (id, commit) => {
     box.git(box.repo, 'switch', '-q', '--detach', commit);
-    try { assert.equal(box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.').code, 0); }
+    try {
+      const verified = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.');
+      assert.equal(verified.code, 0, `verify: ${verified.err}${verified.out}`);
+    }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
   };
   return { box, ran, submitChange, accept };
@@ -893,7 +926,9 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const split = largeSelectionProject(20, { inline: true });
   const second = join(split.box.dir, 'web-2');
   split.box.git(split.box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.equal(fixtureJoin(split.box.run, second, 'web').code, 0);
+  // The second seat joins on the strong route like web-1, so it may claim the strong-routed items both build.
+  const secondJoin = joinFixtureSeat(split.box, second, 'web', { model: FIXTURE_MODEL });
+  assert.equal(secondJoin.code, 0, `join: ${secondJoin.err}${secondJoin.out}`);
   const itemA = split.submitChange('a', { files: [['web/fix.js', 'export const fixed = true;\n'], ['web/RED', 'red\n']] });
   const itemB = split.submitChange('needs-fix', { cwd: second });
   split.accept(itemA.id, itemA.receipt.commit);

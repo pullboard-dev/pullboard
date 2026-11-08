@@ -22,6 +22,7 @@ import {
   join,
 } from 'node:path';
 import { tmpdir } from 'node:os';
+import { sameCommonDir } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { handoffQueueDirectory } from '../../../resources/index.js';
 
@@ -174,7 +175,7 @@ export function assertToolTreeRoom({ temp = tmpdir(), commonDirs = [], minFree =
 export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0 } = {}) {
   if (retries >= limit) return null;
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
-  if (request.job !== job.id || request.item !== item || request.commit !== job.commit || request.commonDir !== commonDir
+  if (request.job !== job.id || request.item !== item || request.commit !== job.commit || !sameCommonDir(request.commonDir, commonDir)
     || (request.companion?.commit ?? job.commit) !== job.executionCommit || (request.companion?.tree ?? job.tree) !== job.executionTree
     || !handoffToolsAllowed(request.tools, job.id)
     || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())) {

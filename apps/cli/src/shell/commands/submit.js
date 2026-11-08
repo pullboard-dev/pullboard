@@ -714,7 +714,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const invariants = gate.submitInvariants?.length
     ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
   const scope = gate.testTiers ? testTierReport(gate.testTiers) : gate.deferred
-    ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
+    ? gate.deferredFiles ? `${invariants}${deferredSelectionNote(gate.deferredFiles)}`
+      : `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const registry = gate.registryGuards?.length
