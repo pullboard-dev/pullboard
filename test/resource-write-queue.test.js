@@ -43,7 +43,7 @@ function percentile(samples, share) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(share * sorted.length) - 1)];
 }
 
-test('queued writes apply in arrival order by one writer, and a release appends without waiting for a held writer [C7,#3084]', async t => {
+test('clause 1: queued writes apply in arrival order by one writer, and a release appends without waiting for a held writer [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   const db = new DatabaseSync(file);
   db.exec('CREATE TABLE applied (seq INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL)');
@@ -72,7 +72,7 @@ test('queued writes apply in arrival order by one writer, and a release appends 
   db.close();
 });
 
-test('a lease release during another writer\'s transaction returns at once, never sees SLOT_DB_LOCKED, and lands when that writer leaves [C7,#3084]', async t => {
+test('clause 1: a lease release during another writer\'s transaction returns at once, never sees SLOT_DB_LOCKED, and lands when that writer leaves [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   const lease = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: 4, scope: 'machine', agent: 'handoff-worker' });
   /** Count the dispatcher's lease rows straight from the file, without joining the write queue. */
@@ -108,7 +108,7 @@ test('a lease release during another writer\'s transaction returns at once, neve
 
 // Open: on a machine at load average ~65 a take's three queued transactions, each pruning 1,000 seat rows,
 // reach ~130 ms at p99, and ~0.5 s with seats writing alongside, as every handoff between writers costs a wake-up.
-test('at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', { todo: 'take p99 is above 50 ms on a loaded machine; fewer queued transactions per take remain' }, async t => {
+test('clause 2: at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', { todo: 'take p99 is above 50 ms on a loaded machine; fewer queued transactions per take remain' }, async t => {
   const { home, file } = machinePool(t);
   (await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: 60, scope: 'machine', agent: 'handoff-worker' })).release();
   const db = new DatabaseSync(file);
