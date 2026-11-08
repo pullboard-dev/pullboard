@@ -1,6 +1,7 @@
 /** next and claim name an item folder left mid-merge instead of crashing; health lists every such folder (#3763) [B3,C7]. */
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
@@ -21,6 +22,18 @@ function as(box, session, work) {
       else box.env[name] = value;
     }
   }
+}
+
+/** A commit of `text` at `file` on top of main, written with Git plumbing so no checkout switches branch or runs a hook. */
+function commitOnMain(box, cwd, file, text) {
+  const index = join(box.dir, 'theirs-index');
+  const env = { ...process.env, GIT_INDEX_FILE: index, GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const run = (args, input) => execFileSync('git', args, { cwd, env, input, encoding: 'utf8' }).trim();
+  run(['read-tree', 'main']);
+  const blob = run(['hash-object', '-w', '--stdin'], text);
+  run(['update-index', '--add', '--cacheinfo', `100644,${blob},${file}`]);
+  return run(['commit-tree', run(['write-tree']), '-p', 'main', '-m', 'their side']);
 }
 
 /** Make a web seat checkout and join it from `session`. */
@@ -47,11 +60,9 @@ function unfinishedBoard() {
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
   const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
   assert.ok(path, claimed.out);
-  box.git(path, 'switch', '-q', '-c', 'theirs', 'main');
-  assert.equal(e2e.commitFile(box, path, 'web/conflict.txt', 'theirs\n', 'feat(web): their side [G1]').status, 0);
-  box.git(path, 'switch', '-q', `web/item-${a}`);
+  const theirs = commitOnMain(box, path, 'web/conflict.txt', 'theirs\n');
   assert.equal(e2e.commitFile(box, path, 'web/conflict.txt', 'ours\n', 'feat(web): our side [G1]').status, 0);
-  assert.notEqual(box.tryGit(path, 'merge', '--no-edit', 'theirs').status, 0, 'the merge stops on a conflict');
+  assert.notEqual(box.tryGit(path, 'merge', '--no-edit', theirs).status, 0, 'the merge stops on a conflict');
   assert.notEqual(box.git(path, 'ls-files', '--unmerged'), '', 'the index has unmerged entries');
   const released = box.run(holder.root, 'release', a, '--reason', 'OTHER', '--note', 'fixture');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
