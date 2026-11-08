@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Settings stay scoped to their API authority, even before the first board [O5,O6,N26]. */
 import assert from 'node:assert/strict';
