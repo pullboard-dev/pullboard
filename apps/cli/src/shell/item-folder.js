@@ -47,6 +47,13 @@ function worktreeBranches(root) {
   return branches;
 }
 
+/** Whether the item's branch has a commit main lacks and the item is neither merged nor withdrawn, so its folder is the only checkout of that work [C7]. */
+function holdsUnlandedWork(root, item, ref) {
+  if (item.item_status === 'withdrawn' || item.item_merged_commit) return false;
+  const ahead = tryGit(root, ['rev-list', '--count', `main..${ref}`]);
+  return ahead.status !== 0 || Number(ahead.stdout) > 0;
+}
+
 /**
  * Remove only clean worktrees with the exact seat path and item branch we created.
  * The seat is resolved once and only this seat's existing folders are read, so a board with
@@ -65,6 +72,7 @@ export function cleanItemFolders(ctx, board, me) {
     if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) continue;
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
+    if (holdsUnlandedWork(ctx.info.root, item, ref)) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
     if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
   }
