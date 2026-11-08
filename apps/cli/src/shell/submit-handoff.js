@@ -6,6 +6,7 @@ import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
+import { dropHandoffTicket } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
@@ -57,7 +58,7 @@ import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
-function copyTools(toolRoot, target) {
+export function copyTools(toolRoot, target) {
   cpSync(toolRoot, target, { recursive: true, mode: constants.COPYFILE_FICLONE,
     filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
 }
@@ -81,8 +82,14 @@ function toolingDigest(toolRoot) {
  * temp dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else
  * gets a private per-job copy. Why: every submit copied 3,762 files, and keying by commit still copied one per submit
  * because each submit merges main first; the tooling trees change only a few times a day [C7].
+ *
+ * @param {string} toolRoot
+ * @param {string} job
+ * @param {string} [commonDir]
+ * @param {{ copy?: (toolRoot: string, target: string) => void }} [options] copy is injectable so a test can count copies
+ * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy = copyTools } = {}) {
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
@@ -98,12 +105,12 @@ export function toolsSnapshot(toolRoot, job, commonDir) {
   assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   if (!clean) {
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
-    copyTools(toolRoot, tools);
+    copy(toolRoot, tools);
     return tools;
   }
   const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copyTools(toolRoot, staging);
+    copy(toolRoot, staging);
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -111,6 +118,16 @@ export function toolsSnapshot(toolRoot, job, commonDir) {
     if (!existsSync(shared)) throw error;
   }
   return shared;
+}
+
+/**
+ * Remove a withdrawn item's hand-off place in line, so the dispatcher never starts it; a record that was not queued or running holds none.
+ *
+ * @param {{ id: string, state: string } | null | undefined} handoff - The item's hand-off record read before the withdrawal.
+ * @returns {void}
+ */
+export function dropWithdrawnHandoffTicket(handoff) {
+  if (handoff && ['queued', 'running'].includes(handoff.state)) dropHandoffTicket(handoff.id);
 }
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
