@@ -31,7 +31,11 @@ function runWorker(home, source, workerData) {
   const script = join(home, `worker-${Math.random().toString(36).slice(2)}.mjs`);
   writeFileSync(script, source);
   return new Promise((done, fail) => {
-    const worker = new Worker(script, { workerData, env: { ...process.env, PULLBOARD_MACHINE_HOME: home } });
+    // A worker thread is not a test file: give it no test preload and no test-file pool, or it would claim this file's admission again.
+    const env = { ...process.env, PULLBOARD_MACHINE_HOME: home };
+    delete env.NODE_TEST_CONTEXT;
+    delete env.PULLBOARD_TEST_FILE_POOL;
+    const worker = new Worker(script, { workerData, env, execArgv: [] });
     worker.once('message', done);
     worker.once('error', fail);
   });
@@ -106,9 +110,9 @@ test('clause 1: a lease release during another writer\'s transaction returns at 
   assert.equal(holders(), 0, 'the queued release landed');
 });
 
-// Open: on a machine at load average ~65 a take's three queued transactions, each pruning 1,000 seat rows,
-// reach ~130 ms at p99, and ~0.5 s with seats writing alongside, as every handoff between writers costs a wake-up.
-test('clause 2: at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', { todo: 'take p99 is above 50 ms on a loaded machine; fewer queued transactions per take remain' }, async t => {
+// A take used to ask Git for the caller's repository root every time (~14 ms of a ~18 ms take); the root is now
+// read once per directory per process, so take p99 is ~10 ms at load average ~25.
+test('clause 2: at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   (await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: 60, scope: 'machine', agent: 'handoff-worker' })).release();
   const db = new DatabaseSync(file);
