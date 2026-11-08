@@ -3451,5 +3451,26 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "activity->store",
+    "api->store",
+    "apps/lib->store",
+    "blueprints->store",
+    "doctrine->store",
+    "gate->store",
+    "github->store",
+    "items->store",
+    "keys->store",
+    "landing->store",
+    "link->store",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "sentinels->store",
+    "state->store",
+    "stats->store",
+    "sync->store"
   ]
 }
