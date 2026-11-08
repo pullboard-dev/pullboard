@@ -73,8 +73,7 @@ import {
 } from './gate-execution.js';
 import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
-import { mergeShardRuns } from './proof-shards.js';
-import { runProofShards } from './proof-shards.js';
+import { proveRunnerShards } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
 import {
   commandWord,
@@ -235,10 +234,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
      * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
      * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
      * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
+     * A rerun of the same candidate tree after an infrastructure end runs only the shards with no recorded pass (#3699).
      */
     const proveShards = async (execution, filesCommand) => {
       const runners = execution.gateLease.executionServices.runners;
-      const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
       const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
         runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
         metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
@@ -246,8 +245,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         shardSlotOptions(slotOptions));
       // A browser proof plans only as many shards as runners have browser slots free, so no shard waits on its siblings [C7].
       const freeSlots = planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      const shards = await runProofShards(proofFiles, { freeSlots, times: readFileTimes(root), root, runFirst, runOther });
-      return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
+      return proveRunnerShards(root, execution, { files: proofFiles, filesCommand, runOther, freeSlots, times: readFileTimes(root), say: onMachineryNote });
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */

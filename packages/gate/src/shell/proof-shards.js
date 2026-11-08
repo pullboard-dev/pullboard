@@ -1,11 +1,91 @@
 /** A submit proof's test files fanned out across free runner slots, merged back into one run and one receipt [C7]. */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../../resources/index.js';
 import { DatabaseSync } from 'node:sqlite';
 
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
 export const SHARD_ADMIT_MS = 30_000;
+
+/** How long a recorded shard pass stays on disk; a rerun after an infrastructure end comes within minutes. */
+export const SHARD_PASS_TTL_MS = 24 * 60 * 60_000;
+
+/** A git tree id, the only key a shard pass is recorded under. */
+const TREE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+
+/**
+ * The shard passes recorded for one candidate tree and one test command, kept in the machine home. Each green shard
+ * of a proof is recorded as it settles; a later run of the same tree reads them back. A tree that is not a git tree id
+ * gets no store, so a run without a pinned source never reuses anything.
+ *
+ * Why: #3463 took 57 min to its verdict for about 15 min of real testing; a runner drop in attempt 2 threw away the
+ * shards that had already passed for the same tree, and attempt 3 ran every one of them again (8 Nov) [C7].
+ *
+ * @param {string|null|undefined} tree - The candidate tree the shards run.
+ * @param {string} command - The test command the shard files are appended to.
+ * @param {{ folder?: string, now?: () => number }} [options]
+ * @returns {{ tree: string, file: string, read: () => object[], record: (pass: object) => void } | null}
+ */
+export function shardPassStore(tree, command, { folder = join(machineHome(), 'shard-passes'), now = Date.now } = {}) {
+  if (typeof tree !== 'string' || !TREE.test(tree) || typeof command !== 'string') return null;
+  const file = join(folder, `${createHash('sha256').update(JSON.stringify([tree, command])).digest('hex')}.json`);
+  /** The passes on disk for exactly this tree and command; anything unreadable or foreign reads as none. */
+  const read = () => {
+    try {
+      const doc = JSON.parse(readFileSync(file, 'utf8'));
+      return doc?.tree === tree && doc.command === command && Array.isArray(doc.passes) ? doc.passes : [];
+    } catch { return []; }
+  };
+  /** Append one pass with an atomic rename, then drop other trees' records past SHARD_PASS_TTL_MS. A failed write only loses reuse. */
+  const record = pass => {
+    try {
+      mkdirSync(folder, { recursive: true, mode: 0o700 });
+      const temporary = `${file}.${process.pid}.${now()}.tmp`;
+      writeFileSync(temporary, JSON.stringify({ tree, command, passes: [...read(), pass] }), { mode: 0o600 });
+      renameSync(temporary, file);
+      for (const name of readdirSync(folder)) {
+        const path = join(folder, name);
+        if (path !== file && now() - statSync(path).mtimeMs > SHARD_PASS_TTL_MS) rmSync(path, { force: true });
+      }
+    } catch { /* A pass that cannot be recorded is only run again. */ }
+  };
+  return { tree, file, read, record };
+}
+
+/**
+ * The recorded green shards a run of `files` can take as its own: each wholly inside the selection, on the same tree,
+ * and sharing no file with one taken before. Each reused run's outcome frames are rebound from its own timing run id to
+ * this run's, so the merged proof accounts for its files under the one id the receipt reads; its results stay as run.
+ *
+ * @param {ReturnType<typeof shardPassStore>} passes
+ * @param {string[]} files
+ * @param {string|null} timingRunId - This proof's timing run id.
+ * @returns {{ files: string[], run: object }[]}
+ */
+function reusablePasses(passes, files, timingRunId) {
+  if (!passes) return [];
+  const wanted = new Set(files);
+  const taken = new Set();
+  const reused = [];
+  for (const pass of passes.read()) {
+    const shardFiles = Array.isArray(pass?.files) ? pass.files : [];
+    const run = pass?.run;
+    if (!shardFiles.length || run?.isGreen !== true || shardFiles.some(file => !wanted.has(file) || taken.has(file))) continue;
+    if (run.executionSource?.tree && run.executionSource.tree !== passes.tree) continue;
+    for (const file of shardFiles) taken.add(file);
+    const rebind = typeof pass.timingRunId === 'string' && pass.timingRunId && timingRunId && pass.timingRunId !== timingRunId;
+    reused.push({ files: [...shardFiles], run: rebind ? { ...run, output: String(run.output ?? '').replaceAll(pass.timingRunId, timingRunId) } : run });
+  }
+  return reused;
+}
 
 /** Admission codes that mean a shard found no slot in time, so it runs on the gate's own lease after its shard. */
 const NO_SLOT = new Set(['RUNNER_UNAVAILABLE', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED']);
@@ -76,28 +156,66 @@ export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHAR
  *
  * Why: #3400's 114 files ran as one command on one slot for 2.1 h while 56 of 66 runner slots idled.
  *
+ * Given `passes` (shardPassStore for the candidate tree), every green shard is recorded as it settles, before any
+ * other shard's refusal is thrown, and a run of the same tree plans only the files no recorded pass covers; the
+ * reused shards follow the fresh ones unchanged. So a rerun after an infrastructure end (a runner drop, a lost job, a
+ * stall) runs only what the drop cost, not the whole proof again (#3463, 8 Nov) [C7].
+ *
  * @param {string[]} files
  * @param {{ freeSlots: number, times?: Record<string, number>, root?: string|null,
- *   runFirst: (files: string[]) => Promise<object>, runOther: (files: string[]) => Promise<object> }} options
- * @returns {Promise<{ files: string[], run: object }[] | null>} Each shard's files and run, in plan order.
+ *   runFirst: (files: string[]) => Promise<object>, runOther: (files: string[]) => Promise<object>,
+ *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void }} options
+ * @returns {Promise<{ files: string[], run: object }[] | null>} Each shard's files and run, fresh in plan order, then reused.
  */
-export async function runProofShards(files, { freeSlots, times = {}, root = null, runFirst, runOther }) {
+export async function runProofShards(files, { freeSlots, times = {}, root = null, runFirst, runOther, passes = null, timingRunId = null, say = () => {} }) {
+  const reused = reusablePasses(passes, files, timingRunId);
+  const covered = new Set(reused.flatMap(shard => shard.files));
+  const owed = files.filter(file => !covered.has(file));
+  if (reused.length) say(`proof reuses ${covered.size} of ${files.length} files that passed for tree ${passes.tree.slice(0, 12)}; running ${owed.length}`);
+  if (!owed.length) return reused;
   const { planFreeSlotShards } = await import('../../../landing/index.js');
-  const { shards } = planFreeSlotShards(files, Math.max(0, freeSlots) + 1, times, root);
-  if (shards.length < 2) return null;
+  const { shards } = planFreeSlotShards(owed, Math.max(0, freeSlots) + 1, times, root);
+  if (shards.length < 2 && !reused.length) return null;
+  /** Record a green shard for a later run of the same tree as soon as it settles. */
+  const settled = files => run => {
+    if (passes && run?.isGreen === true) passes.record({ files: [...files], run, timingRunId, at: new Date().toISOString() });
+    return { files, run };
+  };
   // The gate's own lease is one lane: its shard first, then any shard that found no slot, one after another.
   let lane = runFirst(shards[0].files);
-  const runs = [lane.then(run => ({ files: shards[0].files, run })), ...shards.slice(1).map(shard => runOther(shard.files)
-    .then(run => ({ files: shard.files, run }), error => {
+  const runs = [lane.then(settled(shards[0].files)), ...shards.slice(1).map(shard => runOther(shard.files)
+    .then(settled(shard.files), error => {
       if (!NO_SLOT.has(error?.code)) throw error;
       lane = lane.catch(() => {}).then(() => runFirst(shard.files));
-      return lane.then(run => ({ files: shard.files, run }));
+      return lane.then(settled(shard.files));
     }))];
   // Drain every shard before refusing, so each slot's receipt and lease stay accurate.
   const outcomes = await Promise.allSettled(runs);
   const failure = outcomes.find(outcome => outcome.status === 'rejected');
   if (failure) throw failure.reason;
-  return outcomes.map(outcome => outcome.value);
+  return [...outcomes.map(outcome => outcome.value), ...reused];
+}
+
+/**
+ * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's one
+ * command when planFreeSlotShards gives a single shard and nothing was reused. The first shard runs on the gate's own
+ * lease (`execution`); `runOther` takes a slot of its own. The shard passes are kept per candidate tree, the source the
+ * gate's lease sent, so a rerun of the same tree after an infrastructure end runs only the shards with no pass.
+ *
+ * @param {string} root
+ * @param {{ gateLease: { executionServices: { runners: { runOnRunnerAsync: Function } } }, remoteCommand: string,
+ *   remoteOptions: { source?: { tree?: string }, metadata: { timingRunId?: string } } }} execution - The proof's profiled execution.
+ * @param {{ files: string[], filesCommand: (files: string[]) => string, runOther: (files: string[]) => Promise<object>,
+ *   freeSlots: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void }} options
+ * @returns {Promise<object>} The one run the proof receipt records.
+ */
+export async function proveRunnerShards(root, execution, { files, filesCommand, runOther, freeSlots, times = {}, say,
+  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])) }) {
+  const runners = execution.gateLease.executionServices.runners;
+  const runFirst = shardFiles => runners.runOnRunnerAsync(root, filesCommand(shardFiles), execution.remoteOptions);
+  const shards = await runProofShards(files, { freeSlots, times, root, runFirst, runOther, passes,
+    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say });
+  return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
 }
 
 /**
