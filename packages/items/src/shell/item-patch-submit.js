@@ -16,6 +16,9 @@ import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../src/item-patch-submit-engi
 import { Refused } from "../../../kernel/index.js";
 import { claimedItemRoot } from '../../../../src/item-folder-identity.js';
 
+/** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
+export { claimedItemRoot };
+
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 /** Use the accepted Git adapter, preserving ordinary hooks for private worktree creation/removal. */

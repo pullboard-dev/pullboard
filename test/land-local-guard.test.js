@@ -35,3 +35,14 @@ test('local-trunk attribution holds unknown diagnostics and preserves rerun-off 
   state.config.flakes.rerun = false;
   assert.doesNotThrow(() => requireLocalGuardClassification(state, gate));
 });
+
+test('clause 1: a guard run red only on SLOT_DB_LOCKED with no failing case refuses SLOT_DB_LOCKED, never LAND_DIAGNOSTIC [C7,#3314]', async () => {
+  const { requireNoLockOnlyRed } = await import('../packages/landing/src/core/land-local-guard.js');
+  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  const log = 'run-tests: [SLOT_DB_LOCKED] never ran: resources.sqlite stayed locked for 10002ms';
+  assert.throws(() => requireNoLockOnlyRed({ isGreen: false, failures: [], logPath: 'x.log' }, () => log),
+    error => error.code === 'SLOT_DB_LOCKED' && landingFault(error));
+  assert.doesNotThrow(() => requireNoLockOnlyRed({ isGreen: false, failures: [{ file: 'a.test.js', name: 'n' }], logPath: 'x.log' }, () => log));
+  assert.doesNotThrow(() => requireNoLockOnlyRed({ isGreen: false, failures: [], logPath: 'x.log' }, () => 'not ok 1'));
+  assert.doesNotThrow(() => requireNoLockOnlyRed({ isGreen: true, failures: [], logPath: 'x.log' }, () => log));
+});

@@ -6,7 +6,7 @@
  * thin path stays under 20 modules, and every case it cannot serve returns null so the entry runs the command
  * in-process exactly as before.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -33,11 +33,39 @@ export const RESIDENT_ENTRY = fileURLToPath(new URL('./resident-board.js', impor
  * signal handler; servers, hooks, the gate, landing and interactive setup keep their own process.
  */
 export const RESIDENT_COMMANDS = new Set(['add', 'agents', 'answer', 'claim', 'decisions', 'edit', 'escalate', 'fact', 'help',
-  'hold', 'inbox', 'lanes', 'list', 'log', 'next', 'release', 'roadmap', 'seats', 'shout', 'show', 'stats', 'status',
+  'heartbeat', 'hold', 'inbox', 'lanes', 'list', 'log', 'next', 'release', 'roadmap', 'seats', 'shout', 'show', 'stats', 'status',
   'version', 'whoami', 'why']);
 
 /** Unix socket paths are limited to about 104 bytes on macOS; a longer one falls back in-process. */
 const SOCKET_PATH_LIMIT = 100;
+
+/**
+ * How long a command may run in the resident process before the next command skips it and reads the board directly.
+ * Why: the process serves one command at a time, and a status that ran 6 minutes held 15 seats' commands behind it.
+ */
+export const RESIDENT_BUSY_DIRECT_MS = 250;
+/** How long a client waits for its command to start before it runs the command in-process instead [C7]. */
+export const RESIDENT_START_WAIT_MS = 1_500;
+/** The latest a resident process starts a queued command, counted from the client's send; past it the client has left. */
+export const RESIDENT_START_CUTOFF_MS = 1_000;
+
+/** The busy file a resident process writes beside its pid file while a command runs: `<pid> <started ms>`. */
+export function residentBusyFile(pidFile) {
+  return pidFile.replace(/\.pid$/u, '') + '.busy';
+}
+
+/**
+ * Whether the resident process has been running one command for longer than RESIDENT_BUSY_DIRECT_MS. Read from a file
+ * so it holds while that command blocks the process's event loop, which then answers nothing on its socket.
+ */
+export function residentBusy(pidFile, now = Date.now()) {
+  try {
+    const [pid, at] = readFileSync(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
+    if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch (error) { return error?.code === 'EPERM'; }
+}
 
 /** Find the Git metadata above a directory without starting Git: the checkout root, its Git dir and the shared one. */
 export function gitLocation(start, { walk = true } = {}) {
@@ -71,14 +99,35 @@ export function headCommit({ gitDir, commonDir }) {
   return packed ? packed.split(' ')[0] : null;
 }
 
+/** The top-level paths whose files the resident process loads; a commit touching only other paths leaves it current. */
+const CODE_PATHS = ['apps', 'bin', 'package.json', 'packages', 'src'];
+
 /**
- * Name the code an entry would run: its checkout's HEAD commit, or for an installed package the package and entry
- * file stamps. A resident process loaded from different code is retired, so a landed commit reaches the next command.
+ * Name the code in a checkout's HEAD: a hash of the Git tree ids of the paths the CLI loads. A landing commit that
+ * only changes tests, docs or the spec leaves the name alone, so the warm resident process keeps serving [C7,#3249].
+ * Null when Git cannot answer.
+ */
+function codeTreeName(root, commit) {
+  try {
+    const listed = spawnSync('git', ['ls-tree', commit, '--', ...CODE_PATHS], { cwd: root, encoding: 'utf8', timeout: 5000 });
+    if (listed.status !== 0 || !listed.stdout) return null;
+    return createHash('sha256').update(listed.stdout).digest('hex').slice(0, 24);
+  } catch { return null; }
+}
+
+/**
+ * Name the code an entry would run: the Git tree ids of its checkout's code paths at HEAD, or for an installed package
+ * the package and entry file stamps. A resident process loaded from different code is retired, so changed code reaches
+ * the next command, while a commit that leaves the code alone does not retire it.
  */
 export function codeVersion(entry) {
   const codeRoot = dirname(dirname(entry));
   const location = gitLocation(codeRoot, { walk: false });
-  if (location) return { version: `commit:${headCommit(location)}`, linked: location.linked };
+  if (location) {
+    const commit = headCommit(location);
+    const tree = codeTreeName(location.root, commit);
+    return { version: tree ? `code:${tree}` : `commit:${commit}`, linked: location.linked };
+  }
   const stamp = file => { const stat = statSync(file); return `${stat.size}.${stat.mtimeMs}`; };
   return { version: `files:${stamp(join(codeRoot, 'package.json'))}:${stamp(entry)}`, linked: false };
 }
@@ -154,7 +203,8 @@ export function startResident({ socket, pid, home }, entry, version, env) {
 /**
  * Run one command through the resident process. Resolves to its exit code, or null when the entry must run it
  * in-process: no process yet (one starts), a process loaded from other code (it retires and a new one starts), or a
- * command the process hands back. Once the process has started the command, its result is final.
+ * command the process hands back, a process busy with a long command, or a command not started within
+ * RESIDENT_START_WAIT_MS. Once the process has started the command, its result is final.
  */
 export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
   let code, place;
@@ -164,6 +214,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
     place = residentSocket(cwd, entry);
     if (!place) return Promise.resolve(null);
+    // A command already running a while would hold this one behind it; reading the board directly costs about 1 s.
+    if (residentBusy(place.pid)) return Promise.resolve(null);
   } catch { return Promise.resolve(null); }
   return new Promise((done) => {
     let started = false, finished = false, buffer = '';
@@ -172,13 +224,18 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     const settle = (status, { restart = false } = {}) => {
       if (finished) return;
       finished = true;
+      clearTimeout(waited);
       socket.destroy();
       if (restart) startResident(place, entry, code.version, env);
       done(status);
     };
+    // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
+    // running it in-process cannot run it twice.
+    const waited = setTimeout(() => { if (!started) settle(null); }, RESIDENT_START_WAIT_MS);
+    waited.unref?.();
     socket.setEncoding('utf8');
     socket.on('connect', () => {
-      socket.write(JSON.stringify({ version: 1, code: code.version, argv, cwd, env,
+      socket.write(JSON.stringify({ version: 1, code: code.version, sentAt: Date.now(), argv, cwd, env,
         tty: { stdout: Boolean(stdout.isTTY), stderr: Boolean(stderr.isTTY), columns: stdout.columns ?? null } }) + '\n');
     });
     socket.on('data', (chunk) => {

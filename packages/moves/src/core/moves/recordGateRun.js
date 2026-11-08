@@ -8,6 +8,7 @@ import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 import { RUN_TIMING_ENGINE } from "../../../../../src/run-timing-engine.js";
 import { QUARANTINE_CORE_ENGINE } from "../../../../../src/quarantine-core-engine.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../../src/shadow-tier1-engine.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
@@ -24,6 +25,7 @@ function minimumEngine(args, board, at) {
   return Math.max(args[0]?.autoSubmit === true || Object.hasOwn(args[0]?.receipt?.proof ?? {}, 'diagnosticAdmission') ? AUTO_SUBMIT_QUARANTINE_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'blockingVerdict') ? QUARANTINE_VERDICT_ENGINE : 1,
+    Object.hasOwn(args[0]?.receipt ?? {}, 'shadow') ? SHADOW_TIER1_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'testOutcomes') ? QUARANTINE_CORE_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'timing') || Object.hasOwn(args[0]?.receipt ?? {}, 'full') ? RUN_TIMING_ENGINE : 1,
     existingEngine(args, board, at));

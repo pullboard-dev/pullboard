@@ -14,13 +14,14 @@ import { openBoard } from '../../../apps/lib/index.js';
 import { moveArgs } from '../../person/index.js';
 import { derivedFamily } from '../../items/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
 
 test('an explicit item keeps all, person and lane names as literal message text [B7,A2,N19]', () => {
   const box = fixtures.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Literal item messages', '--specs', 'G1', '--criterion', 'item messages retain text');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Literal item messages', '--specs', 'G1', '--criterion', 'item messages retain text');
   assert.equal(added.code, 0, added.err);
   for (const text of ['all', 'person', 'web']) {
     const sent = box.run(box.web, 'shout', '--item', '1', text, '--json');
@@ -75,7 +76,7 @@ test('an unchanged inbox read never waits on the board write lock while another 
   const box = fixtures.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   for (const [lane, title] of [['web', 'Quiet inbox'], ['api', 'Busy neighbour']]) {
-    const added = box.run(box.repo, 'add', lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', 'inbox stays read-only');
+    const added = fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', 'inbox stays read-only');
     assert.equal(added.code, 0, added.err);
   }
   const neighbour = join(box.dir, 'api-seat');
@@ -124,7 +125,7 @@ test('a seat whose session spans many seats derives its family without a per-sea
 test('a repeat inbox with nothing new never scans the event, shout, seat or metadata tables [R2,N26]', () => {
   const box = fixtures.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = box.run(box.repo, 'add', 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
   assert.equal(added.code, 0, added.err);
   for (const args of [['claim', '1'], ['inbox']]) {
     const done = box.run(box.web, ...args);

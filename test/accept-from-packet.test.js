@@ -75,7 +75,7 @@ const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
  * A real repo and board with a web item submitted green; every test run appends to a marker file.
  * With `uncovered`, clause 3 has only a skipped test, so the packet marks it no recorded run.
  */
-function submittedItem({ uncovered, reasoning = false }) {
+function submittedItem({ uncovered, reasoning = false, check = true }) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   // Runners set no model; the fixture's seats declare one.
@@ -101,7 +101,7 @@ function submittedItem({ uncovered, reasoning = false }) {
       ? 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text.'
       : 'The page shows a greeting. The greeting names the visitor by first name.';
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', criterion,
-    '--check', `${RUN} web/packet.test.js`, '--json').out);
+    ...(check ? ['--check', `${RUN} web/packet.test.js`] : []), '--json').out);
   const id = added.item.item_id;
   ok(box, builder, 'claim', String(id));
   const marker = join(box.dir, 'test-ran.log');
@@ -207,6 +207,14 @@ test('an uncovered free-text clause the reviewer read accepts from the packet [V
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--read', 'all', '--note', 'read the fallback clause');
   assert.match(accepted.out, new RegExp(`accepted from review packet ${head.slice(0, 12)}: .* read clause 3 that no run covers`, 'u'));
   assert.equal(existsSync(marker), false, 'no test process ran the frozen check');
+});
+
+test('an item with no frozen check accepts from its packet when every clause is covered [V4,C7]', { timeout: 240_000 }, () => {
+  const { box, id, head, packet, marker, reviewer } = submittedItem({ uncovered: false, check: false });
+  assert.deepEqual(packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n), [], 'the gate covered every clause');
+  const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'read the packet');
+  assert.match(accepted.out, new RegExp(`accepted from review packet ${head.slice(0, 12)}`, 'u'));
+  assert.equal(existsSync(marker), false, 'no test process ran');
 });
 
 test('a same-head refreeze cannot reuse coverage from the prior criterion digest [V4,C7]', { timeout: 240_000 }, () => {

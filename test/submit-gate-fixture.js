@@ -51,7 +51,8 @@ export function privateRepo(t) {
   /** Run real Git in this fixture with only the fixture's configured identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
-  const run = (...args) => {
+  const run = (...rawArgs) => {
+    const args = withBrief(...rawArgs);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
@@ -65,23 +66,35 @@ export function privateRepo(t) {
   return { dir, root, env, git, run };
 }
 
+/** Add items with the criterion, route and brief the board now requires; every other move passes through. */
+function withBrief(...args) {
+  if (args[0] !== 'add' || args.includes('--route')) return args;
+  const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
+  if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];
+  return [...args, ...filled, '--route', 'mid', '--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes'];
+}
+
 /** Create a real joined builder with its accepted fixture ownership before any claim. */
 export function builderRepo(box, additionalOwned = []) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
+  // Joining declares a model (MODEL_REQUIRED); a fixture builder names its own rather than inheriting the host's.
+  box.env.PULLBOARD_MODEL ??= 'fixture-model';
   const made = box.run('worktree', 'build', '--json');
   assert.equal(made.code, 0, made.err);
   const root = JSON.parse(made.out).path;
   /** Run Git only in the joined builder. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   /** Run the real CLI with the joined builder identity. */
-  const run = (...args) => {
+  const run = (...rawArgs) => {
+    const args = withBrief(...rawArgs);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
-  return { ...box, root, git, run, coordinator: box.run };
+  const coordinator = (...args) => box.run(...withBrief(...args));
+  return { ...box, root, git, run, coordinator };
 }
 
 /** Write a fixture file, creating its parent directory when needed. */

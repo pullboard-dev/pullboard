@@ -9,6 +9,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -90,7 +92,7 @@ test('the coordinator declares its model [O8,O3]', async (t) => {
   const declaredRepo = coordinatorRepo(box, 'later-declaration');
   const undeclaredInit = box.run(declaredRepo, 'init');
   assert.equal(undeclaredInit.code, 0, undeclaredInit.err || undeclaredInit.out);
-  const declaration = box.run(declaredRepo, 'join', 'coordinator', '--model', 'Later Coordinator', '--json');
+  const declaration = fixtureJoin(box.run, declaredRepo, 'coordinator', '--model', 'Later Coordinator', '--json');
   assert.equal(declaration.code, 0, declaration.err || declaration.out);
   const declaredIdentity = JSON.parse(declaration.out);
   assert.equal(declaredIdentity.model, 'Later Coordinator');
@@ -238,7 +240,12 @@ test('model names label CLI actors without changing IDs, messages, or the contex
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
     box.env.PULLBOARD_MODEL = 'Test Model';
-    const repo = project('true', box);
+    // The shared fixture now joins web-1 with an explicit --model; this scenario needs the join to come from PULLBOARD_MODEL alone.
+    const base = project('true', box, { withWorktree: false });
+    const web = join(box.dir, 'web-1');
+    box.git(base.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+    assert.match(fixtureJoin(box.run, web, 'web').out, /joined as web-1/);
+    const repo = { ...base, web };
     const legacyJoin = box.run(repo.web, 'whoami', '--json');
     assert.equal(legacyJoin.code, 0, legacyJoin.err || legacyJoin.out);
     assert.equal(JSON.parse(legacyJoin.out).model, 'Test Model', 'the model environment identifies the initial join');
@@ -259,7 +266,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
 
     const unjoined = join(box.dir, 'unjoined-web');
     box.git(repo.repo, 'worktree', 'add', '-q', '-b', 'web/unjoined', unjoined);
-    const missingJoin = box.run(unjoined, 'join', 'web', '--json');
+    const missingJoin = fixtureJoin(box.run, unjoined, 'web', '--json');
     assert.equal(missingJoin.code, 1);
     assert.equal(JSON.parse(missingJoin.out).error.code, 'MODEL_REQUIRED');
 
@@ -271,7 +278,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     box.git(repo.repo, 'commit', '-q', '-m', 'chore(repo): choose agent names [G1]');
     box.git(repo.web, 'merge', '-q', '--ff-only', 'main');
 
-    const joined = box.run(repo.web, 'join', 'web', '--model', 'Claude', '--json');
+    const joined = fixtureJoin(box.run, repo.web, 'web', '--model', 'Claude', '--json');
     assert.equal(joined.code, 0, joined.err || joined.out);
     assert.equal(JSON.parse(joined.out).agent, 'web-1');
     const made = box.run(repo.repo, 'worktree', 'web', '--model', 'GPT 6', '--json');
@@ -286,7 +293,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(second.prompt.includes("Model: 'GPT 6'. This worktree joined with --model 'GPT 6'."), second.prompt);
     assert.ok(second.prompt.includes("pass --model 'GPT 6' or set PULLBOARD_MODEL='GPT 6'"), second.prompt);
 
-    const wrongLane = box.run(repo.web, 'join', 'api', '--model', 'Claude');
+    const wrongLane = fixtureJoin(box.run, repo.web, 'api', '--model', 'Claude');
     assert.equal(wrongLane.code, 1);
     assert.ok(wrongLane.err.includes(`this worktree is ${builderName} in the web lane`), wrongLane.err);
 
@@ -297,7 +304,9 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(missingReader.code, 1);
     assert.ok(missingReader.err.includes(style === 'suffix' ? '"web-99 (unknown)"' : '"unknown-web-99"'), missingReader.err);
 
-    const added = box.run(repo.repo, 'add', 'web', 'Model receipt', '--specs', 'G1', '--check', 'true', '--json');
+    const added = fixtureAdd(box.run, repo.repo, 'web', 'Model receipt', '--specs', 'G1', '--route', 'mid',
+      '--criterion', 'The item can be built and checked from its brief.', '--check', 'true',
+      '--brief', 'Files: web/model.js\nChange: build the fixture item\nTest: the check proves the fixture', '--json');
     assert.equal(added.code, 0, added.err || added.out);
     const id = JSON.parse(added.out).item.item_id;
     const claimed = box.run(repo.web, 'claim', String(id));
@@ -382,14 +391,14 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(itemClaim.err.includes(`held by ${coordinatorName}: Keep web-1 literal in item reason`), itemClaim.err);
     const noFree = box.run(second.path, 'next', '--build');
     assert.equal(noFree.code, 1);
-    assert.ok(noFree.err.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), noFree.err);
+    assert.ok(noFree.err.includes('1 item is held by coordinator'), noFree.err); // next folds held reasons to a count; claim, list and show above keep the full reason
     const noFreeJson = box.run(second.path, 'next', '--build', '--json');
-    assert.ok(JSON.parse(noFreeJson.out).error.message.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
-    const available = box.run(repo.repo, 'add', 'web', 'Other model receipt', '--specs', 'G1', '--json');
+    assert.ok(JSON.parse(noFreeJson.out).error.message.includes('1 item is held by coordinator'));
+    const available = fixtureAdd(box.run, repo.repo, 'web', 'Other model receipt', '--specs', 'G1', '--json');
     assert.equal(available.code, 0, available.err || available.out);
     const selected = box.run(second.path, 'next', '--build');
     assert.equal(selected.code, 0, selected.err || selected.out);
-    assert.ok(selected.out.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), selected.out);
+    assert.ok(selected.out.includes('1 item is held by coordinator'), selected.out); // next folds held reasons to a count; the full reason stays in --json below
     const freeId = JSON.parse(available.out).item.item_id;
     assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'BLOCKED').code, 0);
     const selectedJson = box.run(second.path, 'next', '--build', '--json');

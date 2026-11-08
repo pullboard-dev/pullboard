@@ -16,21 +16,31 @@ import {
   teamBoard,
   test,
 } from './team-scenarios.fixture.js';
+import { settleRelayCalls } from './private-board-move-fixture.js';
 import { checkoutSessionFile } from '../packages/seats/index.js';
 import { repoInfo } from '../src/git.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureAddArgv } from './testkit-fixture.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
   const box = await teamBoard(t, ['alice']);
   const shared = await box.cli('add', box.lane, 'repo item');
   assert.equal(shared.code, 0, 'ordinary add stays on the linked repo board');
   const repoBoardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
+  await settleRelayCalls(box); // the shared add's background sender may still be talking to the relay
   const callsBeforePrivate = box.calls.length;
   const local = await box.cli('add', box.lane, 'private item', '--private');
   assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
-  assert.equal(box.calls.length, callsBeforePrivate, 'private add makes no relay request');
   const privateFile = privateBoardPath(repoBoardId, box.env.PULLBOARD_HOME);
+  const privateIdBoard = openBoard(privateFile);
+  let privateBoardId;
+  try { privateBoardId = store.boardId(privateIdBoard); } finally { store.closeBoard(privateIdBoard); }
+  // The private add's CLI start may flush the shared add's pending outbox to the repo board: those calls are a fixture race, so only private-board requests count.
+  const laterCalls = box.calls.slice(callsBeforePrivate);
+  assert.deepEqual(laterCalls.filter(call => call.path.includes(privateBoardId)), [], 'private add makes no relay request');
+  assert.deepEqual(laterCalls.filter(call => !call.path.includes(repoBoardId) && !call.path.includes(privateBoardId)), [], 'private add makes no unexpected relay request');
   assert.ok(privateFile.startsWith(box.env.PULLBOARD_HOME + '/'), 'the private board is kept under this device’s Pullboard home');
   assert.equal(lstatSync(join(box.env.PULLBOARD_HOME, 'private')).mode & 0o777, 0o700, 'the private-board root is owner-only');
   assert.equal(lstatSync(join(box.env.PULLBOARD_HOME, 'private', repoBoardId)).mode & 0o777, 0o700, 'the private board directory is owner-only');
@@ -38,18 +48,18 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const sessionEnv = { ...box.env, CODEX_SHELL: '1', CODEX_THREAD_ID: 'private-board-binding-fixture' };
   const decoy = join(box.root, '..', 'private-decoy');
   runFixtureGit(['worktree', 'add', '-q', '--detach', decoy, 'HEAD'], { cwd: box.root, env: box.env });
-  const decoyJoined = await relayFixtureChild(decoy, sessionEnv, [CLI, 'join', box.lane, '--model', 'fixture-model', '--json']);
+  const decoyJoined = await relayFixtureChild(decoy, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
   assert.equal(decoyJoined.code, 0, `a first worktree takes the first repository lane ID: ${JSON.stringify(decoyJoined.document?.error ?? null)}`);
   const decoySeat = (await relayFixtureChild(decoy, sessionEnv, [CLI, 'whoami', '--json'])).document;
   const worker = join(box.root, '..', 'private-worker');
   runFixtureGit(['worktree', 'add', '-q', '--detach', worker, 'HEAD'], { cwd: box.root, env: box.env });
-  const joined = await relayFixtureChild(worker, sessionEnv, [CLI, 'join', box.lane, '--model', 'fixture-model', '--json']);
+  const joined = await relayFixtureChild(worker, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
   assert.equal(joined.code, 0, `another worktree joins the same repo board: ${JSON.stringify(joined.document?.error ?? null)}`);
   const repoSeat = (await relayFixtureChild(worker, sessionEnv, [CLI, 'whoami', '--json'])).document;
   assert.notEqual(repoSeat.id, decoySeat.id, 'the worker has a later ID on the repository board');
   const sessionFile = checkoutSessionFile(repoInfo(worker, { env: sessionEnv }));
   const checkoutBindingBefore = readFileSync(sessionFile, 'utf8');
-  const reopened = await relayFixtureChild(worker, sessionEnv, [CLI, 'add', box.lane, 'private item from another worktree', '--private', '--json']);
+  const reopened = await relayFixtureChild(worker, sessionEnv, [...fixtureAddArgv(CLI), box.lane, 'private item from another worktree', '--private', '--json']);
   assert.equal(reopened.code, 0, `another process opens the same repo’s private board: ${JSON.stringify(reopened.document?.error ?? null)}`);
   assert.equal(readFileSync(sessionFile, 'utf8'), checkoutBindingBefore, 'private-board identity does not rewrite the checkout’s repository-session binding');
   // @pullboard-board-file persistence: reopen the private board written by independent CLI processes.

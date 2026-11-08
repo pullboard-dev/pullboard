@@ -7,11 +7,11 @@ import {
 import {
   codeIsFromMain,
   repoInfo,
-} from "../../../../src/git.js";
+  withProjectGitTimeout,
+} from "../../../git/index.js";
 import { workProgress } from './work-progress.js';
 import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
-import { withProjectGitTimeout } from '../../../git/index.js';
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
 function roadmapPorts(ports, names) {

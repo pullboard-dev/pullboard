@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A retained refreeze stays claimed in native history and in the real detail timeline [N26,C7]. */
 import assert from 'node:assert/strict';

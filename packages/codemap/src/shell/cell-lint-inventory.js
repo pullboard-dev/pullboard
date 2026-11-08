@@ -1,9 +1,12 @@
 import { cellSourceInputs } from './cell-lint-inputs.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
+import {
+  cellLstatSync,
+  cellReadFileSync,
+  cellSourceSnapshot,
+} from './cell-source-snapshot.js';
 /** Compute the accepted cells layout and literal graph without evaluating repository modules [CD19,CD23,CD61,CD62]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../core/import-map.js';
 
@@ -16,6 +19,22 @@ export function testFile(file) { return file === 'packages/testkit/index.js' || 
 /** Read only the exact committed migration marker; working-tree files and live board state grant nothing. */
 export function committedCellTransition(root) {
   const file = 'bin/cells-plan/transition.json';
+  const snapshot = cellSourceSnapshot(root);
+  if (snapshot) {
+    const entry = snapshot.entries.get(file);
+    if (!entry) return { present: false, active: false };
+    const regular = entry.mode === '100644' || entry.mode === '100755' || entry.mode === 0o100644 || entry.mode === 0o100755;
+    if (!regular) return { present: true, active: false, problem: 'transition marker must be a committed regular file' };
+    const bytes = snapshot.files.get(file);
+    if (!bytes) return { present: true, active: false, problem: 'transition marker bytes are unavailable from the sealed source snapshot' };
+    let marker;
+    try { marker = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { /* Invalid source is reported as named debt below. */ }
+    if (!marker || Array.isArray(marker) || Object.keys(marker).sort().join() !== 'deleteItem,version'
+      || marker.version !== 1 || marker.deleteItem !== 1770) {
+      return { present: true, active: false, problem: 'transition marker must name deleteItem 1770 and version 1 only' };
+    }
+    return { present: true, active: true };
+  }
   const options = { cwd: root, env: gitChildEnv(root), encoding: 'utf8' };
   const entry = gitSpawnSync(['ls-tree', '-z', 'HEAD', '--', file], options);
   if (entry.status !== 0 || !entry.stdout) return { present: false, active: false };
@@ -76,10 +95,10 @@ export function updateCellInventory(root, parsers, prior, changed) {
   const added = new Set(), removed = new Set();
   for (const file of paths) {
     let entry = null;
-    try { entry = lstatSync(join(root, file)); }
+    try { entry = cellLstatSync(join(root, file)); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     const was = files.has(file);
-    if (entry?.isFile()) { files.set(file, readFileSync(join(root, file))); if (!was) added.add(file); continue; }
+    if (entry?.isFile()) { files.set(file, cellReadFileSync(join(root, file))); if (!was) added.add(file); continue; }
     files.delete(file);
     edges.delete(file);
     if (was) removed.add(file);
@@ -125,13 +144,29 @@ export function cellInventory(root, parsers) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('cell inventory needs explicit module parser operations');
   const { importsIn, commonJsIn } = parsers;
   const files = new Map(), unknown = [];
-  const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
-  if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
-  for (const file of [...new Set(listed.stdout.split('\0').filter(Boolean))].sort()) {
+  const snapshot = cellSourceSnapshot(root);
+  let listedPaths;
+  if (snapshot) listedPaths = [...snapshot.entries.keys()].sort();
+  else {
+    const listed = gitSpawnSync(['ls-files', '--cached', '--others', '--exclude-per-directory=.gitignore', '-z'], { cwd: root, env: gitChildEnv(root), encoding: 'utf8' });
+    if (listed.status !== 0) throw new Error('cell lint inventory needs a real Git repository; initialize the private fixture or restore Git metadata');
+    listedPaths = [...new Set(listed.stdout.split('\0').filter(Boolean))].sort();
+  }
+  for (const file of listedPaths) {
+    if (snapshot) {
+      const entry = snapshot.entries.get(file);
+      if (entry && (typeof entry.mode === 'string' ? entry.mode === '040000' : entry.mode === 0o040000)) continue;
+      const regular = entry && (entry.mode === '100644' || entry.mode === '100755' || entry.mode === 0o100644 || entry.mode === 0o100755);
+      if (!regular) { unknown.push({ file, reason: 'non-regular repository entry is not followed' }); continue; }
+      const bytes = snapshot.files.get(file);
+      if (!bytes) { unknown.push({ file, reason: 'tracked path blob bytes are unavailable in the sealed snapshot' }); continue; }
+      files.set(file, Buffer.from(bytes));
+      continue;
+    }
     let entry;
-    try { entry = lstatSync(join(root, file)); }
+    try { entry = cellLstatSync(join(root, file)); }
     catch (error) { if (error.code !== 'ENOENT') throw error; unknown.push({ file, reason: 'tracked path is missing' }); continue; }
-    if (entry.isFile()) files.set(file, readFileSync(join(root, file)));
+    if (entry.isFile()) files.set(file, cellReadFileSync(join(root, file)));
     else unknown.push({ file, reason: 'non-regular repository entry is not followed' });
   }
   const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};

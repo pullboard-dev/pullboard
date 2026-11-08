@@ -43,11 +43,12 @@ export function beatingProbe(probe, db, token) {
 /**
  * The wait loop's runner probes from its resource options, each refreshing the waiter's heartbeat as it finishes.
  *
- * @param {{ runnerHealthProbe?: Function, runnerIdleProbe?: Function, runnerRestartProbe?: Function, runnerLeakProbe?: Function }} options
+ * @param {{ runnerHealthProbe?: Function, runnerIdleProbe?: Function, runnerRestartProbe?: Function, runnerLeakProbe?: Function, runnerTransportProbe?: Function }} options
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} token
  */
 export function beatingProbes(options, db, token) {
   return { probe: beatingProbe(options.runnerHealthProbe, db, token), idleProbe: beatingProbe(options.runnerIdleProbe, db, token),
-    restartProbe: beatingProbe(options.runnerRestartProbe, db, token), leakProbe: beatingProbe(options.runnerLeakProbe, db, token) };
+    restartProbe: beatingProbe(options.runnerRestartProbe, db, token), leakProbe: beatingProbe(options.runnerLeakProbe, db, token),
+    transportProbe: beatingProbe(options.runnerTransportProbe, db, token) };
 }

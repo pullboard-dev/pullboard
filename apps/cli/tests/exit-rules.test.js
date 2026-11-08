@@ -36,6 +36,7 @@ import { bindRefs } from '../../../packages/outbox/index.js';
 import { resolveMove } from '../../../packages/outbox/index.js';
 import { strayItemRefs } from '../../../packages/outbox/index.js';
 import { minimumMoveEngine } from '../../../packages/moves/index.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const policy = { enabled: true, tokens: 100, calls: 3 };
 const summary = 'Done: preserved the candidate and native logs; Failed: named fixture case; Next: inspect the retained failure from a fresh session';
@@ -149,7 +150,7 @@ test('an external native CLI captures the claim prefix, refuses its next command
   writeFileSync(file, JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'test: enable private exit policy');
-  const added = box.run(box.repo, 'add', 'web', 'Private native exit', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Private native exit', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');
@@ -222,7 +223,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
   box.git(box.repo, 'add', 'pullboard.json', 'test/private-exit-repeat.test.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: enable private repeated native proof');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');

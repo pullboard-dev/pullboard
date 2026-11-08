@@ -66,7 +66,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const linked = run('git', ['worktree', 'add', '-q', '-b', 'schema/drift', branch, 'main'], main, env);
   assert.equal(linked.status, 0, linked.stderr + linked.stdout);
 
-  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker');
+  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker', '--route', 'strong');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const { agent } = JSON.parse(joined.stdout);
   const added = cli(main, 'add', 'web', 'direct opener shared move', '--criterion', 'the direct branch opener uses the native board');
@@ -75,7 +75,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const sharedFile = join(main, '.git', 'pullboard', 'board.sqlite');
   const privateFile = join(directory, 'private.sqlite');
 
-  const boardSourcePath = join(branch, 'src', 'board-migrate.js');
+  const boardSourcePath = join(branch, 'packages/store/src/shell/board-migrate.js');
   const originalBoardSource = readFileSync(boardSourcePath, 'utf8');
   const migration = "  ['item', 'item_after', \"TEXT NOT NULL DEFAULT ''\"],";
   assert.ok(originalBoardSource.includes(migration), 'candidate source contains the stable migration insertion point');
@@ -83,13 +83,13 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
     `${migration}\n  ['item', 'item_branch_probe', \"TEXT NOT NULL DEFAULT ''\"],`);
   assert.notEqual(driftedBoardSource, originalBoardSource);
   writeFileSync(boardSourcePath, driftedBoardSource);
-  const machineSourcePath = join(branch, 'src', 'machine.js');
+  const machineSourcePath = join(branch, 'packages/state/src/shell/machine.js');
   const originalMachineSource = readFileSync(machineSourcePath, 'utf8');
   const triggerBody = "refuse('UNDECLARED_MOVE', `the moves are ${moves.join(', ')}`)";
   const branchTriggerBody = "refuse('UNDECLARED_MOVE', `branch fixture moves are ${moves.join(', ')}`)";
   assert.ok(originalMachineSource.includes(triggerBody), 'candidate trigger source contains the expected clause');
   writeFileSync(machineSourcePath, originalMachineSource.replace(triggerBody, branchTriggerBody));
-  git(branch, 'add', 'src/board-migrate.js', 'src/machine.js');
+  git(branch, 'add', 'packages/store/src/shell/board-migrate.js', 'packages/state/src/shell/machine.js');
   git(branch, 'commit', '-q', '-m', 'feat: simulate branch-local schema declarations');
 
   /** Observe shared DDL and effect evidence without invoking an opener. */

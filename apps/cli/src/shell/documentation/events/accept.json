@@ -4,7 +4,7 @@
     {
       "order": 17,
       "actor": "reviewer",
-      "detail": "`reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`"
+      "detail": "`reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`, optional `machine` (native machine verdict with each frozen command and authenticated receipt)"
     }
   ]
 }

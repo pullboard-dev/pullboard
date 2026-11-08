@@ -78,7 +78,8 @@ function verified(box, name, { touchTest = false } = {}) {
   success(box, path, 'join', 'web');
   const file = `web/${name}.txt`;
   const added = success(box, box.repo, 'add', 'web', `Landing change ${name}`, '--specs', 'G1',
-    '--criterion', `the ${name} change exists`, '--check', `test -f ${file}`);
+    '--criterion', `the ${name} change exists`, '--check', `test -f ${file}`,
+    '--brief', `Files:\n- ${file}\nChange:\n- add the file\nTest:\n- The file exists`);
   const id = added.item.item_id;
   success(box, path, 'claim', String(id));
   writeFileSync(join(path, file), `${name}\n`);
