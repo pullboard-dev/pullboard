@@ -599,9 +599,6 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const id = f.claim();
   const lastSeen = store.agentById(f.board, f.owner).heartbeatAt;
   const prefix = exportBoard(f.board);
-  // The sentinel ticked when the claim began, so the half-hour gap before the next tick is a late tick and the
-  // machine-stall hold keeps the quiet seat's claim; the opt-in rule under test is the only release at its boundary.
-  await f.scan();
   f.advance(1_800_000 - 1);
   await f.scan();
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'one millisecond before gone retains the two-hour lease');
@@ -644,13 +641,9 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
   assert.equal(loadConfig(f.box.repo).claims.releaseGone, false);
   assert.equal(configFromSource('{"claims":{"releaseGone":true}}').claims.releaseGone, true);
   assert.throws(() => configFromSource('{"claims":{"releaseGone":"true"}}'), error => error.code === 'BAD_CONFIG');
-  // As above: a sentinel tick at the claim makes each half-hour jump a late tick, which holds the quiet seat's claim.
-  await f.scan(false);
   f.advance(1_800_000);
   await f.scan(false);
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'off preserves the ordinary lease');
-  // Twenty-one quiet minutes make the peer's sweep a late tick, so only the opt-in coordinator rule could take the claim.
-  f.advance(1_260_000);
   await f.scan(true, f.other);
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'a peer cannot perform coordinator maintenance');
   heartbeatSeat(f.board, f.owner);
