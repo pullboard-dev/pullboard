@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: clause 1 reads the four named test files themselves to prove none imports a shim. */
 /** @pullboard-test-gui */
 import { viewApiPorts } from '../../apps/view/index.js';
 /** A real cached native HTTP board refreshes Dashboard pace even when it has no milestone [N26,A2]. */
