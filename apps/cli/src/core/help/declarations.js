@@ -1,7 +1,8 @@
 /** Ordered command-group declarations; separators remain part of their original text. */
 import { introHelp } from './intro.js';
 import { outsideHelp } from './outside.js';
-import { setupHelp } from '../../../../view/index.js';
+// Direct import: the view front door reaches back into this CLI help graph, so setupHelp is read before it initializes.
+import { setupHelp } from '../../../../view/src/shell/help/setup.js';
 import { workHelp } from './work.js';
 import { coordinatorHelp } from './coordinator.js';
 import { receiptsHelp } from './receipts.js';
@@ -11,10 +12,14 @@ import { gateHelp } from './gate.js';
 import { lifecycleHelp } from '../../../../../packages/state/index.js';
 import { footerHelp } from './footer.js';
 
+const publicSetupHelp = setupHelp.replace(
+  'pullboard join <lane> --model <name> [--route light] [--family <name>]',
+  'pullboard join <lane> --model <name> [--family <name>]');
+
 export const HELP_SOURCE_SECTIONS = Object.freeze([
   Object.freeze({ name: 'intro', text: introHelp }),
   Object.freeze({ name: 'outside', text: outsideHelp }),
-  Object.freeze({ name: 'setup', text: setupHelp }),
+  Object.freeze({ name: 'setup', text: publicSetupHelp }),
   Object.freeze({ name: 'work', text: workHelp }),
   Object.freeze({ name: 'coordinator', text: coordinatorHelp }),
   Object.freeze({ name: 'receipts', text: receiptsHelp }),

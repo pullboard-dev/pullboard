@@ -23,6 +23,7 @@ import { parseSpec } from '../packages/spec/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { esc, renderSpecView } from '../apps/view/index.js';
 import { assertPublicExportSupported } from '../apps/cli/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const SPEC = `# Bakery spec
 
@@ -216,7 +217,7 @@ test('sign-offs show as signed, stale or not signed [S5, S7]', () => {
   assert.ok(html.includes('<b>1/2</b><span>approved must-rows signed</span>'));
 });
 
-test('row text is escaped, so a row cannot inject markup', () => {
+test('row text is escaped, so a row cannot inject markup [S7]', () => {
   const html = page();
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
@@ -293,7 +294,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   t.after(restore);
 
   const add = (project, title) => {
-    const result = box.run(project.repo, 'add', 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'light',
+    const result = fixtureAdd(box.run, project.repo, 'app', title, '--criterion', 'fixture item', '--specs', 'G1', '--route', 'light',
       '--brief', 'Files: app/fixture.js\nChange: create fixture work\nTest: inspect the local API', '--check', 'true', '--json');
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     return JSON.parse(result.stdout).item;

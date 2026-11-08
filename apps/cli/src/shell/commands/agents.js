@@ -14,7 +14,7 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard agents` and return its exit code. */
-export function run(io) {
+export function run(io, { values = {} } = {}) {
   const ctx = context(io);
-  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board, { listAgents, boardId, listItems })));
+  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board, { listAgents, boardId, listItems })), { detail: values.detail });
 }

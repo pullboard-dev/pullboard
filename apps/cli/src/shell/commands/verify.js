@@ -7,6 +7,7 @@ import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
+import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -52,6 +53,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import { completeMoveHandoff } from '../../../../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../../../../packages/verify/index.js';
 import { reviewPacketReadNote } from '../../../../../packages/verify/index.js';
+import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { twoTierReviews } from '../../../../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../../../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../../../../packages/items/index.js';
@@ -83,6 +85,7 @@ import {
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
+  guardOf,
   guardRevertNote,
 } from '../../../../../packages/commits/index.js';
 import {
@@ -207,18 +210,33 @@ export function verificationCriterionDigest(freeze, item) {
 }
 
 /**
- * Render a failed private check's own diagnostics: its output digest, sanitized tail and private full-output path.
+ * Render a failed private check's diagnostics: its report when no structured test counts are available, sanitized tail and full-output path.
  *
- * The test-output summary reads test counts and failing cases, which a plain shell check or install has none of,
- * so a refusal must still carry the digest, tail and path the check recorded [V18,V2].
+ * A parsed test summary replaces the duplicate report; plain shell checks and installs keep that report because
+ * they have no structured test counts or failures [V18,V2].
+ * @param {any} check
+ * @param {{ hasStructuredCounts?: boolean }} [options]
+ * @returns {string}
  */
-function privateCheckEvidence(check) {
-  const digest = check.report ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
+function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
+  const digest = check.report && !hasStructuredCounts ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
   const tail = check.checked
     ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map(line => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
     : '';
   const timings = check.profilePath ? `\n${timingDigest(check.profile)}\ntiming profile: ${check.profilePath}` : '';
   return `${digest}${tail}${timings}`;
+}
+
+/**
+ * Whether a recovered verdict's note is the retried command's note.
+ * The sent note carries machine suffixes (check receipts, main moves, approvals), each starting on a new line,
+ * so a retry with the person's original note must match the recorded note with those suffixes.
+ * @param {string | undefined} recorded
+ * @param {string} given
+ * @returns {boolean}
+ */
+function sameVerdictNote(recorded, given) {
+  return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
 /**
@@ -250,7 +268,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
-        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
+        sameVerdictNote(previous.note, textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
         previous.clause === (decision === 'REJECT' ? values.clause : undefined)) {
       if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
         const item = store.getItem(board, id);
@@ -273,7 +291,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
-    const head = headCommit(root) ?? '';
+    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
+    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
       throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
@@ -289,7 +308,12 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (missing.keys.length) throw new Refused('NOT_AT_COMMIT',
       `the review tree lacks companions ${missing.keys.join(', ')} for patch-set ${missing.digest}; run pullboard next --verify ${id} to check out the composed source`);
     digest = verificationCriterionDigest(freezer(ctx, { board }), item);
-    if (decision === 'ACCEPT') {
+    if (fromPacket) {
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      refuseUnverifiedStack(root, board, item, commit, requireTrunkMerge(root, commit));
+      check = { state: 'pass', checked: true, reused: true, executionNote: `\n${fromPacket}` };
+      ctx.io.say(fromPacket);
+    } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
@@ -331,9 +355,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
           tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
-        if (reused.ids && (frozenCheck(item) || supplement)) {
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
-          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+          check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
@@ -369,7 +393,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
-        const evidence = privateCheckEvidence(check) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
+        const hasStructuredCounts = check.state === 'red'
+          && verificationOutput?.counts.passed != null && verificationOutput?.counts.failed != null;
+        const evidence = privateCheckEvidence(check, { hasStructuredCounts }) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
@@ -398,10 +424,14 @@ export async function verifyHere(ctx, id, { second, values }) {
         }
         const moved = currentTrunk.commit === trunk.commit ? null
           : itemTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, paths: review.paths });
-        if (moved?.overlap.length) throw new Refused('VERDICT_TRUNK_MOVED',
+        // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
+        // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
+        // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
           `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
         if (moved && !knownMain) {
-          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and its files are unchanged`;
+          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
           break;
         }
@@ -481,6 +511,41 @@ export async function verifyHere(ctx, id, { second, values }) {
   }
   if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
+}
+
+/**
+ * The verdict line when an accept can be recorded from the stored review packet, or null when it must
+ * run the frozen check; a packet with an uncovered clause says which clause forced the check.
+ *
+ * Why: a packet is stored only after a green gate at the submitted head, so when every clause cites a
+ * recorded run there, the accept needs no checkout, test run or main merge of its own. The landing step
+ * still composes main and runs the landing gate. Companions, a source advance and a re-review change the
+ * reviewed tree, so they always take the full path.
+ */
+function packetAcceptance(ctx, board, item, decision, reReview, read) {
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
+    || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
+  const packet = reviewPacketRerun(ctx.info.commonDir, item);
+  if (!packet) return null;
+  if (packet.failures) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)} records failures at head; running the frozen check`);
+    return null;
+  }
+  // An uncovered clause the reviewer lists in --read is read evidence. Rerunning the frozen check here repeats the
+  // run the gate already recorded green at this head, so it can never cover a clause the gate did not; it only
+  // costs the reviewer 2 to 4 minutes. Why: 82 of the last 150 packets had an uncovered clause on 6 Nov [V4,C7].
+  const readClauses = read === undefined ? new Set() : String(read).trim() === 'all' ? new Set(packet.rerun) : new Set(String(read).split(',').map(part => Number(part.trim())));
+  const readUncovered = packet.rerun.filter(n => readClauses.has(n));
+  const forced = packet.rerun.filter(n => !readClauses.has(n));
+  if (forced.length) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${forced.join(', ')} has no recorded run and was not read; running the frozen check`);
+    return null;
+  }
+  const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
 }
 
 /** Run `pullboard verify` and return its exit code. */

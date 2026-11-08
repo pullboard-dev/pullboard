@@ -1,4 +1,5 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -88,4 +89,33 @@ export function claimedItemRoot(board, item) {
     }
   }
   return path;
+}
+
+/**
+ * The seat checkout an item folder was made from, or null when `root` is not an item folder.
+ * A folder counts when it carries the private seat marker, or sits beside a seat checkout under the `<seat>-item-<n>` name.
+ * Why: join run inside one registers a stray seat there, and its removal later loses the folder's uncommitted work.
+ * @param {string} root the worktree top level to test
+ * @returns {{ seat: string|null }|null} the seat checkout when it can be named
+ */
+export function itemFolderSeat(root) {
+  const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
+  let marked = true;
+  try { readFileSync(gitPath(root, 'pullboard-item.json')); } catch { marked = false; }
+  if (!marked && !(match && existsSync(match[1]))) return null;
+  return { seat: match?.[1] ?? null };
+}
+
+/** Name the native renewal for a missing-marker hook without granting checkout authority. */
+export function itemFolderRenewalRefusal(board, root) {
+  try {
+    try { readFileSync(gitPath(root, 'pullboard-item.json')); return null; }
+    catch (error) { if (error.code !== 'ENOENT') return null; }
+    const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
+    if (!match) return null;
+    const agent = board.db.prepare('SELECT agent_id, agent_path FROM agent WHERE agent_path=?').get(match[1]);
+    const item = board.db.prepare('SELECT item_id FROM item WHERE item_id=?').get(Number(match[2]));
+    if (!agent || !item || repoInfo(root).commonDir !== repoInfo(agent.agent_path).commonDir) return null;
+    return new Refused('ITEM_MARKER_MISSING', `item folder #${item.item_id} has no seat marker; renew its claim from ${agent.agent_path}: pullboard claim ${item.item_id}`);
+  } catch { return null; }
 }

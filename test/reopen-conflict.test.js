@@ -12,6 +12,11 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+
+// The worktree join in project() inherits PULLBOARD_MODEL; without it the join refuses with MODEL_REQUIRED
+// and the fixture fails before any case runs, so the file declares a model for its own sandboxes.
+process.env.PULLBOARD_MODEL ??= 'Test Model';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -36,7 +41,7 @@ function refusal(result) {
 
 /** Add, claim, build and submit one web item from the joined builder worktree. */
 function submitItem(box, title, contents) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${title} stays valid`, '--check', 'node --check web/feature.js', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', `${title} stays valid`, '--check', 'node --check web/feature.js', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(box.web, 'claim', String(id)).code, 0);

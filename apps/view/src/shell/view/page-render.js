@@ -159,7 +159,6 @@ function render() {
   if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
     $('cost').innerHTML = costPaneHtml(history, p);
-    document.title = $('proj-name').textContent + ' · Cost · Pullboard';
   }
   if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
@@ -168,8 +167,6 @@ function render() {
   roadmapAhead.clear();
   roadmapDetails.clear();
   const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
-  document.title = (roadmap.remaining === null ? '' : '(' + roadmap.remaining + ' remaining) ')
-    + $('proj-name').textContent + ' · Roadmap · Pullboard';
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
   if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
     $('roadmap').innerHTML = roadmapHtml;
@@ -422,7 +419,7 @@ function render() {
       + (item.check ? '<details class="item-panel-command"><summary>Show the command</summary><pre>' + esc(item.check) + '</pre></details>' : '') + '</div></div>';
     const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="false">Show all ' + historyCount + '</button>' : '';
     /** Render one accessible tab with the selected tab's native count. */
-    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '</button>';
+    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '<span class="seg-hit seg-hit-top" aria-hidden="true"></span><span class="seg-hit seg-hit-bottom" aria-hidden="true"></span></button>';
     $('detail').innerHTML = '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
       + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
       + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
@@ -646,14 +643,18 @@ function render() {
       const sourceLabel = standard ? '<span class="rule-source-chip standard" title="' + esc(ruleSourceTitle(r)) + '">Standard</span>' : '<span class="rule-source-chip repo" title="' + esc(ruleSourceTitle(r)) + '">This repo</span>';
       const secondary = (kind === 'doctrine' ? sourceLabel : '<span class="rule-source" title="this repo">this repo</span>') + reason + (kind === 'spec' ? specGateFiles(r) : doctrineCheck(r));
       const statusShown = filter === 'all' || !!r.staleDecision || (filter === 'decide' && r.status !== 'draft');
-      const badge = kind === 'spec' ? '<div class="spec-row-side">' + (r.tier ? '<span class="chip tier-' + esc(r.tier) + '">' + esc(r.tier) + '</span>' : '') + '<small>' + count(renderIndex(p).citations.get(r.id)?.length || 0, 'item', 'items') + '</small></div>' : reviewNeeded ? '<span class="chip warn doctrine-review-chip">To review</span>' : statusShown && !standard ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
+      const tierPill = r.tier ? '<span class="chip tier-pill tier-' + esc(r.tier) + '">' + esc(r.tier) + '</span>' : '';
+      const itemCount = count(renderIndex(p).citations.get(r.id)?.length || 0, 'item', 'items');
+      const badge = kind === 'spec' ? '<div class="spec-row-side">' + tierPill + '<small>' + itemCount + '</small></div>'
+        : '<div class="spec-row-side">' + (reviewNeeded ? '<span class="chip warn tier-pill doctrine-review-chip">To review</span>' : tierPill)
+          + ((renderIndex(p).citations.get(r.id)?.length || 0) ? '<small>' + itemCount + '</small>' : '') + '</div>';
       const citations = renderIndex(p).citations.get(r.id)?.length || 0;
-      const iconHtml = kind === 'spec' ? (r.status === 'approved' ? '✓' : r.status === 'wont' ? '×' : '✎')
-        : reviewNeeded ? '<svg class="doctrine-eye" viewBox="0 0 20 20" role="img" aria-label="To review"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2.5"/></svg>' : '';
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: (kind === 'spec' ? 'spec-record ' : '') + (reviewNeeded ? 'doctrine-standard-review ' : '') + (view.row[kind] === r.id ? 'on' : ''), attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
+      const iconHtml = kind === 'doctrine' && reviewNeeded ? '<svg class="doctrine-eye" viewBox="0 0 20 20" role="img" aria-label="To review"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2.5"/></svg>'
+        : (r.status === 'approved' ? '✓' : r.status === 'wont' ? '×' : '✎');
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: 'spec-record ' + (reviewNeeded ? 'doctrine-standard-review ' : '') + (view.row[kind] === r.id ? 'on' : ''), attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
         iconHtml,
         state: reviewNeeded ? 'warn' : r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
-        secondary, rightTop: kind !== 'spec' && citations ? count(citations, 'item', 'items') : '', rightBottom: badge });
+        secondary, rightTop: '', rightBottom: badge });
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
     const row = rows.find((r) => r.id === view.row[kind]);
@@ -677,7 +678,7 @@ function render() {
     if (kind === 'spec' && row) {
       const change = !snapshot && (!readOnly || requests) ? '<button class="decline-row" type="button" data-row-change="' + esc(row.id) + '" title="Request a change through Shouts">Change</button>' : '';
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
-      $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
+      $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
         + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
@@ -688,7 +689,7 @@ function render() {
       const hasFile = (row.gateFiles || []).some(gate => gate.exists === true);
       const facts = '<div class="spec-fact"><span>' + (hasFile ? 'Proved by' : 'Checked by') + '</span><div>' + doctrineCheck(row, true) + '</div></div>'
         + '<div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>';
-      $('doctrine-detail').innerHTML = '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
+      $('doctrine-detail').innerHTML = '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-pill tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
         + facts + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '') + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + '<p class="spec-authority">Only you can decide a row.</p></div>';
       continue;

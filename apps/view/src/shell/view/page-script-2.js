@@ -27,7 +27,7 @@ import { timelineBodyHtml } from "../../core/view/timeline-body.js";
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
@@ -42,7 +42,7 @@ const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
 const dashboardWhen = iso => when(iso);
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})(), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -585,7 +585,10 @@ function timeline(item, { newestFirst = false } = {}) {
   const entries = (fromThread
     ? item.thread
     : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
-    .filter((entry) => !['usage', 'shared-usage'].includes(entry.kind));
+    // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
+    // verifier's background review-comparison receipts stay out of the person's history.
+    .filter((entry) => !['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
+      && !(entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: ')));
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread

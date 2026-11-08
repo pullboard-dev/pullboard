@@ -8,6 +8,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const candidateRoot = process.env.PULLBOARD_409_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '..');
 assert.ok(candidateRoot, 'set PULLBOARD_409_CANDIDATE_ROOT to the candidate checkout');
@@ -26,7 +28,7 @@ function commit(box, cwd, subject) {
 /** Create one cited row item and claim it from the already joined builder worktree. */
 function addAndClaim(box, title) {
   const brief = 'Files:\n- web/shared.txt\nTest:\n- inspect the reviewed composition\n';
-  const added = box.run(box.repo, 'add', 'web', title, '--route', 'strong', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--route', 'strong', '--specs', 'G1',
     '--criterion', 'the cited row holds', '--check', 'true', '--brief', brief);
   assert.equal(added.code, 0, added.err || added.out);
   const itemId = Number(/#(\d+)/u.exec(added.out)?.[1]);
@@ -72,7 +74,7 @@ test('coordinator resume guides and groups the checked composition after stale r
 
     const reviewer = join(box.dir, 'composition-reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-    const joined = box.run(reviewer, 'join', 'web', '--route', 'strong');
+    const joined = fixtureJoin(box.run, reviewer, 'web', '--route', 'strong');
     assert.equal(joined.code, 0, joined.err || joined.out);
 
     const conflict = box.tryGit(reviewer, 'merge', '-q', '--no-edit', 'main');

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, proofShot } from './fixture.js';
 
-test('sentinel draft Command, Directory and Schedule labels never overlap long values in Dashboard or Items at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
+test('clause 1: sentinel draft Command, Directory and Schedule labels never overlap long values in Dashboard or Items at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required to measure the sentinel draft card.');
   const box = machine(), alpha = project(box, 'sentinel-labels');
@@ -20,6 +20,8 @@ test('sentinel draft Command, Directory and Schedule labels never overlap long v
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo));
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Needs-you card is measured.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);

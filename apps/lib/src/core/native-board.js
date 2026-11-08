@@ -1,4 +1,7 @@
+import { sealOwnershipWait } from '../shell/ownership-wait-seal.js';
+import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
+import { claimedItemRoot } from '../../../../packages/items/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
@@ -15,6 +18,8 @@ import {
   dependencyLabel,
 } from '../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../packages/items/index.js';
+import { warmFamilyProjection } from '../../../../packages/items/index.js';
+import { familyProjectionCurrent } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
@@ -34,6 +39,11 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
+import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
+import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/index.js';
+import { renewReview } from '../../../../packages/jobs/index.js';
+import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
+import { releaseReview } from '../../../../packages/jobs/index.js';
 import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
 import {
@@ -305,7 +315,9 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    conditionalHoldFloor,
+    shadowJob: shadowSubmitHandoff,
+    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
+    conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
@@ -315,7 +327,7 @@ export function nativeBoardPorts() {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealOwnershipWait, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,
@@ -324,13 +336,13 @@ export function nativeBoardPorts() {
   });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile }),
+    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile }),
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
-      ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
+      missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),
     auth: Object.freeze({ boardNotWritable, boardBusyError }),
@@ -350,9 +362,9 @@ export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(
 }
 
 /** Give native read consumers the same capabilities without migrating or changing the light CLI read path. */
-export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts() } = {}) {
+export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts(), connection = null } = {}) {
   const runtimePorts = freezeRuntimePorts(ports);
-  const board = readBoard(file, clock);
+  const board = readBoard(file, clock, { connection });
   return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
 }
 

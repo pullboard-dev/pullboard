@@ -1,7 +1,9 @@
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
 import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from '../../../items/index.js';
+import { FAMILY_DECLARE_ENGINE } from '../../../../src/family-declare-engine.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
 export { seatFamily };
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
@@ -29,7 +31,7 @@ export function strictReviewProblem(board, item, agentId) {
   if (!reviewRoutingEnabled(board) || !strictReview(board, item)) return null;
   const family = familyName(seatFamily(board, agentId), familyAliasesOf(board));
   const fallback = compositionFamilyFallback(board, item);
-  const built = fallback?.family ?? familyName(item.item_builder_family, familyAliasesOf(board));
+  const built = fallback?.family ?? familyName(builderFamilyOf(board, item), familyAliasesOf(board));
   const join = (!family || !built) && (board.executionEngineVersion ?? ENGINE_VERSION) >= VENDOR_FAMILY_ENGINE ? 'pullboard join --family <vendor>' : undefined;
   if (!(family && built && family !== built)) {
     const message = `#${item.item_id} is strict; ask a verifier from another declared vendor family${join ? `; declare missing families with ${join}` : ''}`;
@@ -55,7 +57,7 @@ export function reviewWait(board, item, reads = board.nativePorts) {
 }
 
 /** A free eligible seat interrupts new work after the configured wait; reservation guards still decide eligibility. */
-export function overdueReview(board, item, starveMinutes = 10, reads = board.nativePorts) {
+export function overdueReview(board, item, starveMinutes = 5, reads = board.nativePorts) {
   const wait = reviewWait(board, item, reads);
   return Boolean(wait && wait.ageMs > starveMinutes * 60_000);
 }
@@ -81,6 +83,8 @@ export function prioritizeReviews(board, candidates, priority, focusCompare) {
 /** From the alias engine on, a reviewer may not share a vendor family with any companion patch author of a strict item [#1762]. */
 function companionFamilyProblem(board, item, family) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < FAMILY_ALIAS_ENGINE) return null;
+  // Only the submitted head builder's family is judged; earlier or companion authors of other families do not exclude [V1].
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_HEAD_BUILDER_FAMILY_ENGINE) return null;
   const aliases = familyAliasesOf(board);
   for (const author of reviewPatchAuthors(board, item)) {
     const declared = seatFamily(board, author.agentId);
@@ -112,4 +116,17 @@ export function reviewReleaseCooldown(board, itemId, agentId, { engineVersion, r
   if (!event) return null;
   const until = Date.parse(event.event_at) + cooldownMs;
   return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
+}
+
+/**
+ * The family a submission's builder counts as: the family recorded at submit, or, when none was recorded, the builder
+ * seat's current derived family. Why: a seat that joined without --family submits a null family, which refused every
+ * reviewer with O2_FAMILY_MATCH although the seat's session has since declared one (#2889). Replays under an engine
+ * older than the declaration engine keep the recorded value.
+ */
+export function builderFamilyOf(board, item) {
+  const recorded = item.item_builder_family;
+  if (typeof recorded === 'string' && recorded.trim() !== '') return recorded;
+  if ((board.executionEngineVersion ?? Infinity) < FAMILY_DECLARE_ENGINE || !item.item_built_by) return recorded ?? null;
+  return seatFamily(board, item.item_built_by) ?? recorded ?? null;
 }

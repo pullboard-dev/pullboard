@@ -1,4 +1,5 @@
 /** Shared state definitions without later-cell runtime imports [C7,H16]. */
+export { OWNERSHIP_WAIT_ENGINE } from '../../src/ownership-wait-engine.js';
 export { RIGOR_INSTRUCTIONS_ENGINE } from '../../src/rigor-instructions-engine.js';
 export { decisionFields } from './src/core/fact-projection.js';
 export { factFromEvent } from './src/core/fact-projection.js';
@@ -179,11 +180,14 @@ export { BOARD_PROGRESS_ENGINE } from '../../src/board-progress-engine.js';
 export { CLAIM_RETURNS_ENGINE } from '../../src/claim-returns-engine.js';
 export { COORDINATOR_ACTIONS_ENGINE } from '../../src/coordinator-actions-engine.js';
 
-export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary } from './src/core/inspection-clauses.js';
+export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateNamedFile } from './src/core/inspection-clauses.js';
 
 export { STRICT_RENAME_ENGINE } from '../../src/strict-rename-engine.js';
 
 export { DEAD_HANDOFF_RETRY_ENGINE } from '../../src/dead-handoff-retry-engine.js';
 
+export { STRANDED_DEPENDENCY_ENGINE } from '../../src/stranded-dependency-engine.js';
+export { TWO_TIER_DIAGNOSIS_ENGINE } from '../../src/two-tier-diagnosis-engine.js';
+export { REJECT_OPEN_ENGINE } from '../../src/reject-open-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from '../../src/clause-evidence-engine.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';

@@ -17,6 +17,8 @@ import { runRuleCheck } from '../packages/doctrine/index.js';
 import { checkReceiptKey } from '../packages/git/index.js';
 import { readCheckReceipt } from '../packages/git/index.js';
 import { writeCheckReceipt } from '../packages/git/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Demand real command success and its versioned result. */
 function ok(result) { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); }
@@ -37,7 +39,7 @@ function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand =
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
+  ok(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--route', 'mid', '--check', 'node check.cjs', '--json'));
   ok(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
@@ -54,19 +56,20 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   const red = box.run(box.web, 'submit', '1', '--json');
   assert.notEqual(red.code, 0, 'the item check is red on the first submit');
   assert.equal(runs(logs.static), 1, 'the static check ran once');
-  assert.equal(runs(logs.doctrine), 1, 'the doctrine check ran once');
+  // The doctrine hold measures main's problems once (since #2575) and the candidate once: two runs, then none.
+  assert.equal(runs(logs.doctrine), 2, 'the doctrine check ran once at main and once at the candidate');
   writeFileSync(armed, 'green\n');
   const second = box.run(box.web, 'submit', '1');
   assert.equal(second.code, 0, second.out + second.err);
   assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
-  assert.equal(runs(logs.doctrine), 1, 'the unchanged tree runs no doctrine check again');
+  assert.equal(runs(logs.doctrine), 2, 'the unchanged tree runs no doctrine check again');
   assert.match(second.out + second.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
   assert.match(second.out + second.err, /doctrine-hold check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the doctrine receipt');
   // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  ok(box.run(review, 'join', 'api', '--json'));
+  ok(fixtureJoin(box.run, review, 'api', '--model', 'Fixture reviewer', '--json'));
   const checked = box.run(review, 'check', '1', '--yes');
   assert.equal(checked.code, 0, checked.out + checked.err);
   assert.equal(runs(logs.static), 1, 'review on the same tree runs no static check');
@@ -145,12 +148,14 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     const { box, armed } = project(helpers, { [`${stage}Command`]: command });
     assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'the first item check is red after the guards pass');
     assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'an unchanged submit still proves its red item check');
-    assert.equal(runs(counter), 1, 'the unchanged external guard is reused');
+    // The doctrine hold also measures main once, so its guard runs twice on the first submit and never again.
+    assert.equal(runs(counter), stage === 'doctrine' ? 2 : 1, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
     const second = box.run(box.web, 'submit', '1');
-    assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
-    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /RATCHET_ROSE/u);
+    // A rising doctrine count is a report-only trial refusal (13532c41d): it prints "would refuse" and lets the submit go on.
+    if (stage === 'static') assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
+    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /would refuse RATCHET_ROSE/u);
     assert.match(second.out + second.err, /changed checker/u);
   }
 });

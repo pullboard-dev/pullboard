@@ -1,3 +1,5 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
+import { builderFamilyProblem } from './builder-family-required.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
@@ -53,19 +55,24 @@ import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { claimProblem } from "../../../seats/index.js";
+import { randomUUID } from 'node:crypto';
 import {
   atomic,
   logEvent,
 } from "./board-event-log.js";
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30 }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30 }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
     throw new Refused('ENGINE_VERSION', `automatic correction adoption requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
   }
   const adopts = adoptCorrection && pendingRefreeze(board, id).length > 0;
+  if (refreshPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `a lane policy refresh requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
+  }
+  const refreshes = refreshPolicy === true && !adopts;
   const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
   // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
@@ -73,11 +80,12 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
   let reworkRouting = null;
   let frozen = null;
+  let policyRefreeze = null;
   let prepared = false;
   const how = {
     checks: {
       joined: null, checkProvesSomething: null,
-      barReady: found => barReadyProblem(board, found),
+      barReady: found => builderFamilyProblem(board, found, agentId, familyPolicy) ?? barReadyProblem(board, found),
       [IN_STATE]: (found) => new Refused('NOT_CLAIMABLE', `item #${id} is ${found.item_status}`),
       inLane: (found) => {
         const outside = outsideBuildProblem(board, found);
@@ -92,6 +100,9 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       routeAllows: (found) => {
         const route = routeOf(board, agentId);
+        // Only light work needs a diagnosis; a light seat reaching above its route is refused ROUTE (#2886).
+        const diagnosisProblem = route === 'light' && found.item_route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
+        if (diagnosisProblem) return diagnosisProblem;
         return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
       },
       buildScopeFits: found => isRenewal(found) || (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE ? null : expectedBuildProblem(found, buildBudgetMinutes),
@@ -146,13 +157,13 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         // Declared: not checked when the caller renews its own live claim.
         const paused = laneHold(board, found.item_lane);
         return paused && !isRenewal(found)
-          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`)
+          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}; take other available work with pullboard next, or end your turn if none is offered`)
           : null;
       },
       itemNotHeld: (found) => {
         const held = itemHold(board, found.item_id);
         return held && !isRenewal(found)
-          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
+          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; take another eligible item with pullboard next, or end your turn if none is offered`)
           : null;
       },
       lineCapacity: found => claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
@@ -178,9 +189,10 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       rowsInForce: (found) => {
         // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
-        if (found.item_frozen_digest !== null && !adopts) return null;
+        if (found.item_frozen_digest !== null && !adopts && !refreshes) return null;
         try {
           if (!prepared) { frozen = freeze(found); prepared = true; }
+          policyRefreeze = frozen?.policyRefreeze ?? null;
           return null;
         } catch (error) {
           if (error instanceof Refused) return error;
@@ -195,7 +207,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, frozen: () => frozen, reworkRouting: () => reworkRouting };
+  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -250,7 +263,7 @@ export function claim(board, id, options, ports) {
   const prepared = prepareClaim(board, id, options, ports);
   const { snapshot, plan } = PREPARED_CLAIMS.get(prepared);
   const { agentId, head = null, reviewSkipped = null } = prepared;
-  const { leaseUntil, isRenewal, admission, outcome, adopts } = plan;
+  const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
   return atomic(board, () => {
     requireBoardWriteSnapshot(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
@@ -275,11 +288,17 @@ export function claim(board, id, options, ports) {
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(!renewed && item.item_expected_build_minutes != null && (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? { buildBudgetMinutes: options.buildBudgetMinutes ?? 30, expectedBuildMinutes: item.item_expected_build_minutes ?? null } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    const policyRefreeze = plan.policyRefreeze();
+    if (!renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
+      id: randomUUID(), kind: 'note',
+      text: `policy re-frozen automatically: ${policyRefreeze.before} -> ${policyRefreeze.after}; only ${policyRefreeze.changed.join(', ')} changed`,
+      ref: null, supersedes: null,
+    });
     const route = plan.reworkRouting();
     if (!renewed && route?.applies && route.mode === 'fallback') {
       const factId = prepared.reworkRoutingPolicy?.factId;

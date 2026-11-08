@@ -10,6 +10,9 @@ import { withSeatPresence } from "./seat-presence.js";
 import { projectItemDecisions } from "../../../items/index.js";
 import { itemById } from "../core/board-item-read.js";
 import { submitGateInFlight } from "../core/red-return-lease.js";
+import { itemStage } from "../core/item-stage.js";
+import { handoffRecord } from "./submit-handoff-read.js";
+import { handoffRecords } from "./submit-handoff-read.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -34,7 +37,8 @@ import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";
-export { closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
+import { boardDataVersion } from "./board-data-version.js";
+export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { stats } from "../core/board-stats.js";
 export { submitInvariantEvents } from "./board-hot.js";
@@ -49,6 +53,7 @@ export const PERSON = 'person';
  * @returns {string}
  */
 export const now = (board) => board.clock.now().toISOString();
+const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
@@ -118,7 +123,9 @@ export function getItem(board, id) {
     const target = JSON.parse(redirect.meta_value);
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
-  const item = current(board, itemById(board, id));
+  const stored = itemById(board, id);
+  const item = { ...current(board, stored), item_stage: itemStage(stored, handoffRecord(board.db, id) ?? null,
+    Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
   const source = outsideSource(board, id);
@@ -146,21 +153,52 @@ export function itemHold(board, id) {
  */
 export function listItems(board, { lane, all = false } = {}) {
   const hasLane = lane !== undefined && lane !== null;
+  // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
+  const key = `${hasLane ? lane : ''}\0${all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
+  const version = boardDataVersion(board);
+  const remembered = LISTED.get(board.db)?.get(key), at = now(board);
+  // Any reader's clock may reuse the list: lapsed claims stay lapsed later, and live ones hold until the first expiry.
+  if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
+    return remembered.items.map(item => ({ ...item }));
+  }
   const rows = board.db
-    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build
+    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
+      EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
       LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
       LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
-  const items = rows.map(({ imported_rehome: imported, review_family: family, expected_build: expected, ...item }) => ({
-    ...current(board, item, family),
-    ...((board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE || expected === null ? {} : { item_expected_build_minutes: JSON.parse(expected) }),
-    ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
+  // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
+  const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
+  // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
+  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
+  // Every item's hand-off record in one read of the job tables, where the record lives [C7].
+  const records = handoffRecords(board.db);
+  const items = rows.map((row) => {
+    const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
+    for (const key of columns) item[key] = row[key];
+    if (family !== null) item.item_review_family = family;
+    item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
+    // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
+    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
+      item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
+    }
+    if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);
+    if (imported) item.item_rehome_import = JSON.parse(imported);
+    return item;
+  });
+  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
+  // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
+  const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
+  if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
+  LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
 }
 
+/** Remembered item lists by connection and filter; each entry names the board data version it read. */
+const LISTED = new WeakMap();
 /** Read a stored status/owner slice, excluding claims whose leases have expired rather than caching items. */
 export function itemsInStatus(board, status, owner = null) {
   return board.db.prepare(`SELECT * FROM item WHERE item_status=? AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)${owner === null ? '' : ' AND item_owner=?'} ORDER BY item_id DESC`)
@@ -173,10 +211,15 @@ export function itemsInStatus(board, status, owner = null) {
  *
  * @param {any} board
  * @param {any} item
+ * @param {Map<string, string | null> | null} [heartbeatSnapshot] - Heartbeats captured before a board write, when one is active.
  * @returns {string | null}
  */
-export function reviewHolder(board, item) {
-  return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+export function reviewHolder(board, item, heartbeatSnapshot = null) {
+  if (item.item_status !== 'submitted' || !item.item_review_by || (item.item_review_until ?? '') <= now(board)) return null;
+  if (!heartbeatSnapshot) return item.item_review_by;
+  const heartbeatAt = heartbeatSnapshot.get(item.item_review_by);
+  const heartbeatAge = heartbeatAt === null || heartbeatAt === undefined ? Infinity : board.clock.now().getTime() - Date.parse(heartbeatAt);
+  return heartbeatAge < REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS ? item.item_review_by : null;
 }
 
 /** Count unreserved submissions by whether they are awaiting a first reviewer or were released [R1]. */
@@ -353,10 +396,20 @@ export function withModel(board, agent) {
  * @returns {any[]}
  */
 export function listAgents(board) {
-  return withSeatPresence(board, withDerivedFamilies(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
-    LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id
-    LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all()));
+  // Deriving every seat's family is the cost on a board of hundreds of seats; the same unchanged board reuses it.
+  const version = `${boardDataVersion(board)}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
+  let known = LISTED_AGENTS.get(board.db);
+  if (known?.version !== version) {
+    known = { version, rows: withDerivedFamilies(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
+      LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id
+      LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all()) };
+    LISTED_AGENTS.set(board.db, known);
+  }
+  return withSeatPresence(board, known.rows.map(row => ({ ...row })));
 }
+
+/** Remembered seat lists with derived families, by connection and the board data version they read. */
+const LISTED_AGENTS = new WeakMap();
 
 
 import { factFromEvent } from "../../../state/src/core/fact-projection.js";
@@ -502,7 +555,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -521,9 +574,11 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const wanted = [...new Set([...interests.related, ...[...interests.byId.values()]
     .filter(item => item.item_lane === agent.agent_lane).map(item => item.item_id)])];
   const rows = new Map();
-  for (let offset = 0; offset < wanted.length; offset += 500) {
-    const ids = wanted.slice(offset, offset + 500);
-    for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IN (${ids.map(() => '?').join(',')}) ORDER BY event_id`).all(after, cursor, ...ids)) rows.set(event.event_id, event);
+  // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
+  // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
+  const wantedIds = new Set(wanted);
+  if (wantedIds.size) for (const event of board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IS NOT NULL ORDER BY event_id').all(after, cursor)) {
+    if (wantedIds.has(event.item_id)) rows.set(event.event_id, event);
   }
   for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=?
     AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
@@ -545,6 +600,9 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const newsIds = [...rows.values()].filter(event => isActivityNews(event, byShout.get(activityEventDetail(event)?.shout)))
     .map(event => activityEventDetail(event).shout);
   for (const event of rows.values()) if (event.event_kind === 'main-moved') event.activityBase = activityBatchBase(board, event);
+  // A caller that reads Git for every landing learns them all first and can answer in one process (#3252).
+  prepareMainChanges?.([...rows.values()].filter(event => event.event_kind === 'main-moved')
+    .map(event => ({ commit: activityEventDetail(event)?.sha, base: event.activityBase })));
   for (const event of rows.values()) if (event.event_kind === 'row_apply') {
     const ids = activityEventDetail(event)?.events;
     event.activityRows = [];
@@ -560,4 +618,15 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   }
   return { ...projectAgentActivity({ agent, interests, events: [...rows.values()].toSorted((a, b) => a.event_id - b.event_id),
     shouts: messages, changesForMain, sessionStart, after, newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
+}
+
+/**
+ * Every seat's last heartbeat, read before a board write opens so a reservation check inside the lock never reads the
+ * private heartbeat store [C7,V15].
+ *
+ * @param {any} board
+ * @returns {Map<string, string | null>} Seat id to its last heartbeat time, or null when it never sent one.
+ */
+export function heartbeatSnapshot(board) {
+  return new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
 }

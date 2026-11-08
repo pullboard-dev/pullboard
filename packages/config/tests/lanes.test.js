@@ -2,6 +2,7 @@
  * Lanes (L1, L2) and the config they live in.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -24,6 +25,9 @@ import { crossLaneFixture } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { specGateMoveOnly } from '../../spec/index.js';
 import { submissionPaths } from '../../sandbox/index.js';
+import { ownsNewFile } from '../../sandbox/src/shell/trusted-policy.js';
+import { planRowChange } from '../../../src/plan-row-change.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const CONFIG = {
   ...defaults(),
@@ -136,7 +140,7 @@ test('a config with a bad lane refuses and names the field [L1]', () => {
   assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify.policy"')));
 });
 
-test('config merges nested groups over the defaults, and leases read as durations [O2,B4]', () => {
+test('config merges nested groups over the defaults, and leases read as durations [O2,B4,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-config-'));
   try {
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', commits: { maxHeader: 60 }, lease: '90m' }));
@@ -144,11 +148,11 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.equal(config.commits.maxHeader, 60);
     assert.deepEqual(config.commits.requireIds, ['feat', 'fix']);
     assert.equal(config.leaseMs, 90 * 60_000);
-    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: false });
+    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true });
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: 'coordinator' }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3, inspectClauses: false }, 'legacy verify strings remain valid');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3, inspectClauses: true }, 'legacy verify strings remain valid');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'require' } }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3, inspectClauses: false }, 'nested verify options merge over defaults');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3, inspectClauses: true }, 'nested verify options merge over defaults');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
     assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
     for (const familyRelaxAt of [null, 'off', 2]) {
@@ -204,8 +208,8 @@ function reassignedPathFixture() {
   box.git(box.repo, 'add', 'api/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Update reassigned path', '--specs', 'G1',
-    '--criterion', 'the reassigned path has the new content', '--check', 'true');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Update reassigned path', '--specs', 'G1',
+    '--criterion', 'the reassigned path has the new content', '--check', 'true', '--route', 'strong');
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
@@ -311,7 +315,7 @@ test('submit and patch attach share frozen ownership and move together on refree
 /** A web item that merged main, after which main changed the same foreign file again. */
 function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
   assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main one\n', 'chore: main change one').status, 0);
@@ -414,4 +418,125 @@ test('lane hook accepts a deleted shim repoint only to its exact body [L3]', t =
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   assert.ok(submissionPaths(box.web, { item_lane: 'web', item_claim_head: base,
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
+});
+
+/** Run git in a temporary repo with a fixed identity; fail loudly. */
+function planGit(root, ...args) {
+  const run = spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  return run.stdout.trim();
+}
+
+/** Plan files for one cell, before and after a creation row; blobs read like Git entries. */
+function planBlobs(placements) {
+  const blob = value => ({ mode: '100644', bytes: Buffer.from(JSON.stringify(value)) });
+  const index = { cells: [{ file: 'bin/cells-plan/01-x.json', name: 'x', order: 1 }] };
+  const shard = paths => ({ order: 1, name: 'x', root: 'packages/x', paths });
+  const before = { 'bin/cells-plan.json': blob(index), 'bin/cells-plan/01-x.json': blob(shard([])) };
+  const after = { 'bin/cells-plan.json': blob(index), 'bin/cells-plan/01-x.json': blob(shard(placements)) };
+  return { before: path => before[path], after: path => after[path] };
+}
+
+test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
+  const root = mkdtempSync(join(tmpdir(), 'lanes-plan-'));
+  try {
+    planGit(root, 'init', '-q', '-b', 'main');
+    writeFileSync(join(root, 'README.md'), 'base\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'base');
+    const base = planGit(root, 'rev-parse', 'HEAD');
+    planGit(root, 'switch', '-q', '-c', 'item');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'feat(x): new file [G1]', '-m', 'Pullboard-Item: #7');
+    const own = planGit(root, 'rev-parse', 'HEAD');
+    const row = [['src/new.js', 'packages/x/src/core/new.js', 'rule']];
+    const change = (snapshot) => planRowChange('bin/cells-plan/01-x.json', {
+      ...planBlobs(row), ownNewFile: path => ownsNewFile(root, { item_id: 7 }, own, snapshot, path),
+    });
+    assert.equal(change(base).allowed, true, 'absent on main, every adding commit is the item\'s own');
+    planGit(root, 'switch', '-q', 'main');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'feat(y): same file landed on main [G1]');
+    assert.equal(change(planGit(root, 'rev-parse', 'main')).allowed, false, 'present on main');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+/** Set up a real board and cells plan so submission exercises the frozen lane policy. */
+function nativePlanRowFixture({ mainFile } = {}) {
+  const box = policyFixtures.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.lanes.web.owns.push('src/');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  const indexPath = 'bin/cells-plan.json';
+  const shardPath = 'bin/cells-plan/01-x.json';
+  const index = { version: 1, stays: [], cells: [{ file: shardPath, name: 'x', order: 1 }] };
+  const shard = { order: 1, name: 'x', root: 'packages/x', paths: [], reexports: [], cuts: [] };
+  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
+  mkdirSync(join(box.repo, 'src'), { recursive: true });
+  if (mainFile) writeFileSync(join(box.repo, mainFile), 'export {};\n');
+  writeFileSync(join(box.repo, indexPath), JSON.stringify(index, null, 2) + '\n');
+  writeFileSync(join(box.repo, shardPath), JSON.stringify(shard, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json', indexPath, shardPath, ...(mainFile ? [mainFile] : []));
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed native plan-row fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return { box, shardPath };
+}
+
+/** Add and claim a real web item for native plan-row submission coverage. */
+function nativePlanRowItem(box, title) {
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
+    '--check', 'true', '--route', 'strong', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
+  return id;
+}
+
+/** Commit the candidate's canonical plan row and retain item authorship in Git history. */
+function commitPlanRow(box, id, shardPath, source) {
+  const shard = JSON.parse(readFileSync(join(box.web, shardPath), 'utf8'));
+  shard.paths.push([source, `packages/x/src/core/${source.slice('src/'.length)}`, 'rule']);
+  writeFileSync(join(box.web, shardPath), JSON.stringify(shard, null, 2) + '\n');
+  box.git(box.web, 'add', shardPath);
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): place owned new file [G1]', '-m', `Pullboard-Item: #${id}`);
+}
+
+test('native submit accepts a plan row for an item file after reclaim and refreeze while main lacks it [L3,C7,#2108]', () => {
+  const { box, shardPath } = nativePlanRowFixture();
+  const id = nativePlanRowItem(box, 'Place an item-created source file');
+  mkdirSync(join(box.web, 'src'), { recursive: true });
+  writeFileSync(join(box.web, 'src/new.js'), 'export {};\n');
+  box.git(box.web, 'add', 'src/new.js');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): create planned source [G1]', '-m', `Pullboard-Item: #${id}`);
+  const ownCommit = box.git(box.web, 'rev-parse', 'HEAD');
+  const released = box.run(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'reclaim after the item source commit', '--json');
+  assert.equal(released.code, 0, released.err + released.out);
+  const refrozen = box.run(box.repo, 'refreeze', String(id), '--json');
+  assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
+  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_claim_head, ownCommit,
+    'the reclaim uses the item commit as its new base');
+  commitPlanRow(box, id, shardPath, 'src/new.js');
+  const submitted = box.run(box.web, 'submit', String(id), '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_status, 'submitted');
+});
+
+test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', () => {
+  const { box, shardPath } = nativePlanRowFixture({ mainFile: 'src/already-main.js' });
+  const id = nativePlanRowItem(box, 'Refuse a plan row for a main file');
+  commitPlanRow(box, id, shardPath, 'src/already-main.js');
+  const refused = box.run(box.web, 'submit', String(id), '--json');
+  assert.equal(refused.code, 1, refused.err + refused.out);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'OUTSIDE_LANE');
+  assert.match(error.message, /bin\/cells-plan\/01-x\.json/u);
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
+    'the refused submission records no status change');
 });

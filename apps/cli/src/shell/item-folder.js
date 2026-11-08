@@ -11,6 +11,8 @@ import { archiveMaintenanceWorktree } from './worktree-maintenance-archive.js';
 import { maintenanceArchiveMatches } from './worktree-maintenance-archive.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
+import { checkoutBranch } from '../../../../packages/git/index.js';
+import { checkoutCommonDir } from '../../../../packages/git/index.js';
 import { primaryCheckoutRoot } from './cli/worktree.js';
 import { writeItemMarker } from './item-folder-identity.js';
 export { itemFolderIdentity, itemFolderPath } from './item-folder-identity.js';
@@ -85,9 +87,9 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const tree = branchCheckout(ctx.info.root, ref);
   if (!tree || tree.path === desired) return;
   const suffix = `-item-${id}`;
-  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Error(`item branch ${ref} remains in protected folder ${tree.path}`);
+  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${tree.path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
   const holder = agentAt(board, tree.path.slice(0, -suffix.length));
-  if (!holder || itemFolderPath(holder.agent_path, id) !== tree.path) throw new Error(`item folder ${tree.path} has no registered prior holder; retained`);
+  if (!holder || itemFolderPath(holder.agent_path, id) !== tree.path) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
   /** Recheck ownership after every asynchronous archive notification, before touching the checkout. */
   const requireOwnership = () => {
     const item = getItem(board, id);
@@ -113,14 +115,23 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   }
 }
 
+/** Whether two paths name one existing directory, however each was spelled. */
+function sameDirectory(first, second) {
+  try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
+}
+
 /** Open or reuse this item's branch, starting a new branch at the current primary main. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
   if (existsSync(path)) {
-    const actual = tryGit(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-    const common = tryGit(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    if (actual.status !== 0 || actual.stdout !== ref || common.status !== 0 || common.stdout !== ctx.info.commonDir) throw new Error(`item folder ${path} is occupied by another checkout`);
+    if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
+    if (!options.renewed) {
+      const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
+      if (status.status !== 0) throw new Error(`cannot inspect item folder ${path}; preserve it and retry`);
+      const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
+      if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
+    }
     writeItemMarker(path, me.id, id);
     return path;
   }

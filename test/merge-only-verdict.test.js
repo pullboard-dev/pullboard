@@ -49,17 +49,18 @@ function content(box, cwd, value, message) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
-test('a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
+test('clause 1: a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
   const box = e2e.project();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
-    JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');
+    JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');
   assert.equal(configured.status, 0, configured.stderr);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   content(box, box.repo, 'base', 'feat(web): initial choice [G1]');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const added = succeeds(box, box.repo, 'add', 'web', 'Preserve accepted choice', '--specs', 'G1',
-    '--criterion', 'The accepted choice survives a trunk-only merge', '--check', 'node --check web/feature.js', '--json');
+    '--criterion', 'The accepted choice survives a trunk-only merge', '--check', 'node --check web/feature.js',
+    '--brief', 'Files:\n- web/feature.js\nChange:\n- keep the accepted choice\nTest:\n- node --check web/feature.js passes', '--json');
   const id = JSON.parse(added.out).item.item_id;
   succeeds(box, box.web, 'claim', String(id));
   const accepted = content(box, box.web, 'accepted', 'feat(web): accepted choice [G1]');
@@ -120,7 +121,10 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     const canonical = prepareEngineMove(origin, 'submit', [id, options]);
     const { mergeOnly: suppliedCarry, ...callerOptions } = options;
     assert.ok(suppliedCarry);
-    assert.equal(operationIntent('submit', canonical.args), operationIntent('submit', [id, callerOptions]),
+    // The engine's submit authorization adds clause and rename policy (inspectClauses, #2711 era); only those fields are derived here.
+    const { clausePolicyCommit, inspectClauses, strictRenames } = canonical.args[1];
+    const derivedPolicy = { clausePolicyCommit, inspectClauses, strictRenames };
+    assert.equal(operationIntent('submit', canonical.args), operationIntent('submit', [id, { ...callerOptions, ...derivedPolicy }]),
       'the derived canonical carry preserves the interrupted caller intent');
     for (const key of ['commit', 'tree', 'policyCommit', 'gateGreen']) {
       const changed = { ...callerOptions, [key]: key === 'gateGreen' ? false : '0'.repeat(40) };
@@ -131,11 +135,14 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     const sender = { kind: 'agent', agent: options.agentId, userId: 'private-builder',
       policy: MERGE_ONLY_VERDICT_ENGINE };
     const withObjects = applyRelayMove(origin, canonical, { sequence: 1, at, sender, kind: 'move' });
+    // 8078e19a4a: replaying a sealed clause policy reads that policy commit, so the replica sees the repository for this one replay; the merge-only carry stays sealed in the move.
+    objectless.gitRoot = box.web;
     const withoutObjects = applyRelayMove(objectless, canonical, { sequence: 1, at, sender, kind: 'move' });
+    objectless.gitRoot = undefined;
     assert.equal(withObjects.error, undefined,
       `the authenticated builder retains the original reviewer authority: ${JSON.stringify(withObjects.error)}`);
     assert.equal(store.getItem(origin, id).item_status, 'verified');
-    assert.deepEqual(withoutObjects, withObjects, 'one canonical move must emit identical events and event IDs without Git objects');
+    assert.deepEqual(withoutObjects, withObjects, 'one canonical move must emit identical events and event IDs without the carried commit objects');
     assert.deepEqual(exportBoard(objectless), exportBoard(origin), 'replicas must retain exactly identical native state');
     assert.deepEqual(capturePrProof(origin).accepted.get(id), store.acceptedVerdict(origin, store.getItem(origin, id)),
       'publication retains the canonical carried acceptance within its snapshot');
@@ -164,6 +171,13 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     const replica = openBoard(':memory:', undefined, { gitRoot: box.web });
     try {
       importBoard(replica, pending.snapshot);
+      if (key === 'policyCommit') {
+        // 8078e19a4a: a submit citing a policy commit that main does not contain is refused before any review, so no carry can apply.
+        assert.throws(() => store.submit(replica, id, { ...options, [key]: '0'.repeat(40) }), { code: 'NO_POLICY' });
+        assert.equal(store.getItem(replica, id).item_status, pending.item.item_status, 'the refused submit changed nothing');
+        assert.equal(store.events(replica, { itemId: id }).filter(event => event.event_kind === 'merge-only-accept').length, 0);
+        continue;
+      }
       store.submit(replica, id, { ...options, [key]: '0'.repeat(40) });
       assert.equal(store.getItem(replica, id).item_status, 'submitted', `${key}: unavailable or mismatched actual source gets ordinary review`);
       assert.equal(store.events(replica, { itemId: id }).filter(event => event.event_kind === 'merge-only-accept').length, 0);
@@ -210,14 +224,15 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   try {
     importBoard(forged, pending.snapshot);
     const move = prepareEngineMove(forged, 'submit', [id, options]);
-    move.args[1] = { ...options, commit: extraHead, tree: extraTree,
+    // The forged move keeps the sealed clause-policy fields the engine added (8078e19a4a); only the source is swapped.
+    move.args[1] = { ...options, ...Object.fromEntries(['clausePolicyCommit', 'inspectClauses', 'strictRenames'].map(key => [key, move.args[1][key]])), commit: extraHead, tree: extraTree,
       mergeOnly: { ...detail, commit: extraHead, tree: extraTree } };
     applyEngineMove(forged, move, { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified',
       'canonical replay records the sealed decision consistently; landing is the authoritative Git backstop');
     const beforeLanding = box.git(box.repo, 'rev-parse', 'HEAD');
     await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
+      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
         && /recorded merge-only acceptance/u.test(error.message),
       'forged canonical carry must not reach a physical merge');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
@@ -245,13 +260,16 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
         items: [{ id, commit: extraHead, merge: extraHead }] };
       store.recordLandingBatch(adoption, { agentId: 'coordinator', batch });
       await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board: adoption, adopt: true,
-        config: { landing: { publish: 'separate' } }, owner: 'private-adopter', say: () => {},
+        config: { landing: { perItem: false, publish: 'separate' } }, owner: 'private-adopter', say: () => {},
         write: async (operation, args) => adoption.enginePorts.store[operation](adoption, ...args), checkLease: async () => {} }),
       error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),
       'adoption must re-prove an already-gated canonical carry before finishing its trunk receipt');
-      assert.equal(store.landingBatches(adoption).at(-1).state, 'trunk');
-      assert.equal(store.landingBatches(adoption).at(-1).revision, 2,
-        'adoption saved its owner after selection; the final guard, not all-stale preflight, refused it');
+      // 98ea4e7864 and #3188: the final guard refusal is recorded on the batch and the refused batch ends blocked, so no restart adopts it again.
+      const refused = store.landingBatches(adoption).at(-1);
+      assert.equal(refused.state, 'blocked');
+      assert.ok(refused.refusal, 'the final guard refusal is recorded on the batch');
+      assert.ok(refused.revision > 2,
+        'adoption saved its owner after selection (2), then recorded the final guard refusal and blocked the batch; all-stale preflight did not refuse it');
       assert.equal(store.getItem(adoption, id).item_merged_commit, null);
       assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     } finally { store.closeBoard(adoption); }
@@ -266,13 +284,14 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     const nextProof = captureMergeOnly(box.web, mergeOnlyBasis(forged, store.getItem(forged, id), {}, { acceptedVerdict: store.acceptedVerdict }),
       { commit: nextHead, tree: extraTree, trunk: nextTrunk });
     assert.ok(nextProof, 'the newest merge alone is clean, but its inherited acceptance was forged');
+    // Main must hold the submit policy commit (#2375): the carried trunk lands before the submit is prepared.
+    box.git(box.repo, 'merge', '--ff-only', nextTrunk);
     const chained = prepareEngineMove(forged, 'submit', [id, nextOptions]);
     chained.args[1].mergeOnly = nextProof;
     applyEngineMove(forged, chained, { sequence: 2, at: '2026-01-01T00:00:01.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified');
-    box.git(box.repo, 'merge', '--ff-only', nextTrunk);
     await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
+      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), nextTrunk);
     box.git(box.repo, 'reset', '--hard', trunk);
@@ -293,7 +312,10 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   try {
     importBoard(historical, pending.snapshot);
     const { gateGreen, mergeOnly, ...oldOptions } = options;
-    const move = prepareEngineMove(historical, 'submit', [id, oldOptions]);
+    const prepared = prepareEngineMove(historical, 'submit', [id, oldOptions]);
+    // A submit sealed before the merge-only engine cannot hold the clause and rename policy fields later engines added (clause inspection, #2711 era; strict renames, engine 221): drop them so the minimum engine is the one this replay claims.
+    const { clausePolicyCommit, inspectClauses, strictRenames, ...sealedThen } = prepared.args[1];
+    const move = { ...prepared, args: [prepared.args[0], sealedThen] };
     applyEngineMove(historical, { ...move, engine: MERGE_ONLY_VERDICT_ENGINE - 1 },
       { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
     assert.equal(store.getItem(historical, id).item_status, 'submitted', 'historical submit replay never gains carry semantics');

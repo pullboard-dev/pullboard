@@ -1,4 +1,5 @@
-import { STRICT_RENAME_ENGINE } from '../../../../state/index.js';
+import { MACHINE_VERDICT_ENGINE } from '../../../../../src/machine-verdict-engine.js';
+import { STRICT_RENAME_ENGINE } from '../../../../../src/strict-rename-engine.js';
 import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../../src/main-red-failure-lines-engine.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
@@ -41,7 +42,7 @@ function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
   const errorLines = args[1]?.autoMainReds?.comparisons?.some(receipt => receipt.failureSignatures?.failures?.some(row => row.firstError !== undefined));
-  return Math.max(args[1]?.strictRenames !== undefined ? STRICT_RENAME_ENGINE : 1, errorLines ? MAIN_RED_FAILURE_LINES_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(args[1]?.machineVerified !== undefined || args[1]?.machineReceipts !== undefined ? MACHINE_VERDICT_ENGINE : 1, args[1]?.strictRenames !== undefined ? STRICT_RENAME_ENGINE : 1, errorLines ? MAIN_RED_FAILURE_LINES_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined)
       ? args[1].submissionProof.knownMainFailures.failures.some(row => row?.ran !== undefined)
@@ -80,7 +81,7 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "PARENT_LANE": "add the child in its parent's lane",
   "REFERENCE_AUTHOR": "use the issue or pull request author's handle, or remove the handle from its Reference line, then add or edit the item again",
   "REFERENCE_IS_BOARD": "use --specs for spec rows, --after for item dependencies, or --parent for a parent item",
-  "WITHDRAWN": "wait on an item that is not withdrawn; see pullboard list --all",
+  "WITHDRAWN": "choose an item that is not withdrawn: pullboard list --all",
   "RUNNER_UNAVAILABLE": "inspect the unavailable runner and its exact cleanup generation; restore it before another attempt",
   "RUNNER_JOB_LOST": "inspect the exact runner and job named in the diagnostic; cleanup remains unknown until the pinned worker proves it, then retry",
   "SUBMIT_PIN_NOT_MAIN": "run pullboard submit again so it captures the current main",
@@ -129,12 +130,13 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
   "SLOT_DB_LOCKED": "the run never started, so it is not a red; rerun the same command once the named process releases the slot database",
-  "STACKED_ON_UNVERIFIED": "wait for the earlier item to be accepted, or rebuild on main without its commits",
+  "STACKED_ON_UNVERIFIED": "rebuild on main without the unverified earlier commits, or take other work with pullboard next",
   "ITEM_PATCH": "inspect the native patches with pullboard patch list <item>; ask the coordinator to replace unsafe or conflicting input",
   "ITEM_PATCH_SOURCE": "bind patches to the exact submitted commit and compose them before review",
   "ITEM_PATCH_CHANGED": "read and compose the current patch set before reviewing",
   "ITEM_PATCH_AUTHOR": "name an existing native author seat",
   "SUBMISSION_PROOF": "rerun pullboard submit <id> with the current CLI so its selected files and fallback are recorded",
+  "TIMING_RUNNER_RESTRICTION": "adjust the runner restriction or gate.timingRunner setting named in the refusal, then retry submit",
   "TIMING_SLOT_REQUIRED": "start the timing check outside its inherited ordinary lease and acquire the machine gate with timing true",
   "UNDECLARED_BUILDER_FAMILY": "rejoin with your vendor family: pullboard join <lane> --family <vendor> --model \"<model name>\", then submit again",
   "UNTRACKED":"commit or ignore the untracked files, then run the command again",

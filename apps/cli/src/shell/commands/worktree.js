@@ -1,6 +1,7 @@
 /** The pullboard worktree command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
+  modelTier,
 } from '../../../../../packages/seats/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
@@ -60,7 +61,7 @@ import {
  * @param {boolean} helper - false for the caller's own seat (`next`); a helper's seat records its parent [N2,B13]
  * @returns {Promise<number>}
  */
-export async function worktreeFor(io, lane, route, family = null, model, helper = true) {
+export async function worktreeFor(io, lane, route, family = null, model, helper = true, { reuseRoot = null } = {}) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -69,6 +70,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
   model = requiredModel(model, process.env, `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
+  family = family || modelTier(model)?.family || null;
   const mainRoot = primaryCheckoutRoot(ctx.info);
   if (!mainRoot) throw new Refused('NO_POLICY', 'the primary checkout cannot be proven from Git metadata or the read-only project registry; restore the registry and retry');
   const mainConfig = loadConfig(mainRoot);
@@ -76,11 +78,24 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   const pathFor = (n) => mainConfig.worktrees === 'inside'
     ? join(mainRoot, '.claude', 'worktrees', `${lane}-${n}`)
     : join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
-  const isTaken = (n) => existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
+  const registeredPaths = withBoard(ctx, board => new Set(store.listAgents(board).map(seat => seat.agent_path)));
+  const isTaken = (n) => registeredPaths.has(pathFor(n)) || existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
   let n = 1;
   while (isTaken(n)) n += 1;
   mkdirSync(dirname(pathFor(n)), { recursive: true });
-  git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
+  let originalBranch = null;
+  if (reuseRoot) {
+    const previous = withBoard(ctx, board => store.agentAt(board, reuseRoot));
+    const held = previous && withBoard(ctx, board => store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === previous.agent_id
+      || item.item_status === 'submitted' && store.reviewHolder(board, item) === previous.agent_id));
+    if (!previous || previous.agent_lane !== lane || held || repoInfo(reuseRoot).commonDir !== repoInfo(mainRoot).commonDir) throw new Refused('WORKER_WORKTREE_HELD', "recycle only this board lane's parked worktree after its claims and reviews end");
+    originalBranch = tryGit(reuseRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout;
+    git(mainRoot, ['worktree', 'move', reuseRoot, pathFor(n)]);
+    if (originalBranch) git(pathFor(n), ['branch', '-m', `${lane}/${n}`]);
+    else git(pathFor(n), ['switch', '-c', `${lane}/${n}`]);
+  } else {
+    git(mainRoot, ['worktree', 'add', '-q', '-b', `${lane}/${n}`, pathFor(n), git(mainRoot, ['rev-parse', 'HEAD'])]);
+  }
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   let id;
   try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family, model }])); }
@@ -88,6 +103,12 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
     const registered = withBoard(ctx, (board) => store.agentAt(board, root));
     if (registered) {
       io.err('pullboard: registration is already ordered; the worktree is preserved. Retry enrollment to obtain its credential: ' + cdTo(root) + ' pullboard join ' + lane + ' --model ' + shellWord(model) + (route === 'strong' ? '' : ' --route ' + route) + (family ? ' --family ' + shellWord(family) : ''));
+      throw error;
+    }
+    if (reuseRoot) {
+      if (originalBranch) tryGit(root, ['branch', '-m', originalBranch]);
+      const restored = tryGit(mainRoot, ['worktree', 'move', root, reuseRoot]);
+      if (restored.status !== 0) io.err(`parked worktree preserved at ${root}; restore its registration before reuse`);
       throw error;
     }
     // Only remove the clean worktree just created here; preserve it if another process changed it.
@@ -120,4 +141,15 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
 /** Run `pullboard worktree` and return its exit code. */
 export function run(io, { first, values }) {
   return worktreeFor(io, first, values.route ?? 'strong', values.family ?? null, values.model);
+}
+
+/** Remove only a clean parked worker; Git refuses dirty content, and unfinished native obligations are retained. */
+export async function removeScaledWorktree(io, root) {
+  const ctx = context(io);
+  const mainRoot = primaryCheckoutRoot(ctx.info);
+  if (!mainRoot || repoInfo(root).commonDir !== repoInfo(mainRoot).commonDir) return false;
+  const seat = withBoard(ctx, board => store.agentAt(board, root));
+  if (!seat || withBoard(ctx, board => store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === seat.agent_id
+    || item.item_status === 'submitted' && store.reviewHolder(board, item) === seat.agent_id))) return false;
+  return tryGit(mainRoot, ['worktree', 'remove', root]).status === 0;
 }

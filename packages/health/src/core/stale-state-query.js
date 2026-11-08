@@ -1,3 +1,4 @@
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
@@ -137,7 +138,8 @@ function claimRow(board, item, limits, now, seats, options) {
   // Unknown classification can show an early warning, never authorize the shorter release interval.
   const limit = classificationUnknown ? Math.min(limits.blocker, limits.claim) : blocker ? limits.blocker : limits.claim;
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
-  return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
+  return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimAt: event?.event_at ?? null,
+    heartbeatAt: seats.get(item.item_owner)?.heartbeatAt ?? null, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
     progress: claimProgress(board, item, now, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }), commitAt: observed.commitAt ?? null, episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
 }
@@ -175,7 +177,7 @@ function reviewRow(board, item, limits, now, seats, options) {
 export function staleStateSnapshotWith(withSeatPresence, board, config = {}, { now = board.clock.now(),
   workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats, items: suppliedItems, claimsOnly = false } = {}) {
   const at = now.getTime();
-  const limits = staleStateLimits(config);
+  const limits = staleStateLimits(config, { dependency: (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE });
   const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
   const seats = suppliedSeats === undefined ? observedSeats(withSeatPresence, board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
   const options = { workObservation, blocker };

@@ -21,4 +21,4 @@
 .row.item-row .item-seat.verify { background: var(--blue-soft); color: var(--blue); }
 .row.item-row .item-status { font-family: var(--sans); }
 .row.item-row .item-status.verified { background: var(--accent-soft); color: var(--accent-strong); }
-.row.item-row.gated:has(> .row-side > .chip.gate) { border-color: light-dark(#ca9d96, #86403b); }
+.row.item-row.gated:has(> .row-side > .chip.gate), .row.item-row.gated:has(.meta .gate) { border-color: light-dark(#ca9d96, #86403b); }

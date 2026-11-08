@@ -15,17 +15,19 @@ const ROWS = [
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
+  ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
-  ['workers.budget', 'Worker budget', 'The seat-hours per day or week that pullboard run --scale may spend across every live seat on this computer; off launches no workers.', 'Capacity', 'seat-hours'],
+  ['workers.budget', 'Worker budget', 'The spend per day or week that pullboard run --scale may use across every live seat on this computer, priced by each seat\'s model; off launches no workers.', 'Capacity', 'spend'],
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
+  ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once; unset, the cap is computed from the runner slots. Only this setting lowers it, never a launching command.', 'Capacity', 'count'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
   ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off'],
   // This machine: Background
@@ -103,6 +105,7 @@ const ROWS = [
   ['verify.reviewRatio', 'Reviews to builds', 'How many builds each reviewer is scheduled against.', 'Review', 'ratio'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
+  ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
@@ -117,7 +120,10 @@ const ROWS = [
   ['submitDeferAbove', 'Defer large selections', 'A submit whose selection names more test files than this runs only its check and invariants, and landing runs the rest.', 'Landing', 'count'],
   ['landingShards', 'Landing test shards', 'How many shards the landing gate splits its test files into.', 'Landing', 'count'],
   ['landing.publish', 'Publish separately', 'Landing happens locally and the push goes out through pullboard publish.', 'Landing', 'choice'],
+  ['landing.perItem', 'Per-item landing', 'Landing takes one verified item at a time in accept order and runs only that item\'s plan; a red item goes back to open alone and the next item lands.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
+  ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
+  ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   // This repo: Commits
@@ -134,6 +140,7 @@ const ROWS = [
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.route.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.returnRejectedWork', 'Return rejected work', 'Rejected work goes to its builder first; after 30 minutes another lane seat may claim it.', 'Line', 'on/off'],
+  ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
   ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.order', 'Board-controlled order', 'The board sets queue order itself.', 'Line', 'on/off'],
   ['line.focusMilestone', 'Focus milestone', 'The milestone whose work is offered first.', 'Line', 'text'],
@@ -145,7 +152,7 @@ const ROWS = [
   ['line.bar.sharpenToPerson', 'Send vague criteria to the person', 'A rejected criterion that is unclear goes to the person to sharpen.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
   ['line.collisionFreeBatch', 'Collision-free landing batches', 'Items that change the same files are kept out of the same landing batch.', 'Line', 'on/off'],
-  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds when replaying board flow.', 'Line', 'count'],
+  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds, in real landing and when replaying board flow; unset, automatic landing sizes batches from recorded redness.', 'Line', 'count'],
   ['line.landingCadenceMinutes', 'Landing interval', 'The time between landing batches when replaying board flow.', 'Line', 'minutes'],
 ];
 

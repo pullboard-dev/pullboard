@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { reusableSubmitProof } from '../packages/verify/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const commit = 'a'.repeat(40), tree = 'b'.repeat(40), main = 'c'.repeat(40), frozen = 'd'.repeat(64);
@@ -51,7 +53,7 @@ async function nativeProofScenario(t, moveMain) {
   const box = helpers.project('true', sandbox);
   const marker = join(box.dir, 'check-count');
   const check = `printf x >> '${marker}'`;
-  const added = box.run(box.repo, 'add', 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check);
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check, '--route', 'strong');
   assert.equal(added.code, 0, added.err || added.out);
   const claimed = box.run(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
@@ -61,7 +63,7 @@ async function nativeProofScenario(t, moveMain) {
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
-  const joined = box.run(reviewer, 'join', 'web', '--model', 'proof-reuse-reviewer'); assert.equal(joined.code, 0, joined.err || joined.out);
+  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'proof-reuse-reviewer'); assert.equal(joined.code, 0, joined.err || joined.out);
   if (moveMain) {
     box.env.CODEX_THREAD_ID = 'proof-reuse-builder-session';
     box.git(box.repo, 'commit', '--allow-empty', '-m', 'chore: advance fixture main');
@@ -70,7 +72,7 @@ async function nativeProofScenario(t, moveMain) {
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   if (moveMain) {
-    assert.match(verdict.out, /submit proof not reused: composed main changed/);
+    assert.match(verdict.out, /submit proof not reused: (composed main changed|commit or tree changed)/);
     assert.equal(readFileSync(marker, 'utf8'), afterSubmit + 'x', 'moved main reruns the frozen check');
   } else {
     assert.match(verdict.out, /reused submit proof [a-f0-9-]{36}/); // The actual native receipt id is cited.

@@ -29,7 +29,13 @@ async function run(...args) {
   sandboxes.push(folder);
   const result = await runCliInProcess(args, { cwd: folder });
   if (result.status === 0 && !args.includes('--json')) {
-    assert.match(result.stdout, /\nnext: pullboard status\n$/u, 'all help aliases end in one immediate action');
+    // One command's own help ends at its example; the overview and the full list end in one immediate action (json-output.js helpSubject).
+    const subject = args[0] === 'help' ? args.filter((arg) => !arg.startsWith('-')).length > 1 : args[0] !== undefined && !args[0].startsWith('-');
+    if (subject) {
+      assert.doesNotMatch(result.stdout, /^next:/mu, 'one command\'s help adds no next line after its example');
+      return result;
+    }
+    assert.match(result.stdout, /\nnext: pullboard status\n$/u, 'the overview and full list end in one immediate action');
     assert.equal(result.stdout.match(/^next:/gmu)?.length, 1);
     return { ...result, stdout: result.stdout.replace(/next: pullboard status\n$/u, '') };
   }
@@ -150,7 +156,7 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   const undocumented = (await run('help', 'milestone', 'bogus'));
   assert.equal(undocumented.status, 2, 'a name the CLI does not dispatch stays refused');
   assert.equal(undocumented.stdout, '');
-  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone items". Run pullboard help --all for the full list.\n');
+  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone focus". Run pullboard help --all for the full list.\n');
   t.diagnostic('help overview bytes ' + JSON.stringify(overview.stdout));
 
   const directory = resolve(import.meta.dirname, '../src');
@@ -214,7 +220,7 @@ test('init help names --blueprint [I1,N37]', async () => {
   assert.match((await run('help', '--all')).stdout, /pullboard init \[--model <name>\] \[--blueprint <name or file>\]/u);
 });
 
-test('help add example runs on a fresh board [I1,L3]', async (t) => {
+test('clause 1: help add example runs on a fresh board and its help adds no next line [I1,L3]', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-help-add-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
@@ -234,7 +240,7 @@ test('help add example runs on a fresh board [I1,L3]', async (t) => {
 
   const help = runFixtureChild(process.execPath, [BIN, 'help', 'add'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(help.status, 0, help.failure ?? help.stderr);
-  assert.match(help.stdout, /\nnext: pullboard status\n$/u);
+  assert.doesNotMatch(help.stdout, /^next:/mu, 'one command\'s help adds no next line after its example');
   const lines = (help.stdout.split('Example:\n', 2)[1] ?? '').trimEnd().split('\n').filter(line => /^  /u.test(line)).map((line) => line.trim());
   const laneAdd = lines.indexOf('pullboard lane add web --owns src/web');
   const add = lines.indexOf('pullboard add web "Upload page" --specs G1');

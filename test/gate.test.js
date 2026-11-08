@@ -32,6 +32,8 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -791,7 +793,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
-    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
+    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
   if (inline) {
     // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
     box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));
@@ -817,7 +819,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
   /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
   const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
-    const added = box.run(box.repo, 'add', 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
     assert.equal(box.run(cwd, 'claim', String(id)).code, 0);
@@ -891,7 +893,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const split = largeSelectionProject(20, { inline: true });
   const second = join(split.box.dir, 'web-2');
   split.box.git(split.box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.equal(split.box.run(second, 'join', 'web').code, 0);
+  assert.equal(fixtureJoin(split.box.run, second, 'web').code, 0);
   const itemA = split.submitChange('a', { files: [['web/fix.js', 'export const fixed = true;\n'], ['web/RED', 'red\n']] });
   const itemB = split.submitChange('needs-fix', { cwd: second });
   split.accept(itemA.id, itemA.receipt.commit);

@@ -1,12 +1,10 @@
-import { releaseSource } from '../../../gate/index.js';
-import { runReleaseGate } from '../../../gate/index.js';
-import { runnerExecutionServices } from '../../../runners/index.js';
+import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
-import { fileTimesPath } from '../../../gate/index.js';
-import { readFileTimes } from '../../../gate/index.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/src/shell/gate-run-receipt.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/src/shell/gate-run-receipt.js';
+import { fileTimesPath } from '../../../gate/src/shell/test-value-timing.js';
+import { readFileTimes } from '../../../gate/src/shell/test-value-timing.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -27,7 +25,9 @@ import {
 } from 'node:fs';
 import {
   dirname,
+  isAbsolute,
   join,
+  posix,
   relative,
   resolve,
   sep,
@@ -40,13 +40,14 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../../src/git.js';
-import { testsNeedGui } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/src/shell/gui-admission.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
-import { localRunnerDescriptor } from '../../../runners/index.js';
-import { guiSession } from '../../../gate/index.js';
+import { localRunnerDescriptor } from '../../../runners/src/shell/runner-load.js';
+import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { headTree } from '../../../../src/git.js';
-import { cpuRunnerRequired } from '../../../gate/index.js';
+import { cpuRunnerRequired } from '../../../gate/src/shell/cpu-load-admission.js';
+import { shardSelectionMatched } from '../../../gate/src/shell/test-selection.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -61,7 +62,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../gate/index.js';
+} from '../../../gate/src/shell/gate-run-receipt.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -95,7 +96,7 @@ export function releasePlacement(value, actual = releaseExecutors()) {
 
 /** Partition every file once, reserving compatible work for each executor before balancing the rest. */
 export async function planReleaseShards(files, executors, times = {}, needsBrowser = async () => true, needsGui = async () => true, needsCpuRunner = async () => false) {
-  if (!files.length || new Set(files).size !== files.length || executors.length < 1 || files.length < executors.length) {
+  if (!files.length || new Set(files.map(file => fileKey(file))).size !== files.length || executors.length < 1 || files.length < executors.length) {
     throw new Error('a release needs distinct tracked files and nonempty work for every executor');
   }
   const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms) && ms >= 0);
@@ -143,9 +144,16 @@ function writeFileTimes(root, measured) {
   renameSync(temporary, path);
 }
 
-/** Normalize a test file path to its repository-relative form, without a leading `./`. */
-export function fileKey(file) {
-  return String(file).replace(/^\.\//u, '');
+/**
+ * Canonicalize a test file path to its repository-relative form: `./`, `..` and doubled slashes
+ * fold away, and an absolute path under `root` becomes relative to it. Two spellings of one file
+ * then share one key, so the shard planner never runs the same cases twice (#3158).
+ */
+export function fileKey(file, root = null) {
+  const text = String(file).split(sep).join('/');
+  if (!text) return '';
+  const inside = root && isAbsolute(text) ? relative(root, text).split(sep).join('/') : text;
+  return posix.normalize(inside).replace(/^\.\//u, '');
 }
 
 /**
@@ -156,13 +164,16 @@ export function fileKey(file) {
  * @param {string[]} files
  * @param {number} count
  * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
  * @returns {{ files: string[], weight: number }[]}
  */
-export function planLandingShards(files, count, times = {}) {
-  const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms));
+export function planLandingShards(files, count, times = {}, root = null) {
+  const known = files.map(file => times[fileKey(file, root)]).filter(ms => Number.isFinite(ms));
   const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
-  const weight = file => known.length ? (Number.isFinite(times[fileKey(file)]) ? times[fileKey(file)] : average) : 1;
-  const ordered = [...files].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+  const weight = file => known.length ? (Number.isFinite(times[fileKey(file, root)]) ? times[fileKey(file, root)] : average) : 1;
+  const distinct = new Map();
+  for (const file of files) if (!distinct.has(fileKey(file, root))) distinct.set(fileKey(file, root), file); // One file once, however spelled, so no case runs twice (#3158).
+  const ordered = [...distinct.values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const shards = Array.from({ length: Math.max(1, count) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
     const lightest = shards.reduce((best, shard) => shard.weight < best.weight
@@ -172,6 +183,24 @@ export function planLandingShards(files, count, times = {}) {
   }
   for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
   return shards.filter(shard => shard.files.length);
+}
+
+/**
+ * Split a build, submit or review run's test files across the runner slots that are free right now: at most one shard per
+ * free slot and per distinct file, balanced by recorded file times through the landing planner. One free slot, or none,
+ * gives one shard holding every file, so such a run executes as it does today (#3228).
+ *
+ * @param {string[]} files
+ * @param {number} freeSlots - Runner slots the caller found free; fractions and negatives count as none.
+ * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
+ * @returns {{ shards: { files: string[], weight: number }[], balance: 'history'|'history and average'|'file count', slots: number }}
+ */
+export function planFreeSlotShards(files, freeSlots, times = {}, root = null) {
+  const distinct = new Set(files.map(file => fileKey(file, root))).size;
+  const slots = Math.max(1, Math.min(Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 1, distinct));
+  const shards = planLandingShards(files, slots, times, root);
+  return { shards, balance: landingBalance(files.map(file => fileKey(file, root)), times), slots: shards.length };
 }
 
 /**
@@ -299,12 +328,37 @@ async function stopShard(child, closed, parseProcessCensus) {
   return left.map(row => `pid ${row.pid} (${row.processSha256.slice(0, 12)})`);
 }
 
+/**
+ * Whether a red shard's only failures are files their own watchdog stopped: a HUNG or TIMEOUT line, with no first
+ * failure that stopped the shard early. Why: one hung file must stay red without leaving every other file not run (#3167).
+ */
+export function watchdogStoppedOnly(output) {
+  const text = String(output ?? '');
+  return /run-tests: (?:HUNG|TIMEOUT) file /u.test(text) && !/^Landing gate stopped early after /mu.test(text);
+}
+
+/**
+ * The time a shard spent in each dispatch step: connecting, sending history the runner lacked, waiting for READY, and
+ * running. Why: a one-file shard took 134 s for 54 s of tests, and nothing said which step ate the rest [C7].
+ */
+function phaseText(record) {
+  const at = record.phases;
+  if (!at?.start) return '';
+  const seconds = (from, to) => (from && to ? ` ${Math.round((to - from) / 100) / 10} s` : ' ?');
+  const end = at.start + (record.wallMs ?? 0);
+  // The runner's own stages (its source-cache wait, pack transfer and checkout) say what "connect" and "ready" hold.
+  const stages = record.stages;
+  const stage = name => (Number.isFinite(stages?.[name]) ? ` ${Math.round(stages[name] / 100) / 10} s` : ' ?');
+  const inside = stages ? `; cache wait${stage('cacheWaitMs')}, transfer${stage('transferMs')}, materialize${stage('materializeMs')}` : '';
+  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)}${inside})`;
+}
+
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
-async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
+async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
-  const child = spawn(process.execPath, [runner, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [runner, ...args, '--', ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
   child.stdout.setEncoding('utf8').on('data', part => chunks.push(part));
   child.stderr.setEncoding('utf8').on('data', part => chunks.push(part));
@@ -393,7 +447,7 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
+export async function runLandingShards({ root, runner, files, args = [], count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
   const runnerOnly = runnerAdmission.runnerOnly === true;
   const selectionAt = performance.now();
@@ -419,7 +473,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const history = readFileTimes(root);
   const plan = release ? await planReleaseShards(files, release.executors, history, needsBrowser, needsGui,
     shardFiles => cpuRunnerRequired(root, shardFiles))
-    : planLandingShards(files, count, history);
+    : planLandingShards(files, count, history, root);
   const balance = landingBalance(files, history);
   const total = plan.length;
   const stopper = new AbortController();
@@ -443,6 +497,9 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     browser: await needsBrowser(shard.files), gui: await needsGui(shard.files), claimed: false, localOnly: false, done: false, attempts: [], status: null })));
 
   timing?.phase('setupMs', setupAt);
+  /** Seconds since this run started, so the log attributes the time around the shards [C7]. */
+  const sinceStart = () => Math.round((performance.now() - selectionAt) / 100) / 10;
+  write(`# landing timing: selection ${Math.round(setupAt - selectionAt)} ms, setup ${Math.round(performance.now() - setupAt)} ms, shards dispatched at +${sinceStart()} s\n`);
 
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
   const inheritedCanRun = entry => (!runnerOnly || inherited?.runnerExecution === true || Boolean(inherited?.runner))
@@ -466,22 +523,23 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Math.round(performance.now() - started) };
       };
       if (drifted()) return sourceChanged('before');
-      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
-      if (run.unverified.length) {
-        // Fail closed: name what may still run, as a runner's unverified cleanup does.
+      const run = await runLocalShard({ root, runner, files: entry.shard.files, args, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
+      if (run.unverified.length) { // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
-      }
-      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) };
+        return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) }; }
       if (!stop.aborted && drifted()) return sourceChanged('while');
       return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
-      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
+      // A runner that could not prepare its checkout ran no test: that is infrastructure to requeue, never a red to
+      // hold the batch on. A locked slot database on .54 held #2794 as "no accounted failure" on 6 Nov [C7].
+      const setupRefused = !run.isGreen && /^runner setup refused:/u.test(run.output ?? '');
+      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : setupRefused ? 'infrastructure' : 'red', ...(setupRefused ? { reason: run.output.split('\n')[0].slice(0, 160) } : {}), output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null, stages: run.sourcePreparation?.stages ?? null,
         ...(release ? { executor: run.executionRunner, head: run.executionSource?.commit, tree: run.executionSource?.tree,
           command: createHash('sha256').update(command).digest('hex') } : {}) };
     } catch (error) {
@@ -513,16 +571,25 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     const stopped = record.outcome !== 'green' && (stop.aborted || (!collectAll && firstFailure !== null));
     const status = record.outcome === 'infrastructure' && !stopped ? 'infrastructure' : stopped ? 'stopped' : record.outcome;
     entry.attempts.push({ ...record, status });
-    write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms\n`);
+    write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms${phaseText(record)}\n`);
     if (record.output) write(record.output.endsWith('\n') ? record.output : `${record.output}\n`);
     if (status === 'infrastructure' && !release && !runnerOnly) {
       write(`landing shard ${entry.label}: runner ${record.host} failed mid-shard; rerunning shard ${entry.label} locally\n`);
       entry.claimed = false;
       entry.localOnly = true;
       acquire(entry);
+    } else if ((status === 'refused' || status === 'infrastructure') && !release && !stop.aborted && entry.attempts.length < 3) {
+      // One runner refusing or dropping a shard is that runner's fault, not the batch's: the shard queues again and
+      // the pool hands it to an available runner. Why: one RUNNER_UNAVAILABLE stopped every other shard and blocked an
+      // 8-item batch with no test red at all [C7].
+      write(`landing shard ${entry.label}: runner ${record.host} ${status}${record.reason ? ` (${record.reason})` : ''}; queuing shard ${entry.label} again (attempt ${entry.attempts.length + 1})\n`);
+      entry.claimed = false;
+      acquire(entry);
     } else {
       entry.done = true;
       entry.status = status;
+      // A shard red only from a file its watchdog stopped (hung or past its wall) never stops the others (#3167).
+      if (status === 'red' && watchdogStoppedOnly(record.output)) return signalChange();
       if (status === 'red' || status === 'refused' || status === 'infrastructure') {
         firstFailure ??= entry.label;
         if (status === 'refused' || status === 'infrastructure' || !collectAll) stopper.abort();
@@ -641,7 +708,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
-  const isGreen = shards.every(entry => entry.status === 'green');
+  write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
+  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),
@@ -665,5 +733,5 @@ export function printShardFileTimes(path, write = text => process.stdout.write(t
 
 /** Supply landing policy and release orchestration ports without adding higher imports to their consumers. */
 export function landingExecutionServices() {
-  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors, releaseSource, runReleaseGate });
+  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors });
 }

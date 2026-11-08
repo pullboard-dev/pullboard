@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { secretsIn } from '../../../commits/index.js';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from './land.js';
+import { classifyMainRed } from '../../../receipt/index.js';
+import { comparisonStatus } from '../../../receipt/index.js';
 import {
   MAIN_FAILURE_SIGNATURE_VERSION,
   normalizedFailureDiagnostics,
@@ -83,7 +85,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
 }
 
 /** Every actual candidate failure must match the exact main test and its failure details. */
-export function matchingMainFailures(failures, comparison, main) {
+export function matchingMainFailures(failures, comparison, main, { byCase = false } = {}) {
   if (!failures?.length || comparison.main !== main || comparison.unavailable) return null;
   for (const failure of failures) {
     if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
@@ -91,8 +93,13 @@ export function matchingMainFailures(failures, comparison, main) {
     // A case defined in a helper reports the helper as its file; main ran it under the test file that imports the helper.
     const file = comparison.files.find(row => row.file === failure.file)
       ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
+    if (file?.result === 'red' && file.fileIsolation === true && file.file === failure.file) continue;
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
-    if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
+    // Landing asks only whether main fails this exact case: a case red on main cannot be one the item broke, however its
+    // run-specific details (checkout paths, timings) read. Submit and verify keep the exact failure signature [C7,#3073].
+    // The receipt lookup decides ownership: a case is main's own only when main's receipt for the file names it [C7,#3424].
+    if (classifyMainRed([failure.name], comparisonStatus(file, failure.file)).owner !== 'main') return null;
+    if (matches?.length !== 1 || (!byCase && matches[0].signature !== failure.signature)) return null;
   }
   return { main, failures };
 }

@@ -16,9 +16,9 @@ import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
-/** Retain the preflight policy across forward main moves, with the exact clean source and companions. */
-export function sealSubmitHandoffQueue(board, id, options) {
-  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(options.job ?? '')) throw new Refused('BAD_SUBMIT_HANDOFF', 'capture a new native job identifier');
+/** Retain exact native source and companions; source-only validation creates no job or reservation. */
+export function sealSubmitHandoffQueue(board, id, options, { sourceOnly = false } = {}) {
+  if (!sourceOnly && !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(options.job ?? '')) throw new Refused('BAD_SUBMIT_HANDOFF', 'capture a new native job identifier');
   const seatRoot = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
   const candidate = seatRoot && itemFolderPath(seatRoot, id);
   const root = candidate && itemFolderIdentity(board, candidate)?.item === id && headCommit(candidate) === options.commit ? candidate : seatRoot;
@@ -33,5 +33,5 @@ export function sealSubmitHandoffQueue(board, id, options) {
     || (companion?.tree ?? options.tree) !== options.executionTree) {
     throw new Refused('SUBMIT_HANDOFF_CHANGED', 'capture the exact current source and companion composition again');
   }
-  return options;
+  return sourceOnly ? { ...options, root } : options;
 }

@@ -1,5 +1,6 @@
 import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
+import './next-wait-race-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
 import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI } from './main-red-build-routing-fixture.js';
@@ -54,6 +55,38 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(offered.document.item.item_id, review);
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
+});
+
+/** Keep an existing claim's lease and event history intact when ordinary next resumes it. */
+test('default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Claim already held by this seat');
+  box.claim(id, box.seats.actor);
+  const before = store.events(box.board, { itemId: id });
+  const lease = store.getItem(box.board, id).item_lease_until;
+
+  const resumed = await cli(box, box.seats.actor.path, ['next']);
+
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, id);
+  assert.equal(resumed.document.held, true);
+  assert.equal(store.getItem(box.board, id).item_lease_until, lease, 'resuming work does not extend its lease');
+  assert.deepEqual(store.events(box.board, { itemId: id }), before, 'resuming work adds no renew or refreeze event');
+});
+
+/** A current spec correction must not force an existing holder through a fresh claim freeze. */
+test('default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Claim with a retired cited row');
+  box.claim(id, box.seats.actor);
+  writeFileSync(join(box.root, 'SPEC.md'), '# Dispatch fixture\n## G\n');
+
+  const resumed = await cli(box, box.seats.actor.path, ['next']);
+
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, id);
+  assert.equal(resumed.document.held, true);
+  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
 });
 
 test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
@@ -188,20 +221,18 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
 });
 
 
-test('an explicit heartbeat and the installed native stop hook dispatch free seats [N2,I6]', async t => {
+test('an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
   const box = await fixture(t);
-  const id = box.add('A heartbeat assigns work');
-  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
-  const another = box.add('A busy heartbeat cannot claim twice');
-  await cli(box, box.seats.actor.path, ['heartbeat']);
-  assert.equal(store.getItem(box.board, another).item_owner, null);
-  store.release(box.board, id, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
+  const id = box.add('A heartbeat leaves work for next --take');
+  const beat = await cli(box, box.seats.actor.path, ['heartbeat']);
+  assert.equal(beat.code, 0, beat.out + beat.err);
+  assert.equal(store.getItem(box.board, id).item_owner, null);
   const hook = await cli(box, box.seats.actor.path, ['hook', 'Stop']);
   assert.equal(hook.code, 0, hook.out + hook.err);
-  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id, hook.out + hook.err);
-  assert.equal(store.getItem(box.board, another).item_owner, null);
+  assert.equal(store.getItem(box.board, id).item_owner, null, hook.out + hook.err);
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
 });
 
 test('an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
@@ -275,12 +306,12 @@ test('health matches two free seats to distinct eligible work instead of hiding 
   assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
 });
 
-test('an expired claim is reclaimed through board eligibility on the next heartbeat [N2,B3]', async t => {
+test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
   const box = await fixture(t);
   const id = box.add('Expired work remains dispatchable');
   box.claim(id, box.seats.actor);
   box.advance(3600001);
-  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   const current = store.getItem(box.board, id);
   assert.equal(current.item_owner, box.seats.actor.id);

@@ -1,4 +1,5 @@
 import { requireLandingCompanions } from './landing-composition-guards.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { quarantineBatchGates } from '../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
@@ -24,6 +25,9 @@ import { isStampedGreen } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
+import { spawn } from 'node:child_process';
+import { refreshSource } from './main-red.js';
+import { fileURLToPath } from 'node:url';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -42,6 +46,41 @@ export function landingRemote(root, branch) {
 /** Build the one LAND_PUSH refusal every landing push failure reports, real or previewed [B3]. */
 function pushRefused(reason, next = 'inspect the remote and hooks, then run pullboard land --adopt') {
   return new Refused('LAND_PUSH', `the landing push failed: ${reason}; ${next}`);
+}
+
+/**
+ * Start comparisons for the previous main's named red files after publication in a detached child, so the landing
+ * worker exits the moment it has landed. Why: run in this process, a 9-minute comparison kept the worker alive and the
+ * scheduler held the next batch behind it on 6 Nov; the child logs to automatic-landing/main-red-refresh.log [C7].
+ */
+export function refreshPublishedMainReds(state, previousMain, { launch = spawnDetachedRefresh } = {}) {
+  const publishedMain = mainCheckout(state.root)?.commit;
+  if (!publishedMain || publishedMain === previousMain) return null;
+  try { launch(state.root, previousMain, publishedMain); }
+  catch (error) { state.say(`background main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
+  return { previousMain, publishedMain };
+}
+
+/**
+ * At batch start, refresh the main-red cache for a base that has none, from the newest cached generation, in a detached
+ * child; returns the record to keep on the batch, or null when nothing starts. Why: a hand-moved main had no generation, so
+ * the batch's red split re-measured known reds on runners for 18 minutes [C7,#3268].
+ */
+export function startBaseRefresh(state, batch, { source = refreshSource, launch = spawnDetachedRefresh } = {}) {
+  if (batch.refreshStarted) return null;
+  try {
+    const previous = source(state.root, batch.base);
+    if (!previous) return null;
+    launch(state.root, previous, batch.base);
+    return { previous, published: batch.base };
+  } catch (error) { state.say?.(`base main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
+}
+
+/** The detached refresh child: its own process group, no inherited stdio, never awaited. */
+export function spawnDetachedRefresh(root, previousMain, publishedMain) {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../../../../bin/main-red-refresh.js', import.meta.url)), root, previousMain, publishedMain],
+    { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env } });
+  child.unref();
 }
 
 /**
@@ -103,14 +142,23 @@ function parallelPublicationRoot(state, batch) {
 
 /** Bind the native count to the batch before any trunk or remote publication. */
 export async function prepareFlakeLanding(state) {
-  const result = state.landingPorts.landingFlakeRatchet(state.board);
-  if (!result.allowed) {
-    const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
-      .map(row => `${row.file} :: ${row.name}`);
-    throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
-      'quarantine each newly observed flake with a filed repair item before landing');
+  // The snapshot carries an event boundary the board checks at write time. Seats write gate runs and flake
+  // observations every few seconds, so a boundary read before the write is often stale: recompute and write again
+  // rather than sleep on it, which starved a landing for 2 minutes on 6 Nov [C7].
+  for (let attempt = 1; ; attempt++) {
+    const result = state.landingPorts.landingFlakeRatchet(state.board);
+    if (!result.allowed) {
+      const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
+        .map(row => `${row.file} :: ${row.name}`);
+      throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
+        'quarantine each newly observed flake with a filed repair item before landing');
+    }
+    try { return await save(state, { flakeRatchet: result.snapshot }); }
+    catch (error) {
+      if (error?.code !== 'BOARD_BUSY' || !/flake evidence or repair status changed/u.test(error.message ?? '') || attempt >= 40) throw error;
+      state.say?.(`flake ratchet boundary moved under the landing (attempt ${attempt}); recomputing`);
+    }
   }
-  return save(state, { flakeRatchet: result.snapshot });
 }
 
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
@@ -126,14 +174,14 @@ export async function publish(state) {
     batch = await save(state, { proof: { ...batch.proof, failures } });
   }
   if (batch.state !== 'pushed') {
-    await state.checkLease();
+    await timedPhase(state.say, 'lease check', () => state.checkLease());
     batch = await prepareFlakeLanding(state);
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
     if (!alreadyPushed) {
-      state.checkLeaseNow();
-      const pushed = tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]);
+      await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
+      const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));
       if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
     }
     await save(state, { state: 'pushed' });
@@ -147,6 +195,7 @@ export async function publish(state) {
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  refreshPublishedMainReds(state, batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
@@ -169,15 +218,21 @@ function requireLandingCarries(state, batch) {
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
-  await state.checkLease();
+  await timedPhase(state.say, 'lease check', () => state.checkLease());
+  state.say?.('finish: envelope recorded; checking module resolution');
   await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
+  state.say?.('finish: module resolution checked; recording the finished batch');
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  await timedPhase(state.say, 'push', () => {
+    if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  });
+  state.say?.('finish: main fast-forwarded; refreshing the code map');
+  refreshPublishedMainReds(state, state.batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);

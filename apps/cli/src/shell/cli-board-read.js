@@ -4,12 +4,12 @@ import { withOpenedBoard } from './cli-read-context.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Keep the old full-store fallback and pass its synchronous backend to the same work callback. */
-async function writeFallback(ctx, work) {
+export async function writeFallback(ctx, work) {
   await ctx.io.prepareProcessPorts?.();
   ctx.nativeBoard = ctx.io.nativeBoard ??= await ctx.io.loadNativeBoard();
   const full = await import('../../../../packages/store/index.js');
   const { withBoard } = await import('./cli-context.js');
-  return withBoard(ctx, board => work(board, full));
+  return withBoard(ctx, board => work(board, { ...full, ensureCoordinator: full.board_ensureCoordinator }));
 }
 
 /** Open exactly as the synchronous read API does; only the CLI awaits a needed full-store import. */

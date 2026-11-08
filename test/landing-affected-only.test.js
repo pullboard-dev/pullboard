@@ -24,6 +24,12 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
     mkdirSync(join(box.repo, 'packages', 'gate'), { recursive: true });
     writeFileSync(join(box.repo, 'packages', 'gate', 'test-tiers.json'), JSON.stringify({ version: 1, files: [] }));
   }
+  // The map is committed before the move: a map file first appearing in the change is a non-module input that import
+  // selection cannot compute, which sends the plan to the full gate [C7,S10].
+  if (moved) {
+    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
+  }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add fixture tests');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -31,8 +37,6 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   if (moved) {
     mkdirSync(join(box.repo, 'packages', 'example', 'tests'), { recursive: true });
     renameSync(join(dir, 'a.test.js'), join(box.repo, 'packages', 'example', 'tests', 'a.test.js'));
-    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
-    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
   }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: fix selected tests');
@@ -41,7 +45,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   writeFileSync(runner, `require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));\n`);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const state = { batch: { root: box.repo, base, items: proof === null ? [] : [{ id: 1, commit }] }, board: {}, config: {
-    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [],
+    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false },
   } };
   const frozen = JSON.stringify({ check: 'node --test test/a.test.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');
@@ -70,14 +74,16 @@ test('a tiered batch runs its affected journey without unrelated journeys [C7,S1
   assert.deepEqual(plan.files, files);
 });
 
-test('tiered landing uses the sealed submit union and retains explicit mandatory guards [C7,S10]', () => {
+test('clause 1: tiered landing uses the sealed submit union, the change\'s own edited tests and explicit mandatory guards [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: ['test/a.test.js'], mandatory: ['test/unrelated.test.js'] });
-  assert.deepEqual(files, ['test/a.test.js', 'test/unrelated.test.js'], 'reachable and deferred b does not expand the sealed union');
+  // 37a843ba86: a test file the change itself edits runs whatever its tier, so edited b joins the sealed union.
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js', 'test/unrelated.test.js']);
 });
 
-test('a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
+test('clause 1: a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [] });
-  assert.deepEqual(files, ['test/a.test.js']);
+  // 37a843ba86: the edited test b also runs at landing.
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
 test('the frozen criterion and submission proof contribute their complete file union [C7,S10]', () => {
@@ -85,15 +91,17 @@ test('the frozen criterion and submission proof contribute their complete file u
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a stale submission cannot broaden landing beyond a source-matched union [C7,S10]', () => {
-  assert.throws(() => plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true }), { code: 'LAND_DIAGNOSTIC' });
+test('a stale submission neither narrows nor stops landing: the merged change selects its tests [C7,S10,#2897]', () => {
+  const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true });
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a full fallback proof cannot make landing run an unbounded selection [C7,S10]', () => {
-  assert.throws(() => plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true }), { code: 'LAND_DIAGNOSTIC' });
+test('a full fallback proof does not stop landing: the merged change selects its tests [C7,S10,#2897]', () => {
+  const { files } = plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true });
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a frozen moved test resolves through the submitted source map [C7,S10]', () => {
+test('clause 1: a frozen moved test resolves through the submitted source map [C7,S10]', () => {
   const { files } = plannedFiles(['a'], { proof: [], moved: true });
   assert.deepEqual(files, ['packages/example/tests/a.test.js']);
 });

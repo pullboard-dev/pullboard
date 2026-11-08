@@ -1,8 +1,11 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
 import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { validateMachineVerification } from '../../../verify/index.js';
+import { saveMachineVerification } from '../../../verify/index.js';
 import { createHash } from 'node:crypto';
 import { notifyFileGrowth as applyFileGrowthNotice } from "../../../items/index.js";
 import { reviewPolicyChange } from "../../../verify/index.js";
@@ -29,7 +32,12 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
+import { stripPerItemFullSuiteCriterion } from "../../../items/index.js";
+import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../src/per-item-full-suite-engine.js";
 import { COORDINATOR } from "../../../config/index.js";
+import { loadConfig } from "../../../config/index.js";
+import { requireOwnLaneCheck } from "../../../verify/core.js";
+import { laneOf } from "../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
@@ -48,14 +56,29 @@ import { persistShout } from "./board-shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
+  if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
+    || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
+    || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
+    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined
+    || barActor !== undefined || referenceAuthors !== undefined || referenceAuthority !== undefined)) {
+    throw new Refused('COORDINATOR_ONLY', 'preserving a frozen bar is limited to the coordinator’s exact S10 criterion strip');
+  }
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen });
+    if (preserveFrozen) {
+      const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+      const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
+      if (engine < PER_ITEM_FULL_SUITE_ENGINE) throw new Refused('ENGINE_VERSION', `S10 bar preservation requires engine ${PER_ITEM_FULL_SUITE_ENGINE}; upgrade Pullboard`);
+      if (!stripped.removed.length || stripped.criterion !== next.item_criterion || criterion !== next.item_criterion) {
+        throw new Refused('S10', 'a frozen bar can be preserved only when this edit removes exactly its full-suite or CI clause');
+      }
+    }
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
-    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder, preserveFrozen,
       sha256: text => createHash('sha256').update(text).digest('hex') });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
@@ -64,9 +87,14 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     // A coordinator removing prerequisites also removes the corresponding blocked-release wait.
     if (after !== undefined) {
       const marker = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${id}`);
+      const waiting = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_waiting:${id}`);
       if (marker) {
         const retained = JSON.parse(marker.meta_value).filter(value => after.includes(value));
-        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key IN (?,?)').run(JSON.stringify(retained), `blocked_release_waiting:${id}`, `claim_waiting:${id}`);
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `blocked_release_waiting:${id}`);
+      }
+      if (waiting) {
+        const retained = JSON.parse(waiting.meta_value).filter(value => after.includes(value));
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `claim_waiting:${id}`);
       }
     }
     saveCheckTiming(board, id, checkTiming);
@@ -75,13 +103,17 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
+    const machineVerification = saveMachineVerification(board, { ...item, ...next }, { agentId, machineVerified, machineCommands });
+    if (machineVerification) setItem(board, id, { item_frozen: null, item_frozen_digest: null });
     logEvent(board, agentId, 'edit', id, {
       ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}),
+      ...(machineVerification ? { machineVerification } : {}),
       ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}),
       ...(reviewPolicy ? { reviewPolicy } : {}),
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
+      ...(next.item_criterion !== item.item_criterion && reason === 'S10 full-suite strip' ? { previousCriterion: item.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),
@@ -116,11 +148,12 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
   if (expectedBuildMinutes !== undefined && engine < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
+  validateMachineVerification(board, { ...itemById(board, id), ...(criterion === undefined ? {} : { item_criterion: criterion }), ...(check === undefined ? {} : { item_check: check }) }, { agentId, machineVerified, machineCommands });
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
   }
@@ -134,10 +167,14 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = checkWiden.editCheck(agentId, check, widened);
-  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes].every((value) => value === undefined)) {
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
+  if (check !== undefined && board.gitRoot && agentId !== COORDINATOR) {
+    const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(agentId);
+    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: agentId, lane: actor?.agent_lane }, item.item_lane, command, laneOf);
+  }
   if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
   }
@@ -163,11 +200,15 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   };
   const evidenceWarnings = criterion !== undefined && engine >= CLAUSE_EVIDENCE_ENGINE ? requireCriterionEvidence(next.item_criterion) : [];
   checkRoute(next.item_route);
+  const diagnosisProblem = lightDiagnosisProblem(board, { ...item, ...next });
+  if (diagnosisProblem) throw diagnosisProblem;
   const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
     && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
-  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed)) {
+  const preservingSubmittedCriterion = preserveFrozen && agentId === COORDINATOR && reason === 'S10 full-suite strip'
+    && item.item_status === 'submitted' && next.item_criterion !== item.item_criterion;
+  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed && !preservingSubmittedCriterion)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });

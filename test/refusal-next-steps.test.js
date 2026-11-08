@@ -8,6 +8,8 @@ import { recordedRefusal, refusalFromReceipt, RECORDED_GENERIC_NEXT } from '../p
 import { refusalDocument } from '../apps/cli/index.js';
 import { commandOutput as lightCommandOutput } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -20,8 +22,9 @@ function succeeded(result) {
 
 /** File a real build with a frozen check that fails only when the fixture arms its gate. */
 function addBuild(box, repo, title, check) {
-  const result = succeeded(box.run(repo, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', 'the real fixture gate passes', '--check', check, '--wait', '--json'));
+  const result = succeeded(fixtureAdd(box.run, repo, 'web', title, '--specs', 'G1',
+    '--criterion', 'the real fixture gate passes', '--check', check,
+    '--route', 'strong', '--wait', '--json'));
   return JSON.parse(result.out).item.item_id;
 }
 
@@ -97,7 +100,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   assert.match(mainError.next, /reviewer.*(?:did not|not).*build/iu, 'the step requires an independent reviewer');
   const reviewer = join(repo, '.claude', 'worktrees', 'reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
-  succeeded(box.run(reviewer, 'join', 'web', '--model', 'Independent Reviewer Model'));
+  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model'));
   const selected = succeeded(box.run(reviewer, 'next', '--verify', String(id), '--json'));
   assert.equal(JSON.parse(selected.out).item.item_id, id, 'the recovery reaches review without SELF_VERIFY');
 
@@ -107,6 +110,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   const redId = addBuild(gateBox, gateRepo, 'Gate failure recovery', gate);
   succeeded(gateBox.run(gateWeb, 'claim', String(redId)));
   mkdirSync(join(gateWeb, 'web'), { recursive: true });
+  writeFileSync(join(gateWeb, 'web', 'receipt.txt'), 'a real build\n');
   writeFileSync(join(gateWeb, 'web', 'RED'), 'armed\n');
   gateBox.git(gateWeb, 'add', '-A');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: arm gate fixture [G1]');
@@ -122,7 +126,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   succeeded(gateBox.run(gateWeb, 'submit', String(redId)));
 
   box.env.CODEX_THREAD_ID = 'main-owner-session';
-  succeeded(box.run(repo, 'join', 'coordinator', '--model', 'Coordinator Fixture Model'));
+  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model'));
   const bindingPath = join(repo, '.git', 'pullboard-checkout-session.json');
   const binding = readFileSync(bindingPath, 'utf8');
   box.env.CODEX_THREAD_ID = 'new-agent-session';
@@ -133,7 +137,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   assert.match(foreignError.next, /git worktree add --detach/u, 'recovery does not call Pullboard from the blocked checkout');
   const recovery = join(repo, '.claude', 'worktrees', 'new-agent');
   box.git(repo, 'worktree', 'add', '-q', '--detach', recovery, 'HEAD');
-  succeeded(box.run(recovery, 'join', 'web', '--model', 'New Agent Fixture Model'));
+  succeeded(fixtureJoin(box.run, recovery, 'web', '--model', 'New Agent Fixture Model'));
   succeeded(box.run(recovery, 'whoami', '--json'));
   assert.equal(readFileSync(bindingPath, 'utf8'), binding, 'recovery leaves the main owner binding unchanged');
 });
