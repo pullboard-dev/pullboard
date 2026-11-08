@@ -1,11 +1,10 @@
 /** A gate's proof shards never wait on browser leases the same gate holds, and an unplaceable shard ends in time [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { takeResource } from '../packages/resources/index.js';
-import { gateRunnerAdmission } from '../packages/config/index.js';
+import { privateFixtureFiles } from './fixture-child.js';
 import { freeRunnerSlots, runProofShards, shardSlotOptions, SHARD_ADMIT_MS } from '../packages/gate/src/shell/proof-shards.js';
 
 const RUNNERS = [{ host: 'fixture-a', slots: 4, browser: 2 }, { host: 'fixture-b', slots: 4, browser: 2 }];
@@ -13,14 +12,15 @@ const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.tes
 /** A short shard admission window, so the unplaceable shard's bound is measured in seconds. */
 const ADMIT_MS = 1_000;
 
-/** Own a private machine pool with two browser runners, as gate.runnersOnly configures the MacBook. */
+/** The submit's captured runner admission under gate.runnersOnly with the MacBook's 30-minute gate.runnerWaitMs. */
+const SUBMIT_WAIT_MS = 1_800_000;
+
+/** Own a private machine pool; the two browser runners reach admission through each request's runnerProvider. */
 function machine(t) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-shard-browser-'));
+  const { root: directory } = privateFixtureFiles('pullboard-shard-browser-');
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
   mkdirSync(process.env.PULLBOARD_MACHINE_HOME);
-  writeFileSync(join(process.env.PULLBOARD_MACHINE_HOME, 'settings.json'),
-    JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersOnly: true, runnerWaitMs: 1_800_000 }, runners: RUNNERS }));
   t.after(() => {
     if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
     else process.env.PULLBOARD_MACHINE_HOME = previous;
@@ -36,7 +36,7 @@ function machine(t) {
 function gateOptions(box) {
   return { name: 'gate', scope: 'machine', root: box.directory, repo: box.directory, capacity: 0, browserCapacityProvider: () => 0,
     browser: true, gui: false, itemCheck: true, infrastructureRetry: true, agent: 'core-1340', item: '3586', kind: 'submit',
-    ...gateRunnerAdmission(), runnerProvider: () => RUNNERS };
+    runnerOnly: true, remote: true, runnerWaitMs: SUBMIT_WAIT_MS, runnerDeadlineAt: Date.now() + SUBMIT_WAIT_MS, runnerProvider: () => RUNNERS };
 }
 
 /** Take one of the gate's own browser leases at once; a wait here means the fixture pool is wrong. */
