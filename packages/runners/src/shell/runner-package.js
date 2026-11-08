@@ -132,33 +132,37 @@ function derivePackage(root, entry, previous, parse) {
 }
 
 
-/** Fingerprint locally initialized controller modules; these bytes never enter the worker transfer payload. */
+/** The gate-policy loader the runner controller loads; it and its static imports are fingerprinted for a warmed controller (#1510). */
+const POLICY_ROOT = 'packages/gate/src/core/gate-policy-load.js';
+
+/**
+ * Fingerprint the gate-policy modules a warmed controller has loaded: the policy loader and every module it statically
+ * imports. These bytes never enter the worker transfer payload. A module whose imports cannot be read statically (a
+ * computed import) is still fingerprinted; only the walk past it stops, so one dynamic module never disables the guard.
+ */
 export function controllerPolicyFingerprints(root) {
   const allowed = new Set(packageFiles(root));
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   const fingerprints = new Map();
   const parser = createRunnerModuleParser();
   let bytes = 0;
-  let pending = ['bin/runner-controller.js', 'package.json'];
-  if (allowed.has('src/gate-policy-load.js')) pending.push('src/gate-policy-load.js');
+  let pending = allowed.has(POLICY_ROOT) ? [POLICY_ROOT] : [];
   try {
     while (pending.length) {
       const level = [...new Set(pending)].filter(file => !fingerprints.has(file)).sort();
       pending = [];
-      const modules = [], sources = [];
       for (const file of level) {
-        if (!allowed.has(file)) unavailable(file, 'the controller import leaves package.json files');
+        if (!allowed.has(file)) unavailable(file, 'the gate policy import leaves package.json files');
         const source = readFileSync(join(root, file));
         bytes += source.length;
         // This is a bounded local fingerprint, independent of the unchanged 1 MiB worker capsule ceiling.
-        if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local controller fingerprint exceeds its source bound');
+        if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local policy fingerprint exceeds its source bound');
         fingerprints.set(file, createHash('sha256').update(source).digest('hex'));
-        if (/\.[cm]?js$/u.test(file)) { modules.push(file); sources.push(source.toString('utf8')); }
-      }
-      // The worker closure's own derivation reads the static imports; a module that does not compile throws here.
-      const imports = sources.length ? importsIn(sources, parseWithPaths(parser.parse, modules.map(file => join(root, file)))) : [];
-      for (const [index, file] of modules.entries()) {
-        for (const specifier of imports[index]) {
+        if (!/\.[cm]?js$/u.test(file)) continue;
+        let imports;
+        try { [imports] = importsIn([source.toString('utf8')], parseWithPaths(parser.parse, [join(root, file)])); }
+        catch { continue; } // computed or opaque imports end the walk at this module
+        for (const specifier of imports) {
           const target = dependency(file, specifier, manifest);
           if (target !== null) pending.push(target);
         }
