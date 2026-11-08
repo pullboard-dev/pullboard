@@ -1,7 +1,7 @@
 /** A claim that adopts an item folder from an ended session also takes its checkout binding, so the claimer can commit there [B3,C7]. */
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
@@ -118,6 +118,8 @@ test('clause 1: the same seat in a new session reclaims its own item folder boun
 
 test('clause 2: a folder whose previous session is still live is never adopted, and the claim refusal names that session [B3,C7]', () => {
   const { box, id, first, folder } = priorFolder();
+  // A clean idle folder is adopted since #3720; unsaved work keeps the live session's folder retained.
+  writeFileSync(join(folder, 'scratch.txt'), 'unsaved\n');
   const before = binding(box, folder);
   const second = seat(box, 'web-b', 'session-b');
   const claimed = as(box, 'session-b', () => box.run(second.root, 'claim', id));

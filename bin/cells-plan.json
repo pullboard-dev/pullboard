@@ -3461,6 +3461,10 @@
     }
   ],
   "allowedEdges": [
+    "runners->config",
+    "runners->kernel",
+    "runners->resources",
+    "runners->transport",
     "activity->store",
     "apps/cli->doctrine",
     "apps/cli->gate",
