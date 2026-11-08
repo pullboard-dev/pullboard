@@ -18,6 +18,7 @@ import { parseCommitMessage } from "../src/core/commit-message.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
 import { waitForCondition } from '../../../test/runner-fixture-state.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 const projects = [];
@@ -66,7 +67,7 @@ function localProject() {
 
 /** Add one web item and a builder worktree that claims it. */
 function claimedItem(box, title, specs, file) {
-  const added = box.run(box.repo, 'add', 'web', title, ...(specs.length ? ['--specs', specs.join(',')] : []), '--criterion', `${file} exists`, '--check', `test -f ${file}`, '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', title, ...(specs.length ? ['--specs', specs.join(',')] : []), '--criterion', `${file} exists`, '--check', `test -f ${file}`, '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const made = box.run(box.repo, 'worktree', 'web', '--model', 'message-builder', '--json');

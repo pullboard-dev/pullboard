@@ -11,6 +11,7 @@ import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { selectRegistryGuards } from '../../kernel/index.js';
 import { configFromSource } from '../src/shell/config.js';
 import { git } from '../../../src/git.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -53,7 +54,7 @@ function registryBox({ deferred = true } = {}) {
   put(box.repo, 'web/item.test.js', "import { test } from 'node:test';\ntest('item works [G1]', () => {});\n");
   commit(box, box.repo, 'test: accepted registry policy');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const made = box.run(box.repo, 'add', 'web', 'new move fixture', '--specs', 'G1',
+  const made = fixtureAdd(box.run, box.repo, 'web', 'new move fixture', '--specs', 'G1',
     '--criterion', 'The item and its registry obligations pass.', '--check', 'node --test web/item.test.js', '--json');
   assert.equal(made.code, 0, made.err + made.out);
   const id = JSON.parse(made.out).item.item_id;

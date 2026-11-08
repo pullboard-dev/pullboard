@@ -22,7 +22,7 @@ export { ensureSpecApprovalCoordinator, initialSpecApprovalBaseline } from "./sr
 export { captureSpecApprovalBaseline, specApprovalState, itemAgentApprovals, agentApprovalLine, projectItemSpecApprovals, projectSpecApprovals, refuseAgentApprovedRows } from "./src/shell/spec-approval.js";
 export { draftRow } from "./src/shell/spec-draft.js";
 export { renamedGatePath, revisionGateCommand } from "./src/shell/spec-gate-renames.js";
-export { needsSpecRefreezes, specRefreezeSkips, assertNoCitedSpecDecline, prepareSpecRefreezes, validateSpecRefreezes } from "./src/shell/spec-refreeze.js";
+export { needsSpecRefreezes, specRefreezeSkips, assertNoCitedSpecDecline, prepareSpecRefreezes, prepareSpecRowApplyPayload, validateSpecRefreezes } from "./src/shell/spec-refreeze.js";
 export { planSpecRevision, revisionReference, validSpecRevision, validRevisionApproval, prepareSpecRevisionDecisions, decideSpecRevisions, markAppliedRevisions, projectSpecRevisions } from "./src/shell/spec-revisions.js";
 export { SPEC_REFREEZE, applySpecRowDecisions } from "./src/shell/spec-row-apply.js";
 export { parseRowVerification, rowVerificationFormatProblems, rowVerificationSource, verifiedRowSource } from "./src/core/spec-verdict-format.js";

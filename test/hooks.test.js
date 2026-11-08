@@ -20,6 +20,7 @@ import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, ho
 import { parseSpec } from '../packages/spec/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -68,7 +69,7 @@ test("a hook nudges and never blocks, fails open on error or timeout, and init m
   assert.equal(box.run(box.repo, 'hooks').code, 0);
   assert.deepEqual([readFileSync(claude, 'utf8'), readFileSync(codex, 'utf8')], once, 'merging twice is idempotent');
 
-  const added = box.run(box.repo, 'add', 'web', 'Native stop reminder', '--criterion', 'committed work is named', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Native stop reminder', '--criterion', 'committed work is named', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
@@ -180,7 +181,7 @@ test('hook wiring checks the configured path and accepts pullboard delegation [L
   assert.deepEqual(unwiredHookProblems(box.root), []);
 });
 
-test('a clean header citing a live id passes [C1, C2]', () => {
+test('clause 1: a clean header citing a live id passes [C1, C2]', () => {
   assert.deepEqual(check('feat(web): add the page [G1]'), []);
   assert.deepEqual(check('docs: explain lanes'), []);
   assert.deepEqual(check('feat(web)!: drop the old page [G1]\n\nThe old page is gone.'), []);
@@ -220,20 +221,20 @@ test('header format, length, case and period [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\nsecond line'), ['leave a blank line after the header']);
 });
 
-test('comments are dropped; merges, reverts and fixups are exempt', () => {
+test('comments are dropped; merges, reverts and fixups are exempt [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\n# Please enter the commit message'), []);
   assert.deepEqual(check("Merge branch 'web/page'"), []);
   assert.deepEqual(check('fixup! feat(web): add the page [G1]'), []);
 });
 
-test('opt-in rules: filler words, emoji, co-author trailers', () => {
+test('opt-in rules: filler words, emoji, co-author trailers [C1]', () => {
   const strict = { ...RULES, banned: ['basically', 'seamless'], noEmoji: true, noCoAuthor: true };
   const problems = check('docs: basically seamless lanes \u{1F680}\n\nCo-Authored-By: Bot <b@x>', strict);
   assert.deepEqual(problems, ['drop the filler word "basically"', 'drop the filler word "seamless"', 'remove the emoji', 'remove the Co-Authored-By trailer']);
   assert.deepEqual(check('docs: basically fine'), []);
 });
 
-test('blocked paths: env files by name, examples allowed, patterns with a slash match paths', () => {
+test('blocked paths: env files by name, examples allowed, patterns with a slash match paths [C5]', () => {
   const protect = { ...defaults().protect, blocked: [...defaults().protect.blocked, 'data/*.csv'] };
   assert.deepEqual(
     blockedPaths(['.env', 'app/.env.local', 'prod.env', '.env.example', 'data/claims.csv', 'docs/data/x.csv', 'src/a.js'], protect),
@@ -243,7 +244,7 @@ test('blocked paths: env files by name, examples allowed, patterns with a slash 
   assert.ok(!matchesPattern('.env.*', 'environment.js'));
 });
 
-test('secrets are named by kind and place, never echoed', () => {
+test('secrets are named by kind and place, never echoed [C5]', () => {
   // Built at run time, so this file never holds a string its own pre-commit scan would refuse.
   const fakeKey = ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-');
   const diff = [
@@ -319,7 +320,7 @@ test('a spec-less feature commit is told a path that works [S1,B26]', () => {
   mkdirSync(join(root, 'app'));
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up the private board');
-  const added = box.run(root, 'add', 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json');
+  const added = fixtureAdd(box.run, root, 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   assert.equal(JSON.parse(added.out).item.item_spec_ids, '');
   writeFileSync(join(root, 'app/first.txt'), 'first useful thing\n');
@@ -363,7 +364,7 @@ test('a spec-less feature commit is told a path that works [S1,B26]', () => {
 
 test('a lane agent drafts a row and cites it without leaving its lane [S1,B26]', () => {
   const box = e2e.project('pullboard spec check');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Show the list', '--criterion', 'web/list.html exists').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists').code, 0);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const drafted = box.run(box.web, 'spec', 'draft', 'A person sees their list', '--json');

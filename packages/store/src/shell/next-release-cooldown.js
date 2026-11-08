@@ -29,6 +29,25 @@ export function recentlyReleased(board, agentId, minutes, now = Date.now()) {
 }
 
 /**
+ * Build items explicitly marked INELIGIBLE are never offered automatically to that releasing seat.
+ * Only that seat's own release events count, so coordinator maintenance and releases of another holder stay local.
+ * @param {any} board
+ * @param {string} agentId
+ * @returns {number[]}
+ */
+export function ineligibleReleaseIds(board, agentId) {
+  const rows = board.db.prepare(`SELECT item_id, event_detail FROM event WHERE event_by = ? AND event_kind = 'release' ORDER BY event_id`).all(agentId);
+  const ids = new Set();
+  for (const row of rows) {
+    let detail = {};
+    try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
+    if (detail?.reasonCode !== 'INELIGIBLE' || detail.review === true) continue;
+    ids.add(row.item_id);
+  }
+  return [...ids];
+}
+
+/**
  * Pick the next build with the cooldown applied: first with this seat's recent releases left out, and only when
  * that finds nothing, the ordinary pick, so a seat with nothing else open still gets its released item back.
  * @param {any} board
@@ -39,8 +58,64 @@ export function recentlyReleased(board, agentId, minutes, now = Date.now()) {
  * @returns {any} nextFor's result
  */
 export function nextWithReleaseCooldown(board, selection, minutes, nextFor, now = Date.now()) {
+  // An item the lane and route said they cannot build is never offered back, not even when nothing else is open (#3014).
+  const omitted = new Set([...(selection.omitIds ?? []), ...ineligibleReleaseIds(board, selection.agentId), ...scopedOutFor(board, selection.agentId).map(row => row.id)]);
+  const scoped = { ...selection, omitIds: [...omitted] };
   const cooled = recentlyReleased(board, selection.agentId, minutes, now);
-  if (!cooled.length) return nextFor(board, selection);
-  const other = nextFor(board, { ...selection, omitIds: [...(selection.omitIds ?? []), ...cooled] });
-  return other.item ? other : nextFor(board, selection);
+  if (!cooled.length) return nextFor(board, scoped);
+  const other = nextFor(board, { ...scoped, omitIds: [...scoped.omitIds, ...cooled] });
+  return other.item ? other : nextFor(board, scoped);
+}
+
+/** Release reasons that say the item is not buildable as scoped for the releasing lane and route [C7]. */
+export const RESCOPE_REASONS = Object.freeze(['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']);
+
+/**
+ * The open items that need re-scoping for a lane and route: some seat of that lane and route released the item with
+ * BLOCKED, ROUTED_ELSEWHERE or INELIGIBLE, and since then the item was not edited, refrozen or re-routed and, for
+ * BLOCKED, its named blockers have not all landed. OTHER, BUDGET and TAKEN_OVER never count: they keep today's behaviour.
+ * Why: next kept handing an item back to the next seat of the same lane and route, which released it again (#3014).
+ *
+ * @param {any} board
+ * @param {string} lane
+ * @param {string} route
+ * @returns {{id: number, reasons: string[]}[]}
+ */
+export function itemsNeedingRescope(board, lane, route) {
+  const rows = board.db.prepare(`SELECT e.event_id, e.event_at, e.item_id, e.event_by, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
+    JOIN agent a ON a.agent_id = e.event_by
+    WHERE e.event_kind = 'release' AND i.item_status = 'open' AND a.agent_lane = ? AND a.agent_route = ? ORDER BY e.event_id`).all(lane, route);
+  const byItem = new Map();
+  for (const row of rows) {
+    let detail = {};
+    try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
+    if (detail?.review === true || !RESCOPE_REASONS.includes(detail?.reasonCode)) continue;
+    const changed = board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_id > ? AND event_kind IN ('edit','refreeze','route','reroute') LIMIT 1").get(row.item_id, row.event_id);
+    if (changed) { byItem.delete(row.item_id); continue; }
+    const open = detail.reasonCode === 'BLOCKED' && Array.isArray(detail.blockedOn) && detail.blockedOn.length
+      ? detail.blockedOn.filter(id => { const dep = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id); return dep && dep.item_status !== 'withdrawn' && !dep.item_merged_commit; }) : null;
+    if (open && !open.length) { byItem.delete(row.item_id); continue; }
+    const entry = byItem.get(row.item_id) ?? { id: row.item_id, since: row.event_at, reasons: [] };
+    entry.reasons.push(`${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`);
+    byItem.set(row.item_id, entry);
+  }
+  return [...byItem.values()];
+}
+
+/** The items to leave out of one seat's next: those needing re-scope for its own lane and route. */
+function scopedOutFor(board, agentId) {
+  const seat = board.db.prepare('SELECT agent_lane, agent_route FROM agent WHERE agent_id=?').get(agentId);
+  return seat ? itemsNeedingRescope(board, seat.agent_lane, seat.agent_route) : [];
+}
+
+/**
+ * Every open item that needs re-scoping, with the lane and route that gave it back and each release's reason, for the
+ * coordinator's status and health (#3014).
+ *
+ * @param {any} board
+ * @returns {{id: number, lane: string, route: string, reasons: string[]}[]}
+ */
+export function allItemsNeedingRescope(board) {
+  const pairs = board.db.prepare('SELECT DISTINCT agent_lane AS lane, agent_route AS route FROM agent WHERE agent_lane IS NOT NULL AND agent_route IS NOT NULL').all();
+  return pairs.flatMap(({ lane, route }) => itemsNeedingRescope(board, lane, route).map(row => ({ ...row, lane, route })));
 }

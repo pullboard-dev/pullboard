@@ -1,9 +1,9 @@
 /** Find unexplained wall-clock judgments in test source, without executing it [C7]. */
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { gitExecFileSync } from '../../../git/index.js';
 
 /** Mask comments and quoted fixture text while retaining exact offsets and comment lines. */
 function codeOnly(source) {
@@ -167,7 +167,7 @@ export function fixedWallMargins(source, file) {
 /** Scan every tracked test file under a checkout, including nested and documentation tests. */
 export function wallClockViolations(root) {
   const found = [];
-  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+  const tracked = gitExecFileSync(['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const file of tracked) {
     const parts = file.split('/');
     const name = parts.at(-1);

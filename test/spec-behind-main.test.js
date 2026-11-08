@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 const { project } = e2e;
@@ -24,7 +25,7 @@ function readSpec(box) {
 
 /** Create a board item whose row is already committed on main. */
 function addRowItem(box, ids = 'G3', lane = 'web') {
-  const added = box.run(box.repo, 'add', lane, 'Main-only row', '--specs', ids, '--json');
+  const added = fixtureAdd(box.run, box.repo, lane, 'Main-only row', '--specs', ids, '--json');
   assert.equal(added.code, 0, added.err || added.out);
   return String(JSON.parse(added.out).item.item_id);
 }

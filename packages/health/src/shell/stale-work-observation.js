@@ -16,7 +16,11 @@ import {
 export function observeStaleWork(board, actor) {
   const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(actor);
   if (!seat?.agent_path) return { available: false, at: null };
-  const root = resolve(seat.agent_path);
+  return observeStaleWorkAt(resolve(seat.agent_path));
+}
+
+/** Observe one validated native worktree without resolving a seat or manufacturing a missing commit. */
+export function observeStaleWorkAt(root) {
   if (!staleRunQuiet(root)) return { available: false, at: null };
   try {
     const env = cleanGitEnvironment();

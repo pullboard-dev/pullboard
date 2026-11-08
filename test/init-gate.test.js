@@ -6,6 +6,8 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { assertShortInit } from './init-short-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -157,13 +159,13 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', () => {
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up the no-manifest board');
 
-  const added = box.run(root, 'add', 'app', 'No-manifest newcomer change',
+  const added = fixtureAdd(box.run, root, 'app', 'No-manifest newcomer change',
     '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = String(JSON.parse(added.out).item.item_id);
   const worktree = join(box.dir, 'app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/one', worktree);
-  const joined = box.run(worktree, 'join', 'app');
+  const joined = fixtureJoin(box.run, worktree, 'app');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const claimed = box.run(worktree, 'claim', id, '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
@@ -202,7 +204,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', () => {
   assert.equal(released.code, 0, released.err || released.out);
   const configuredWorktree = join(box.dir, 'configured-app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
-  const configuredJoin = box.run(configuredWorktree, 'join', 'app');
+  const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app');
   assert.equal(configuredJoin.code, 0, configuredJoin.err || configuredJoin.out);
   const configuredClaim = box.run(configuredWorktree, 'claim', id, '--json');
   assert.equal(configuredClaim.code, 0, configuredClaim.err || configuredClaim.out);

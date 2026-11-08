@@ -5,6 +5,7 @@ import { lstatSync } from 'node:fs';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -77,7 +78,7 @@ function replyAt(file, id, count) {
 }
 
 /** Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all. */
-export function withCellLintParser(work) {
+export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
   if (parsers.getStore()) return work(parsers.getStore());
   let child = null, directory = null, sequence = 0, failed = null, closed = false;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -137,7 +138,8 @@ export function withCellLintParser(work) {
     const input = JSON.stringify({ version: 1, id, sources });
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
     if (!child) {
-      directory = mkdtempSync(join(tmpdir(), 'pullboard-cell-parser-'));
+      if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
+      directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-cell-parser-'));
       startSupervisor(id - 1);
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);

@@ -1,10 +1,12 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { toolsSnapshot } from '../submit-handoff.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -210,18 +212,33 @@ export function verificationCriterionDigest(freeze, item) {
 }
 
 /**
- * Render a failed private check's own diagnostics: its output digest, sanitized tail and private full-output path.
+ * Render a failed private check's diagnostics: its report when no structured test counts are available, sanitized tail and full-output path.
  *
- * The test-output summary reads test counts and failing cases, which a plain shell check or install has none of,
- * so a refusal must still carry the digest, tail and path the check recorded [V18,V2].
+ * A parsed test summary replaces the duplicate report; plain shell checks and installs keep that report because
+ * they have no structured test counts or failures [V18,V2].
+ * @param {any} check
+ * @param {{ hasStructuredCounts?: boolean }} [options]
+ * @returns {string}
  */
-function privateCheckEvidence(check) {
-  const digest = check.report ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
+function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
+  const digest = check.report && !hasStructuredCounts ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
   const tail = check.checked
     ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map(line => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
     : '';
   const timings = check.profilePath ? `\n${timingDigest(check.profile)}\ntiming profile: ${check.profilePath}` : '';
   return `${digest}${tail}${timings}`;
+}
+
+/**
+ * Whether a recovered verdict's note is the retried command's note.
+ * The sent note carries machine suffixes (check receipts, main moves, approvals), each starting on a new line,
+ * so a retry with the person's original note must match the recorded note with those suffixes.
+ * @param {string | undefined} recorded
+ * @param {string} given
+ * @returns {boolean}
+ */
+function sameVerdictNote(recorded, given) {
+  return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
 /**
@@ -253,7 +270,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
-        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
+        sameVerdictNote(previous.note, textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
         previous.clause === (decision === 'REJECT' ? values.clause : undefined)) {
       if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
         const item = store.getItem(board, id);
@@ -338,11 +355,11 @@ export async function verifyHere(ctx, id, { second, values }) {
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
-        if (reused.ids && (frozenCheck(item) || supplement)) {
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
-          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+          check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
@@ -378,7 +395,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
-        const evidence = privateCheckEvidence(check) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
+        const hasStructuredCounts = check.state === 'red'
+          && verificationOutput?.counts.passed != null && verificationOutput?.counts.failed != null;
+        const evidence = privateCheckEvidence(check, { hasStructuredCounts }) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
@@ -506,7 +525,10 @@ export async function verifyHere(ctx, id, { second, values }) {
  * reviewed tree, so they always take the full path.
  */
 function packetAcceptance(ctx, board, item, decision, reReview, read) {
-  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
     || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;
@@ -599,6 +621,17 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/**
+ * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The reviewer's checkout.
+ * @param {string} commit - The reviewed commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function toolingTree(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
 }

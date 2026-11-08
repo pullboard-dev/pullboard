@@ -6,6 +6,8 @@ import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'no
 import { join, resolve } from 'node:path';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -48,7 +50,7 @@ export function verificationProject(t, { checked = false } = {}) {
   const project = helpers.project('true', sandbox);
   const marker = join(project.dir, 'verification-check-ran');
   const check = 'printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
-  const added = project.run(project.repo, 'add', 'web', 'Private admission boundary', '--specs', 'G1',
+  const added = fixtureAdd(project.run, project.repo, 'web', 'Private admission boundary', '--specs', 'G1',
     '--criterion', 'The real frozen verification keeps its public boundary.',
     ...(checked ? ['--check', check] : []), '--wait', '--json');
   assert.equal(added.code, 0, added.err || added.out);
@@ -64,7 +66,7 @@ export function verificationProject(t, { checked = false } = {}) {
   project.env.CLAUDE_CODE_SESSION_ID = 'resource-fixture-reviewer';
   const reviewer = join(project.dir, 'reviewer');
   project.git(project.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  const joined = project.run(reviewer, 'join', 'web');
+  const joined = fixtureJoin(project.run, reviewer, 'web');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const settings = project.run(project.repo, 'settings', 'gateSlots', '1', '--json');
   assert.equal(settings.code, 0, settings.err || settings.out);

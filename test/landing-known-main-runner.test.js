@@ -23,7 +23,7 @@ const { landProject } = makeLandProjectFixtures({ ...e2e,
 test('a refused spec reports only fixed rule text, and the controller records it [C7]', () => {
   assert.equal(specRefusalRule(new Error('invalid landing timeout')), 'invalid landing timeout');
   assert.equal(specRefusalRule(new SyntaxError('Unexpected token \'x\', "/secret/path" is not valid JSON')), 'work specification is not valid JSON');
-  assert.equal(specRefusalRule(new Error('/Users/someone/secret')), 'work specification could not be read');
+  assert.equal(specRefusalRule(new Error('/Users/user/secret')), 'work specification could not be read');
   const request = { runner: { host: HOST }, spec: { id: 'a' } };
   const refusal = (() => { try { resultFrom(request, { status: 1, stdout: Buffer.alloc(0),
     stderr: 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\nPULLBOARD_RUNNER_SPEC_RULE invalid landing timeout\n' }, {}); } catch (error) { return error; } })();
@@ -131,7 +131,7 @@ test('a real worker names the camelCase field and the origin rule it refused, ec
   }
 });
 
-test('every fixed message a worker validator throws is a listed rule [C7]', () => {
+test('clause 1: every fixed message a worker validator throws is a listed rule [C7]', () => {
   const source = readFileSync(resolve(import.meta.dirname, '../apps/runner/src/shell/runner-worker-spec.js'), 'utf8');
   for (const match of source.matchAll(/new Error\('([^']+)'\)/gu)) assert.ok(SPEC_RULES.has(match[1]), `unlisted rule: ${match[1]}`);
   for (const match of source.matchAll(/\['(work specification [^']+)', \(\) =>/gu)) assert.ok(SPEC_RULES.has(match[1]), `unlisted rule: ${match[1]}`);

@@ -87,5 +87,43 @@ export function incrementalAudit(keys, previous = null) {
     planDigest: createHash('sha256').update(JSON.stringify([...keys].sort(([a], [b]) => a.localeCompare(b)))).digest('hex') };
 }
 
+/** Only a literal named-file Node command can be considered for the Main red sweep. */
+export function mainRedCheckFiles(check) {
+  if (typeof check !== 'string') return null;
+  const command = check.startsWith('node bin/run-tests.js ') ? 'node bin/run-tests.js '
+    : check.startsWith('node --test ') ? 'node --test ' : null;
+  if (!command) return null;
+  const files = check.slice(command.length).split(' ');
+  if (!files.length || files.some(file => !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/u.test(file)
+    || file.split('/').some(part => part === '.' || part === '..' || part.startsWith('-')))) return null;
+  return [...new Set(files)].length === files.length ? files : null;
+}
+
+/** Read the check from the frozen bar itself and verify its stored digest. */
+export function mainRedFrozenCheck(item) {
+  if (!item || typeof item.item_frozen !== 'string' || typeof item.item_frozen_digest !== 'string'
+    || createHash('sha256').update(item.item_frozen).digest('hex') !== item.item_frozen_digest) return null;
+  let frozen;
+  try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
+  return frozen && frozen.title === item.item_title && typeof frozen.check === 'string' ? frozen.check : null;
+}
+
+/** A red full audit can still establish a named file's green result, bound to this exact main tip. */
+export function mainRedFilesProven(check, { plan, receipt, auditedHead, currentHead, auditedTree, currentTree }) {
+  const files = mainRedCheckFiles(check);
+  if (!files || !plan?.keys || !Array.isArray(plan.run) || !Array.isArray(plan.reused)
+    || !/^[a-f0-9]{40,64}$/u.test(auditedHead ?? '') || auditedHead !== currentHead
+    || !/^[a-f0-9]{40,64}$/u.test(auditedTree ?? '') || auditedTree !== currentTree || receipt?.head !== auditedHead
+    || receipt.tree !== auditedTree || receipt.collection?.complete !== true || !Array.isArray(receipt.collection.files)
+    || !Array.isArray(receipt.testOutcomes) || !Array.isArray(receipt.failures)) return false;
+  return files.every(file => {
+    if (!/^[a-f0-9]{64}$/u.test(plan.keys[file] ?? '')
+      || ![...plan.run, ...plan.reused.map(row => row.file)].includes(file) || !receipt.collection.files.includes(file)
+      || receipt.failures.some(row => row.file === file)) return false;
+    const outcomes = receipt.testOutcomes.filter(row => row.file === file);
+    return outcomes.length > 0 && outcomes.every(row => row.passed === true && row.skipped !== true);
+  });
+}
+
 /** Preserve the existing public binding; native item creation reads its focused lower home. */
 export { auditFailureItem } from '../../../items/index.js';
