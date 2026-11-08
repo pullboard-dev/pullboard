@@ -89,8 +89,9 @@ test('with gate.runnersOnly on and no runner free, each check queues to the runn
     const smoke = await settle(() => landing.smokeCommit(${JSON.stringify(box.repo)}, ${JSON.stringify(main)}));
     process.stdout.write(JSON.stringify({ compare, plan, smoke }));
   `);
-  assert.deepEqual(out.compare.files, []);
-  assert.equal(out.compare.runnerOnly, true, JSON.stringify(out.compare));
+  // The stand-in still answers worker commands, so the comparison either queues (no verdict, runnerOnly) or ran on the runner (a receipt); it never ran locally.
+  if (out.compare.files.length) assert.ok(out.compare.files.every(row => row.receiptId), `a comparison verdict came from a run with no runner receipt: ${JSON.stringify(out.compare)}`);
+  else assert.equal(out.compare.runnerOnly, true, JSON.stringify(out.compare));
   // The pinned-worker recovery may restart the stand-in worker between checks, so a later check either queues to its
   // deadline or runs on the runner; it never runs as a local process.
   for (const [name, result] of [['plan', out.plan], ['smoke', out.smoke]]) {
