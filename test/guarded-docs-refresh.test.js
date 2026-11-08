@@ -1,6 +1,6 @@
 /** Real isolated Git refresh: guards must pass before main advances [A5,C7,B3]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +14,8 @@ function fixture(t, failing, slow = false) {
   const longTemp = join(temporary, ...Array(5).fill('long-runner-location-'.repeat(3)));
   mkdirSync(longTemp, { recursive: true });
   const put = (file, value) => { mkdirSync(join(root, file, '..'), { recursive: true }); writeFileSync(join(root, file), value); };
-  const command = (program, args) => spawnSync(program, args, { cwd: root, encoding: 'utf8', env: { ...process.env, TMPDIR: longTemp, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
+  const env = { ...process.env, TMPDIR: longTemp, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  const command = (program, args) => spawnSync(program, args, { cwd: root, encoding: 'utf8', env });
   const git = (...args) => { const result = command('git', args); assert.equal(result.status, 0, result.stderr); return result.stdout.trim(); };
   git('init', '-q', '-b', 'main');
   put('package.json', '{"type":"module"}\n');
@@ -29,7 +30,7 @@ function fixture(t, failing, slow = false) {
   const before = git('rev-parse', 'HEAD');
   const shout = join(root, '..', `${root.split('/').at(-1)}-shout`);
   t.after(() => rmSync(shout, { force: true }));
-  return { root, before, git, command, shout };
+  return { root, before, git, command, shout, env };
 }
 for (const failure of ['formats', 'docs', null]) test(`generated docs ${failure ? `refuse a ${failure} guard failure` : 'land only after both guards pass'} [A5,C7,B3]`, t => {
   const box = fixture(t, failure);
@@ -54,9 +55,18 @@ for (const failure of ['formats', 'docs', null]) test(`generated docs ${failure 
   assert.equal(box.git('worktree', 'list', '--porcelain').split('worktree ').length - 1, 1);
 });
 
-test('a formats guard that takes over two minutes can pass [A5,C7,B3]', t => {
+test('clause 1: a formats guard that takes over two minutes can pass [A5,C7,B3]', async t => {
   const box = fixture(t, null, true);
-  const result = box.command(process.execPath, ['bin/guarded-docs-refresh.js']);
+  // The file's own process stays audible while the slow guard runs, so the idle watchdog sees a live test.
+  const child = spawn(process.execPath, ['bin/guarded-docs-refresh.js'], { cwd: box.root, env: box.env });
+  let stdout = '', stderr = '';
+  child.stdout.on('data', chunk => { stdout += chunk; });
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  const closed = new Promise(resolve => child.on('close', status => resolve({ status, stdout, stderr })));
+  let result;
+  while (!(result = await Promise.race([closed, new Promise(resolve => setTimeout(() => resolve(null), 15000))]))) {
+    process.stderr.write('waiting for the slow formats guard\n');
+  }
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.notEqual(box.git('rev-parse', 'HEAD'), box.before);
 });

@@ -1,0 +1,15 @@
+{
+  "description": "Deidentified native green-submit trace, captured read-only 2026-11-04. Vendors derive from each immutable submit event author, not current item ownership. Counterfactual replay inputs; no real model runtime latency claim.",
+  "start": "2026-11-03T21:45:00.000Z",
+  "end": "2026-11-03T23:30:00.000Z",
+  "submissions": [
+    [37483, "openai"], [48011, "openai"], [86589, "openai"],
+    [137592, "openai"], [311970, "openai"], [381220, "openai"],
+    [568343, "openai"], [692923, "openai"], [702870, "openai"],
+    [708125, "openai"], [871782, "openai"], [1041609, "openai"],
+    [1107877, "openai"], [1329132, "openai"], [1664903, "openai"],
+    [1675932, "openai"], [1861854, "openai"], [2647373, "openai"],
+    [3378501, "openai"], [3771493, "openai"], [3783015, "openai"],
+    [3947850, "openai"], [4099689, "openai"]
+  ]
+}

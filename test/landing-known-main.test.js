@@ -46,12 +46,14 @@ test('known-main cancellation accounting excludes only fully accounted cancellat
 });
 
 /** A separate-publish landing project whose main already carries one red case, committed and pushed through real hooks. */
-function redMainProject({ perItem = false } = {}) {
+function redMainProject({ perItem = false, focused = true } = {}) {
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem, manualOverride: true, publish: 'separate' } }, null, 2));
+  const projectConfig = { ...config, landing: { perItem, manualOverride: true, publish: 'separate' } };
+  if (!focused) delete projectConfig.affectedTests; // main then has no focused runner, so its comparison is unavailable
+  writeFileSync(path, JSON.stringify(projectConfig, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   box.env.LAND_SUPPRESS_RED = '1';
@@ -90,7 +92,7 @@ function landBatch(box, itemId) {
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
     'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); }',
     'const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId));',
-    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit }));',
+    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit, status: item.item_status }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
@@ -184,7 +186,7 @@ test('an observer error without observations isolates each failing file once; re
   assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').length, callsBefore + 1, 'recorded evidence triggers no extra isolation');
 });
 
-test('a per-item landing red only in a case red on main reruns it at base main and lands, charging nothing to the item [C7,#3073]', () => {
+test('clause 1: a per-item landing red only in a case red on main reruns it at base main and lands, charging nothing to the item [C7,#3073]', () => {
   const box = redMainProject({ perItem: true });
   const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
@@ -198,7 +200,7 @@ test('a per-item landing red only in a case red on main reruns it at base main a
   assert.ok(Number.isInteger(result.batch.mainRedRepairs[0].item), JSON.stringify(result.batch.mainRedRepairs));
 });
 
-test('a per-item landing red in a case green at main still blocks and names its item as the culprit [C7,#3073]', () => {
+test('clause 2: a per-item landing red in a case green at main still blocks and names its item as the culprit [C7,#3073]', () => {
   const box = redMainProject({ perItem: true });
   box.env.LAND_SUPPRESS_RED = '1';
   try {
@@ -210,4 +212,14 @@ test('a per-item landing red in a case green at main still blocks and names its 
   assert.equal(result.merged, null);
   assert.ok(result.batch.culprits.some(culprit => culprit.id === entry.item), JSON.stringify(result.batch));
   assert.ok(!result.batch.culprits.some(culprit => JSON.stringify(culprit).includes(MAIN_RED)), 'the main red is never a reason');
+});
+
+test('clause 3: a per-item landing whose base-main comparison is unavailable blocks as a landing fault and leaves the item verified [C7,#3065]', () => {
+  const box = redMainProject({ perItem: true, focused: false });
+  const entry = acceptedItem(box, 1, '// PASS\n');
+  box.env.LAND_CANCEL = '1';
+  const result = landBatch(box, entry.item);
+  assert.ok(result.lines.some(line => line.includes('[LAND_MAIN_COMPARISON]')), JSON.stringify(result.lines));
+  assert.equal(result.merged, null);
+  assert.equal(result.status, 'verified', 'an unavailable comparison cannot reopen an accepted item');
 });

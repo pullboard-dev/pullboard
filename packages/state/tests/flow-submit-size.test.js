@@ -22,12 +22,13 @@ import { FLOW_SIZE_ENGINE } from '../../../src/flow-size-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 test('a native submit records its immutable changed-line base and head for flow buckets [R1,R2,V4]', { timeout: 60_000 }, t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Measure submitted lines', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Measure submitted lines', '--specs', 'G1',
     '--criterion', 'The measured page exists.', '--check', 'test -f web/size.txt', '--route', 'strong');
   assert.equal(added.code, 0, added.out + added.err);
   const claimed = box.run(box.web, 'claim', '1');

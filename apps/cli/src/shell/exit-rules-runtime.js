@@ -16,6 +16,8 @@ import {
   usageDifference,
 } from '../../../../packages/stats/index.js';
 import { nativeToolCallIds } from '../../../../packages/stats/index.js';
+import { nativeLastPrompt } from '../../../../packages/stats/index.js';
+import { exitContextDecision } from '../../../../packages/stats/index.js';
 import {
   parentSessionDigest,
   runtimeSessionIdentity,
@@ -124,4 +126,17 @@ export async function enforceExitBoundary(io, command) {
     // Release is the sole recovery write: it atomically validates and records the structured summary.
     if (command !== 'release') requireExitActive(board, actor, command);
   });
+}
+
+/**
+ * Refuse a new claim from a session whose last call's prompt reached the context ceiling, so the next item starts fresh.
+ * Why: the ceiling counts across claims; one long session re-read 728K tokens per call on 5 Nov. Unknown usage never refuses.
+ */
+export function contextCeilingRefusal(policy) {
+  if (policy?.enabled !== true) return null;
+  const source = sessionSource(), observed = sourceBytes(source);
+  const last = observed ? nativeLastPrompt(source.provider, observed.bytes) : null;
+  const decision = exitContextDecision(policy, last);
+  return decision ? new Refused(decision.code, `this session's last call read ${decision.context} tokens (ceiling ${decision.ceiling}); end it and let a fresh session of the same seat take the next item`,
+    'finish nothing more here: end this session; a fresh session of the same seat claims the next item') : null;
 }

@@ -12,6 +12,7 @@ import { localDependencyIds } from '../../../../../packages/items/index.js';
 import {
   keepViewRunning,
 } from '../../../../view/index.js';
+import { withBoardRead } from '../cli-board-read.js';
 import {
   staleFrozenItems,
   staleItemFinding,
@@ -107,7 +108,6 @@ import {
   viewSetupComplete,
   whoAmI,
   withBoard,
-  withBoardRead,
   worktreeLocation,
 } from '../cli.js';
 
@@ -145,7 +145,7 @@ function keylessBookkeeping(send) {
 export async function resumeHere(io, view, diagnostics = false, { json = false } = {}) {
   const ctx = context(io);
   const ordered = keylessBookkeeping(sendOrdered);
-  const initialBaseline = withBoardRead(ctx, board => {
+  const initialBaseline = await withBoardRead(ctx, board => {
     whoAmI(ctx, board);
     requireBoardWriteAccess(ctx.file);
     return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
@@ -264,7 +264,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (view.state !== 'running' && backgroundViewLine(view)) say(backgroundViewLine(view));
   if (diagnostics) {
     say(`New agent worktrees: ${card.newWorktreeLocation}`);
-    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
+    card.setup = await withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
   } else say('Setup, hook and stale-work diagnostics: pullboard resume --diagnostics.');
   if (!loadSpec(root, ctx.config).rows.length && card.all.length) say('Spec rows are optional; add a requirement later: pullboard spec draft "<text>".');
   if (card.setup) {
@@ -350,10 +350,10 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   }
   else if (card.holding.length) next = buildNext(card);
   else if (card.sentBack.length) next = `pullboard next; ${reworkNext(card)}`;
-  else if (card.hold) next = 'pullboard next --wait 9 (minutes); the lane hold must lift before its work is available';
+  else if (card.hold) next = 'pullboard next; take work in another lane, or end your turn if none is offered';
   else if (ready) next = `pullboard next (${ready} ready in your lane)`;
-  else if (inLane.length) next = `pullboard next --wait 9 (minutes); ${inLane.length} in your lane ${inLane.length === 1 ? 'waits' : 'wait'} on other work`;
-  else if (card.awaiting.length) next = 'pullboard next --wait 9 (minutes); a rejected item comes back to your lane';
+  else if (inLane.length) next = 'pullboard next; take another eligible review or other offered work, or end your turn if none is offered';
+  else if (card.awaiting.length) next = 'pullboard next --verify; take another eligible review, or end your turn if none is offered';
   else next = 'pullboard next; take its ranked work, including eligible reviews or work in another lane';
   if (card.setup) next = card.setup.agentNext ?? card.setup.command;
   if (card.commits) next = commitFirst(card.commits, next);

@@ -4,8 +4,8 @@ import {
 } from '../../../../../packages/state/index.js';
 
 /** Run `pullboard lifecycle` and return its exit code. */
-export function run(io) {
+export function run(io, { values = {} } = {}) {
   io.result?.({ markdown: lifecycleMarkdown().trimEnd() });
-  io.say(lifecycleMarkdown().trimEnd());
+  io.say(lifecycleMarkdown(undefined, { compact: !values.detail }).trimEnd());
   return 0;
 }

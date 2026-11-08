@@ -10,6 +10,8 @@ import { parseDiagnosis } from '../packages/items/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureBoard } from './board-fixture.js';
 import { onBoard } from './land-board-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js test/handler.test.js Change: repoint the fixture to the canonical handler Test case: handler returns the expected result from the canonical module';
 
@@ -98,9 +100,9 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   const box = helpers.project('true', isolated);
   const light = join(box.dir, 'light');
   box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
-  const joined = box.run(light, 'join', 'web', '--route', 'light', '--model', 'Two tier light fixture');
+  const joined = fixtureJoin(box.run, light, 'web', '--route', 'light', '--model', 'Two tier light fixture');
   assert.equal(joined.code, 0, joined.err);
-  const added = box.run(box.repo, 'add', 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works [test]', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works [test]', '--check', 'true',
     '--brief', 'Files: web/handler.js\nTest: expected result', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

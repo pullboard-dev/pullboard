@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/settings.js')).href;
@@ -116,7 +117,7 @@ for(const attempt of [1,2]) {
     const box = helpers.project('true');
     const marker = join(box.dir, 'submit-frozen-body');
     const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;
-    const added = succeeded(box.run(box.repo, 'add', 'web', 'Private runner-only submission', '--specs', 'G1',
+    const added = succeeded(fixtureAdd(box.run, box.repo, 'web', 'Private runner-only submission', '--specs', 'G1',
       '--criterion', 'The native frozen check remains mandatory.', '--check', command, '--wait', '--json'));
     const id = JSON.parse(added.out).item.item_id;
     succeeded(box.run(box.web, 'claim', String(id), '--json'));
@@ -142,7 +143,7 @@ for(const attempt of [1,2]) {
     installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome, machineHome: paths.remoteMachine, requests });
     box.env.PATH = `${paths.bin}:${box.env.PATH}`;
     succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
-    const added = succeeded(box.run(box.repo, 'add', 'web', 'Registered runner-only submission', '--specs', 'G1',
+    const added = succeeded(fixtureAdd(box.run, box.repo, 'web', 'Registered runner-only submission', '--specs', 'G1',
       '--criterion', 'The native frozen check executes in its admitted registered worker.',
       '--check', 'printf RUNNER_ONLY_FROZEN_BODY', '--wait', '--json'));
     const id = JSON.parse(added.out).item.item_id;
@@ -191,7 +192,7 @@ process.exit(lines.length?1:0);
     box.git(box.repo, 'commit', '-q', '-m', 'chore: add private doctrine runner control');
     const base = box.git(box.repo, 'rev-parse', 'HEAD');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    const added = JSON.parse(succeeded(box.run(box.repo, 'add', 'web', 'Leased doctrine control', '--specs', 'G1',
+    const added = JSON.parse(succeeded(fixtureAdd(box.run, box.repo, 'web', 'Leased doctrine control', '--specs', 'G1',
       '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--wait', '--json')).out);
     const id = added.item.item_id;
     succeeded(box.run(box.web, 'claim', String(id)));

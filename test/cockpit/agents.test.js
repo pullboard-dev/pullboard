@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit agents checks, using the shared real-board fixtures [N26]. */
 import { main as nativeTestMain } from '../native-cli-fixture.js';

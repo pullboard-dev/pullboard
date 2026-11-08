@@ -20,6 +20,7 @@ import { exportBoard } from '../packages/store/index.js';
 import { beginCommandPhase } from '../packages/link/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -296,7 +297,7 @@ test('opening an older board names and logs its genuine index-building write [C7
   assert.deepEqual(installedGit.body, sourceGit.body, 'the installed implementation retains exact source Buffer bytes');
   assert.deepEqual(installedGit.shimBody, sourceGit.shimBody, 'the installed compatibility shim retains exact source bytes');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = box.run(box.repo, 'add', 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private maintenance item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const fact = box.run(box.repo, 'fact', String(id), 'note', 'private native index input', '--json');
@@ -404,7 +405,7 @@ test('opening an older board names and logs its genuine index-building write [C7
 test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = box.run(box.repo, 'add', 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const document = snapshot(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.equal(document.tables.item.length, 1);
@@ -567,7 +568,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
 test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = box.run(box.repo, 'add', 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');

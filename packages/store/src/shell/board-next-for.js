@@ -26,6 +26,8 @@ import { lineOrderEnabled } from "../../../seats/index.js";
 import { reviewerScarcity } from "../../../seats/index.js";
 import { current } from "./board-query.js";
 import { itemById } from "./board-query.js";
+import { itemThread } from "./board-query.js";
+import { verdictsFor } from "./board-query.js";
 import { listItems } from "./board-query.js";
 import { listAgents } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
@@ -81,6 +83,21 @@ function recentLightActivity(board) {
 }
 
 /**
+ * A capable seat's pick that is light work with no current diagnosis, while a light seat is active, is offered as
+ * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
+ *
+ * @param {any} board
+ * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {string} seatRoute
+ * @returns {boolean}
+ */
+export function diagnoseWanted(board, item, seatRoute) {
+  if (seatRoute === 'light' || item?.item_status !== 'open') return false;
+  const stored = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(item.item_id);
+  return Boolean(stored && lightDiagnosisProblem(board, stored) && recentLightActivity(board));
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -93,15 +110,17 @@ function recentLightActivity(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
 export function nextFor(board, options) {
   const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
-    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [],
+    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
+  // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
+  const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
@@ -150,7 +169,9 @@ export function nextFor(board, options) {
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
+    // One selection shares its queue reads; authoritative reservations derive their witness afresh.
+    const relaxationCache = new Map();
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -171,7 +192,7 @@ export function nextFor(board, options) {
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const candidates = reviewable.map((entry) => ({
       entry,
-      holder: reviewHolder(board, entry),
+      holder: reviewHolder(board, entry, reviewHeartbeats),
       problem: failures.get(entry)?.problem,
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
@@ -182,7 +203,7 @@ export function nextFor(board, options) {
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
-      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry)), { listAgents }) : null;
+      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy, reviewHeartbeats })).every(guard => !guard(entry)), { listAgents }) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)
@@ -211,8 +232,12 @@ export function nextFor(board, options) {
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
+    // Every submission left out only because this seat's session built it: name it so the coordinator adds a seat from another session.
+    const sameSession = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId
+      && (sessionIds.includes(entry.item_id) || failures.get(entry)?.problem?.code === 'SELF_SESSION_VERIFY'))
+      .map((entry) => `REVIEWER_SAME_SESSION: #${entry.item_id} was built under this seat's parent session, so it is never offered here; the coordinator adds a reviewer seat from another session`);
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
-      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
+      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling, ...sameSession] }));
   }
   const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
@@ -278,6 +303,7 @@ export function nextFor(board, options) {
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
   }
+  const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
@@ -300,7 +326,7 @@ export function nextFor(board, options) {
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       skip(entry, 'FOREIGN_DEPENDENCY');
@@ -315,6 +341,12 @@ export function nextFor(board, options) {
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
     skip(entry, 'DEPENDENCY'); reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
+  // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
+  for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
+    if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
+  }
+  for (const { collisions } of overlapping) reasons.push(...collisions);
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
@@ -404,4 +436,28 @@ function claimWaitingOn(board, id) {
 function waitingOn(item) {
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ', rejected' : '';
   return `#${item.item_id} (${item.item_status}${rejected}, ${item.item_lane} lane)`;
+}
+
+/**
+ * What a returned item hands its next builder: the red gate receipt, the latest reject note and the
+ * builder's last facts, or null when the item was never returned red, rejected or refused [C7].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {{ gate: any, reject: any, facts: string[] } | null}
+ */
+export function returnedRecord(board, id) {
+  const item = itemById(board, id);
+  const job = submitHandoff(board, id);
+  const redGate = job && !['queued', 'running', 'green'].includes(job.state) && job.gateGreen !== true && item.item_status !== 'submitted';
+  const verdict = item.item_verdict === 'REJECT' ? verdictsFor(board, id).filter(row => row.verdict_decision === 'REJECT').at(-1) : null;
+  if (!redGate && !verdict) return null;
+  const builder = item.item_built_by ?? item.item_owner;
+  const thread = itemThread(board, id), replaced = new Set(thread.map(row => row.supersedes).filter(Boolean));
+  const facts = thread.filter(row => row.type === 'fact' && !replaced.has(row.id) && (!builder || row.by === builder)).slice(-3).map(row => `${row.kind}: ${row.text}`);
+  return {
+    gate: redGate ? { job: job.id, state: job.state, commit: job.commit, code: job.error?.code ?? null, message: job.error?.message ?? null } : null,
+    reject: verdict ? { reason: verdict.verdict_reason, note: verdict.verdict_note, by: verdict.verdict_by, commit: verdict.verdict_commit } : null,
+    facts,
+  };
 }

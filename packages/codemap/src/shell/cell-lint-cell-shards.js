@@ -1,9 +1,12 @@
 /** Per-cell falling allowances over an immutable accepted baseline generation [C7,CD64]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import {
+  cellExistsSync,
+  cellReadFileSync,
+  cellReaddirSync,
+  cellSourceSnapshot,
+} from './cell-source-snapshot.js';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { rmdirSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -12,7 +15,10 @@ import { CELL_METRICS } from './cell-lints.js';
 import { cellLintGrowth } from './cell-lint-ratchet.js';
 import { validateCellLintBaseline } from './cell-lint-ratchet.js';
 import { tryGit } from '../../../../src/git.js';
-import { readPathMap } from '../core/path-map.js';
+import {
+  readPathMap,
+  pathMapFromFiles,
+} from '../core/path-map.js';
 import { Refused } from '../../../kernel/index.js';
 
 const MAP_DIRECTORY = 'bin/cells-plan/path-map';
@@ -28,21 +34,23 @@ function encode(value) {
 /** List only named path-map shards; each committed cell map requires its own baseline shard. */
 export function cellLintCells(root) {
   const directory = join(root, MAP_DIRECTORY);
-  if (!existsSync(directory)) return [];
-  const names = readdirSync(directory).sort();
+  if (!cellExistsSync(directory)) return [];
+  const names = cellReaddirSync(directory).sort();
   if (names.some(name => !/^[a-z][a-z0-9-]*\.json$/u.test(name))) throw new Refused('CELL_BASELINE', 'unexpected path-map shard name');
   return names.map(name => name.slice(0, -5));
 }
 /** Read each cell's explicit old-to-new path identities without consulting live board state. */
 function cellMaps(root, cells) {
   return new Map(cells.map(cell => {
-    const value = JSON.parse(readFileSync(join(root, MAP_DIRECTORY, `${cell}.json`), 'utf8'));
+    const value = JSON.parse(cellReadFileSync(join(root, MAP_DIRECTORY, `${cell}.json`), 'utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Refused('CELL_BASELINE', `invalid ${cell} path-map shard`);
     return [cell, value];
   }));
 }
 /** Read accepted shard names once, even when many new cells lack a shard. */
 function acceptedShards(root) {
+  const snapshot = cellSourceSnapshot(root);
+  if (snapshot) return new Set([...snapshot.entries.keys()].filter(file => file.startsWith(`${SHARD_DIRECTORY}/`)));
   const result = tryGit(root, ['ls-tree', '-r', '--name-only', 'HEAD', '--', SHARD_DIRECTORY]);
   return new Set(result.status === 0 ? result.stdout.split('\n').filter(Boolean) : []);
 }
@@ -77,7 +85,7 @@ export function cellLintCellFiles(root, base, target) {
       if (Object.hasOwn(next, key)) row.allowances[key] = next[key];
     }
   }
-  const baseSha256 = digest(readFileSync(join(root, DESCRIPTOR)));
+  const baseSha256 = digest(cellReadFileSync(join(root, DESCRIPTOR)));
   return new Map(cells.map(cell => {
     const metrics = edits.get(cell);
     for (const row of Object.values(metrics)) row.remove.sort();
@@ -89,12 +97,12 @@ export function cellLintCellFiles(root, base, target) {
 export function readCellLintCellBaseline(root, base) {
   const cells = cellLintCells(root);
   if (!cells.length) return base;
-  const directory = join(root, SHARD_DIRECTORY), actual = existsSync(directory) ? readdirSync(directory).filter(name => name !== '.write-lock').sort() : [];
+  const directory = join(root, SHARD_DIRECTORY), actual = cellExistsSync(directory) ? cellReaddirSync(directory).filter(name => name !== '.write-lock').sort() : [];
   const missing = cells.filter(cell => !actual.includes(`${cell}.json`));
   const accepted = missing.length ? acceptedShards(root) : new Set();
   if (actual.some(name => !cells.includes(name.slice(0, -5)) || !name.endsWith('.json'))
     || missing.some(cell => accepted.has(`${SHARD_DIRECTORY}/${cell}.json`))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
-  const baseSha256 = digest(readFileSync(join(root, DESCRIPTOR)));
+  const baseSha256 = digest(cellReadFileSync(join(root, DESCRIPTOR)));
   const baseline = { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
     count: base.metrics[metric].count,
     allowances: { ...base.metrics[metric].allowances },
@@ -102,7 +110,7 @@ export function readCellLintCellBaseline(root, base) {
   const touched = new Set();
   for (const cell of cells) {
     if (!actual.includes(`${cell}.json`)) continue;
-    const document = JSON.parse(readFileSync(join(root, SHARD_DIRECTORY, `${cell}.json`), 'utf8'));
+    const document = JSON.parse(cellReadFileSync(join(root, SHARD_DIRECTORY, `${cell}.json`), 'utf8'));
     if (!document || Object.keys(document).sort().join() !== 'baseSha256,cell,metrics,sha256,version') throw new Refused('CELL_BASELINE', `invalid ${cell} baseline document`);
     const { sha256, ...payload } = document;
     if (payload.version !== 1 || payload.cell !== cell || payload.baseSha256 !== baseSha256
@@ -125,7 +133,9 @@ export function readCellLintCellBaseline(root, base) {
   for (const metric of CELL_METRICS) baseline.metrics[metric].count = Object.values(baseline.metrics[metric].allowances).reduce((sum, count) => sum + count, 0);
   validateCellLintBaseline(baseline);
   if (touched.size) {
-    const report = { pathMap: Object.fromEntries(readPathMap(root)), metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
+    const snapshot = cellSourceSnapshot(root);
+    const pathMap = snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root);
+    const report = { pathMap: Object.fromEntries(pathMap), metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
       findings: Object.entries(baseline.metrics[metric].allowances).map(([key, count]) => ({ key, count })),
     }])) };
     if (cellLintGrowth(report, base).length) throw new Refused('CELL_BASELINE', 'per-cell shard raises an accepted allowance');
@@ -141,13 +151,13 @@ export function writeCellLintCellBaseline(root, base, target, verify) {
   const before = new Map();
   try {
     readCellLintCellBaseline(root, base);
-    for (const file of files.keys()) if (existsSync(join(root, file))) before.set(file, readFileSync(join(root, file)));
+    for (const file of files.keys()) if (cellExistsSync(join(root, file))) before.set(file, cellReadFileSync(join(root, file)));
     for (const [file, bytes] of files) if (!before.has(file) || !before.get(file).equals(Buffer.from(bytes))) writeFileSync(join(root, file), bytes);
     const combined = readCellLintCellBaseline(root, base);
     if (JSON.stringify(combined) !== JSON.stringify(target) || !verify()) throw new Refused('CELL_BASELINE', 'per-cell baseline differs from the planned literal inventory');
   } catch (error) {
     for (const [file, bytes] of before) writeFileSync(join(root, file), bytes);
-    for (const file of files.keys()) if (!before.has(file) && existsSync(join(root, file))) unlinkSync(join(root, file));
+    for (const file of files.keys()) if (!before.has(file) && cellExistsSync(join(root, file))) unlinkSync(join(root, file));
     throw error;
   } finally { rmdirSync(lock); }
 }

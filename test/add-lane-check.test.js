@@ -8,6 +8,7 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { fixture as nativeFixture } from './next-take-fixture.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import * as store from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
@@ -51,7 +52,7 @@ function fixture() {
 
 /** File an item from a directory and return the exit code and parsed error. */
 function add(box, cwd, lane, check) {
-  const result = box.run(cwd, 'add', lane, 'Lane check item', '--route', 'strong', '--specs', 'G1', '--criterion', 'It works', '--check', check, '--json');
+  const result = fixtureAdd(box.run, cwd, lane, 'Lane check item', '--route', 'strong', '--specs', 'G1', '--criterion', 'It works', '--check', check, '--json');
   return { code: result.code, doc: result.code === 0 ? JSON.parse(result.out) : JSON.parse(result.out).error };
 }
 

@@ -9,7 +9,7 @@ export function leaseTokenDigest(token) { return createHash('sha256').update(tok
 /** Consume matching native disposal inside the queue transaction, never a diagnostic-file assertion. */
 export function consumeControllerDisposition(db, owner, operation, cancellation) {
   const digest = leaseTokenDigest(owner.token);
-  const candidates = db.prepare("SELECT id,detail FROM runner_recovery_event WHERE host=? AND kind='cleanup' AND json_extract(detail,'$.leaseDigest')=?")
+  const candidates = db.prepare("SELECT id,detail FROM runner_recovery_event WHERE host=? AND kind IN ('cleanup','orphan-requeued') AND json_extract(detail,'$.leaseDigest')=?")
     .all(owner.host, digest);
   for (const row of candidates) {
     let detail;

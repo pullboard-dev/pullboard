@@ -4,6 +4,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 test.after(helpers.cleanup);
@@ -14,8 +16,8 @@ test('an inferred one-file light item moves to mid after its matched seat releas
   const box = helpers.project('true', isolated);
   const lightSeat = box.dir + '/light-seat';
   box.git(box.repo, 'worktree', 'add', '-q', lightSeat, '-b', 'web/light-seat');
-  assert.match(box.run(lightSeat, 'join', 'web', '--route', 'light').out, /joined as web-/u);
-  const itemResult = box.run(box.repo, 'add', 'web', 'Small calibration item', '--criterion', 'Update the one-file helper', '--check', 'node --test test/route-calibration.test.js', '--specs', 'G1', '--json');
+  assert.match(fixtureJoin(box.run, lightSeat, 'web', '--route', 'light').out, /joined as web-/u);
+  const itemResult = fixtureAdd(box.run, box.repo, 'web', 'Small calibration item', '--criterion', 'Update the one-file helper', '--check', 'node --test test/route-calibration.test.js', '--specs', 'G1', '--json');
   assert.equal(itemResult.code, 0, itemResult.out + itemResult.err);
   const id = JSON.parse(itemResult.out).item.item_id;
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_route, 'light');
@@ -28,7 +30,7 @@ test('an inferred one-file light item moves to mid after its matched seat releas
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_route, 'mid');
   const mid = box.dir + '/mid-seat';
   box.git(box.repo, 'worktree', 'add', '-q', mid, '-b', 'web/mid-seat');
-  assert.match(box.run(mid, 'join', 'web', '--route', 'mid').out, /joined as web-/u);
+  assert.match(fixtureJoin(box.run, mid, 'web', '--route', 'mid').out, /joined as web-/u);
   const selected = box.run(mid, 'next', '--build', '--json');
   assert.equal(selected.code, 0, selected.out + selected.err);
   assert.equal(JSON.parse(selected.out).item.item_id, id);

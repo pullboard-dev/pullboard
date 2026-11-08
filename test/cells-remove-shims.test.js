@@ -22,6 +22,7 @@ import { CONFIG } from './cells-remove-shims-read.js';
 import { readFixture } from './cells-remove-shims-read.js';
 import { git } from './cells-plan-fixture.js';
 import { inventoryBuildCount } from '../packages/codemap/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const PARSERS = { importsIn, commonJsIn };
 const TOOL = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
@@ -467,7 +468,7 @@ test('file-cut records the kept fact and shouts its cut draft on a real fixture 
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Remove private shims', '--criterion', 'Remove the shims.', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Remove private shims', '--criterion', 'Remove the shims.', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
