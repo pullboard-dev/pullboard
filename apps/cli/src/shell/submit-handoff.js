@@ -6,6 +6,7 @@ import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
+import { dropHandoffTicket } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
@@ -117,6 +118,16 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy = copyTools } = {
     if (!existsSync(shared)) throw error;
   }
   return shared;
+}
+
+/**
+ * Remove a withdrawn item's hand-off place in line, so the dispatcher never starts it; a record that was not queued or running holds none.
+ *
+ * @param {{ id: string, state: string } | null | undefined} handoff - The item's hand-off record read before the withdrawal.
+ * @returns {void}
+ */
+export function dropWithdrawnHandoffTicket(handoff) {
+  if (handoff && ['queued', 'running'].includes(handoff.state)) dropHandoffTicket(handoff.id);
 }
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */

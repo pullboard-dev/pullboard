@@ -105,7 +105,8 @@ async function recordWorkerFailure(ctx, request, directory, failure) {
       const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
         await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-          { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+          { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes,
+            ...(ctx.config.claim?.returnToBoard === true ? { returnToBoard: true } : {}) }]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
   }

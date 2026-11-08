@@ -2,10 +2,12 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { replayDeferredNotices } from './deferred-notices.js';
 import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
+import { warnMainMoved } from '../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -341,6 +343,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   config ??= policyAt(root, trunk.commit).config;
   if (!dryRun) requireParallelGateAdmission(root, config);
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
+  // A main-moved notice that failed on an earlier wake is retried first, so a seat is not left without its stale-verdict notice (#3367).
+  if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);

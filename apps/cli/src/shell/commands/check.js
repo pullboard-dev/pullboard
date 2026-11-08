@@ -1,4 +1,5 @@
 import { seatAt } from '../item-folder-identity.js';
+import { recordCheckTicks } from './submit.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
@@ -96,5 +97,6 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`timing profile: ${run.profilePath}`);
   }
   if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
+  if (run.isGreen) await recordCheckTicks(io, item.item_id);
   return run.isGreen ? 0 : 1;
 }

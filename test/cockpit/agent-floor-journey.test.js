@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-view-test journey
  * Native summary/history adapter contract plus real browser address/live-refresh/layout journey [N26,N38]. */

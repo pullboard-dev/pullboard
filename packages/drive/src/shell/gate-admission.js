@@ -82,7 +82,7 @@ export function createGateAdmission(opener) {
  * @param {{ openBoard: Function, closeBoard: Function }} opener - The native board opener.
  * @param {string} commonDir - The launching repository's common directory, the dispatcher's working directory.
  * @param {string | undefined} owner - The lease owner the launching submit took the row for.
- * @returns {{ renew: () => void, release: () => void, retake: () => boolean }}
+ * @returns {{ renew: () => void, release: () => void, withDb: <T>(work: (db: import('node:sqlite').DatabaseSync) => T) => T, retake: () => boolean }}
  */
 export function gateDispatcherRow(opener, commonDir, owner) {
   let renewedAt = 0;
@@ -99,6 +99,17 @@ export function gateDispatcherRow(opener, commonDir, owner) {
      * Take the freed row back under the same owner; false when another submit took it first and launched its own.
      * Why: the row decides who dispatches, so only one of this loop and a fresh launch drains a late ticket.
      */
+    /**
+     * Run `work` on this dispatcher's board handle. Why: the drive loop finishes gate verdicts waiting on main once
+     * their main-test jobs return, on the same board and cadence as the row it renews [C7,#3534].
+     *
+     * @template T
+     * @param {(db: import('node:sqlite').DatabaseSync) => T} work
+     * @returns {T}
+     */
+    withDb(work) {
+      return onBoard(opener, commonDir, board => work(board.db));
+    },
     retake() {
       if (!owner) return false;
       const taken = onBoard(opener, commonDir, board => takeJob(board.db, DISPATCHER_JOB, owner).taken) === true;

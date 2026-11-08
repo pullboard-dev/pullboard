@@ -35,16 +35,42 @@ function canonical(path) {
   try { return realpathSync(path); } catch { return null; }
 }
 
-/** Map each registered worktree path to its branch, from one Git launch for the whole repository. */
+/**
+ * Map each registered worktree path to its branch and commit, from one Git launch for the whole repository.
+ * @param {string} root The repository root.
+ * @returns {Map<string, string> & { commits: Map<string, string>, mainCommit: string|null }} Branch by path, with each path's commit and main's commit when main is checked out.
+ */
 function worktreeBranches(root) {
   const branches = new Map();
+  branches.commits = new Map();
+  branches.mainCommit = null;
   for (const row of git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')) {
     const fields = row.split('\0');
     const path = fields.find(field => field.startsWith('worktree '))?.slice(9);
     const head = fields.find(field => field.startsWith('branch refs/heads/'))?.slice(18);
+    const commit = fields.find(field => field.startsWith('HEAD '))?.slice(5);
+    if (head === 'main' && commit) branches.mainCommit = commit;
     if (path && head) branches.set(path, head);
+    if (path && commit) branches.commits.set(path, commit);
   }
   return branches;
+}
+
+/**
+ * Whether the item's branch has a commit main lacks and the item is neither merged nor withdrawn, so its folder is the only checkout of that work [C7].
+ * A folder whose commit is main's own commit holds nothing unlanded, so the common clean folder costs no extra Git launch.
+ * @param {string} root The repository root.
+ * @param {object} item The board item.
+ * @param {string} ref The item branch.
+ * @param {string|undefined} commit The folder's commit from the worktree list.
+ * @param {string|null} mainCommit Main's commit from the same worktree list.
+ * @returns {boolean} True when the folder must be kept.
+ */
+function holdsUnlandedWork(root, item, ref, commit, mainCommit) {
+  if (item.item_status === 'withdrawn' || item.item_merged_commit) return false;
+  if (commit && mainCommit && commit === mainCommit) return false;
+  const ahead = tryGit(root, ['rev-list', '--count', `main..${ref}`]);
+  return ahead.status !== 0 || Number(ahead.stdout) > 0;
 }
 
 /**
@@ -65,6 +91,8 @@ export function cleanItemFolders(ctx, board, me) {
     if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) continue;
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
+    const commit = branches.commits.get(path) ?? branches.commits.get(canonical(path));
+    if (holdsUnlandedWork(ctx.info.root, item, ref, commit, branches.mainCommit)) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
     if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
   }
@@ -116,8 +144,12 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const changes = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all']);
   if (changes.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
   if (!changes.stdout) {
+    // The session module loads only when a folder is adopted, keeping claim's import graph unchanged.
+    const session = await import('./cli/join.js');
+    const prior = session.endedItemFolderSession(board, me, tree.path);
     // Adopt: a move keeps the branch's commits and the folder itself, so nothing the ended seat left is lost (#3540).
     git(ctx.info.root, ['worktree', 'move', tree.path, desired]);
+    await session.adoptItemFolderSession(desired, me, prior);
     return true;
   }
   if (!holder) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has uncommitted changes and no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
@@ -154,6 +186,9 @@ export async function openItemFolder(ctx, me, id, options = {}) {
       const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
       if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
     }
+    // The folder may still be bound to an ended session of this seat path: the claimer takes it over (#3679).
+    const session = await import('./cli/join.js');
+    await session.adoptItemFolderSession(path, me, session.endedItemFolderSession(options.board, me, path));
     writeItemMarker(path, me.id, id);
     return path;
   }
