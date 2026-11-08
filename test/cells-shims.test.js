@@ -11,18 +11,32 @@ import { addItem } from '../packages/store/index.js';
 import { dispatchHealth } from '../packages/sentinels/index.js';
 import { healthReport, healthLines } from '../packages/health/index.js';
 import { defaults, configFromSource } from '../packages/config/index.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions, warmAcceptedCells } from '../packages/gate/index.js';
 import { cellLintReport, cellLintBaseline, writeCellLintBaseline, shimLifecycle } from '../packages/codemap/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureGit, privateFixtureFiles } from './fixture-child.js';
 
 const parsers = { importsIn, commonJsIn };
 
+/** Keep machine-wide cache writes in a disposable directory and restore the invoking process's setting. */
+function isolateMachine(t) {
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  const files = privateFixtureFiles('cells-shims-machine-');
+  const directory = files.root;
+  process.env.PULLBOARD_MACHINE_HOME = directory;
+  t.after(() => {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
+    rmSync(directory, { recursive: true, force: true });
+  });
+}
+
 /** Build committed native plan policy with a real falling baseline and a distinct candidate branch. */
 function fixture(t) {
+  isolateMachine(t);
   const box = planFixture(t);
   box.root = realpathSync(box.root);
   box.put('package.json', JSON.stringify({ type: 'module', bin: 'src/cli.js' }));
@@ -39,6 +53,7 @@ function fixture(t) {
 
 /** Commit the candidate, then inspect it with the exact native submit guard; counts come from main and the candidate. */
 async function inspect(box) {
+  await warmAcceptedCells(box.root, box.main, { withCheckout: withMainCheckout, withLock: withFileLock });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'candidate shim source');
   const commit = git(box.root, 'rev-parse', 'HEAD').trim();
