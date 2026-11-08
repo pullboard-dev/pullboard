@@ -156,6 +156,7 @@ export async function nextOnce(ctx, values) {
     // A folder another live session holds would refuse after the claim, and the same item would be picked again on
     // every next; the caller leaves it out and selects the next eligible item, while an explicit claim still refuses (#3688).
     const live = await liveFolderRefusal(target, board, holder, item.item_id);
+    process.stderr.write(`DBGLIVE ${item.item_id} ${live?.code}\n`);
     if (live) return { retry: true, skipItem: item.item_id,
       retryDetail: { phase: 'claim', item: item.item_id, code: live.code, message: live.message } };
     try {
