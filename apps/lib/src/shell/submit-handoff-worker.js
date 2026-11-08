@@ -266,7 +266,8 @@ async function settledWithin(running, ms) {
  *
  * @param {string} requestFile - The hand-off's captured request.json.
  * @param {{ nativeBoard: any, owner: string }} options - The board module, and the driver id the dispatcher admitted.
- * @returns {Promise<void>}
+ * @returns {Promise<'stopped' | 'settled' | undefined>} 'stopped' when a stop signal ended the driver, whose handler
+ *   frees the lease and exits the process; otherwise the gate's work here is done and the process may exit (#3108).
  */
 export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   if (typeof owner !== 'string' || !owner) throw new Refused('DRIVE_OWNER', 'a gate driver needs the owner the dispatcher admitted it under');
@@ -343,11 +344,12 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     withBoard(ctx, board => finishJob(board.db, drive, owner));
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
-    if (stopper.signal.aborted) return;
+    if (stopper.signal.aborted) return 'stopped';
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }
+  return stopper.signal.aborted ? 'stopped' : 'settled';
 }
