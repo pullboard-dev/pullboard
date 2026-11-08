@@ -5,8 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { fixtureAdd } from './testkit-fixture.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { fixtureAdd, withFixtureBoard } from './testkit-fixture.js';
 import { createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
 import { runGateStages } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -35,8 +34,7 @@ function candidateRepo() {
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 async function withBoard(body) {
   const files = privateFixtureFiles('pullboard-stall-board-');
-  const board = openBoard(join(files.root, 'board.sqlite'));
-  try { return await body(board.db); } finally { closeBoard(board); }
+  return withFixtureBoard(join(files.root, 'board.sqlite'), board => body(board.db));
 }
 
 /**
@@ -175,8 +173,7 @@ test('clause 3: the production sentinel loop shouts Stuck naming the item and jo
   const hung = gateDriveJobId('7a1b2c3d-0000-4000-8000-0000000000aa');
   const fresh = gateDriveJobId('7a1b2c3d-0000-4000-8000-0000000000bb');
   // @pullboard-board-file journey: write two live gate-drive rows as a renewing driver leaves them.
-  const board = openBoard(boardFile);
-  try {
+  withFixtureBoard(boardFile, board => {
     const now = Date.now();
     for (const [job, lastAt] of [[hung, now - 25 * 60_000], [fresh, now - 60_000]]) {
       createJob(board.db, { id: job, kind: GATE_DRIVE_KIND, item: id, now: lastAt });
@@ -184,14 +181,12 @@ test('clause 3: the production sentinel loop shouts Stuck naming the item and jo
       writeStep(board.db, job, 'section.done', { section: 'selection', index: 1, outcome: 'pass', code: null }, { now: lastAt });
       assert.equal(takeJob(board.db, job, 'driver-hung', { now }).taken, true, 'the driver holds a live, renewed lease');
     }
-  } finally { closeBoard(board); }
+  });
 
   /** The Stuck shouts the sentinel recorded for a gate drive. */
   const stuckShouts = () => {
     // @pullboard-board-file journey: read the shouts the sentinel recorded.
-    const after = openBoard(boardFile);
-    try { return after.db.prepare("SELECT shout_text, shout_to FROM shout WHERE shout_text LIKE 'Stuck:%GATE_DRIVE_STALLED%'").all(); }
-    finally { closeBoard(after); }
+    return withFixtureBoard(boardFile, after => after.db.prepare("SELECT shout_text, shout_to FROM shout WHERE shout_text LIKE 'Stuck:%GATE_DRIVE_STALLED%'").all());
   };
   // A scan that a concurrent board write made stale records nothing and the next scheduled run records it, so allow three.
   let shouts = [];
