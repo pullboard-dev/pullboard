@@ -7,6 +7,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -59,11 +60,10 @@ function realNodeMainProject() {
 function realNodeItem(box, number, red, later) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Real Node landing fixture ${number}`, '--specs', 'G1',
-    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node ${RUNNER} ${MAIN_RED} ${LATER_FILE}`, '--json');
-  assert.equal(added.code, 0, added.err);
-  const entry = { path, item: JSON.parse(added.out).item.item_id, file: MAIN_RED };
+  assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
+  const added = fileFixtureItem(box, box.repo, { lane: 'web', title: `Real Node landing fixture ${number}`, args: ['--specs', 'G1'],
+    criterion: `real selected Node tests ${number} pass their frozen check`, check: `node ${RUNNER} ${MAIN_RED} ${LATER_FILE}` });
+  const entry = { path, item: added.item_id, file: MAIN_RED };
   assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
   writeFileSync(join(entry.path, LATER_FILE), later);
   box.env.LAND_SUPPRESS_RED = '1';
@@ -100,7 +100,7 @@ test('an exact-main failure is fully collected with later selected work before l
   assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.batch));
   assert.ok(landed.merged, 'the batch landed');
   assert.ok(readFileSync(marker, 'utf8'), 'the later selected test body ran');
-  assert.deepEqual(landed.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
+  assert.deepEqual((landed.batch.proof?.knownMain ?? landed.batch.knownMain ?? []).map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']], JSON.stringify({ proof: landed.batch.proof, knownMain: landed.batch.knownMain }).slice(0, 1500));
 
   const blockedProject = realNodeMainProject();
   const newRed = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('new-batch-red', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('new red'); });\n";
