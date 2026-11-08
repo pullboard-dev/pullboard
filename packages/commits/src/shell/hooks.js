@@ -870,14 +870,21 @@ function trunkMergeResolution(root, preMergeHook) {
   return () => {
     const fromTrunk = new Set(names(heads[0]));
     const blob = (spec) => {
-      try { return git(root, ['cat-file', 'blob', spec], { maxBuffer: MAX_SECRET_DIFF_BYTES }); }
+      try { return git(root, ['cat-file', 'blob', spec], { maxBuffer: 32 * MAX_SECRET_DIFF_BYTES }); }
       catch (error) { if (error.code === 'ENOBUFS') throw error; return ''; } // no such blob: the path is new on that side
     };
+    let bytes = 0;
     return names('HEAD').filter((path) => fromTrunk.has(path)).flatMap((path) => {
       const known = new Set([...blob('HEAD:' + path).split('\n'), ...blob(heads[0] + ':' + path).split('\n')]);
       return blob(':' + path).split('\n')
         .map((text, index) => ({ path, line: index + 1, text }))
-        .filter((entry) => !known.has(entry.text));
+        .filter((entry) => !known.has(entry.text))
+        .map((entry) => {
+          bytes += entry.text.length + 1;
+          // The resolution is bounded like any other scanned diff.
+          if (bytes > MAX_SECRET_DIFF_BYTES) throw Object.assign(new Error('resolution exceeds the scan limit'), { code: 'ENOBUFS' });
+          return entry;
+        });
     });
   };
 }
