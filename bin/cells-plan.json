@@ -1728,6 +1728,14 @@
     {
       "path": "bin/checks/cells-edges.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/sync-spawn-in-leases.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/245.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -3443,5 +3451,26 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "activity->store",
+    "api->store",
+    "apps/lib->store",
+    "blueprints->store",
+    "doctrine->store",
+    "gate->store",
+    "github->store",
+    "items->store",
+    "keys->store",
+    "landing->store",
+    "link->store",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "sentinels->store",
+    "state->store",
+    "stats->store",
+    "sync->store"
   ]
 }
