@@ -870,7 +870,8 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
   }
 });
 
-test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows', () => {
+/** @pullboard-world-pin: clause 2 reads docs/formats.md itself to prove it states the job tables export rule. */
+test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows [A5,A10]', () => {
   const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
   assert.match(guide, /The `job` and `job_step` tables are part of a board export only while they hold rows/);
   assert.match(guide, /an import treats a missing `job` or `job_step` table as empty/);
