@@ -89,7 +89,7 @@ async function observe(predicate, description, budgetMs = 10_000) {
   }
 }
 
-test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
+test('clause 1: a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
   // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
   // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
   const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
@@ -150,7 +150,7 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
   }
 });
 
-test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
+test('clause 1: a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
   const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -204,7 +204,7 @@ test('the public runner deadline setting has a five-minute default and rejects u
   }
 });
 
-test('an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
+test('clause 1: an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
   const box = fixture({ runnerWaitMs: 5_000, dropFirst: false });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -319,7 +319,7 @@ function lateDispatchDiagnostics(box) {
   console.error('late private gate state:', { holders: pool?.holders.length, waiters: pool?.line.length });
 }
 
-test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
+test('clause 1: a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
   const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
   const box = fixture({ runnerWaitMs, dropFirst: false });
   const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
