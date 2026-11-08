@@ -96,3 +96,14 @@ test('clause 2: only after the 30 minute window the gate stops as infrastructure
   assert.equal(failures.at(-2).waitedSeconds, 150);
   assert.equal(failures.at(-1).waitedSeconds, 0, 'the stop comes only once the whole window has passed');
 });
+
+test('clause 2: a spent 30 minute window ends the queued submit at once with one stop, never three more reruns [C7]', async () => {
+  const { submitUntilSettled } = await import('../../../apps/lib/index.js');
+  let runs = 0;
+  const spent = Object.assign(new Error('runner-first check has no available runner (a, b): runners a, b all stopped on infrastructure through the 30-minute retry window'),
+    { code: 'RUNNER_UNAVAILABLE', infrastructureWindowSpent: true });
+  await assert.rejects(
+    submitUntilSettled(async () => { runs += 1; throw spent; }, { healthy: async () => true, wait: async () => {}, say() {} }),
+    error => error.code === 'GATE_INFRA_EXHAUSTED' && error.windowSpent === true);
+  assert.equal(runs, 1, 'the window was the retry; the submit does not start again');
+});

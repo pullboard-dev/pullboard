@@ -171,6 +171,8 @@ export async function withGateSlot(root, action, options = {}) {
       const hosts = [...new Set(attempts.flatMap(attempt => [attempt.runner, ...(attempt.runners ?? []).map(runner => runner.host)]).filter(Boolean))];
       const refused = new Refused('RUNNER_UNAVAILABLE', `runner-first check has no available runner (${hosts.join(', ') || 'none admitted'}): ${error.message}`);
       refused.infrastructureAttempts = attempts;
+      // The 30 minute window is spent: the queued gate must stop at once, never rerun the whole submit (#3365).
+      if (error.code === 'RUNNER_INFRA_RETRY_EXHAUSTED') refused.infrastructureWindowSpent = true;
       throw refused;
     }
     if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser

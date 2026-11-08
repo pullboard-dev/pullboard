@@ -165,7 +165,7 @@ export function handoffGreenResult(ctx, lockWaits) {
  * @param {any} error - The gate's refusal.
  */
 export function handoffRefusedResult(error) {
-  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) };
+  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}), ...(error?.windowSpent === true ? { windowSpent: true } : {}) };
 }
 
 /**

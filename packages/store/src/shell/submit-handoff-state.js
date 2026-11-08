@@ -237,7 +237,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
       // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
-      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE) return recordInfrastructureStop(board, id, job, result.error);
+      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE) return recordInfrastructureStop(board, id, job, result.error, result.windowSpent === true);
       insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
       return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
@@ -325,11 +325,14 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
 }
 
 /** Persist one infrastructure stop and notify the coordinator once only after the two automatic retries [C7]. */
-function recordInfrastructureStop(board, id, job, error) {
-  const exhausted = (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
+function recordInfrastructureStop(board, id, job, error, windowSpent = false) {
+  const exhausted = windowSpent || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
   if (exhausted && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+    text: windowSpent
+      ? `Queued gate #${id} stopped on infrastructure after the 30-minute runner retry window (${error.code}) at ${String(job.commit).slice(0, 12)}: ${String(error.message ?? '').slice(0, 300)}. Restore the runner and requeue the captured candidate. No builder red.`
+      : `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
   return record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board),
+    ...(windowSpent ? { infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT } : {}),
     ...(exhausted ? { infrastructureNotified: true } : {}) });
 }
 
