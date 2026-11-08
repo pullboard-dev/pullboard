@@ -331,6 +331,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   const healthyHosts = new Set();
+  // The host of the previous infrastructure stop: a healthy host failing twice in a row is a receipt fault; coming back to it after the others failed is rotation (#3365).
+  let previousStopHost = null;
   try {
     while (true) {
       lease.source = source;
@@ -397,7 +399,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         const health = cleanup || admissionDeadline || setup ? null : await probeRunnerTransport(lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
-        if (health?.healthy && healthyHosts.has(lease.runner.host)) {
+        const repeatedStop = previousStopHost === lease.runner.host;
+        previousStopHost = lease.runner.host;
+        if (health?.healthy && healthyHosts.has(lease.runner.host) && repeatedStop) {
           const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
           refused.runnerDiagnostic = diagnostic;
           throw refused;
