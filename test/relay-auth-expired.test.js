@@ -219,7 +219,7 @@ test('moves stay local while the machine credential expires, then replay after s
   assert.equal(locallyRecorded.event.filter(event => event.item_id === queuedId && event.event_kind === 'add').length, 1,
     'the local add is durable exactly once while machine authorization is unavailable');
   const next = await box.cliAt(agentRoot, 'next', '--build');
-  assert.equal(next.code, 0, next.failure ?? 'next queues its claim locally while the sender cannot authenticate');
+  assert.equal(next.code, 0, JSON.stringify(next.document?.error ?? next.document) + ' ' + (next.failure ?? 'next queues its claim locally while the sender cannot authenticate'));
   const claimId = next.document.item.item_id;
   const pending = await box.cli('status');
   assert.equal(pending.code, 0);
