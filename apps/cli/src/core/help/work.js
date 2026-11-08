@@ -20,6 +20,9 @@ export const workHelp = `Work
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
+                [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--sensitive]           select Strict review; edit can set it while open
+                [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
@@ -33,7 +36,7 @@ export const workHelp = `Work
                 [--agent-light "..."] [--agent-mid "..."] [--agent-strong "..."]   a command per tier
   pullboard run --scale --lane <lane> --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
-                                        within pullboard settings workers.budget seat-hours; idle seats stop first
+                                        within pullboard settings workers.budget spend per day; idle seats stop first
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
@@ -98,7 +101,9 @@ export const workHelp = `Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard test <files>                run named test files on the runner pool with the per-file timeout, uncommitted
                                         changes included; a red file is compared with main and named known or new
+                                        one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
+                                        with no runner registered it starts here only under one load per core, and says so
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -114,6 +119,7 @@ export const workHelp = `Work
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
+                                        --precheck: run cheap submit checks only, without cells or gate
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show

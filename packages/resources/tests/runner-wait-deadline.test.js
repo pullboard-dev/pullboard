@@ -49,7 +49,7 @@ after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
 /** Build the real loopback SSH transport in an isolated machine, with a short private deadline. */
-function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false } = {}) {
+function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false, transportDown = healthDown } = {}) {
   const box = e2e.project('true');
   const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
   for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
@@ -63,7 +63,7 @@ cp.spawnSync=function(command,...args){ if(command!=='/bin/launchctl') return or
   return {status:113,signal:null,stderr:'Could not find domain for fixture\\n'}; };
 require('node:module').syncBuiltinESMExports();\n`);
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, workerHealthDown: healthDown, stderrLog,
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown: transportDown, workerHealthDown: healthDown, stderrLog,
     registrationNodeOptions: `--require=${noDesktop}` });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');
@@ -71,23 +71,28 @@ require('node:module').syncBuiltinESMExports();\n`);
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
   writeFileSync(settingsFile, JSON.stringify({ ...settings, gateSlots: 1, browserSlots: 1,
-    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false } }));
+    // Pinned off: the default load-aware dispatch (4a04010085) reads the busy test machine through the stand-in and can refuse the fixture runner.
+    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false, loadAwareDispatch: false } }));
   return { ...box, requests, starts, stderrLog, settingsFile };
 }
 
-/** Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override. */
-async function observe(predicate, description) {
-  const until = Date.now() + 10_000; // budget: private Git and SSH startup; no production deadline extension.
+/**
+ * Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override.
+ * An infrastructure requeue renews the runner deadline by design (#1953), so a phase that follows one passes
+ * a budget covering the admission deadline plus the renewed one.
+ */
+async function observe(predicate, description, budgetMs = 10_000) {
+  const until = Date.now() + budgetMs; // budget: private Git and SSH startup; no production deadline extension.
   while (!predicate()) {
     if (Date.now() >= until) throw new Error('fixture did not reach ' + description);
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 }
 
-test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
+test('clause 1: a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
   // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
   // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
-  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
+  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -145,8 +150,9 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
   }
 });
 
-test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
-  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
+test('clause 1: a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
+  // A runner that never answers fails its SSH and Node confirming probe too; only that failure quarantines it (#3738).
+  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, transportDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -157,7 +163,7 @@ test('a registered runner that never answers is canceled at the deadline and the
     pending = runThroughGate(box.repo, box.env, 'node -e "console.log(\'STALLED_RUN_LOCAL\')"', { item: 'stalled-case', requests: box.requests });
     await observe(() => existsSync(box.starts), 'the non-answering SSH stand-in actually starting');
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
-    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket');
+    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket', 3 * STAND_IN_BOOT_BUDGET_MS + 10_000); // budget: the admission deadline, then the renewed deadline after the worker-unresponsive requeue (#1953).
     const waiting = queue().line.find(row => row.item === 'stalled-case');
     assert.match(waiting.runnerDeadline.branch, /local gate slots busy/u);
     assert.match(waiting.runnerDeadline.runners[0].reason, /unreachable/u);
@@ -199,7 +205,7 @@ test('the public runner deadline setting has a five-minute default and rejects u
   }
 });
 
-test('an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
+test('clause 1: an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
   const box = fixture({ runnerWaitMs: 5_000, dropFirst: false });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -314,7 +320,7 @@ function lateDispatchDiagnostics(box) {
   console.error('late private gate state:', { holders: pool?.holders.length, waiters: pool?.line.length });
 }
 
-test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
+test('clause 1: a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
   const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
   const box = fixture({ runnerWaitMs, dropFirst: false });
   const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));

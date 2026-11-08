@@ -15,9 +15,16 @@ export function holdingTestSeats(db) {
     .map(holder => JSON.stringify([holder.repo, holder.agent])));
 }
 
+const repoRoots = new Map(); // A take asks Git once per directory per process, not once per take [C7,#3084].
+
 /** Resolve the ordinary resource repository without making a non-Git caller an admission failure. */
 export function repoRoot(root) {
-  try { return repoInfo(root).root; } catch { return ''; }
+  if (!repoRoots.has(root)) {
+    let found = '';
+    try { found = repoInfo(root).root; } catch { /* A non-Git caller holds a lease with no repository. */ }
+    repoRoots.set(root, found);
+  }
+  return repoRoots.get(root);
 }
 
 /**

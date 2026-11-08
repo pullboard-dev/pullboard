@@ -141,6 +141,8 @@ export {
   pipelineLimit,
   pipelineStats,
   pipelineLines,
+  pipelinePerHour,
+  pipelinePerHourLines,
 } from './src/core/stats-pipeline.js';
 export {
   moveTranscripts,
