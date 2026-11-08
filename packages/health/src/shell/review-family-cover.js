@@ -91,20 +91,22 @@ export function reviewFamilyBuildPause(info, board, config, seat) {
 }
 
 /**
- * Raise one Stuck shout to the coordinator naming the waiting reviews and the missing reviewer family. Builds never wait
- * on review cover: this shout is how the backlog reaches whoever wakes or adds reviewers. An unchanged backlog is not
- * shouted again; the newest such shout is compared by text [#3792].
+ * Raise one Stuck shout to the coordinator and the person naming how many green items wait for review and the missing
+ * reviewer family. Builds never wait on review cover: this shout is how the backlog reaches whoever wakes or adds reviewers.
+ * It repeats only when the waiting count grows past the newest earlier shout [#3792].
  */
 export async function shoutReviewCoverStuck(ctx, board, ordered, seat) {
   const backlog = reviewFamilyBacklog(ctx.info, board, ctx.config, seat);
   if (!backlog) return false;
-  const ids = backlog.own.map(row => row.item.item_id).sort((a, b) => a - b);
-  const named = ids.slice(0, 8).map(id => `#${id}`).join(' ') + (ids.length > 8 ? ` +${ids.length - 8} more` : '');
+  const count = backlog.own.length;
   const missing = [...new Set(backlog.own.flatMap(row => row.neededFamilies))].join(', ') || 'another family';
-  const text = `Stuck: review cover. ${backlog.family} has ${ids.length} green reviews waiting (${named}) and no live or wakeable ${missing} reviewer. Wake or add one; builds continue.`;
   const last = board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE 'Stuck: review cover.%' ORDER BY shout_id DESC LIMIT 1").get();
-  if (last?.shout_text === text) return false;
-  try { await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [], text }]); } catch (error) {
+  const before = Number(/ has (\d+) green items/u.exec(last?.shout_text ?? '')?.[1] ?? 0);
+  if (count <= before) return false;
+  const text = `Stuck: review cover. ${backlog.family} has ${count} green items waiting for review and no live or wakeable ${missing} reviewer. Wake or add one; builds continue.`;
+  try {
+    for (const to of ['coordinator', 'person']) await ordered(ctx, board, 'shout', [{ from: 'sentinel', to, lanes: [], text }]);
+  } catch (error) {
     // A refused shout must never stop the build line it only reports on.
     if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
     return false;
