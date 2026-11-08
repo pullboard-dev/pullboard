@@ -34,28 +34,3 @@ export function ordinaryRunShards({ files, freeSlots, times = {}, root = null, l
   if (landing || shard || insideRunnerSlot) return [{ files: [...files], weight: files.length }];
   return planRunShards(files, freeSlots, times, root);
 }
-
-/**
- * Run an ordinary test run as shards on the runner slots free after landings, and say whether it did.
- * Why here: bin/run-tests.js stays one call and the gate, kernel and runner pieces arrive as parameters, so this cell
- * takes no new cross-cell import; a run inside a runner slot, with PULLBOARD_RUN_SHARDS=0, with one file or with fewer
- * than two free slots returns false and runs as it always did [C7].
- *
- * @param {object} run - The run-tests context plus the gate, kernel and runner functions it hands over.
- * @returns {Promise<boolean>} True when the shards ran and set the exit code.
- */
-export async function runOrdinaryShards({ root, runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot, gate, parseProcessCensus, browserBoundFiles, readFileTimes, narrowsSelection, optionTakesValue, knownNodeOption, explicitTestFiles }) {
-  if (process.env.PULLBOARD_RUN_SHARDS === '0' || (scopedMarker && inheritedGateSlot({ root, browser })?.runnerExecution === true)) return false;
-  const files = actions.files ?? (fullSuite ? (gate.isGitWorkTree(root, process.env) ? gate.trackedDefaultTestFiles(root, process.env) : []) : explicitTestFiles(args));
-  const plan = files.length < 2 ? [] : ordinaryRunShards({ files, freeSlots: gate.freeRunnerSlots(), times: readFileTimes(root), root });
-  if (plan.length < 2) return false;
-  const bound = new Set(await browserBoundFiles(root, files));
-  const { runLandingShards } = await import('./landing-shards.js');
-  const result = await runLandingShards({ root, runner, files, count: plan.length, inherited: null, parseProcessCensus, timing, runnerAdmission: { ...runnerAdmission, runnerOnly },
-    fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue),
-    args: (gate.nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), gate.landingShardOptions(actions.args, optionTakesValue)),
-    needsBrowser: async shardFiles => shardFiles.some(file => bound.has(file)) });
-  timing.sharded(result, files);
-  process.exitCode = result.isGreen ? 0 : 1;
-  return true;
-}
