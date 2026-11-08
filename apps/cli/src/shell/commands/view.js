@@ -140,7 +140,7 @@ export async function viewHere(io, values) {
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
     view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
-    const sentinel = startServeSentinel({ projectRoot });
+    const sentinel = startServeSentinel({ projectRoot, recover: async root => (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)) });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;
     view = {

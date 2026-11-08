@@ -4,7 +4,7 @@ import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 
 const STAGES = ['claim', 'submit', 'reviewWait', 'review', 'landing'];
-const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'other', 'unknown'];
+const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'host-busy', 'other', 'unknown'];
 
 /** Validate the public last-N selector before any history is read. */
 export function pipelineLimit(value = 20) {
@@ -24,6 +24,7 @@ function causeOf(kind, detail) {
   if (value.startsWith('conflict:')) return 'conflict';
   const known = { RUNNER_WAIT_DEADLINE: 'runner-wait',
     FLAKE: 'flake', MAIN_RED: 'main-red', CRITERIA_CHANGED: 'bar-change',
+    BOARD_BUSY: 'host-busy', GIT_READ_INFRASTRUCTURE: 'host-busy', DATABASE_LOCKED: 'host-busy',
     'runner wait': 'runner-wait', 'bar change': 'bar-change', 'main red': 'main-red', 'companion wait': 'companion-wait' };
   return CAUSES.includes(value) ? value : known[value] ?? 'unknown';
 }
