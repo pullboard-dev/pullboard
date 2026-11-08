@@ -40,7 +40,7 @@ function fixture(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('node --test --test-reporter=tap');
   delete box.env.NODE_TEST_CONTEXT; // Each private Node test runner is independent of this parent test.
-  const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap',
+  const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: "sh -c 'echo CTXDBG=$NODE_TEST_CONTEXT pid=$$ >&2; exec node --test --test-reporter=tap \"$@\"' sh",
     submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { perItem: false, manualOverride: true, publish: 'separate', parallel: false },
     lanes: { ...helpers.CONFIG.lanes, web: { owns: ['packages/', 'test/'], specs: ['G1'] } } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
