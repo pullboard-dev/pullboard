@@ -4,19 +4,19 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { moveTrunkRef } from '../packages/landing/src/shell/landing-step-publish.js';
 
+/** The model name every landing fixture seat reports. */
+const FIXTURE_MODEL = 'landing-fixture';
 const e2e = createE2eHelpers();
 const scratch = [];
 after(() => {
@@ -54,7 +54,7 @@ function landOnce(box, itemId) {
 
 test('clause 1: a landing moves the trunk ref to the batch tip with an untracked file in the primary checkout, which survives [C7]', () => {
   const box = landProject({ withWorktree: false });
-  box.env.PULLBOARD_MODEL = 'landing-fixture';
+  box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
@@ -81,7 +81,7 @@ function sh(cwd, ...args) {
 }
 
 test('clause 2: a trunk ref that moved before the finish records the batch blocked with LAND_MAIN_MOVED naming both commits and never says fast-forwarded [C7]', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'finish-moved-'));
+  const dir = privateFixtureFiles('finish-moved-').root;
   scratch.push(dir);
   sh(dir, 'init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'a.txt'), 'a\n');
