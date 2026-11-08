@@ -76,28 +76,85 @@ function holdsUnlandedWork(root, item, ref, commit, mainCommit) {
 }
 
 /**
+ * Whether the seat's folder for an item is idle: clean down to ignored files, on the seat's own item branch, with nothing unlanded [C7].
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string, lane: string }} me the seat
+ * @param {string} root the seat checkout
+ * @param {number} id the item the folder was made for
+ * @param {() => ReturnType<typeof worktreeBranches>} registry The lazy worktree list shared by one pass.
+ * @returns {{ item: object, path: string, ref: string }|null} The idle folder, or null when it must be kept in place.
+ */
+function idleFolder(ctx, board, me, root, id, registry) {
+  let item;
+  try { item = getItem(board, id); } catch { return null; }
+  if (!item || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') return null;
+  const path = itemFolderPath(root, id), ref = branch(me.lane, id);
+  const branches = registry();
+  if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) return null;
+  const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
+  if (status.status !== 0 || status.stdout) return null;
+  const commit = branches.commits.get(path) ?? branches.commits.get(canonical(path));
+  if (holdsUnlandedWork(ctx.info.root, item, ref, commit, branches.mainCommit)) return null;
+  return { item, path, ref };
+}
+
+/**
  * Remove only clean worktrees with the exact seat path and item branch we created.
  * The seat is resolved once and only this seat's existing folders are read, so a board with
  * thousands of items costs one directory listing, one worktree list and one status per folder.
+ * With `spare`, the first idle folder is kept so the seat's next claim switches it to that item instead of creating a worktree [C7].
  */
-export function cleanItemFolders(ctx, board, me) {
+export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
   if (me.id === 'coordinator') return;
   const root = seatRoot(ctx, board, me);
   let branches = null;
+  const registry = () => (branches ??= worktreeBranches(ctx.info.root));
+  let spared = !spare;
   for (const id of seatFolderIds(root)) {
-    let item;
-    try { item = getItem(board, id); } catch { continue; }
-    if (!item || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') continue;
-    const path = itemFolderPath(root, id), ref = branch(me.lane, id);
-    branches ??= worktreeBranches(ctx.info.root);
-    if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) continue;
-    const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
-    if (status.status !== 0 || status.stdout) continue;
-    const commit = branches.commits.get(path) ?? branches.commits.get(canonical(path));
-    if (holdsUnlandedWork(ctx.info.root, item, ref, commit, branches.mainCommit)) continue;
-    git(ctx.info.root, ['worktree', 'remove', path]);
-    if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
+    const idle = idleFolder(ctx, board, me, root, id, registry);
+    if (!idle) continue;
+    if (!spared) { spared = true; continue; }
+    git(ctx.info.root, ['worktree', 'remove', idle.path]);
+    if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
   }
+}
+
+/**
+ * Switch this seat's own idle item folder to the new item instead of creating a worktree [C7].
+ * Why: a worktree per claim wrote every tracked file again and left the folders to be deleted later; a move and a branch
+ * switch rewrite only the files that differ. A dirty folder, one with unlanded work, or one a live session holds is never touched.
+ *
+ * @param {any} ctx
+ * @param {{ id: string, lane: string }} me the claiming seat
+ * @param {number} id the new item
+ * @param {string} desired the new item's folder path
+ * @param {string} ref the new item's branch
+ * @param {boolean} exists whether the branch already exists
+ * @param {{ board?: any }} options
+ * @returns {Promise<boolean>} true when an idle folder was moved to `desired` and switched to `ref`
+ */
+async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
+  if (!board) return false;
+  const root = seatRoot(ctx, board, me);
+  let branches = null;
+  const registry = () => (branches ??= worktreeBranches(ctx.info.root));
+  for (const old of seatFolderIds(root)) {
+    if (old === id) continue;
+    const idle = idleFolder(ctx, board, me, root, old, registry);
+    if (!idle) continue;
+    const session = await import('./cli/join.js');
+    let prior;
+    try { prior = session.endedItemFolderSession(board, me, idle.path); }
+    catch (error) { if (error instanceof Refused) continue; throw error; }
+    git(ctx.info.root, ['worktree', 'move', idle.path, desired]);
+    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, 'main']); }
+    catch (error) { git(ctx.info.root, ['worktree', 'move', desired, idle.path]); throw error; }
+    if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
+    await session.adoptItemFolderSession(desired, me, prior);
+    return true;
+  }
+  return false;
 }
 
 /** Locate the exact branch checkout from Git's NUL-delimited registry, including spaced paths. */
@@ -230,6 +287,10 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   if (!main) throw new Error('cannot locate the primary checkout for the item folder');
   const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
   if (exists && await recoverPriorFolder(ctx, me, id, path, ref, options)) {
+    writeItemMarker(path, me.id, id);
+    return path;
+  }
+  if (await reuseIdleFolder(ctx, me, id, path, ref, exists, options)) {
     writeItemMarker(path, me.id, id);
     return path;
   }

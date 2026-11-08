@@ -333,7 +333,7 @@ export function nextFor(board, options) {
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       skip(entry, 'FOREIGN_DEPENDENCY');
@@ -351,9 +351,8 @@ export function nextFor(board, options) {
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
   for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
     if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
-    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons.filter(line => !collisions.includes(line)), ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
   }
-  for (const { collisions } of overlapping) reasons.push(...collisions);
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
