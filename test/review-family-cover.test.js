@@ -155,8 +155,10 @@ test('clause 1: the coordinator hears about an item-conflicted review once, not 
   const ordered = async (_ctx, board, operation, args) => store[operation](board, ...args);
   assert.deepEqual(await shoutConflictedReviews(ctx, box.board, ordered), box.refused);
   assert.deepEqual(await shoutConflictedReviews(ctx, box.board, ordered), []);
-  const heard = box.board.db.prepare("SELECT COUNT(*) AS n FROM shout WHERE shout_to='coordinator' AND shout_text LIKE ?").get(`#${box.refused[0]} is green%`).n;
-  assert.equal(heard, 1);
+  const all = box.board.db.prepare('SELECT shout_from, shout_to, shout_text FROM shout').all();
+  const heard = all.filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith(`#${box.refused[0]} is green`)).length;
+  assert.equal(heard, 1, JSON.stringify(all));
+
 });
 
 test('clause 2: the NOTHING_FREE refusal names the cover pause in its first reason line, before held and waiting counts [C7,#3741]', async t => {
