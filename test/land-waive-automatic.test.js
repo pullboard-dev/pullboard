@@ -6,9 +6,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
 import { heldTestDefects } from '../packages/landing/src/shell/landing-step-selection.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
 import { landingPorts } from './landing-ports-fixture.js';
 
 const helpers = createE2eHelpers();
@@ -40,7 +40,7 @@ function heldProject() {
 
 /** Read the held defects the real landing step computes for the current trunk. */
 function held(box) {
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git/pullboard/board.sqlite'), web: box.repo });
   try {
     return heldTestDefects(box.repo, board, { branch: 'refs/heads/main', commit: box.git(box.repo, 'rev-parse', 'HEAD') }, landingPorts);
   } finally { store.closeBoard(board); }
@@ -48,7 +48,7 @@ function held(box) {
 
 /** File the defect the automatic lander would file for the held test. */
 function fileDefect(box) {
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git/pullboard/board.sqlite'), web: box.repo });
   try {
     store.recordLandingTestDefect(board, { agentId: 'coordinator', test: HELD,
       hash: createHash('sha256').update(readFileSync(join(box.repo, HELD))).digest('hex'),
@@ -57,7 +57,7 @@ function fileDefect(box) {
   } finally { store.closeBoard(board); }
 }
 
-test('clause 1: land --waive records the signed person waiver while the board owns landing, and plain land still refuses BOARD_LANDS_ACCEPTED', () => {
+test('clause 1: land --waive records the signed person waiver while the board owns landing, and plain land still refuses BOARD_LANDS_ACCEPTED [C7]', () => {
   const box = heldProject();
   const plain = command(box, 'land');
   assert.equal(plain.document?.error?.code, 'BOARD_LANDS_ACCEPTED', plain.out + plain.err);
@@ -68,7 +68,7 @@ test('clause 1: land --waive records the signed person waiver while the board ow
   assert.equal(command(box, 'land').document?.error?.code, 'BOARD_LANDS_ACCEPTED', 'a waiver does not open plain landing');
 });
 
-test('clause 2: after the waiver the held defect no longer holds the trunk in the landing step', () => {
+test('clause 2: after the waiver the held defect no longer holds the trunk in the landing step [C7]', () => {
   const box = heldProject();
   fileDefect(box);
   assert.deepEqual(held(box).map(defect => defect.test), [HELD], 'the unwaived defect holds the trunk');
