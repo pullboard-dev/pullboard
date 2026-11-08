@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 import './dashboard-render.test.js';
 import './dashboard-runtime.test.js';
