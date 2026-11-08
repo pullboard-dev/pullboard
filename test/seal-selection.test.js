@@ -194,7 +194,7 @@ test('clause 1: with no affected-tests runner configured, the bar-named files st
   const plan = submitGatePlan(root, config, { base: first, crossRunTests });
   assert.equal(plan.testTiers, null, 'the fixture has no tier plan');
   assert.deepEqual(plan.proofFiles, [ALONE_TEST, 'test/journey.test.js'], `the proof selection names both: ${plan.proofFiles}`);
-  assert.equal(plan.proofCommand, `node --test ./${ALONE_TEST} ./test/journey.test.js`);
+  assert.equal(plan.proofCommand, `node --test './${ALONE_TEST}' './test/journey.test.js'`, 'Node runs the named files');
   const proof = await runSubmitGate(root, config, { base: first, check: plan.check, plan, crossRunTests, staticChecked: true, executionServices });
   assert.ok(proof.isGreen, `the named files ran green: ${proof.output}`);
   assert.ok(proof.files.includes(ALONE_TEST) && proof.files.includes('test/journey.test.js'), `the recorded proof names both files: ${JSON.stringify(proof.files)}`);
