@@ -1,22 +1,22 @@
 /** The dirty-warning observer covers apps/lib/src shipped runtime on a controlled clock [O5,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { observeDirtyRunnerTooling } from '../packages/runners/index.js';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 test('a dirty apps/lib/src edit warns and an unrelated path does not [O5,C7]', t => {
-  const { root } = privateFixtureFiles('dirty-lib-');
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = (...args) => runFixtureGit(args, { cwd: root, stdio: 'pipe', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.sandbox(), root = join(box.dir, 'tooling');
   mkdirSync(join(root, 'apps/lib/src'), { recursive: true });
   mkdirSync(join(root, 'docs'));
   writeFileSync(join(root, 'apps/lib/src/runtime.js'), '// shipped\n');
   writeFileSync(join(root, 'docs/note.md'), 'note\n');
-  git('init', '-q', '-b', 'main');
-  git('add', '-A');
-  git('commit', '-q', '-m', 'test: baseline');
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'test: baseline');
   writeFileSync(join(root, 'apps/lib/src/runtime.js'), '// shipped\n// dirty\n');
   writeFileSync(join(root, 'docs/note.md'), 'note\nchanged\n');
   const editedAt = Date.now();
