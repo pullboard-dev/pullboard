@@ -142,21 +142,24 @@ test('computed parent identity rejects the builder pool across native review pat
 
 test('CLI next and verify reject the original building session through its real local ledger [C7,V1,B3]', t => {
   const box = crossLaneFixture(t);
+  // The kit joins box.web as an ordinary seat; the original session builds in its own fresh worktree instead (#3103).
+  const built = join(box.dir, 'original-session-build');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/original-session', built, 'main');
   const original = 'routing-ledger-original-session', other = 'routing-ledger-independent-session';
-  const builder = box.json(box.runAs(original, box.web, 'join', 'web', '--family', 'codex',
+  const builder = box.json(box.runAs(original, built, 'join', 'web', '--family', 'codex',
     '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--json')).agent;
   const id = box.add('web', 'Session independence through the local ledger');
-  box.json(box.runAs(original, box.web, 'claim', String(id), '--json'));
-  const commit = helpers.commitFile(box, box.web, 'web/session.txt', 'built by the original session\n',
+  box.json(box.runAs(original, built, 'claim', String(id), '--json'));
+  const commit = helpers.commitFile(box, built, 'web/session.txt', 'built by the original session\n',
     'test(web): build the private session fixture [G1]');
   assert.equal(commit.status, 0, commit.stdout + commit.stderr);
-  box.json(box.runAs(original, box.web, 'submit', String(id), '--no-next', '--json'));
+  box.json(box.runAs(original, built, 'submit', String(id), '--no-next', '--json'));
   const review = join(box.dir, 'original-session-review');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
   const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
     '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--json')).agent;
   assert.notEqual(reviewer, builder, 'the review seat is not the building seat');
-  const builtBinding = box.binding(box.web), reviewBinding = box.binding(review);
+  const builtBinding = box.binding(built), reviewBinding = box.binding(review);
   assert.equal(builtBinding.agent, builder);
   assert.equal(reviewBinding.agent, reviewer);
   assert.match(builtBinding.digest, /^[a-f0-9]{64}$/u);
