@@ -35,7 +35,7 @@ function twoSeats(hours) {
   try {
     const seats = [store.agentAt(board, box.web).agent_id, store.agentAt(board, second).agent_id];
     const main = box.git(box.repo, 'rev-parse', 'HEAD');
-    const freeze = () => ({ text: '{}', digest: 'fixture-usage-split' });
+    const freeze = () => ({ text: '{"rows":[]}', digest: 'fixture-usage-split' });
     const items = hours.map((_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Split item ${index + 1}`, specIds: ['G1'],
       criterion: 'a shared session divides by time', check: 'test -f web/ready',
       checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } }));
