@@ -225,7 +225,7 @@ test('clause 1: a batch that changed the failing test\'s inputs is compared with
   assert.equal(runs(box), 2, 'the landing reran main for the changed test instead of trusting the content record');
 });
 
-test('clause 3: two cold readers of the same content run main once, the second rechecking after it is admitted [C7,#3166]', async t => {
+test('clause 3: two cold readers of the same content run main once even with free gate slots, the second waiting on the content flight [C7,#3166]', async t => {
   const box = fixture(t);
   const first = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
   const driver = join(box.directory, 'cold-driver.mjs');
@@ -234,7 +234,7 @@ test('clause 3: two cold readers of the same content run main once, the second r
     "const [root, commit] = process.argv.slice(2);",
     "console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
   ].join('\n'));
-  const configured = runFixtureChild(process.execPath, [CLI, 'settings', 'gateSlots', '1', '--json'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const configured = runFixtureChild(process.execPath, [CLI, 'settings', 'gateSlots', '4', '--json'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(configured.status, 0, configured.context ?? configured.stdout + configured.stderr);
   const env = box.env;
   const child = () => new Promise((resolve, reject) => {
