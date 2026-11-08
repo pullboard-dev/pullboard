@@ -512,7 +512,7 @@ test('clause 2: with no budget set budgetState returns ok with no limit [N2]', (
   assert.equal(budgetState({ db }, { [model]: { output: 1_000_000 } }, {}, Date.now()).limit, null);
 });
 
-test('a budget at 80 percent warns in Needs you [N2]', () => {
+test('clause 1: a budget at 80 percent warns in Needs you [N2]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   const now = new Date('2026-11-08T12:00:00Z');
