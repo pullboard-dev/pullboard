@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { machine, project } from './machine-fixture.js';
 
+const SEAT_MODEL = 'seat-model';
 /** Run body with the parent process carrying a seat's identity, then restore the environment. */
 function asSeat(body) {
   const saved = { ...process.env };
-  process.env.PULLBOARD_MODEL = 'gpt-6-luna';
+  process.env.PULLBOARD_MODEL = SEAT_MODEL;
   process.env.PULLBOARD_AGENT = 'x';
   process.env.PULLBOARD_SEAT_LEAK = 'leak';
   try {
