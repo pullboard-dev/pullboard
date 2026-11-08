@@ -52,7 +52,7 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   const moved = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The check moved the live reviewer checkout.');
   assert.equal(moved.code, 1, moved.out + moved.err);
   assert.match(moved.err, /NOT_AT_COMMIT/u);
-  assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), baseline, 'the actual checkout moved while its private check was running');
+  assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), baseline, 'the actual checkout moved while its private check was running: ' + moved.out + moved.err);
   assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), []);
   rmSync(moveHead);
   box.git(reviewer, 'checkout', '-q', '--detach', submitted);
