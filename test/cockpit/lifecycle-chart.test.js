@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The approved chart preserves move totals while keeping Activity a feed by default [N26]. */
 import assert from 'node:assert/strict';

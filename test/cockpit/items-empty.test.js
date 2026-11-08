@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The default Items view gives finished work a clear next step [N26]. */
 import assert from 'node:assert/strict';

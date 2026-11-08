@@ -22,6 +22,11 @@ import { handoffWorkerAlive } from '../handoff-worker-alive.js';
 import { stalledGates } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import { fallbackReclaim } from '../fallback-reclaim.js';
+import { diskLines } from '../disk-use.js';
+import { diskUse } from '../disk-use.js';
+import { refusingBadPolicy } from '../disk-use.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { join } from 'node:path';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
 import { landingLine } from '../../../../../packages/landing/src/core/land-why.js';
@@ -110,6 +115,7 @@ export async function run(io, { values }) {
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
   summary.longestHolds = longestRecentHolds();
+  summary.disk = refusingBadPolicy(() => diskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
     io.result(summary);
     return 0;
@@ -145,6 +151,7 @@ export async function run(io, { values }) {
   if (summary.runnerDeadlines === null) io.say('runner wait deadline status unavailable; pullboard resources shows the queue');
   else for (const run of summary.runnerDeadlines) io.say(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${runnerDeadlineLine(run)}`);
   for (const hold of summary.longestHolds ?? []) io.say(`board hold ${hold.at}: ${hold.heldMs} ms in ${hold.move ?? 'unknown move'}${hold.step ? `, slowest step ${hold.step} ${hold.stepMs ?? '?'} ms` : ''}`);
+  for (const line of diskLines(summary.disk)) io.say(line);
   const handoffCap = handoffCapLine();
   if (handoffCap) io.say(handoffCap);
   for (const proposal of summary.submitInvariantProposals) io.say(submitInvariantLine(proposal));
