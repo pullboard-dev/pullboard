@@ -153,7 +153,7 @@ export function lineAt(source, offset) {
 
 /** Import-edge probes consume compiler observations without executing candidate source [C7,P3]. */
 /** Every place the whole word import appears, in code or not; Unicode letters count as part of a word. */
-const IMPORT = /(?<![\p{ID_Continue}$\u200c\u200d#])import(?![\p{ID_Continue}$\u200c\u200d])/gu;
+const IMPORT = /(?<![\p{ID_Continue}$\u200c\u200d#])(?:import)(?![\p{ID_Continue}$\u200c\u200d])/gu;
 /** CommonJS loader words, matched with the same identifier boundaries as import. */
 const COMMON_JS = /(?<![\p{ID_Continue}$\u200c\u200d#])(?:require|createRequire)(?![\p{ID_Continue}$\u200c\u200d])/gu;
 /** Unicode escapes can spell any identifier character, so V8 probes them without decoding source. */

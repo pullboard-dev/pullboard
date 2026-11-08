@@ -2,6 +2,8 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { claimOverlapLines } from '../../../../../packages/activity/index.js';
 import { claimOverlaps } from '../../../../../packages/items/index.js';
+import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
+import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
@@ -129,6 +131,15 @@ export async function nextOnce(ctx, values) {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
     if (held) {
+      // A claim made to wait after it was taken (pullboard edit --after) is parked, not served on every call: it is released
+      // as waiting on the unmet items, its folder and branch stay, and the seat selects other work instead (#3723).
+      const unmet = localDependencyIds(item).filter(id => !['verified', 'withdrawn'].includes(store.itemById(board, id)?.item_status));
+      if (unmet.length) {
+        await ordered(target, board, 'release', [item.item_id, holder.id,
+          `waiting on ${unmet.map(id => `#${id}`).join(', ')} to be verified; parked by next, folder and branch kept`,
+          { blockedOn: unmet, worktreeSnapshot: claimWorktreeSnapshot(target.info.root) }, 'BLOCKED']);
+        return { retry: true, retryDetail: { phase: 'parked claim', item: item.item_id, code: 'WAITING', message: `#${item.item_id} waits on ${unmet.map(id => `#${id}`).join(', ')}` } };
+      }
       let itemFolder;
       try { itemFolder = await openNextFolder(target, board, holder, item.item_id); }
       catch (error) {

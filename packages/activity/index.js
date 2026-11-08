@@ -8,3 +8,7 @@ export { claimWorktrees, claimOverlapLines } from './src/shell/claim-worktrees.j
 export { recordClaimWorktrees } from './src/shell/worktree-observations.js';
 export { recordedClaimWorktrees } from './src/shell/worktree-observations.js';
 export { takeWaitShouts } from './src/shell/next-wait-shouts.js';
+export { coordinatorCalloutLine } from './src/shell/coordinator-callouts.js';
+export { calloutLine } from './src/core/coordinator-callouts.js';
+export { openCallouts } from './src/core/coordinator-callouts.js';
+export { CALLOUT_AGE_MS } from './src/core/coordinator-callouts.js';

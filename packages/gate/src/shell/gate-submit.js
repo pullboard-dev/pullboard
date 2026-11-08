@@ -87,6 +87,20 @@ export function submitGateConfig(config, accepted) {
     ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
 }
 
+/**
+ * The command prefix that runs files submit adds beside its selection. Why: a project with no affectedTests runner
+ * still gets the test files its item bar names run, so Node's own test runner takes JavaScript files, as landing
+ * diagnosis does; a file it cannot run needs the project's affectedTests, so this names none [C7,V4].
+ *
+ * @param {string | undefined} configured - The project's affectedTests prefix, if any.
+ * @param {string[]} files - Repo-relative test files to run.
+ * @returns {string} The prefix, or '' when no runner can run every file.
+ */
+export function namedFileRunner(configured, files) {
+  if (configured?.trim()) return configured;
+  return files.length && files.every(file => /\.[cm]?js$/u.test(file)) ? 'node --test' : '';
+}
+
 /** Derive exact criterion/final phases once from accepted policy and the selected immutable Git source. */
 export function submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance = false, commit = 'HEAD', crossRunTests = [] }) {
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
@@ -106,7 +120,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');
   }
-  const testRunner = testTiers?.runner ?? config.affectedTests;
+  const testRunner = testTiers?.runner ?? namedFileRunner(config.affectedTests, crossRunTests);
   if (crossRunTests.length && !testRunner?.trim()) throw new Refused('BAD_CONFIG', 'call-adjacent work requires an affected-tests runner for cross-run tests');
   const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunTests])].sort();
   const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
@@ -177,6 +191,9 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (plan.testTiers) {
     await runMachineryGuard(outputRoot, () => requireSealedSkips(root, plan.testTiers, { proofFiles, check }),
       { kind: 'selection', rule: requireSealedSkips.toString(), say: onMachineryNote });
+    config = { ...config, affectedTests: plan.testRunner };
+  } else if (!config.affectedTests?.trim() && plan.testRunner?.trim()) {
+    // No configured runner: the bar-named files run with the plan's own runner [C7,V4].
     config = { ...config, affectedTests: plan.testRunner };
   }
   for (const path of [...invariants, ...registryGuards]) {

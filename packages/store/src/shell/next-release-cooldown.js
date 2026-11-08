@@ -22,10 +22,32 @@ export function recentlyReleased(board, agentId, minutes, now = Date.now()) {
   for (const row of rows) {
     let detail = {};
     try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
-    if (detail?.review === true || ids.includes(row.item_id)) continue;
+    // A claim next parked while it waited on unmet items was not given up: it is not cooled, and comes back to its builder (#3723).
+    if (detail?.review === true || detail?.blockedOn || ids.includes(row.item_id)) continue;
     ids.push(row.item_id);
   }
   return ids;
+}
+
+/**
+ * The open items whose latest release by this seat was a park on unmet items (release BLOCKED with blockedOn).
+ * Why: once the wait ends the seat that built the work gets it before other open items (#3723).
+ * @param {any} board
+ * @param {string} agentId
+ * @returns {Set<number>}
+ */
+export function parkedClaims(board, agentId) {
+  const rows = board.db.prepare(`SELECT e.item_id, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
+    WHERE e.event_by = ? AND e.event_kind = 'release' AND i.item_status = 'open' ORDER BY e.event_id DESC`).all(agentId);
+  const seen = new Set(), parked = new Set();
+  for (const row of rows) {
+    if (seen.has(row.item_id)) continue;
+    seen.add(row.item_id);
+    let detail = {};
+    try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
+    if (detail?.blockedOn && detail.review !== true) parked.add(row.item_id);
+  }
+  return parked;
 }
 
 /**

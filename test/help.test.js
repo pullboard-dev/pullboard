@@ -1,4 +1,4 @@
-/** Help stays page-safe and its command inventory follows its printed usages [N26]. */
+/** Help stays page-safe and its command inventory follows its printed usages [N26]. @pullboard-world-pin: the edit help case reads edit.js itself to check every option is listed. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -162,7 +162,9 @@ test('full help is assembled from the independently editable command groups [C7,
   const graph = helpGraph();
   let offset = 0;
   for (const section of HELP_SECTIONS) {
-    assert.ok(graph.has(resolve(ROOT, `apps/cli/src/core/help/${section.name}.js`)), `${section.name} has its own declaration module`);
+    // Setup help is owned by the view cell and lifecycle help by the state package; both are in the help graph.
+    const owner = { setup: 'apps/view/src/shell/help/setup.js', lifecycle: 'packages/state/index.js' }[section.name] ?? `apps/cli/src/core/help/${section.name}.js`;
+    assert.ok(graph.has(resolve(ROOT, owner)), `${section.name} has its own declaration module`);
     assert.equal(HELP.all.slice(offset, offset + section.text.length), section.text,
       `${section.name} contributes its unchanged text in declaration order`);
     offset += section.text.length;
@@ -174,4 +176,23 @@ test('full help is assembled from the independently editable command groups [C7,
     assert.ok(Object.keys(HELP.commands).some(name => name === command || name.startsWith(command + ' ')),
       `${command}'s group also supplies individual command help`);
   }
+});
+
+test('clause 1: help lists every edit option [C7]', async t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const box = e2e.project('true');
+  const full = box.run(box.repo, 'help', '--all', '--json');
+  assert.equal(full.code, 0, full.err);
+  const text = JSON.parse(full.out).help;
+  const editStart = text.indexOf('pullboard edit <id>');
+  assert.notEqual(editStart, -1, 'help --all prints the edit usage');
+  const block = text.slice(editStart, text.indexOf('pullboard escalate <id>', editStart));
+  // The options come from the edit command's own source, so a new flag cannot be left out of help.
+  const source = readFileSync(resolve(ROOT, 'apps/cli/src/shell/commands/edit.js'), 'utf8');
+  const parsed = new Set([...source.matchAll(/values(?:\.([a-z]+)|\['([a-z-]+)'\])/gu)].map(match => match[1] ?? match[2]));
+  for (const name of ['brief', 'brief-file']) parsed.add(name); // briefArg reads both for edit
+  parsed.delete('as'); // the person flag is documented under the person's own commands
+  assert.ok(parsed.has('after'), 'the parsed set includes --after');
+  for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
 });

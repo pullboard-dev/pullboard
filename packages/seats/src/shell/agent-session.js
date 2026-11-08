@@ -116,18 +116,19 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
  * over by a new session, or a seat silent past the live window, means the session that bound the folder has ended.
  *
  * @param {{ root: string, gitDir: string, commonDir: string }} info the item folder about to be adopted
- * @param {{ agent: string, digest: string, liveSeats: () => any[] }} claimer the claiming seat, its session digest, and
- *   the board's seats with live presence, read only when the folder is bound to another session
+ * @param {{ agent: string, digest: string, liveSeats: () => any[], idle?: () => boolean }} claimer the claiming seat, its session digest, the
+ *   board's seats with live presence, read only when the folder is bound to another session, and whether the folder is clean and unused
  * @returns {{ agent: string, digest: string } | null} the binding to replace
  */
-export function endedFolderSession(info, { agent, digest, liveSeats }) {
+export function endedFolderSession(info, { agent, digest, liveSeats, idle = () => false }) {
   const binding = readBinding(checkoutSessionFile(info), true);
   if (!binding || (binding.digest === digest && binding.agent === agent)) return null;
   if (binding.digest !== digest) {
     const others = liveSeats().filter(seat => seat.agent_id !== agent);
     const { digests } = seatLinks(info, others);
     const holder = others.find(seat => digests.get(seat.agent_id) === binding.digest);
-    if (holder) {
+    // A live seat's folder that is clean, unused and unclaimed may be adopted; any other live folder is retained (#3720).
+    if (holder && !idle()) {
       throw new Refused('ITEM_FOLDER_SESSION_LIVE', `item folder ${info.root} belongs to ${holder.agent_id}'s live session${holder.heartbeatAt ? ` (last seen ${holder.heartbeatAt})` : ''}; it is retained, not adopted`,
         `ask ${holder.agent_id} to finish with the folder or end its session, then claim the item again; build another item meanwhile`);
     }
