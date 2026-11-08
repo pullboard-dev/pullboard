@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /** Keep machine handoff admission separate from the gate's exact process-identity provider [C7]. */
 import { exactStart } from '../packages/gate/index.js';
+import { finishAwaitingVerdicts } from '../packages/gate/index.js';
 import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, recordHandoffCap } from '../packages/resources/index.js';
-import { createGateAdmission, gateDispatcherRow } from '../packages/drive/index.js';
+import { createGateAdmission, gateDispatcherRow, mainOwnedVerdictPorts } from '../packages/drive/index.js';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
@@ -105,6 +106,29 @@ export function lateTicketRetaken(drained, row) {
   catch { return false; /* an unreadable queue or board is left to the next submit's launch */ }
 }
 
+/** How often a dispatcher pass looks for gate verdicts waiting on main: the row's own renewal cadence. */
+const VERDICT_PASS_MS = 5_000;
+
+/**
+ * Build the dispatcher's per-pass work: renew its row, and at most every VERDICT_PASS_MS finish every gate verdict
+ * waiting on main whose main-test jobs have returned (the gate cell's finishAwaitingVerdicts). Why: a verdict that
+ * waits on main is a board row, not a waiting process; the drive loop finishes it, so no item goes back to its builder
+ * for a red main owns [C7,#3534].
+ *
+ * @param {{ renew: () => void, withDb: Function }} row - This dispatcher's job row.
+ * @param {{ now?: () => number, finish?: typeof finishAwaitingVerdicts }} [options]
+ * @returns {() => void}
+ */
+export function dispatcherPass(row, { now = Date.now, finish = finishAwaitingVerdicts } = {}) {
+  let lookedAt = 0;
+  return () => {
+    row.renew();
+    if (now() - lookedAt < VERDICT_PASS_MS) return;
+    lookedAt = now();
+    row.withDb(db => finish(mainOwnedVerdictPorts(), db));
+  };
+}
+
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -112,7 +136,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   let again;
   do {
     let drained;
-    try { drained = await drainHandoffQueue({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission: gateAdmission, onPass: row.renew }); }
+    try { drained = await drainHandoffQueue({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission: gateAdmission, onPass: dispatcherPass(row) }); }
     catch (error) {
       // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
       reportDispatcherFailure(error);
