@@ -82,17 +82,30 @@ test('clause 1: next --verify starts a new worker for a killed comparison and sh
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
 
-  // Kill every comparison worker the submit started, before it can record a result.
-  const jobs = join(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'), 'pullboard', 'review-comparisons');
+  // Control the worker instead of racing it: let any real worker the submit started finish, then record the exact
+  // state a killed worker leaves: a newer pending record, and a job folder whose worker pid names a dead process.
+  const common = box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+  const jobs = join(common, 'pullboard', 'review-comparisons');
   const started = () => existsSync(jobs) ? readdirSync(jobs).filter(name => existsSync(join(jobs, name, 'worker.json'))) : [];
   const pidOf = name => JSON.parse(readFileSync(join(jobs, name, 'worker.json'), 'utf8')).pid;
-  const deadline = Date.now() + 30_000;
-  while (!started().length && Date.now() < deadline) pause(100);
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
+  const deadline = Date.now() + 60_000;
+  while ((!started().length || started().some(name => alive(pidOf(name)))) && Date.now() < deadline) pause(200);
   assert.ok(started().length, 'submit started a comparison worker');
+  assert.ok(!started().some(name => alive(pidOf(name))), 'the submit-started worker has ended');
+  const known = JSON.parse(box.run(box.repo, 'show', '1', '--json').out);
+  const stand = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  await once(stand, 'spawn');
+  stand.kill('SIGKILL');
+  await once(stand, 'exit');
+  const request = { item: 1, source: known.item_commit, digest: known.item_frozen_digest };
+  const killed = join(jobs, 'killed-worker');
+  mkdirSync(killed, { recursive: true });
+  writeFileSync(join(killed, 'request.json'), JSON.stringify(request));
+  writeFileSync(join(killed, 'worker.json'), JSON.stringify({ pid: stand.pid }));
+  assert.equal(box.run(box.repo, 'fact', '1', 'measurement', VERIFICATION_COMPARISON_PREFIX + JSON.stringify({ ...request, status: 'pending' })).code, 0);
   const firstPids = started().map(pidOf);
-  for (const pid of firstPids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already finished */ } }
-  pause(500);
-  assert.ok(box.run(box.repo, 'show', '1').out.includes('comparison pending'), 'the killed comparison is still pending: nothing restarted it yet');
+  assert.ok(box.run(box.repo, 'show', '1').out.includes('comparison pending'), 'the killed comparison is pending: nothing restarted it yet');
 
   const offered = box.run(reviewer, 'next', '--verify');
   assert.equal(offered.code, 0, offered.err);
