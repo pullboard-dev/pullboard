@@ -1,30 +1,27 @@
 /** Landing selection treats a withdrawn dependency as met and records that in the batch entry [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { fixtureOpenBoard } from '../../../test/testkit-fixture.js';
 import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
 import { candidates } from '../src/shell/landing-step-selection.js';
 import { landingEntry } from '../src/shell/landing-step-selection.js';
 
-/** A real scratch repo with one commit, and a real in-memory board. */
+/** A real scratch repo with one commit, and a real private board file. */
 function scratch(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-step-selection-'));
-  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 't@example.com');
-  git('config', 'user.name', 't');
-  writeFileSync(join(root, 'a.txt'), 'base\n');
-  git('add', '-A');
-  git('commit', '-q', '-m', 'base');
-  const board = openBoard(':memory:', { now: () => new Date('2026-11-06T16:00:00.000Z') });
-  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
-  return { root, board, base: git('rev-parse', 'HEAD') };
+  const fixture = privateFixtureFiles('pullboard-step-selection-'), root = fixture.root;
+  const vcs = (...args) => runFixtureChild('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  vcs('init', '-q', '-b', 'main');
+  fixture.write('a.txt', 'base\n');
+  vcs('add', '-A');
+  vcs('commit', '-q', '-m', 'base');
+  const boards = privateFixtureFiles('pullboard-step-selection-board-');
+  const board = fixtureOpenBoard({ boardFile: join(boards.root, 'board.sqlite') });
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); rmSync(boards.root, { recursive: true, force: true }); });
+  return { root, board, base: vcs('rev-parse', 'HEAD') };
 }
 
 test('clause 1: a verified item whose only unmerged dependency is withdrawn is selected and the batch entry records it [test] [C7]', t => {
