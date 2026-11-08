@@ -120,7 +120,8 @@ test('runners-first opt-out retains the explicit local check control [C7]', t =>
 });
 
 
-test('a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
+/** Drive both submission phases through the real slot and private queue with remote command outcomes. */
+function phaseEvidence(t, { timedOut = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-phase-evidence-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, 'repo');
@@ -157,25 +158,46 @@ const executionServices = { runners: { ...runnerExecutionServices(),
   refreshRunnerMeasurements: async () => {},
   runOnRunnerAsync: async (_root, command, options) => {
     calls.push({ command, host: options.runner.host });
+    if (${JSON.stringify(timedOut)}) return command === 'fixture-check' && options.runner.host === 'first-runner'
+      ? { isGreen: false, timedOut: true, exitCode: 124, output }
+      : { isGreen: true, exitCode: 0, output: 'ok' };
     if (command === 'fixture-check') return { isGreen: false, exitCode: 1, output };
     throw new Refused('RUNNER_UNAVAILABLE', 'the proof runner is unavailable');
   } }, landing: landingExecutionServices() };
-let code;
-try { await runSubmitGate(process.cwd(), { gate: 'true', affectedTests: 'fixture-proof' }, {
+let code, result;
+try { result = await runSubmitGate(process.cwd(), { gate: 'true', affectedTests: 'fixture-proof' }, {
   executionServices, staticChecked: true, outputLog: log,
   plan: { check: 'fixture-check', selection: { full: false, reason: '', files: ['test/proof.test.js'] },
     deferred: false, deferFullFallback: false, deferSelection: false, invariants: [], registryGuards: [],
     proofFiles: ['test/proof.test.js'], fullConfig: { gate: 'true' }, hasFinalProof: true, phases: [], testTiers: null },
 }); } catch (error) { code = error.code; }
-process.stdout.write(JSON.stringify({ code, calls, output: readFileSync(log + '.check.log', 'utf8'),
+process.stdout.write(JSON.stringify({ code, result, calls, output: readFileSync(log + '.check.log', 'utf8'),
   expected: output, holders: listResources({ scope: 'machine' }).flatMap(row => row.holders) }));`;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.context ?? child.stderr);
-  const result = JSON.parse(child.stdout);
+  return JSON.parse(child.stdout);
+}
+
+test('a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
+  const result = phaseEvidence(t);
   assert.equal(result.code, 'RUNNER_UNAVAILABLE');
   assert.deepEqual(result.calls.map(call => call.command),
     ['fixture-check', "fixture-proof './test/proof.test.js'", 'fixture-check', "fixture-proof './test/proof.test.js'"]);
   assert.equal(new Set(result.calls.map(call => call.host)).size, 2, 'the bounded retry uses the other registered runner');
   assert.equal(result.output, result.expected, 'the red check remains inspectable after the proof refuses');
   assert.equal(result.holders.length, 0, 'the failed proof leaves no private lease behind');
+});
+
+
+test('runSubmitGate retries a timeout in its frozen check on another runner [C7]', t => {
+  const run = phaseEvidence(t, { timedOut: true });
+  assert.equal(run.code, undefined);
+  assert.equal(run.result.isGreen, true);
+  assert.equal(run.result.check.green, true);
+  assert.deepEqual(run.calls.map(call => call.command),
+    ['fixture-check', "fixture-proof './test/proof.test.js'", 'fixture-check', "fixture-proof './test/proof.test.js'"]);
+  assert.deepEqual(run.calls.map(call => call.host),
+    ['first-runner', 'first-runner', 'second-runner', 'second-runner']);
+  assert.equal(run.output, 'ok', 'the successful retry replaces the timed-out frozen-check log');
+  assert.equal(run.holders.length, 0, 'both attempts release their private leases');
 });

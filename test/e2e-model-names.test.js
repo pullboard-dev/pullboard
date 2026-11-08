@@ -238,7 +238,12 @@ test('model names label CLI actors without changing IDs, messages, or the contex
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
     box.env.PULLBOARD_MODEL = 'Test Model';
-    const repo = project('true', box);
+    // The shared fixture now joins web-1 with an explicit --model; this scenario needs the join to come from PULLBOARD_MODEL alone.
+    const base = project('true', box, { withWorktree: false });
+    const web = join(box.dir, 'web-1');
+    box.git(base.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+    assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
+    const repo = { ...base, web };
     const legacyJoin = box.run(repo.web, 'whoami', '--json');
     assert.equal(legacyJoin.code, 0, legacyJoin.err || legacyJoin.out);
     assert.equal(JSON.parse(legacyJoin.out).model, 'Test Model', 'the model environment identifies the initial join');
@@ -297,7 +302,9 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(missingReader.code, 1);
     assert.ok(missingReader.err.includes(style === 'suffix' ? '"web-99 (unknown)"' : '"unknown-web-99"'), missingReader.err);
 
-    const added = box.run(repo.repo, 'add', 'web', 'Model receipt', '--specs', 'G1', '--check', 'true', '--json');
+    const added = box.run(repo.repo, 'add', 'web', 'Model receipt', '--specs', 'G1', '--route', 'mid',
+      '--criterion', 'The item can be built and checked from its brief.', '--check', 'true',
+      '--brief', 'Files: web/model.js\nChange: build the fixture item\nTest: the check proves the fixture', '--json');
     assert.equal(added.code, 0, added.err || added.out);
     const id = JSON.parse(added.out).item.item_id;
     const claimed = box.run(repo.web, 'claim', String(id));
@@ -382,14 +389,14 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(itemClaim.err.includes(`held by ${coordinatorName}: Keep web-1 literal in item reason`), itemClaim.err);
     const noFree = box.run(second.path, 'next', '--build');
     assert.equal(noFree.code, 1);
-    assert.ok(noFree.err.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), noFree.err);
+    assert.ok(noFree.err.includes('1 item is held by coordinator'), noFree.err); // next folds held reasons to a count; claim, list and show above keep the full reason
     const noFreeJson = box.run(second.path, 'next', '--build', '--json');
-    assert.ok(JSON.parse(noFreeJson.out).error.message.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
+    assert.ok(JSON.parse(noFreeJson.out).error.message.includes('1 item is held by coordinator'));
     const available = box.run(repo.repo, 'add', 'web', 'Other model receipt', '--specs', 'G1', '--json');
     assert.equal(available.code, 0, available.err || available.out);
     const selected = box.run(second.path, 'next', '--build');
     assert.equal(selected.code, 0, selected.err || selected.out);
-    assert.ok(selected.out.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), selected.out);
+    assert.ok(selected.out.includes('1 item is held by coordinator'), selected.out); // next folds held reasons to a count; the full reason stays in --json below
     const freeId = JSON.parse(available.out).item.item_id;
     assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'BLOCKED').code, 0);
     const selectedJson = box.run(second.path, 'next', '--build', '--json');

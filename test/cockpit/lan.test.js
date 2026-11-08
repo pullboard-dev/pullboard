@@ -12,7 +12,7 @@ import {
 import { assertLanRefusal, lanBoundaryReply, startLanView } from './lan-fixture.js';
 import { viewLanAddress } from '../../apps/view/index.js';
 
-test('a phone reaches the board on the local network [H19]', { timeout: 180_000 }, async t => { // budget: one real private board, two owned view listeners and a mobile Chrome session.
+test('clause 1: a phone reaches the board on the local network [H19]', { timeout: 180_000 }, async t => { // budget: one real private board, two owned view listeners and a mobile Chrome session.
   t.diagnostic('runtime ' + JSON.stringify({ node: process.version, sqlite: process.versions.sqlite,
     executable: process.execPath, binarySha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
   const box = machine();
@@ -48,6 +48,9 @@ test('a phone reaches the board on the local network [H19]', { timeout: 180_000 
   t.after(async () => { if (chrome) await closeSnapshotChrome(chrome); rmSync(profile, { recursive: true, force: true }); });
   chrome = await openSnapshotChrome(executable, view.link.href, profile);
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
+  // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the board's own work shows.
+  await chrome.waitFor('innerWidth === 375 && !!data?.project');
+  await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
   await chrome.waitFor(`innerWidth === 375 && document.body.innerText.includes(${JSON.stringify(title)})`);
   assert.equal(await chrome.stable('location.hostname'), view.link.hostname, 'the browser uses the LAN address, not a loopback stand-in');
   await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');

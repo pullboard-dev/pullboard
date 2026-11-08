@@ -35,7 +35,7 @@ function project(t, enabled) {
 }
 
 export function registerMaintenanceSchedulerTests() {
-  test('a private shipped CLI timer wakes once, preserves one owner and obeys canonical opt-out [B3,C7,N26]', { timeout: 120_000 }, async t => {
+  test('a private shipped CLI timer wakes once, preserves one owner and obeys canonical opt-out [B3,C7,N26, clause 1]', { timeout: 120_000 }, async t => {
     const helpers = createE2eHelpers(), sandbox = helpers.sandbox();
     sandbox.env.PULLBOARD_MODEL = 'Test Model';
     isolateTestMachine(sandbox.env, sandbox.dir);
@@ -143,7 +143,7 @@ export function registerMaintenanceSchedulerTests() {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     fs.writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
     const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
-      { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
+      { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim().split(/\s+/u).join(' ');
     const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
       dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: ctx.info.root, common: ctx.info.commonDir };
     const file = join(directory, 'timer.json'), bytes = JSON.stringify(owner) + '\n';

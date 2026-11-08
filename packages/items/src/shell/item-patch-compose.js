@@ -86,9 +86,10 @@ function mergeFromOrigin(root, isolated, record, origin, directory) {
       else git(root, isolated, ['update-index', '--force-remove', '--', path]);
       continue;
     }
-    if (!base || !theirs || !ours) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk added or deleted on both sides; replace it against the current builder head`);
+    const hunk = overlappingHunks(record, path, []) || 'binary or file-mode operation';
+    if (!base || !theirs || !ours) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk ${hunk}; added or deleted on both sides; replace it against the current builder head`);
     const mode = ours.mode === theirs.mode || theirs.mode === base.mode ? ours.mode : ours.mode === base.mode ? theirs.mode : null;
-    if (!mode) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk incompatible file modes; replace it against the current builder head`);
+    if (!mode) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk ${hunk}; incompatible file modes; replace it against the current builder head`);
     const files = ['ours', 'base', 'theirs'].map(name => join(directory, `merge-${name}`));
     [ours, base, theirs].forEach((entry, index) => writeFileSync(files[index], git(root, isolated, ['cat-file', 'blob', entry.oid])));
     const merged = gitSpawnSync(['merge-file', '-p', ...files], { cwd: root, env: isolated, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });

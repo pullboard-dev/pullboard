@@ -19,6 +19,9 @@ import { stopLeakedRunnerJobs } from './runner-leak-stop.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
+/** How long a health probe may take: an SSH round trip plus, on first contact after a landing, one runtime install. */
+export const HEALTH_PROBE_MS = 20_000;
+
 /** Write the tooling capsule as the probe's whole stdin; a closed pipe is the transport's failure to report, not a throw. */
 function sendCapsule(child, capsule) {
   child.stdin.on('error', () => {});
@@ -77,7 +80,8 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
   let output = '', stderr = '', stderrBytes = 0, timedOut = false, error = null, failure = null, kill;
   /** Bound the health connection and fully observe its close before releasing recovery ownership. */
   const stop = () => { child.kill('SIGTERM'); kill ??= setTimeout(() => child.kill('SIGKILL'), 500); };
-  const timer = setTimeout(() => { timedOut = true; stop(); }, 5_000);
+  // A first contact after a landing installs the new runtime before it answers; 5 s left the largest runner out for a day [C7].
+  const timer = setTimeout(() => { timedOut = true; stop(); }, HEALTH_PROBE_MS);
   child.stdout.on('data', bytes => { output = (output + bytes).slice(0, 4097); if (output.length > 4096) stop(); });
   child.stderr.on('data', bytes => { stderrBytes += bytes.length; stderr = (stderr + bytes).slice(-8192); });
   child.once('error', problem => { error = problem.code ?? problem.name; failure = { code: error, message: transportText(problem.message) }; });

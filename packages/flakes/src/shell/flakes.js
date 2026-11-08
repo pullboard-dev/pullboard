@@ -15,6 +15,8 @@ import { CI_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { LEDGER_QUARANTINE_ENGINE } from "../../../../src/ledger-quarantine-engine.js";
 import { flakeQuarantines } from "./quarantine.js";
+import { warmFlakeHistory } from "./quarantine.js";
+import { eventHistory } from "./event-history.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
@@ -86,11 +88,17 @@ function observationKey(value) {
   return createHash('sha256').update(JSON.stringify(value.file === null ? ['unknown', value.commandSha256] : [value.file, value.name])).digest('hex');
 }
 
+/** Each native flake observation and repair event parsed once per connection, then only the events after them [C7]. */
+export function flakeEvents(board) {
+  return eventHistory(board, 'flake', ['flake-observation', 'flake-repair'], event => ({
+    event_id: event.event_id, event_at: event.event_at, event_kind: event.event_kind, detail: JSON.parse(event.event_detail) }));
+}
+
 /** Read only allocated typed events, preserving every original observation and repair relationship. */
 export function flakeLedger(board, { root } = {}) {
   const rows = new Map();
-  for (const event of board.db.prepare("SELECT * FROM event WHERE event_kind IN ('flake-observation','flake-repair') ORDER BY event_id").all()) {
-    const detail = JSON.parse(event.event_detail);
+  for (const event of flakeEvents(board)) {
+    const detail = event.detail;
     if (detail.engine !== NATIVE_FLAKE_ENGINE) continue;
     if (event.event_kind === 'flake-repair') {
       const row = rows.get(detail.key);
@@ -143,6 +151,7 @@ export function recordFlakeObservation(board, { agentId, observation, lane }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < needed) throw new Refused('ENGINE_VERSION', `${observation?.kind === 'ci' ? 'CI ' : ''}flake observations require engine ${needed}; upgrade Pullboard`);
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a flake observation');
   const value = flakeObservation(observation);
+  warmFlakeHistory(board);
   return atomic(board, () => {
     const existing = flakeLedger(board).flatMap(row => row.observations).find(row => row.id === value.id);
     if (existing) {

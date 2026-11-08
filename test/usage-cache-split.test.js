@@ -113,12 +113,13 @@ test('legacy usage retains exact replay shape and new splits require their repla
   assert.throws(() => sanitizedUsage([{ ...legacy, freshInputTokens: 0 }]), error => error.code === 'USAGE_RECORD');
 });
 
-for (const provider of ['codex', 'claude']) test(`synthetic ${provider} usage reaches the item's native show and stats split [N2]`, t => {
+for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider} usage reaches the item's native show and stats split [N2]`, t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const id = document(box.run(box.repo, 'add', 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
-    '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
+    '--brief', 'Files: web/ready\nTest: synthetic usage is visible in native item and stats reads\nChange: seed a lightweight provider usage fixture.',
+    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
   const identity = 'input-split-fixture-' + provider;
   const directory = provider === 'codex' ? join(box.dir, 'codex', 'sessions') : join(box.dir, 'claude', 'projects', 'fixture');
   mkdirSync(directory, { recursive: true });
@@ -130,7 +131,7 @@ for (const provider of ['codex', 'claude']) test(`synthetic ${provider} usage re
   writeFileSync(file, JSON.stringify(provider === 'codex' ? codex(100, 60, 10) : claude('anchor', 0, 0, 0)) + '\n');
   document(runFixtureChild(process.execPath, [helpers.BIN, 'claim', String(id), '--json'], { cwd: box.web, env, encoding: 'utf8' }));
   appendFileSync(file, JSON.stringify(provider === 'codex' ? codex(160, 100, 18) : claude('spent', 20, 40, 5, 8)) + '\n');
-  document(runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--no-next', '--json'], { cwd: box.web, env, encoding: 'utf8' }));
+  document(runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--reason', 'OTHER', '--note', 'finish synthetic usage fixture', '--no-next', '--json'], { cwd: box.web, env, encoding: 'utf8' }));
   const shown = document(box.run(box.repo, 'show', String(id), '--json'));
   const stats = document(box.run(box.repo, 'stats', '--json'));
   const expected = provider === 'codex' ? [20, 40, null] : [20, 40, 5];
@@ -145,12 +146,13 @@ for (const provider of ['codex', 'claude']) test(`synthetic ${provider} usage re
   assert.equal(publicData.includes(file), false);
 });
 
-test('a supported historical usage record without splits shows unknown through native item and stats reads [N2,H16]', t => {
+test('clause 1: a supported historical usage record without splits shows unknown through native item and stats reads [N2,H16]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const id = document(box.run(box.repo, 'add', 'web', 'Legacy numeric usage', '--criterion', 'Legacy split remains unknown.',
-    '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
+    '--brief', 'Files: web/ready\nTest: historical usage without split counters displays unknown in item and stats reads\nChange: seed a supported historical usage record.',
+    '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   const agent = document(box.run(box.web, 'whoami', '--json')).id;
   // @pullboard-board-file journey: this isolated board receives only the supported historical recordUsage operation.

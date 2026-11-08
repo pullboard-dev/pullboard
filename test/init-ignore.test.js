@@ -325,7 +325,7 @@ test('a real worktree under .claude/worktrees leaves status clean and coordinato
   assert.equal(box.cli('claim', id).code, 0);
   mkdirSync(join(box.root, 'docs'));
   writeFileSync(join(box.root, 'docs/proof.txt'), 'actual coordinator work\n');
-  box.git('add', 'docs/proof.txt'); box.git('commit', '-q', '-m', 'chore: add the coordinator proof');
+  box.git('add', 'docs/proof.txt'); box.git('commit', '-q', '-m', 'chore: add the coordinator proof', '-m', `Pullboard-Item: #${id}`);
   box.git('worktree', 'add', '-q', '-b', 'agent/scratch', '.claude/worktrees/scratch', 'HEAD');
   assert.equal(box.git('status', '--porcelain'), '', 'the real nested checkout adds no untracked paths');
   const submitted = box.cli('submit', id);

@@ -111,13 +111,13 @@ async function privateRepo(t) {
 }
 
 /** Create a real joined builder while the coordinator stays on its unchanged trunk. */
-async function builderRepo(box, { requireInfraNote = true } = {}) {
+async function builderRepo(box, { requireInfraNote = true, extraOwns = [] } = {}) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  config.lanes = { build: { owns: ['src/', 'test/'], specs: ['G'] } };
+  config.lanes = { build: { owns: ['src/', 'test/', ...extraOwns], specs: ['G'] } };
   if (requireInfraNote) config.submit = { requireInfraNote: true };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
-  const made = await box.run('worktree', 'build', '--json');
+  const made = await box.run('worktree', 'build', '--model', 'fixture-agent', '--json');
   assert.equal(made.code, 0, made.err);
   const root = JSON.parse(made.out).path;
   /** Run Git only in the joined builder. */
@@ -132,7 +132,7 @@ async function builderRepo(box, { requireInfraNote = true } = {}) {
 }
 
 /** Commit one change to a builder checkout, then return the item's builder repository. */
-async function infraBox(t, { edit, existing = true, requireInfraNote = true }) {
+async function infraBox(t, { edit, existing = true, requireInfraNote = true, files = ['test/existing.test.js'] }) {
   let box = await privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'true', spec: 'SPEC.md' }));
   put(box.root, 'SPEC.md', SPEC);
@@ -140,7 +140,9 @@ async function infraBox(t, { edit, existing = true, requireInfraNote = true }) {
   if (existing) put(box.root, 'test/existing.test.js', "import '../src/a.js';\n");
   commitAll(box);
   box = await builderRepo(box, { requireInfraNote });
-  assert.equal((await box.coordinator('add', 'build', 'Infra note fixture', '--check', 'true')).code, 0);
+  const added = await box.coordinator('add', 'build', 'Infra note fixture', '--criterion', 'the submit handles the changed fixture path',
+    '--check', 'true', '--route', 'strong', '--brief', `Files:\n- ${files.join('\n- ')}\nChange: exercise infrastructure-note handling for the submitted path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
+  assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   assert.equal((await box.run('claim', '1')).code, 0);
   edit(box);
   commitAll(box, 'feat(core): change the item [G1]');
@@ -182,7 +184,7 @@ test('a supplied infra note is retained and an enabled board drafts one [C7,V4]'
 });
 
 test('a new test file needs no note [C7,V4]', async (t) => {
-  const box = await infraBox(t, { existing: true, edit: (box) => put(box.root, 'test/brand-new.test.js', "import '../src/a.js';\n") });
+  const box = await infraBox(t, { existing: true, files: ['test/brand-new.test.js'], edit: (box) => put(box.root, 'test/brand-new.test.js', "import '../src/a.js';\n") });
   const submitted = await box.run('submit', '1');
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /INFRA_NOTE_REQUIRED/u);
@@ -198,8 +200,10 @@ test('a gate named by a quoted path or a shell separator receives a drafted note
     put(box.root, 'pullboard.json', JSON.stringify({ gate, spec: 'SPEC.md' }));
     put(box.root, file, 'process.exit(0);\n');
     commitAll(box);
-    box = await builderRepo(box);
-    assert.equal((await box.coordinator('add', 'build', 'Gate named by a path', '--check', 'true')).code, 0);
+    box = await builderRepo(box, { extraOwns: ['gate.js'] });
+    const added = await box.coordinator('add', 'build', 'Gate named by a path', '--criterion', 'the submit handles the changed gate path',
+      '--check', 'true', '--route', 'strong', '--brief', `Files:\n- ${file}\nChange: exercise infrastructure-note handling for the gate path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
+    assert.equal(added.code, 0, `${added.out}\n${added.err}`);
     assert.equal((await box.run('claim', '1')).code, 0);
     put(box.root, file, 'process.exit(0); // edited after the claim\n');
     commitAll(box, 'feat(core): change the gate script [G1]');

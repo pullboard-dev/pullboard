@@ -5,6 +5,8 @@ import { logEvent } from '../shell/board.js';
 import { proofReceipts } from '../shell/board-query.js';
 import { verdictReviewProblem } from '../../../verify/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
 
 /** Accept only normalized repository-relative paths from complete native test outcomes. */
 function projectFile(file) {
@@ -44,6 +46,15 @@ export function selectorGapCandidate(board, { agentId, itemId, receiptId, review
   return { item, receipt, selection, failures, commit: submitted.commit, tree: item.item_tree };
 }
 
+/**
+ * The repair item's bar. Why: since the clause-evidence engine every numbered clause must declare its evidence kind,
+ * or the repair's addItem refuses CLAUSE_EVIDENCE_REQUIRED; older engines replay their original untagged text.
+ */
+function selectorRepairCriterion(board, commit, names) {
+  const tag = (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_EVIDENCE_ENGINE ? kind => ` [${kind}]` : () => '';
+  return `At submitted source ${commit}, ${names} failed in review but was outside the gate's recorded selection. 1. Include the uncovered test in the computed gate selection.${tag('test')} 2. Prove the selection runs and reports that test at the submitted source.${tag('test')} 3. The full suite passes as run by the submit gate.${tag('command')}`;
+}
+
 /** Record an uncovered failing case and file one selector repair without changing the submitted item. */
 export function recordSelectorGap(board, { agentId, itemId, receiptId, review }) {
   return atomic(board, () => {
@@ -60,7 +71,7 @@ export function recordSelectorGap(board, { agentId, itemId, receiptId, review })
     const title = `Test selector gap: ${first.file.slice(-80)} at ${candidate.commit.slice(0, 12)}`;
     const names = fresh.map(failure => `${failure.file} :: ${failure.name}`).join('; ').slice(0, 1000);
     const repairItem = addItem(board, { by: agentId, lane: 'core', title, specIds: ['C7'], route: 'strong', expectedBuildMinutes: 30,
-      criterion: `At submitted source ${candidate.commit}, ${names} failed in review but was outside the gate's recorded selection. 1. Include the uncovered test in the computed gate selection. 2. Prove the selection runs and reports that test at the submitted source. 3. The full suite passes as run by the submit gate.`,
+      criterion: selectorRepairCriterion(board, candidate.commit, names),
       brief: `Builder item: #${itemId}\nReview receipt: ${receiptId}\nSubmitted head: ${candidate.commit}\nSelected tests: ${candidate.selection.files.join(', ') || '(none)'}` });
     for (const failure of fresh) logEvent(board, agentId, 'selector-gap', itemId, {
       decision: 'SELECTOR_GAP', receiptId, commit: candidate.commit, tree: candidate.tree,

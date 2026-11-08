@@ -69,7 +69,7 @@ async function holdWriteLock(box, file) {
 }
 
 /** Prove a real ordered CLI move refuses contention atomically, then succeeds exactly once. */
-async function proveBusyWrite(t, args, table) {
+async function proveBusyWrite(t, args, table, events = 1) {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -96,7 +96,7 @@ async function proveBusyWrite(t, args, table) {
   assert.equal(retried.status, 0, retried.context);
   const after = snapshot(file);
   assert.equal(after.tables[table].length, before.tables[table].length + 1, 'one retry makes exactly one move');
-  assert.equal(after.tables.event.length, before.tables.event.length + 1, 'only the successful retry records an event');
+  assert.equal(after.tables.event.length, before.tables.event.length + events, 'only the successful retry records its events');
 }
 
 test('a board write that outwaits the busy timeout is refused by name, never a stack trace [C7,P4,B2]', async (t) => {
@@ -104,7 +104,7 @@ test('a board write that outwaits the busy timeout is refused by name, never a s
 });
 
 test('a busy ordered item addition leaves no partial item and retries once [C7,P4,B2]', async (t) => {
-  await proveBusyWrite(t, ['add', 'web', 'private busy item', '--specs', 'G1', '--criterion', 'the page renders'], 'item');
+  await proveBusyWrite(t, ['add', 'web', 'private busy item', '--specs', 'G1', '--criterion', 'the page renders'], 'item', 2); // an add records [add, milestone_placed]
 });
 
 /** Hold a public store transaction, with an explicit diagnostic identity, until its owner releases it. */

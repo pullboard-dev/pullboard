@@ -1,4 +1,5 @@
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 /** Declared models replay with their recorded engine and survive board exchange [O8,O3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -42,13 +43,14 @@ test('model declarations and event snapshots retain all supported engine semanti
   for (const version of Array.from({ length: ENGINE_VERSION }, (_, index) => index + 1)) {
     const board = openBoard(':memory:');
     t.after(() => store.closeBoard(board));
-    const registration = prepareEngineMove(board, 'register', [{ lane: 'web', path: '/web', model: 'First Model' }]);
+    const registration = prepareEngineMove(board, 'register', [{ lane: 'web', path: '/web', model: 'First Model', family: 'First Vendor' }]);
     const first = applyEngineMove(board, { ...registration, engine: version }, { sequence: 1, at: '2026-10-10T07:00:00Z' });
     assert.equal(first.error, undefined);
     assert.equal(first.result, 'web-1');
     assert.equal(store.agentAt(board, '/web').agent_model, version < 8 ? null : 'First Model');
     const joinedDetail = version < 8 ? { lane: 'web' } : { lane: 'web', model: 'First Model',
-      ...(version >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) };
+      ...(version >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}),
+      ...(version >= FAMILY_DECLARE_ENGINE ? { family: 'First Vendor' } : {}) };
     assert.deepEqual(JSON.parse(first.events[0].event_detail), joinedDetail);
 
     const update = prepareEngineMove(board, 'register', [{ lane: 'web', path: '/web', model: 'Second Model' }]);

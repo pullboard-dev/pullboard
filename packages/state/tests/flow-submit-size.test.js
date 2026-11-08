@@ -28,7 +28,7 @@ test('a native submit records its immutable changed-line base and head for flow 
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const added = box.run(box.repo, 'add', 'web', 'Measure submitted lines', '--specs', 'G1',
-    '--criterion', 'The measured page exists.', '--check', 'test -f web/size.txt');
+    '--criterion', 'The measured page exists.', '--check', 'test -f web/size.txt', '--route', 'strong');
   assert.equal(added.code, 0, added.out + added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
@@ -93,7 +93,7 @@ test('submission size replays identically and refuses unsupported or malformed m
     copies.push(board);
   }
   const size = { base: 'a'.repeat(40), head: 'b'.repeat(40), lines: 0, method: 'added-plus-deleted-no-renames' };
-  const options = { agentId: 'web-1', commit: size.head, tree: 'c'.repeat(40), submissionSize: size,
+  const options = { agentId: 'web-1', commit: size.head, tree: 'c'.repeat(40), submissionSize: size, policyCommit: box.git(box.repo, 'rev-parse', 'HEAD').trim(),
     submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay fixture' } };
   const move = prepareEngineMove(source, 'submit', [id, options], { id: 'size-replay', actor: 'web-1' });
   assert.equal(move.engine, ENGINE_VERSION, 'the modern measurement is produced by the current engine');
@@ -119,6 +119,7 @@ test('submission size replays identically and refuses unsupported or malformed m
   const legacy = structuredClone(move);
   legacy.engine = FLOW_SIZE_ENGINE - 1;
   delete legacy.args[1].submissionSize;
+  for (const sealed of ['policyCommit', 'clausePolicyCommit', 'inspectClauses']) delete legacy.args[1][sealed]; // an older engine never sealed a policy
   assert.equal(applyRelayMove(copies[3], legacy, receipt).error, undefined);
   assert.equal(Object.hasOwn(JSON.parse(store.events(copies[3]).findLast(event => event.event_kind === 'submit').event_detail), 'submissionSize'), false,
     'an older sealed submit remains executable and its missing size remains unknown');

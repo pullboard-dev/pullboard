@@ -4,6 +4,7 @@ import { isSeatTest } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -44,6 +45,7 @@ import { capturedRequestOf } from './holder-liveness.js';
 import { dispatchRelaunch } from './holder-liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';
 import { reclaimHolders } from './holder-liveness.js';
+import { pinLegacyReclaimInputs } from './holder-liveness.js';
 import {
   initializeRunnerRecovery,
   recordRunnerFailure,
@@ -55,6 +57,8 @@ import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
+import { reservedTimingRunner } from './runner-timing-reserve.js';
+import { timingReserveAllows } from './runner-timing-reserve.js';
 import { platformIdentity } from './holder-liveness.js';
 import { differentStart } from './holder-liveness.js';
 import {
@@ -86,7 +90,6 @@ export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
-
 /** Mark child commands whose parent already owns a machine gate slot. */
 export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
@@ -151,7 +154,7 @@ function open(file, machine = false) {
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`);
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer [C7].
   let transaction = false;
   try {
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
@@ -198,7 +201,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
     }
-    // Older clients insert the default zero. A database trigger witnesses even short legacy
+    pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
     db.exec(`CREATE TABLE IF NOT EXISTS timing_client_observation (
       id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);`);
@@ -257,8 +260,8 @@ function slotLockDeadlineMs() {
 
 /** Recognize SQLite's busy or locked failure, which a later attempt can pass. */
 function slotDatabaseLocked(error) {
-  const code = Number.isInteger(error?.errcode) ? error.errcode & 0xff : null;
-  return code === 5 || code === 6 || /database is locked/iu.test(error?.message ?? '');
+  const code = Number.isInteger(error?.errcode) ? error.errcode & 0xff : null; // The admission refusal counts too (#C7).
+  return error?.code === 'SLOT_DB_LOCKED' || code === 5 || code === 6 || /database is locked/iu.test(error?.message ?? '');
 }
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine, so it gets 10 s. */
@@ -536,18 +539,19 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
     // predates the name guard and has no runner column value.
-    const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const remoteHolders = db.prepare('SELECT browser, timing, since, landing, kind FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
       slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
-      browsers: remoteHolders.filter(holder => holder.browser === 1).length,
+      browsers: remoteHolders.filter(holder => holder.browser === 1).length, landingShards: remoteHolders.filter(holder => holder.kind === 'landing' || holder.landing === 1).length, // Spread a batch's shards across hosts [C7].
     }];
   }));
   const unavailable = unavailableRunnerHosts(db, now, runners);
   const troubled = loadPolicy.enabled === true ? troubledRunners(db, now, LEASE_MS) : new Set();
-  let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
+  const reserved = reservedTimingRunner(db, runners, unavailable, loadPolicy.timingRunner, now, waiters.find(waiter => waiter.ticket === ticket)); // #2512: replaces the drain
+  let drain = reserved ? null : currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
@@ -563,12 +567,12 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner)) return false;
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
         if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
         if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
         return !used.timing && (waiter.timing !== 1 || used.slots === 0)
-          && used.slots < runner.slots - Number(seatTest) && (waiter.browser !== 1 || used.browsers < runner.browser);
+          && used.slots < runner.slots - Number(seatTest && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
       });
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
@@ -597,13 +601,13 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     function localSlot() {
       if (memoryHeld || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'ssh') return null;
       if (!holders.some(holder => holder.timing === 1) && (waiter.timing !== 1 || holders.length === 0)
-        && localUsed < capacity - Number(seatTest) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
+        && localUsed < capacity - Number(seatTest && capacity > 1) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
         return { host: '', slots: capacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: false };
       }
       return null;
     }
     const remote = runnerSlot();
-    if (waiter.runnerOnly === 1) return remote;
+    if (waiter.runnerOnly === 1 || reserved && waiter.timing === 1 && waiter.remote === 1) return remote; // timed work waits for the kept runner
     if (runnersFirst) {
       if (remote) return remote;
       const local = localSlot();
@@ -615,7 +619,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
     const earlierLanding = waiters.some(other => other.landing === 1 && other.ticket < waiter.ticket);
     if ((!waiter.requiredExecutor || JSON.parse(waiter.requiredExecutor).kind === 'local') && !memoryHeld && waiter.timing !== 1 && !holders.some(holder => holder.timing === 1)
-      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(seatTest)
+      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(seatTest && shortCapacity > 1)
       && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
       return { host: '', slots: shortCapacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: true };
     }
@@ -631,7 +635,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(runner.slots, resourceName);
     }
   }
-  if (!drain) {
+  if (!drain && !reserved) {
     for (const waiter of waiters) {
       const waited = now - Date.parse(waiter.since);
       if (waiter.timing !== 1 || waiter.remote !== 1 || !Number.isFinite(waited) || waited < 120_000
@@ -749,12 +753,8 @@ function requiredRunnerHosts(waiter) {
   if (restriction?.kind !== 'ssh') return null;
   return restriction.hosts ?? [restriction.host];
 }
-
 /** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
-function runnerAllowed(waiter, runner) {
-  const hosts = requiredRunnerHosts(waiter);
-  return hosts === null || hosts.includes(runner.host);
-}
+function runnerAllowed(waiter, runner) { const hosts = requiredRunnerHosts(waiter); return hosts === null || hosts.includes(runner.host); }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
@@ -1084,7 +1084,7 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
-    const result = await options.onWait?.(state);
+    const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
         throw new Refused('BAD_RESOURCE_METADATA', 'the waiting item renewal must return a valid leaseUntil timestamp');
@@ -1149,7 +1149,7 @@ export async function takeResource(options) {
         // Await it like every other wait report, so an item-lease callback never renews unobserved.
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
-      const order = queueOrder(scope);
+      await options.beforeAdmission?.(); const order = queueOrder(scope);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
@@ -1160,7 +1160,8 @@ export async function takeResource(options) {
           throw new Refused('BAD_RUNNER_POOL', 'none of the allowed SSH executors is registered');
         }
         const runnersFirst = runnersFirstProvider?.() === true;
-        if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        const timingReserved = name === 'gate' && timing && reservedTimingRunner(db, runners, unavailableRunnerHosts(db, now, runners), options.runnerLoadPolicyProvider?.().timingRunner, now, { remote: 1, timing: 1, requiredExecutor }); // a reserved timed check queues for its runner and its dispatch expiry never widens the executor
+        if (timingReserved) runnerDeadlineAt = 0; else if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, token, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
@@ -1371,7 +1372,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe })) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe }).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
     }
   } catch (error) {

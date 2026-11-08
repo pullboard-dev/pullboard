@@ -1,7 +1,7 @@
 import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { commandOutput as collectCommandOutput } from '../../../../packages/config/index.js';
 import { versionedRefusal } from '../../../../packages/config/index.js';
-import { withMoveNextSteps } from '../../../../packages/moves/index.js';
+import { withMoveNextSteps } from '../../../../packages/moves/src/shell/move-registry.js';
 import { DEFAULT_NEXT_STEPS } from './next-step-defaults.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
 import { RECORDED_GENERIC_NEXT } from '../../../../packages/state/index.js';

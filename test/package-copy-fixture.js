@@ -229,7 +229,11 @@ export function commitFixtureFiles(box, files) {
     batch = [];
     bytes = 0;
   }
-  for (const file of new Set(files)) {
+  // The cells plan arms the shim-import ratchet, so it lands last: earlier batches carry the source's own shim imports unjudged.
+  const planned = file => /^bin\/cells-plan.*\.json$/u.test(file);
+  const ordered = [...new Set(files)].sort((x, y) => Number(planned(x)) - Number(planned(y)));
+  for (const file of ordered) {
+    if (planned(file) && batch.length && !planned(batch[0])) commitBatch();
     let size;
     try { size = statSync(join(box.repo, file)).size; }
     catch (error) {

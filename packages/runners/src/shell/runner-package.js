@@ -10,10 +10,10 @@ import { packageFiles } from './package-files.js';
 import { runtimeUrls } from '../core/runner-runtime-urls.js';
 import { createRunnerModuleParser } from './runner-module-parser.js';
 import {
-  commonJsIn,
-  importsIn,
-} from '../../../gate/index.js';
-import { Refused } from '../../../kernel/index.js';
+  commonJsWithCompiler as commonJsIn,
+  importsWithCompiler as importsIn,
+  Refused,
+} from '../../../kernel/index.js';
 
 /** Name the exact path that cannot safely enter the trusted runtime; never expand transfer limits. */
 function unavailable(file, reason) {

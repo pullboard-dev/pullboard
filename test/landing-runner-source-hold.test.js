@@ -70,3 +70,14 @@ test('a held verified item is skipped by landing selection with its reason [C7]'
   assert.deepEqual(selected.ready, []);
   assert.deepEqual(selected.blocked.map(entry => [entry.id, entry.code, entry.message]), [[7, 'ITEM_HELD', 'landing keeps dying on this item']]);
 });
+
+test('a full batch stops landing selection before checking later items [C7]', t => {
+  const board = openBoard(':memory:', { now: () => new Date('2026-11-05T16:00:00.000Z') });
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-full-batch-'));
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  const listed = [{ item_id: 8, item_status: 'verified', item_merged_commit: null, item_commit: ITEM.item_commit,
+    item_hold_at: '2026-11-05T15:00:00.000Z', item_hold_reason: 'held' }];
+  // A batch with no room left never walks the queue, so no item beyond it costs a verdict projection or git call.
+  const selected = candidates(board, root, BASE, 0, { listItems: () => listed });
+  assert.deepEqual(selected, { ready: [], blocked: [] });
+});

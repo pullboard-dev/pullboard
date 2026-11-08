@@ -1,12 +1,20 @@
 /** Historical submitted heads cannot bypass review after a sibling resubmission [V17,V1]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+/**
+ * Remove only this file's real repositories, retrying transient directory contention.
+ * A successful submit starts a detached comparison that can finish writing during teardown;
+ * Node retries ENOTEMPTY rather than failing the historical-head assertions after they passed [C7,#2817].
+ */
+function cleanup() {
+  for (const dir of e2e.sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+}
+after(cleanup);
 
 /** Add a real board item through the coordinator CLI. */
 function add(box, title) {

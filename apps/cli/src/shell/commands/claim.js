@@ -43,7 +43,7 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
-  const itemFolder = await openItemFolder(ctx, me, id, { board,
+  const itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed,
     onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
       text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
       ref: null }]),

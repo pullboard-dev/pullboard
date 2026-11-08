@@ -20,6 +20,7 @@ import { refreshCodeMap } from '../packages/codemap/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../packages/state/index.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
@@ -29,6 +30,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
+
+/** Remove only the CLI's trailing next-step hint; its flags change independently of the queue answer under test. */
+function queueAnswer(output) {
+  return output.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
+}
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
   const { board, builder } = boardFixture();
@@ -265,7 +271,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   const idle = helpers.project('true');
   const empty = JSON.parse(idle.run(idle.repo, 'next', '--json').out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
-  assert.match(empty.next, /pullboard next --wait 9/u, 'a genuinely idle board retains its ordinary wait');
+  assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
 });
 
 test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
@@ -382,7 +388,7 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   assert.doesNotMatch(JSON.stringify(beginner.overview ?? beginner), /milestone order|rank the queue/iu, 'newcomer help does not gain scheduling words');
 });
 
-test('pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
+test('clause 1: pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('queue-holder', 'web', box.session);
   const oldest = box.add('web', 'Oldest unranked strong work');
@@ -425,12 +431,15 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
-  const lightWork = box.add('api', 'Light release work', 'light');
+  const lightWork = box.add('api', 'Light release work', 'mid');
+  box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
+    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json'));
+  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--json'));
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
   const text = box.run(box.repo, 'queue');
-  text.out = text.out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
+  text.out = queueAnswer(text.out);
   assert.match(text.out.trim().split('\n').at(-1), new RegExp(`^next now: strong → #${strongWork}, mid → #${midWork}, light → #${lightWork}$`, 'u'));
   // The queue's answer is what next actually serves each route.
   for (const [route, lane, id] of [['light', 'api', lightWork], ['mid', 'api', midWork], ['strong', 'web', strongWork]]) {
@@ -438,7 +447,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
     const next = box.json(box.runAs(`queue-${route}-session`, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id, `a ${route} agent's next is the queue's ${route} item`);
   }
-  const queueWithoutHint = box.run(box.repo, 'queue').out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
+  const queueWithoutHint = queueAnswer(box.run(box.repo, 'queue').out);
   assert.match(queueWithoutHint.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
 });
 
@@ -452,7 +461,13 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
   orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
-  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'a main-red priority takes precedence over an explicit coordinator rank');
+  // From QUEUE_PREEMPT_ENGINE main-red evidence is an emergency that leads even an explicit rank (#1442), so the
+  // rework tie-break rule is proved on the engine below it and the emergency lead on the current one.
+  const pinnedEngine = board.executionEngineVersion;
+  board.executionEngineVersion = QUEUE_PREEMPT_ENGINE - 1;
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
+  if (pinnedEngine === undefined) delete board.executionEngineVersion; else board.executionEngineVersion = pinnedEngine;
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'main-red evidence leads an explicit rank once emergencies preempt');
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
@@ -855,14 +870,16 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
   setting('wipPerReviewer', 1.5);
   const offer = store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 });
   assert.equal(offer?.item.item_id, waiting[0], 'recorded capacity replaces the legacy ratio when reviews pile up');
-  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE }),
+  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE, lineCapacity: true }),
     error => error.code === 'LINE_WIP_LIMIT' && error.message.includes(`#${waiting[0]}`),
     'a new claim over the limit names the oldest eligible waiting review');
   const foreign = store.register(board, { lane: 'core', path: join(root, 'takeover'), route: 'strong', parent: 'takeover-T', session: 'takeover-child' });
   const returned = store.getItem(board, waiting[0]);
-  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    clause: returned.item_title, note: 'Synthetic lifecycle refusal; no gate execution claimed.', head: returned.item_commit,
-    digest: returned.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 60 });
+  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'ACCEPT', reason: 'CRITERION_MET',
+    clause: returned.item_title, note: 'Synthetic accepted lifecycle record; no gate execution claimed.', head: returned.item_commit,
+    digest: returned.item_frozen_digest, policy: 'any' });
+  store.reopen(board, returned.item_id, { agentId: 'coordinator', conflict: { files: ['src/board.js'], trunk: 'b'.repeat(40) },
+    note: 'Synthetic main-merge conflict lifecycle record; no merge is claimed.', reopenFirstRefusalMinutes: 60 });
   setting('wipPerReviewer', false);
   setting('takeoverMinutes', 15);
   const historyBefore = store.events(board, { itemId: returned.item_id });

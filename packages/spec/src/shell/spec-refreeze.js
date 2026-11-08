@@ -87,13 +87,52 @@ export function prepareSpecRefreezes(records, items, freeze, { skippedDrafts = [
   if (!rows.size) return undefined;
   if (typeof freeze !== 'function' || !Array.isArray(items)) throw new TypeError('spec refreezes need current items and a local freezer');
   return affectedItems(items, rows).filter(item => !skippedDrafts.includes(item.item_id)).map(item => {
-    const frozen = freeze(item);
+    const ids = (item.item_spec_ids ?? '').split(',').filter(Boolean);
+    const changedIds = ids.filter(id => rows.has(id));
+    let prior = null;
+    if (item.item_frozen) {
+      try { prior = JSON.parse(item.item_frozen); }
+      catch { throw new Refused('ROW_DECISION', `item #${item.item_id} has an invalid prior frozen payload; repair the item before applying the spec correction`); }
+    }
+    const source = prior ? { ...item, item_spec_ids: changedIds.join(',') } : item;
+    let frozen = freeze(source);
     if (!frozen || typeof frozen.text !== 'string' || typeof frozen.digest !== 'string'
       || createHash('sha256').update(frozen.text).digest('hex') !== frozen.digest) {
       throw new Refused('ROW_DECISION', `could not prepare a complete frozen criterion for #${item.item_id}; restore the spec file and retry spec apply`);
     }
+    if (prior) {
+      let current;
+      try { current = JSON.parse(frozen.text); }
+      catch { throw new Refused('ROW_DECISION', `could not prepare a complete frozen criterion for #${item.item_id}; restore the spec file and retry spec apply`); }
+      if (!current || typeof current !== 'object' || Array.isArray(current) || !Array.isArray(current.rows)) {
+        throw new Refused('ROW_DECISION', `could not prepare a complete frozen criterion for #${item.item_id}; restore the spec file and retry spec apply`);
+      }
+      const previousRows = new Map((Array.isArray(prior.rows) ? prior.rows : []).map(row => [row?.id, row]));
+      const currentRows = new Map((Array.isArray(current?.rows) ? current.rows : []).map(row => [row?.id, row]));
+      const mergedRows = ids.map(id => rows.has(id) ? currentRows.get(id) : previousRows.get(id));
+      if (mergedRows.some(row => !row || typeof row.id !== 'string' || typeof row.text !== 'string' || typeof row.gate !== 'string')) {
+        throw new Refused('ROW_DECISION', `item #${item.item_id} has an incomplete prior frozen payload; repair the item before applying the spec correction`);
+      }
+      const text = JSON.stringify({ ...current, rows: mergedRows });
+      frozen = { text, digest: createHash('sha256').update(text).digest('hex') };
+    }
     return { itemId: item.item_id, before: itemSnapshot(item), frozen };
   });
+}
+
+/** Prepare the complete current apply payload from one already-held native board write snapshot. */
+export function prepareSpecRowApplyPayload(board, events, freeze) {
+  if (!Array.isArray(events) || events.some(event => !Number.isSafeInteger(event) || event < 1)
+    || new Set(events).size !== events.length) {
+    throw new Refused('ROW_DECISION', 'apply needs current decision event ids; use pullboard spec apply');
+  }
+  const decisions = rowDecisions(board);
+  const records = events.map(event => decisions.find(record => record.event === event && !record.applied));
+  if (records.some(record => !record)) throw new Refused('STALE_ROW_DECISION', 'a row decision was replaced; use pullboard spec apply with the current decisions');
+  const items = board.db.prepare('SELECT * FROM item ORDER BY item_id').all();
+  const skippedDrafts = specRefreezeSkips(board, records, items);
+  const refreezes = prepareSpecRefreezes(records, items, freeze, { skippedDrafts });
+  return { records, items, skippedDrafts, ...(refreezes === undefined ? {} : { refreezes }) };
 }
 
 /** Validate a correction payload using only SQLite and sealed decision bytes; receivers never read Git or files. */

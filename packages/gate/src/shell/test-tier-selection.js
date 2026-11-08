@@ -132,7 +132,10 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // A package's own tests that only cross into what it imports are its units too, so an unsealed importer runs them.
   const unsealedNames = new Set((seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package));
   const own = row => ownUnit(row, after, unsealedNames);
-  const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row)).map(row => row.file), ...contracts])].sort();
+  // A test file the change itself adds or edits runs at submit whatever its tier, so a builder's own new test is
+  // proved in minutes rather than first at review or landing (4 Nov: 2 of 2 audited rejects were such tests).
+  const authored = new Set((actual ?? []).filter(file => after.rows.has(file)));
+  const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
 }

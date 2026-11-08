@@ -74,7 +74,7 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   const expectedHosts = [HOST, HOST + '-setup'];
   for (const [index, suffix] of ['', ' large'].entries()) {
     const id = index + 1;
-    document(box.run(box.repo, 'add', 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--json'));
+    document(box.run(box.repo, 'add', 'web', 'Trusted remote check ' + id, '--criterion', 'the trusted installed check completes at the immutable commit', '--check', 'node web/check.cjs' + suffix, '--specs', 'G1', '--route', 'strong', '--json'));
     document(box.run(box.web, 'claim', String(id), '--json'));
     historicalSubmission(box, id, commit);
     const before = phaseCounts(requests + '.phases');
@@ -151,7 +151,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
   document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
     const criterion = 'the private runner preserves trusted phase behavior' + (edge.guard ? '; guard: ' + edge.guard : '');
-    document(box.run(box.repo, 'add', 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--json'));
+    document(box.run(box.repo, 'add', 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--route', 'strong', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     historicalSubmission(box, 1, commit);
     const before = phaseCounts(requests + '.phases');

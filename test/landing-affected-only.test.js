@@ -70,14 +70,16 @@ test('a tiered batch runs its affected journey without unrelated journeys [C7,S1
   assert.deepEqual(plan.files, files);
 });
 
-test('tiered landing uses the sealed submit union and retains explicit mandatory guards [C7,S10]', () => {
+test('clause 1: tiered landing uses the sealed submit union, the change\'s own edited tests and explicit mandatory guards [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: ['test/a.test.js'], mandatory: ['test/unrelated.test.js'] });
-  assert.deepEqual(files, ['test/a.test.js', 'test/unrelated.test.js'], 'reachable and deferred b does not expand the sealed union');
+  // 37a843ba86: a test file the change itself edits runs whatever its tier, so edited b joins the sealed union.
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js', 'test/unrelated.test.js']);
 });
 
-test('a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
+test('clause 1: a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [] });
-  assert.deepEqual(files, ['test/a.test.js']);
+  // 37a843ba86: the edited test b also runs at landing.
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
 test('the frozen criterion and submission proof contribute their complete file union [C7,S10]', () => {

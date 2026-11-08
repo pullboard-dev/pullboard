@@ -83,7 +83,7 @@ function countPairs() {
     }
     source('[data-section-approve]');
     for (const row of list.querySelectorAll('[data-row]')) {
-      const id = row.dataset.row.split(':')[1], badge = row.querySelector('.row-age');
+      const id = row.dataset.row.split(':')[1], badge = row.querySelector('.spec-row-side small');
       add(kind + '/citations/' + id, number(badge), items.filter(item => item.specs.includes(id)).length);
     }
   }
@@ -94,12 +94,13 @@ function countPairs() {
     let remaining = 0;
     for (const card of all('#roadmap-list > .milestone')) {
       const rows = [...card.querySelectorAll('.milestone-item')];
-      const landed = rows.filter(row => row.querySelector('.roadmap-landed')).length;
+      const landed = rows.filter(row => row.querySelector('[data-stage=merged]')).length;
       const left = card.querySelector('.roadmap-left b');
       if (left) { add('Roadmap/' + card.dataset.key + '/remaining', number(left), rows.length - landed); remaining += number(left); }
       for (const count of card.querySelectorAll('[data-summary-state]')) {
         const key = count.dataset.summaryState;
-        const matches = { landed: '.roadmap-landed', landing: '.chip.ok:not(.roadmap-landed)', review: '.roadmap-status .chip.warn:not(.roadmap-blocked)', building: '.roadmap-status .chip.busy', held: '.held-chip' };
+        // Rows carry the native stage chip (1484ea02be): data-stage names the stage, a Held mark names a hold.
+        const matches = { landed: '[data-stage=merged]', landing: '[data-stage=verified], [data-stage=landing]', review: '[data-stage=in-review]', building: '[data-stage=building]', held: '.stage-mark[aria-label^="Held"]' };
         if (matches[key]) add('Roadmap/' + key, number(count.querySelector('b')), rows.filter(row => row.querySelector(matches[key])).length);
       }
     }
@@ -187,7 +188,8 @@ function countPairs() {
     const between = agents.filter(row => row.classList.contains('floor-between-items')).length;
     const live = agents.filter(row => !row.classList.contains('floor-quiet')).length;
     const values = {
-      live, building, reviewing, between, landed: dayIds.size,
+      // The Landed tile counts the last 4 hours; its group heading carries the 24-hour count (2ad0017969).
+      live, building, reviewing, between, landed: recentIds.size,
       accepted: recent.filter(event => event.event_kind === 'accept').length,
       'sent-back': recent.filter(event => ['reject', 'reopen'].includes(event.event_kind)).length,
       'in-review': review.length, waiting: nativeQueues.landing.length, ready: nativeQueues.ready.length,
@@ -199,11 +201,15 @@ function countPairs() {
       const numeral = document.querySelector('[data-floor-stat="' + key + '"] > b');
       add('Floor/tile/' + key, Number.parseInt(numeral?.textContent.replaceAll(',', ''), 10), expected);
     }
-    add('Floor/seen agents note', number(document.querySelector('[data-floor-stat="live"] small')), agents.length);
-    add('Floor/recent landed note', number(document.querySelector('[data-floor-stat="landed"] small')), recentIds.size);
-    add('Floor/unreviewed note', number(document.querySelector('[data-floor-stat="in-review"] small')), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
+    // The seen-agents note moved to the Agents group heading (2ad0017969).
+    add('Floor/seen agents note', number(document.querySelector('[data-floor-group="agents"] h2 span')), agents.length);
+    add('Floor/day landed note', number(document.querySelector('[data-floor-group="recent"] h2 span')), dayIds.size);
+    // Tile sub-lines moved into each tile's hover title (2ad0017969).
+    add('Floor/unreviewed note', Number(/; (\d+) waiting for a reviewer$/u.exec(document.querySelector('[data-floor-stat="in-review"]')?.title ?? '')?.[1]), review.filter(item => !item.reviewer || !(Date.parse(item.reviewUntil) > Date.now())).length);
     const headline = document.querySelector('.floor-hero h1').textContent.replaceAll(',', '').match(/\d+/g).map(Number);
-    for (const [index, expected] of [live, building, reviewing, dayIds.size].entries()) add('Floor/headline/' + index, headline[index], expected);
+    // The headline reads landings in 24 hours, then peak agents (f1fb1e6fb7); the peak is never below the live count.
+    add('Floor/headline/landed', headline[0], dayIds.size);
+    add('Floor/headline/peak covers live', headline[1] >= live, true);
     add('Floor/all-time landed', number(document.querySelector('.floor-foot span')), landedIds.size);
     const bins = all('.floor-bars rect title').map(node => number(node));
     add('Floor/histogram inventory', bins.length, 24);
@@ -319,7 +325,7 @@ async function liveMove(chrome, move, witness, phase) {
 }
 
 // budget: native board setup, all tab/filter choices and three streamed updates; no speed threshold.
-test('every tab count describes its real list or named native set across landing, add and claim refreshes [N26]', { timeout: 240_000 }, async () => {
+test('clause 1: every tab count describes its real list or named native set across landing, add and claim refreshes [N26]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'this journey requires an admitted Chrome runner');
   const box = machine();
@@ -330,7 +336,7 @@ test('every tab count describes its real list or named native set across landing
   }
   build(box, demo, 1, 'land.txt'); accept(box, demo, 1);
   build(box, demo, 2, 'review.txt');
-  box.run(demo.repo, 'milestone', 'add', 'Release', '--items', '1,2,3,4,5');
+  box.run(demo.repo, 'milestone', 'add', 'Release', '--items', '1,2,3,4,5', '--reason', 'Arrange fixture release');
   box.run(demo.repo, 'shout', 'person', 'Choose the release wording.', '--decision');
   box.run(demo.web, 'shout', 'coordinator', 'Which item should follow?', '--decision', '--kind', 'question');
   const server = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-count-sweep-'));
@@ -339,13 +345,15 @@ test('every tab count describes its real list or named native set across landing
     chrome = await openSnapshotChrome(executable, server.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('data?.project?.items?.length === 5');
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Dashboard counts are swept.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.stable('window.countSweepPairs = ' + countPairs.toString());
     await sweep(chrome, 'initial');
     await pane(chrome, 'roadmap', 'before landing');
     await liveMove(chrome, () => {
       box.git(demo.repo, 'merge', '--no-ff', '--no-edit', demo.itemBranches.get(`${demo.baseBranch}:1`));
       box.run(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
-    }, 'document.querySelectorAll("#roadmap .roadmap-landed").length === 1', 'landed');
+    }, 'document.querySelectorAll("#roadmap [data-stage=merged]").length === 1', 'landed');
     await pane(chrome, 'settings', 'before add');
     await liveMove(chrome, () => box.run(demo.repo, 'add', 'web', 'Live added item', '--specs', 'G1', '--criterion', 'Count the live addition.'), 'data.project.items.length === 6', 'added');
     await pane(chrome, 'dashboard', 'before claim');

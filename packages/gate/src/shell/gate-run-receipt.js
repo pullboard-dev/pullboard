@@ -154,7 +154,8 @@ export function landingShardProfile(output) {
     if (held) quarantined.push({ host: held[1], message: held[2] });
     const slowest = /^# landing floor: (\d+) ms (.+)$/u.exec(line);
     if (slowest) floor = { path: slowest[2], ms: Number(slowest[1]) };
-    const shard = /^# landing shard (\d+\/\d+) attempt (\d+) on (\S+): (green|red|stopped|infrastructure|refused)(?: \(([^)]*)\))? in (\d+) ms$/u.exec(line);
+    // The optional trailing parenthetical is the shard's dispatch phases (connect, history, ready, run); the receipt keeps the wall time.
+    const shard = /^# landing shard (\d+\/\d+) attempt (\d+) on (\S+): (green|red|stopped|infrastructure|refused)(?: \(([^)]*)\))? in (\d+) ms(?: \([^)]*\))?$/u.exec(line);
     if (shard) shards.push({ shard: shard[1], attempt: Number(shard[2]), host: shard[3], status: shard[4], reason: shard[5] ?? null, wallMs: Number(shard[6]) });
     const file = /^# landing file (\d+\/\d+) (\S+) (\d+|-) (.+)$/u.exec(line);
     if (file) files.push({ path: file[4], shard: file[1], host: file[2], durationMs: file[3] === '-' ? null : Number(file[3]) });

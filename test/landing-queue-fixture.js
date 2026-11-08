@@ -1,4 +1,5 @@
 import { landingPorts } from './landing-ports-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
@@ -73,7 +74,7 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
-      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--wait', '--json'));
+      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--json'));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
@@ -103,21 +104,27 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
   return entries;
 }
 
+/** The shared bounded observation wait; this fixture's sandboxes are owned by its callers. */
+const LEASE_WAIT = createE2eHelpers();
+
 /** Use a real public lease and board for bounded internal boundary controls, never a fabricated grant. */
 async function withFixtureLease(box, branch, action) {
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const request = { agentId: 'coordinator', action: 'request', branch, token: randomUUID(), pid: process.pid };
   let fence;
   try {
-    const grant = store.landingLeaseMove(board, request);
-    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander: ' + JSON.stringify(grant));
+    // A real lander may still hold the lease while it finishes; queue behind it and wait for the grant (#3137).
+    const grant = await LEASE_WAIT.waitFor(() => { // budget: hang ceiling for the fixture's own landers releasing, not a speed target.
+      const observed = store.landingLeaseMove(board, request);
+      return observed.acquired ? observed : null;
+    }, 'the fixture landers release the landing lease', 120_000);
     fence = { ...request, generation: grant.generation };
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
     return await action({ root: box.repo, board, fence, owner: 'private-boundary-control', say() {},
       write: async (operation, args) => board.enginePorts.store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
   } finally {
-    if (fence) store.landingLeaseMove(board, { ...fence, action: 'release' });
+    store.landingLeaseMove(board, { ...(fence ?? request), action: 'release' });
     store.closeBoard(board);
   }
 }

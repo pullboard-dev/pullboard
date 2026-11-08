@@ -190,10 +190,12 @@ test('[N26,A2] varied generated native items use at most 40 percent of ordinary 
 });
 
 test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive four-hour boundary and retains a three-hour-old seat', async t => {
-  const box = await fixture(t, { recentAge: 3 * 3_600_000 });
+  // Item progress has its own minute transitions; isolate this seat-only activity boundary.
+  const box = await fixture(t, { items: 0, recentAge: 3 * 3_600_000 });
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
   box.advance(3_600_000);
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
+  assert.equal(box.builds(), 1, 'the inclusive seat boundary still uses the clock-only cache hit');
   box.advance(1);
   const expired = await box.request(box.path + '/state');
   assert.deepEqual(expired.document.state.agents, []);

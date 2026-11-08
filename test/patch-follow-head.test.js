@@ -64,7 +64,7 @@ function fixture(t) {
   f.builder = seat(f, 'follow-builder', 'core');
   f.author = seat(f, 'follow-author', 'view');
   f.id = document(run(f, f.coordinator, 'add', 'core', 'Follow the approved view module', '--specs', 'G1',
-    '--criterion', 'The actual core command imports the approved view module.', '--check', 'node core/cli.cjs')).item.item_id;
+    '--criterion', 'The actual core command imports the approved view module.', '--check', 'node core/cli.cjs', '--route', 'strong')).item.item_id;
   document(run(f, f.builder, 'claim', String(f.id)));
   mkdirSync(join(f.builder.root, 'core'));
   writeFileSync(join(f.builder.root, 'core/cli.cjs'), "const assert = require('node:assert/strict');\nassert.equal(require('../view/header.cjs'), 'approved view');\nconsole.log('TAP version 13\\nok 1 - actual companion import\\n1..1');\n");

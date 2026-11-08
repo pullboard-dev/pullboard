@@ -22,6 +22,8 @@ async function pairedTransport(chrome, box, title) {
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = readFileSync(box.keyFile, 'utf8').trim();
   await signIn(chrome, box);
+  // A fresh page opens on Dashboard, which has no #chain; select Items before every document loads.
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('pb.tab','items');" });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
   await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
   await installTransport(chrome);

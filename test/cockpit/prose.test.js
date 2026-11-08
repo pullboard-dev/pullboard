@@ -86,7 +86,8 @@ test('the view chips a command the CLI adds [N26]', async (t) => {
   for (const entry of ['relay', 'test']) {
     cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
   }
-  const helpFile = join(cli, 'src', 'help.js');
+  // The CLI help lives in its cell since ea011aa6ff removed the src/help.js shim.
+  const helpFile = join(cli, 'apps', 'cli', 'src', 'core', 'help.js');
   const source = readFileSync(helpFile, 'utf8');
   writeFileSync(helpFile, source
     .replace('all: ALL_HELP,', "all: ALL_HELP + '\\n  pullboard blueprint apply <path>  a copied CLI extension',")
@@ -155,32 +156,34 @@ test('real Chrome renders brief lists with inline paths [N26]', { timeout: 90_00
     const link = new URL(view.link.href);
     link.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project && !!document.querySelector('#detail .text.muted')");
+    // Since 639c16dbb5 the item panel shows the brief's prose in .item-panel-brief and its Files paths as file chips below it.
+    await chrome.waitFor("typeof data === 'object' && !!data && !!data.project && !!document.querySelector('#detail .item-panel-brief')");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#detail .text.muted ul') !== null`);
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#detail .item-panel-brief ul') !== null`);
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const text = document.querySelector('#detail .text.muted');
+        const text = document.querySelector('#detail .item-panel-brief');
         const lists = [...text.querySelectorAll(':scope > ul.text-list')];
         const label = (list) => { let n = list.previousSibling; while (n && n.nodeType === 3 && !n.textContent.trim()) n = n.previousSibling; return n ? (n.nodeType === 3 ? n.textContent : n.textContent).trim().split('\\n').pop() : ''; };
         const item = (li) => ({ text: li.firstChild ? [...li.childNodes].filter((n) => n.nodeName !== 'UL').map((n) => n.textContent).join('') : '',
           codes: [...li.querySelectorAll(':scope > code')].map((code) => [code.textContent, getComputedStyle(code).display]), nested: [...li.querySelectorAll(':scope > ul > li')].map((child) => child.textContent) });
         const line = parseFloat(getComputedStyle(text).lineHeight);
-        const testLabelTop = (() => { const r = document.createRange(); const node = [...text.childNodes].find((n) => n.nodeType === 3 && n.textContent.includes('Test:')); r.selectNode(node); return r.getBoundingClientRect().top; })();
-        return { lists: lists.map((list) => ({ label: label(list), items: [...list.querySelectorAll(':scope > li')].map(item) })),
+        const nextLabelTop = (() => { const r = document.createRange(); const node = [...text.childNodes].find((n) => n.nodeType === 3 && n.textContent.includes('Sentences:')); r.selectNode(node); return r.getBoundingClientRect().top; })();
+        return { files: [...document.querySelectorAll('#detail .item-panel-files .item-file')].map((file) => [file.dataset.file, file.textContent, getComputedStyle(file).display]), lists: lists.map((list) => ({ label: label(list), items: [...list.querySelectorAll(':scope > li')].map(item) })),
           blocks: text.querySelectorAll('code.block, .code').length, dashes: text.innerText.split('\\n').filter((l) => l.trim().startsWith('-')).length,
-          gap: (testLabelTop - lists[0].getBoundingClientRect().bottom) / line, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+          gap: (nextLabelTop - lists[0].getBoundingClientRect().bottom) / line, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
       })())`));
       const place = `${width}: ${JSON.stringify(seen)}`;
-      assert.deepEqual(seen.lists.map((list) => list.label), ['Files:', 'Test:', 'Sentences:'], `${width}: each label stays a plain line above its own list`);
-      assert.deepEqual(seen.lists[0].items.map((li) => li.codes), [[['web/index.html', 'inline']], [['web/app.js', 'inline']], [['web/style.css', 'inline']], [['web/api.md', 'inline']]],
-        `each path is a bullet holding one inline chip at ${place}`);
-      const [command, prose, parent] = seen.lists[1].items;
+      assert.deepEqual(seen.lists.map((list) => list.label), ['Test:', 'Sentences:'], `${width}: each label stays a plain line above its own list`);
+      assert.deepEqual(seen.files.map(([path, text]) => [path, text]), ['web/index.html', 'web/app.js', 'web/style.css', 'web/api.md'].map((path) => [path, path]),
+        `each Files path is one file chip at ${place}`);
+      assert.ok(seen.files.every(([, , display]) => display !== 'block'), `${width}: each file chip stays inline: ${place}`);
+      const [command, prose, parent] = seen.lists[0].items;
       assert.deepEqual(command.codes, [['node bin/run-tests.js --test-name-pattern "brief lists" test/cockpit.test.js', 'inline']], `${width}: a whole command bullet is one chip`);
       assert.deepEqual([prose.text, prose.codes], ['make test stays prose', []], `${width}: any other command, unmarked, stays prose`);
       assert.deepEqual(parent.nested, ['capture, measurement, note', 'decision, rejection'], `${width}: indented bullets nest under the bullet above them`);
       // A bullet that only starts with a command is a sentence, never one chip; the command alone is.
-      const [sentence, runs, merge] = seen.lists[2].items;
+      const [sentence, runs, merge] = seen.lists[1].items;
       assert.ok(!sentence.codes.some(([code]) => code === sentence.text) && /0 errors, and no/.test(sentence.text), `${width}: a sentence that starts with pullboard stays prose: ${JSON.stringify(sentence)}`);
       assert.ok(!runs.codes.some(([code]) => code === runs.text), `${width}: so does one that starts with npm and goes on in words: ${JSON.stringify(runs)}`);
       assert.deepEqual(merge.codes, [['git merge main', 'inline']], `${width}: a short command alone is one chip`);

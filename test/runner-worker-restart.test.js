@@ -12,7 +12,7 @@ import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Hold a hung pinned worker, fail the first health probe, then run recovery with the real restart probe on a private host. */
-function observe(t, busy) {
+function observe(t, busy, reason = 'worker-unresponsive') {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -59,7 +59,7 @@ function observe(t, busy) {
         ownerWitness = { recorded: JSON.parse(readFileSync(ownerFile, 'utf8')), observed: { pid: observed.pid, started: observed.started } };
         assert.deepEqual(ownerWitness.recorded, ownerWitness.observed, 'the job owner must name this current worker before recovery');
       }
-      recordRunnerFailure(db, runner.host, 'worker-unresponsive', { recovery: identity });
+      recordRunnerFailure(db, runner.host, ${JSON.stringify(reason)}, { recovery: identity });
       const recovered = await recoverUnavailableRunners(db, [runner], { now: Date.now() + 2000, probe: probeRunnerHealth,
         idleProbe: (r, previous) => probeRunnerHealth(r, previous, { idle: true }),
         restartProbe: r => probeRunnerHealth(r, undefined, { restart: true }) });
@@ -102,5 +102,23 @@ test('a worker that owns a running job is never restarted and the hold names its
   assert.equal(actual.alive, true, 'the busy worker was left running');
   assert.equal(actual.held.detail, 'WORKER_UNRESPONSIVE');
   assert.match(actual.held.failure.latestProbe.reason, new RegExp('pid ' + actual.pid + '(?:\\D|$)', 'u'));
+  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed']);
+});
+
+test('a transport-lost runner whose pinned worker resets the probe restarts it when idle and returns to service [C7]', t => {
+  const actual = observe(t, false, 'transport-lost');
+  assert.equal(actual.recovered, true, JSON.stringify(actual));
+  assert.equal(actual.held, undefined);
+  assert.equal(actual.alive, false, 'the hung worker process was ended');
+  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed', 'worker-restarted', 'available']);
+  assert.deepEqual(actual.events[2].detail.restarted, [actual.pid]);
+  assert.equal(actual.events[3].detail.priorReason, 'TRANSPORT_UNVERIFIED');
+});
+
+test('a transport-lost runner whose worker owns a running job is left unavailable and its worker is not signalled [C7]', t => {
+  const actual = observe(t, true, 'transport-lost');
+  assert.equal(actual.recovered, false, JSON.stringify(actual));
+  assert.equal(actual.alive, true, 'the busy worker was left running');
+  assert.equal(actual.held.detail, 'TRANSPORT_UNVERIFIED');
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed']);
 });

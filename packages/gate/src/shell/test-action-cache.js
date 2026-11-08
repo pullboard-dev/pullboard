@@ -35,6 +35,13 @@ import {
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { memoizedActionKeys } from './test-action-key-memo.js';
+import {
+  firstChangedInput,
+  formatCacheRows,
+  latestKey,
+  recordInputParts,
+  rememberLatest,
+} from './test-cache-account.js';
 import { hostname } from 'node:os';
 import {
   TEST_RESULT_ORIGIN_ENV,
@@ -248,7 +255,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
     .map(file => [file, readFileSync(new URL(file, import.meta.url), 'utf8')]);
   shared.policy = digest(analyzer);
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
-  return memoizedActionKeys(testResultStore(root, gitEnv), identity, files, async () => {
+  const store = testResultStore(root, gitEnv);
+  return memoizedActionKeys(store, identity, files, async () => {
   const { testClosures } = await import('./affected-tests.js');
   const { closures, modules, blobs, reach } = testClosures(root, commit);
   const index = treeIndex(blobs);
@@ -267,6 +275,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
       closure: closure.files.map(path => [path, blobs.get(path) ?? null]),
       inputs: reads.inputs.map(path => [path, blobs.get(path)]),
       tracked: reads.listing ? digest(index.sorted) : null });
+    recordInputParts(store, inputKey, { test, files: closureBlobs(closure.files, blobs), runner, inputs: reads.inputs.map(path => [path, blobs.get(path)]),
+      tracked: reads.listing ? digest(index.sorted) : null, options: shared.options });
     keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
   }
   return keys;
@@ -365,19 +375,22 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   } catch { return keep; }
   const stage = env[TEST_STAGE_ENV] || (landing ? 'land' : fullSuite ? 'gate' : 'focused');
   const results = new Map();
+  const account = [];
   const reusedTestOutcomes = [];
   const run = [];
   for (const file of selectors) {
     const entry = reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
-      || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); continue; }
+      || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); account.push(ranAccount(store, file)); continue; }
+    account.push(reusedAccount(store, file));
     reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
     write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
     write(`${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n`);
   }
+  write(formatCacheRows(account));
   if (!run.length && suiteProven(selectors.map(file => file.path), results).proven) {
     write(`# all ${selectors.length} test files reused; none ran\n`);
     return { args, files: [], done: true, reusedTestOutcomes };
@@ -397,6 +410,22 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const reused = new Set(selectors.filter(file => !run.includes(file)).map(file => file.selector));
   if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false, reusedTestOutcomes };
   return { args: args.filter(arg => !reused.has(arg)), files: null, done: false, reusedTestOutcomes };
+}
+
+/** The [path, blob] pairs of a closure. */
+function closureBlobs(files, blobs) { return files.map(path => [path, blobs.get(path) ?? null]); }
+
+/** A file's row when it must run: its key, and which input changed since its last key (or why it has no key). */
+function ranAccount(store, file) {
+  const missed = file.key ? firstChangedInput(store, latestKey(store, file.path), file) : `no key: ${file.reason}`;
+  if (file.key) rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
+  return { file: file.path, outcome: 'ran', key: file.key ?? null, missed };
+}
+
+/** A file's row when its cached green is reused; the key becomes its latest. */
+function reusedAccount(store, file) {
+  rememberLatest(store, file.path, { key: file.key, inputKey: file.inputKey, context: file.context });
+  return { file: file.path, outcome: 'reused', key: file.key, missed: null };
 }
 
 /**

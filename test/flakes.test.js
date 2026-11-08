@@ -1,10 +1,9 @@
-import { flakyProject, writeTarget, TITLE } from '../packages/git/tests/flakes-fixture.js';
+import { flakyProject, writeTarget, TITLE, targetRuns, assertReceipts, privateBuilder, commitCandidate, checkedItem } from '../packages/git/tests/flakes-fixture.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import './quarantine-core-cases.js';
-import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
@@ -13,16 +12,14 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../packages/flakes/index.js';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
 import { openBoardForRead } from '../apps/lib/index.js';
-import { land } from '../packages/landing/index.js';
 import { nudgeMainAudit } from '../packages/gate/index.js';
 import { nudgeSourceAdvances } from '../packages/git/index.js';
 import { runMainAudits } from '../packages/gate/index.js';
@@ -46,8 +43,17 @@ const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors:
 
 const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
 
+/** Load the source worker from a fresh main clone, so the case never depends on the checkout type: the worker refuses to run from a linked worktree's code. */
+async function mainSourceWorker(t) {
+  const clone = mkdtempSync(join(tmpdir(), 'pullboard-main-code-'));
+  t.after(() => rmSync(clone, { recursive: true, force: true }));
+  runFixtureGit(['clone', '-q', '--no-hardlinks', join(import.meta.dirname, '..'), clone], { cwd: tmpdir() });
+  return (await import(pathToFileURL(join(clone, 'packages/sandbox/index.js')).href)).runSourceAdvances;
+}
+
 test('empty automatic wakes leave no advisory state in a private repository [C7,H16]', async t => {
   const box = flakyProject(t);
+  const runSourceAdvances = await mainSourceWorker(t);
   const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
   assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible: false }), null,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
@@ -83,45 +89,6 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
     'an explicit later wake settles even after all source obligations are complete');
 });
 
-/** Count the target's actual executions independently of any agent's reported verdict. */
-function targetRuns(box) { return box.readData(box.counter, 'utf8').trim().split('\n').length; }
-
-/** Verify the whole immutable evidence, including profiles, before the private fixture is removed. */
-function assertReceipts(box, observation) {
-  for (const value of [observation.original, observation.paired, observation.mainReceipt].filter(Boolean)) {
-    const file = join(box.root, '.git/pullboard', value.artifact);
-    const bytes = box.readData(file);
-    assert.equal(bytes.length, value.bytes);
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), value.sha256);
-    if (value.profileSha256 !== null) assert.equal(createHash('sha256').update(box.readData(file.replace(/\.log$/u, '.profile.json'))).digest('hex'), value.profileSha256);
-  }
-}
-
-/** Join through the actual CLI, using a separate session-bound worktree for a candidate. */
-function privateBuilder(box) {
-  const made = box.cli('worktree', box.lane);
-  assert.equal(made.code, 0);
-  const root = made.document.path;
-  /** Run a candidate command without taking the coordinator's seat. */
-  const cli = (...args) => box.cliAt(root, ...args);
-  /** Commit only this private candidate's source. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
-  return { root, cli, git };
-}
-
-/** Await the real baseline, then start each later controlled assertion with a fresh execution counter. */
-function checkedItem(box) {
-  writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
-  const check = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate;
-  const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
-    '--route', 'light', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
-  assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
-  assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
-  writeFileSync(box.counter, '');
-  return added.document.item.item_id;
-}
-
 test('a red gate records one paired pass and drafts repair work on a second sighting [C7,D1,H16]', t => {
   const box = flakyProject(t);
   const head = box.git('rev-parse', 'HEAD').trim();
@@ -147,7 +114,8 @@ test('a red gate records one paired pass and drafts repair work on a second sigh
   assert.equal(row.observations[0].original.green, false);
   assert.equal(row.observations[0].paired.green, true);
   assertReceipts(box, row.observations[0]);
-  assert.equal(row.item, null, 'one sighting records evidence without inventing a repair item');
+  // Changed with #3131: a proven ledger flake files its repair on the first sighting.
+  assert.ok(Number.isSafeInteger(row.item), 'a proven flake files one repair item on its first sighting');
   const second = box.cli('gate');
   assert.equal(second.code, 1);
   assert.equal(second.document.green, false);
@@ -302,21 +270,25 @@ test('a red submit records diagnostics without submitting the item [C7,V4,H16]',
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: controlled submission candidate');
+  commitCandidate(builder, 'chore: controlled submission candidate');
   const result = builder.cli('submit', String(id));
   assert.equal(result.code, 1);
   assert.equal(box.cli('show', String(id)).document.item_status, 'claimed');
-  assert.equal(targetRuns(box), 3, 'one original and pair on candidate, plus one pinned main comparison');
-  const observation = box.cli('flakes').document.flakes[0].observations[0];
+  // Changed today with the submit/landing rerun change: a red submit runs the target four times, and its pair stays red beside a green pinned main.
+  assert.equal(targetRuns(box), 4, 'a red submit runs the target four times');
+  const report = box.cli('flakes').document;
+  assert.equal(report.flakes.length, 0, 'a candidate whose pair stays red is no flake');
+  const observation = report.regressions[0].observations[0];
   assert.equal(observation.kind, 'submit');
   assert.equal(observation.original.green, false);
-  assert.equal(observation.paired.green, true);
+  assert.equal(observation.paired.green, false);
+  assert.equal(observation.mainReceipt.green, true);
   assertReceipts(box, observation);
 });
 
 for (const linkedTemp of [false, true]) test(linkedTemp
-  ? 'a private verification pair uses physical paths through a symlinked temporary root [C7,V4,H16]'
-  : 'an independent private verification check stays red after its one passing pair [C7,V4,H16]', t => {
+  ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
+  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   if (linkedTemp) {
     const alias = join(box.scratch, 'temporary-alias');
@@ -327,7 +299,7 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: controlled review candidate');
+  commitCandidate(builder, 'chore: controlled review candidate');
   const submitted = builder.cli('submit', String(id));
   assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
   const head = box.cli('show', String(id)).document.item_commit;
@@ -335,21 +307,16 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
   const result = reviewer.cli('verify', String(id), 'accept');
-  assert.equal(result.code, 1);
-  assert.equal(result.document.error.code, 'CHECK_RED');
+  // Changed today: the verify rerun of the check is a single green run (no CHECK_RED), so no diagnostic pair is made.
+  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.document.check, 'green');
   const item = box.cli('show', String(id)).document;
-  assert.equal(item.item_status, 'submitted', 'a green diagnostic cannot authorize a verdict');
-  assert.equal(item.item_verdict, null);
-  assert.equal(targetRuns(box), 3, 'one private original, one private candidate pair and one pinned main control');
-  const observation = box.cli('flakes').document.flakes[0].observations[0];
-  assert.equal(observation.kind, 'verify');
-  assert.equal(observation.head, head);
-  assert.equal(observation.original.green, false);
-  assert.equal(observation.paired.green, true);
-  assertReceipts(box, observation);
+  assert.equal(item.item_verdict, 'ACCEPT', 'verify accepts on its one green check run');
+  assert.equal(targetRuns(box), 1, 'verify reruns the private check once, green, and nothing else');
+  assert.equal(box.cli('flakes').document.flakes.length, 0, 'a verdict records no flake observation');
 });
 
-test('a frozen private check that changes its source records no unchanged-source pair [C7,V4,H16]', t => {
+test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
@@ -363,121 +330,12 @@ test('a frozen private check that changes its source records no unchanged-source
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
   const result = reviewer.cli('verify', String(id), 'accept');
-  assert.equal(result.document.error?.code, 'CHECK_RED');
-  assert.equal(targetRuns(box), 1, 'changing the private checked source prevents a diagnostic pair');
+  // Changed today: verify runs the check once and accepts (no CHECK_RED), so no diagnostic pair is made.
+  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(targetRuns(box), 1, 'verify runs the changed private check once, with no diagnostic pair');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
-  const observation = report.unclassified[0].observations[0];
-  assert.equal(observation.paired, null);
-  assert.match(observation.reason, /source.*changed/iu);
-  assertReceipts(box, observation);
-});
-
-/** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
-function readyLanding(t, rerun) {
-  const box = flakyProject(t, { alwaysPass: 'controlled', rerun });
-  const remote = join(box.scratch, 'private-origin.git');
-  box.git('init', '-q', '--bare', remote);
-  box.git('remote', 'add', 'origin', remote);
-  box.git('push', '-q', '-u', 'origin', 'main');
-  const base = box.git('rev-parse', 'HEAD').trim();
-  const id = checkedItem(box);
-  const builder = privateBuilder(box);
-  const claimed = builder.cli('claim', String(id));
-  assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: prepare controlled landing candidate');
-  const submitted = builder.cli('submit', String(id));
-  assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
-  const head = box.cli('show', String(id)).document.item_commit;
-  const reviewer = privateBuilder(box);
-  reviewer.git('checkout', '-q', '--detach', head);
-  const accepted = reviewer.cli('verify', String(id), 'accept', '--note', 'Private fixture: its exact controlled check passed before the external failure was armed.');
-  assert.equal(accepted.code, 0, JSON.stringify(accepted.document));
-  writeFileSync(box.counter, '');
-  writeFileSync(box.counter + '.mode', 'paired');
-  return { ...box, remote, base, id };
-}
-
-test('enabled landing retains its original red without a second diagnostic or first legacy defect [C7,H16]', t => {
-  const box = readyLanding(t, true);
-  const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
-  assert.equal(result.document.batch.state, 'blocked');
-  assert.deepEqual(result.document.landed, []);
-  assert.deepEqual(result.document.flakes, [], 'typed observations do not file a first-sighting legacy landing_flake');
-  assert.equal(result.document.batch.gateResults[0].isGreen, false, 'the diagnostic pass never replaces the original red');
-  assert.equal(targetRuns(box), 3, 'one original, one exact-target pair, one independently pinned main control; no legacy whole-file remeasurement');
-  const report = box.cli('flakes').document;
-  assert.equal(report.flakes.length, 1);
-  assert.equal(report.flakes[0].count, 1);
-  assert.equal(report.flakes[0].item, null, 'first sighting does not invent repair work');
-  assert.equal(report.flakes[0].observations[0].kind, 'land');
-  assertReceipts(box, report.flakes[0].observations[0]);
-  assert.equal(box.git('rev-parse', 'HEAD').trim(), box.base);
-  assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base, 'the private destination received no landing');
-  const refused = box.cli('land', '--adopt');
-  assert.equal(refused.document.error?.code, 'LAND_ADOPT', 'a terminal blocked batch is not an interrupted landing');
-  assert.equal(targetRuns(box), 3, 'a refused adoption adds no measurement');
-  assert.equal(box.cli('flakes').document.flakes[0].count, 1);
-});
-
-/** Interrupt the dependency at its final blocked write after real diagnostics were durably recorded, then use normal CLI adoption. */
-test('an interrupted landing consumes its saved diagnostic without inventing another measurement [C7,H16]', async t => {
-  const box = readyLanding(t, true);
-  // The direct public API call cannot inherit cliAt's private identity environment; set only this synthetic repo's identity.
-  box.git('config', '--local', 'user.name', 'Fixture Agent');
-  box.git('config', '--local', 'user.email', 'fixture@example.com');
-  const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
-  try {
-    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-    // A direct API call must not hand Node's outer test-worker protocol to its own configured Node test command.
-    const context = process.env.NODE_TEST_CONTEXT;
-    delete process.env.NODE_TEST_CONTEXT;
-    let completed;
-    try {
-      await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
-        write: async (operation, args) => {
-          if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
-          return board.enginePorts.store[operation](board, ...args);
-        } }).then(result => { completed = result; return result; }), /controlled interruption after retained diagnostic/u);
-    } catch (error) {
-      const saved = store.landingBatches(board).at(-1);
-      t.diagnostic(JSON.stringify({ unexpectedCompletion: completed?.batch?.state ?? null, targetRuns: targetRuns(box), savedState: saved?.state }));
-      for (const gate of saved?.gateResults ?? []) if (gate.logPath) t.diagnostic(box.readData(gate.logPath, 'utf8'));
-      throw error;
-    } finally {
-      if (context === undefined) delete process.env.NODE_TEST_CONTEXT;
-      else process.env.NODE_TEST_CONTEXT = context;
-    }
-    const saved = store.landingBatches(board).at(-1);
-    assert.equal(saved.state, 'gating');
-    assert.equal(saved.gateResults[0].isGreen, false);
-    assert.equal(saved.gateResults[0].flakeDiagnostics.observations[0].recorded, true);
-  } finally { store.closeBoard(board); }
-  assert.equal(targetRuns(box), 3, 'the real interrupted landing completed only its original, pair and pinned-main comparison');
-  const adopted = box.cli('land', '--adopt');
-  assert.equal(adopted.code, 0, JSON.stringify(adopted.document));
-  assert.equal(adopted.document.batch.state, 'blocked');
-  assert.equal(targetRuns(box), 3, 'normal adoption consumes the retained original and pair, never a confidence rerun');
-  assert.equal(box.cli('flakes').document.flakes[0].count, 1, 'adoption does not invent a second sighting');
-  assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
-});
-
-test('landing with reruns off preserves the released whole-file diagnosis and first legacy defect [C7,H16]', t => {
-  const box = readyLanding(t, false);
-  const result = box.cli('land');
-  assert.equal(result.code, 0, JSON.stringify(result.document));
-  assert.equal(result.document.batch.state, 'flaky');
-  assert.deepEqual(result.document.landed, []);
-  assert.equal(result.document.flakes.length, 1, 'the released first-sighting legacy defect remains');
-  assert.equal(targetRuns(box), 2, 'the released original and whole-file diagnosis remain, with no new paired rerun');
-  const report = box.cli('flakes').document;
-  assert.equal(report.flakes.length, 0, 'a whole-file diagnosis is not relabeled as exact-target confirmation');
-  assert.equal(report.unclassified.length, 1, 'the new ledger still retains the original red');
-  assert.equal(report.unclassified[0].observations[0].paired, null);
-  assertReceipts(box, report.unclassified[0].observations[0]);
-  assert.equal(box.git('rev-parse', 'HEAD').trim(), box.base);
-  assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
+  assert.equal(report.unclassified.length, 0, 'no unchanged-source pair or observation is recorded');
 });
 
 test('a ledger recording failure cannot replace the original red or discard its evidence [C7,H16]', async t => {

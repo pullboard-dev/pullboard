@@ -1,4 +1,4 @@
-/** An accept stays fresh when main's change to a shared file leaves the reviewed change intact [E8,V8,#2896]. */
+/** An accept stays fresh when main's change to a shared file leaves the reviewed change intact, context included [E8,V8,#2896]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -69,4 +69,13 @@ test('two items adding registry entries in sequence both stay fresh [E8,V8,#2896
   assert.equal(composesUnchanged(root, { base, checked: second, tip: git('rev-parse', 'main'), paths: ['registry.json'] }), true);
   git('merge', '-q', '--no-ff', '-m', 'land second', second);
   assert.match(git('show', 'main:registry.json'), /first-added[\s\S]*second-added/u);
+});
+
+test('main editing a nearby line that only changes the hunk context leaves the reviewed change fresh [E8,V8]', t => {
+  // Two lines away merges cleanly, yet it sat inside the reviewed hunk's three-line context; on 6 Nov such edits sent
+  // accepted items back for an identical re-review. The patch id now carries no context lines.
+  const { root, git, branch, base } = repo(t);
+  const checked = branch('item', list => { list[5] = '  "entry-05": "item",'; return list; });
+  git('merge', '-q', '--ff-only', branch('nearby', list => { list[8] = '  "entry-08": "main",'; return list; }));
+  assert.equal(composesUnchanged(root, { base, checked, tip: git('rev-parse', 'main'), paths: ['registry.json'] }), true);
 });

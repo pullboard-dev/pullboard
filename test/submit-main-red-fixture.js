@@ -15,6 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
+import { createFixtureWorktree, fileFixtureItem } from './testkit-fixture.js';
 export const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 /** Write one ordinary committed fixture input. */
@@ -25,7 +26,7 @@ export function put(root, file, text) {
 
 /** Run the actual command with isolated identity and machine settings. */
 export function cli(box, root, ...args) {
-  return runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
+  return runFixtureChild(process.execPath, [BIN, ...args, ...(args.includes('--json') ? [] : ['--json'])], { cwd: root, env: box.env, encoding: 'utf8' });
 }
 
 /** Commit fixture changes normally, retaining its real Git history. */
@@ -41,7 +42,7 @@ export function source(name = 'shared failure [G1]', expected = 2) {
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
-export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true, handoff = false } = {}) {
+export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', affectedTests = 'node test/runner.js', mainRed = true, handoff = false, waitMainRedBaseline = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -67,7 +68,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js' + gateSuffix,
-    affectedTests: 'node test/runner.js', submit: { handoff }, lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
+    affectedTests, submit: { handoff }, lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The unrelated change works. | gate: test/inherited.test.js\n');
   put(root, 'test/inherited.test.js', source());
   put(root, 'test/runner.js', [
@@ -78,29 +79,27 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     'process.exitCode = run.status ?? 1;',
   ].join('\n') + '\n');
   box.main = commit(box, root);
-  result = cli(box, root, 'add', 'core', 'Unrelated change', '--specs', 'G1', '--route', 'mid',
-    '--criterion', 'The unrelated change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: inherited failure accounting');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  box.item = JSON.parse(result.stdout).item.item_id;
-  result = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  box.builder = JSON.parse(result.stdout).path;
+  box.item = fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
+    check, route: 'mid', brief: 'Files: change.txt test/inherited.test.js\nChange: add change.txt\nTest: inherited failure accounting', args: ['--specs', 'G1'],
+    run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
+  result = createFixtureWorktree(box, root, 'core', { route: 'mid', run: (cwd, ...args) => cli(box, cwd, ...args) });
+  assert.equal(result.code, 0, result.out + result.err);
+  box.builder = JSON.parse(result.out).path;
   result = cli(box, box.builder, 'claim', String(box.item));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(box.builder, 'change.txt', 'Unrelated change.\n');
   put(box.builder, 'test/inherited.test.js', candidate);
   box.head = commit(box, box.builder);
-  if (mainRed) box.rework = fileMainRed(box);
+  if (mainRed) box.rework = fileMainRed(box, { wait: waitMainRedBaseline });
   return box;
 }
 
 /** File a still-open repair with the exact failing test in its declared check. */
-export function fileMainRed(box) {
-  const result = cli(box, box.root, 'add', 'core', 'Main red: inherited assertion needs repair', '--specs', 'G1',
-    '--criterion', 'The inherited assertion passes on main.', '--check', 'node test/runner.js test/inherited.test.js',
-    '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  return JSON.parse(result.stdout).item.item_id;
+export function fileMainRed(box, { wait = false } = {}) {
+  return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
+    criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
+    brief: 'Files: test/inherited.test.js\nChange: repair the assertion\nTest: inherited assertion', wait,
+    run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */

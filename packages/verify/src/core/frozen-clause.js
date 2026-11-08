@@ -13,6 +13,25 @@ export function frozenBar(item) {
     rows: Array.isArray(frozen.rows) ? frozen.rows.map(row => ({ id: row.id, text: wording(row.text) })) : [] };
 }
 
+/** A gate that names one JavaScript test file, as opposed to a command or a prose description. */
+const GATE_FILE = /^(?:\.\/)?[\w@][\w@./-]*\.[cm]?js$/u;
+
+/**
+ * Each frozen spec row whose gate names one test file: `[{ id, file }]`.
+ * Why: reviewers rejected green gates because a cited row's clause had no named run of its gate test (5 Nov, C7 and
+ * test/ci.test.js); submit runs these files and the review packet cites them for their row [V4].
+ *
+ * @param {{ item_frozen?: string }} item
+ * @returns {{ id: string, file: string }[]}
+ */
+export function frozenRowGates(item) {
+  let frozen;
+  try { frozen = JSON.parse(item?.item_frozen ?? 'null'); } catch { return []; }
+  if (!Array.isArray(frozen?.rows)) return [];
+  return frozen.rows.map(row => ({ id: String(row?.id ?? ''), file: wording(row?.gate).replace(/^\.\//u, '') }))
+    .filter(row => row.id && GATE_FILE.test(row.file));
+}
+
 /** Resolve an unambiguous quotation to its containing requirement, so shorter quotes cannot reset a round. */
 export function namedClause(bar, quote, includeCheck = false) {
   const texts = [...new Set([bar.criterion, ...(includeCheck ? [bar.check] : []), ...bar.rows.map(row => row.text)]

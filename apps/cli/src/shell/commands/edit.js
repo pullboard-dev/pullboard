@@ -1,3 +1,4 @@
+import { requireOwnLaneCheck } from '../lane-check.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
@@ -82,6 +83,7 @@ export async function run(io, args) {
     const authors = referenceAuthors(ctx.info.root, change.brief, { githubPullClient });
     if (authors.length) change.referenceAuthors = authors;
   }
+  requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
