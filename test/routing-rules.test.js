@@ -147,7 +147,7 @@ test('CLI next and verify reject the original building session through its real 
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/original-session', built, 'main');
   const original = 'routing-ledger-original-session', other = 'routing-ledger-independent-session';
   const builder = box.json(box.runAs(original, built, 'join', 'web', '--family', 'codex',
-    '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--json')).agent;
+    '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   const id = box.add('web', 'Session independence through the local ledger');
   box.json(box.runAs(original, built, 'claim', String(id), '--json'));
   const commit = helpers.commitFile(box, built, 'web/session.txt', 'built by the original session\n',
@@ -157,7 +157,7 @@ test('CLI next and verify reject the original building session through its real 
   const review = join(box.dir, 'original-session-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
   const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
-    '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--json')).agent;
+    '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--route', 'strong', '--json')).agent;
   assert.notEqual(reviewer, builder, 'the review seat is not the building seat');
   const builtBinding = box.binding(built), reviewBinding = box.binding(review);
   assert.equal(builtBinding.agent, builder);
