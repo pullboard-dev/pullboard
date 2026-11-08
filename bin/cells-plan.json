@@ -3454,6 +3454,10 @@
   ],
   "allowedEdges": [
     "activity->store",
+    "apps/cli->doctrine",
+    "apps/cli->gate",
+    "apps/cli->items",
+    "apps/cli->landing",
     "apps/cli->pin",
     "api->store",
     "apps/lib->store",
