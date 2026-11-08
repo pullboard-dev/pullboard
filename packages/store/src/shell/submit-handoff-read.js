@@ -89,6 +89,19 @@ export function pendingSubmitHandoff(board, item) {
     && ['queued', 'running'].includes(job.state) ? job : null;
 }
 
+/**
+ * The queued gate still running for an item's submitted head, or null once it has a terminal result.
+ *
+ * Why: a reviewer who reserves a submission while its queued gate runs finds no proof receipts and can only reject it
+ * INSUFFICIENT_EVIDENCE, which counts toward the two-send-backs hold (#3737). Items with no gate job at all (an older
+ * board, a synthetic submit) have no pending gate and stay reviewable [C7,V4].
+ */
+export function pendingGateAtHead(board, item) {
+  if (item.item_status !== 'submitted' || !item.item_commit) return null;
+  const job = submitHandoff(board, item.item_id);
+  return job && job.commit === item.item_commit && ['queued', 'running'].includes(job.state) ? job : null;
+}
+
 /** Return an unchanged worker refusal only while its original claim and frozen bar still match. */
 export function submitHandoffFailure(board, item) {
   const job = submitHandoff(board, item.item_id);
