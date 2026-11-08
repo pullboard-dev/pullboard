@@ -36,7 +36,7 @@ import { captureSpecApprovalBaseline } from '../packages/spec/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { legacyMirrorQueueFragment } from './relay-client-legacy-case.js';
 import { assertBaselineResumeEvidence, assertOriginalBaselineEvidence } from './relay-client-baseline-case.js';
-import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, relayUploadSummary, syncReplica } from './relay-client-replica-fixture.js';
+import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, settledUploadCount, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, relayUploadSummary, syncReplica } from './relay-client-replica-fixture.js';
 import { assertDroppedReplyConsumed, commitInitializedRepoFiles, enterLegacyAckPolicy } from './relay-client-policy-fixture.js';
 import { threeReplicaPhaseCapture } from './relay-client-timing.js';
 
@@ -1297,13 +1297,13 @@ async function recoverReplicaReplies(fixture, timing) {
     sealed: freshSealed,
   };
   writeFileSync(freshLinkFile, JSON.stringify(freshLink) + '\n', { mode: 0o600 });
-  const beforeFreshRefusal = relay.uploads.length;
+  const beforeFreshRefusal = await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status'));
   const freshRefusal = await timing.wait('submit the receiptless descriptor and verify the fresh stack guard', () => cliResult(worktrees[2], envs[2], 'submit', String(freshB)));
   assert.equal(freshRefusal.status, 1);
   assert.equal(freshRefusal.document.error.code, 'STACKED_ON_UNVERIFIED');
   assert.match(freshRefusal.document.error.message, new RegExp(`#${stackedA}\\b`, 'u'));
   assert.ok(freshRefusal.document.error.message.includes(firstRecoveryCommit));
-  assert.equal(relay.uploads.length, beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
+  assert.equal(await settledUploadCount(relay, () => cli(worktrees[2], envs[2], 'status')), beforeFreshRefusal, 'a receipt-missing recovered descriptor is refused before relay upload');
   const freshAfter = store.openBoard(replicaFiles[2]);
   try { assert.equal(store.getItem(freshAfter, freshB).item_status, 'claimed'); }
   finally { store.closeBoard(freshAfter); }

@@ -37,6 +37,7 @@ import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { relandAcceptedItems } from './accepted-reland.js';
+import { closePassedTestDefects } from './landing-step-selection.js';
 import { landingMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { oneItemBatch } from './landing-step-selection.js';
@@ -45,6 +46,7 @@ import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
 import { testHash } from './landing-step-selection.js';
 import { heldTestDefects } from './landing-step-selection.js';
+import { testDefectHoldMessage } from './landing-step-selection.js';
 import { landingEntry } from './landing-step-selection.js';
 import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
@@ -70,6 +72,7 @@ import { publish } from './landing-step-publish.js';
 import { landsOnTrunk } from './landing-step-publish.js';
 import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
+import { flakeRatchetBeforeGate } from './landing-step-trunk.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { timedPhase } from './landing-phase-timing.js';
 
@@ -143,6 +146,8 @@ export async function land(options) {
     requireParallelGateAdmission(options.root, policy);
     publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
+  // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
@@ -347,7 +352,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
-  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
+  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', testDefectHoldMessage(testDefects));
   if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
@@ -425,6 +430,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);
     else {
+      await flakeRatchetBeforeGate(state);
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);
