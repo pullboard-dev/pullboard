@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Observe only this private CLI fixture's durable job and item state. */
 function state(box) {
@@ -90,7 +92,8 @@ process.stdout.write=function(...args) {
       return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
         && !existsSync(join(directory, 'source'));
     }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
-    helpers.cleanup();
+    await gateSettled(helpers, box, job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, main, commit, marker, preload };
 }
