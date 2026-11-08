@@ -94,7 +94,7 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, 
       if (isBuiltin(specifier)) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
-      if (!/\.[cm]?js$/u.test(target)) throw new Error(`unproven executable ${label} dependency`);
+      if (!/\.[cm]?js$/u.test(target)) throw new Error(`unproven executable ${label} dependency ${specifier} imported by ${level[index]}`);
       pending.push(target);
     }
   }
