@@ -121,9 +121,13 @@ function bigTrunkMerge(t) {
   writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "lane";\n');
   assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);
   writeFileSync(join(box.main, 'core', 'file.js'), 'export const owned = "main";\n');
-  writeFileSync(join(box.main, 'view', 'big.txt'), 'ordinary text\n'.repeat(700_000));
-  assert.equal(box.git(box.main, 'add', '-A').status, 0);
-  assert.equal(box.git(box.main, 'commit', '-q', '-m', 'chore: trunk moves a lot [L3]').status, 0);
+  // Each commit stays under the scan limit on main; together they pass it.
+  for (const part of [1, 2, 3]) {
+    writeFileSync(join(box.main, 'view', `big-${part}.txt`), `part ${part}\n${'ordinary text\n'.repeat(250_000)}`);
+    assert.equal(box.git(box.main, 'add', '-A').status, 0);
+    const moved = box.git(box.main, 'commit', '-q', '-m', 'chore: trunk moves a lot [L3]');
+    assert.equal(moved.status, 0, moved.stderr + moved.stdout);
+  }
   const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
   assert.notEqual(merge.status, 0, 'core/file.js conflicts');
   return box;
