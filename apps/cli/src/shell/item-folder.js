@@ -277,8 +277,39 @@ function sameDirectory(first, second) {
   try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
 }
 
-/** Open or reuse this item's branch, starting a new branch at the current primary main; a runner-hosted seat's folder lives only on its runner [C7]. */
+/**
+ * Bring a clean item folder up to main's tip, keeping every commit the item branch already has.
+ * Why: a claim handed over a branch hundreds of commits behind main, so the submit merge was a huge new head every time (#3797).
+ * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
+ *
+ * @param {string} path the item folder
+ * @returns {void}
+ */
+function advanceToMain(path) {
+  if (tryGit(path, ['merge-base', '--is-ancestor', 'main', 'HEAD']).status === 0) return;
+  const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
+  if (status.status !== 0 || status.stdout) return;
+  if (tryGit(path, ['merge', '--ff-only', '-q', 'main']).status === 0) return;
+  if (tryGit(path, ['merge', '--no-edit', '-q', 'main']).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
+}
+
+/** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
+  const path = await openFolder(ctx, me, id, options);
+  if (typeof path === 'string' && existsSync(path)) advanceToMain(path);
+  return path;
+}
+
+/**
+ * Open or reuse this item's branch folder without advancing it.
+ *
+ * @param {any} ctx
+ * @param {{ id: string, lane: string }} me the claiming seat
+ * @param {number} id the item
+ * @param {any} options
+ * @returns {Promise<string|object|null>} the folder path, a runner-hosted folder record, or null for the coordinator
+ */
+async function openFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
   const runner = itemFolderRunner();
   if (runner) {
