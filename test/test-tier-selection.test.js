@@ -40,7 +40,7 @@ function fixture(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('node --test --test-reporter=tap');
   delete box.env.NODE_TEST_CONTEXT; // Each private Node test runner is independent of this parent test.
-  const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: "sh -c 'echo CTXDBG=$NODE_TEST_CONTEXT pid=$$ >&2; exec node --test --test-reporter=tap \"$@\"' sh",
+  const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap',
     submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { perItem: false, manualOverride: true, publish: 'separate', parallel: false },
     lanes: { ...helpers.CONFIG.lanes, web: { owns: ['packages/', 'test/'], specs: ['G1'] } } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
@@ -184,9 +184,11 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
-  const landed = json(box, box.repo, 'land', '--max', '2');
+  const landing = box.run(box.repo, 'land', '--max', '2', '--json');
+  assert.equal(landing.code, 0, landing.out + landing.err);
+  const landed = JSON.parse(landing.out);
   const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
-  assert.deepEqual(landed.landed, [good.id], `${gateLogs}\n${JSON.stringify(landed)}`);
+  assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${gateLogs}\n${JSON.stringify(landed)}`);
   assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
   assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
   const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
