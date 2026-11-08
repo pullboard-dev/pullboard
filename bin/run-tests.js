@@ -1351,6 +1351,7 @@ async function main(args) {
         return;
       }
     }
+    if (process.env[LANDING_RUN_ENV] !== '1' && !shardLabel && await (await import('./run-ordinary-shards.js')).runOrdinaryShards({ root: process.cwd(), runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot })) return;
     if (scopedMarker) {
       const inherited = inheritedGateSlot({ root: process.cwd(), browser, namedFiles: shortEligible });
       if (inherited && (!runnerOnly || inherited.runnerExecution)) await run(gateSlotEnvironment(inherited));
