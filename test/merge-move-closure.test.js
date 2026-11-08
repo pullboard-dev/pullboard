@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input package.json */
-/** Move discovery reads the exact moved conflict body, keeping the accepted dependencies [C7,CD60,H16]. */
+/** @pullboard-world-pin reads this test's own source to prove it pins no digest. Move discovery reads the exact moved conflict body, keeping the accepted dependencies [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
@@ -64,7 +64,7 @@ test('conflict shim preserves the accepted main move closure and the broad index
   assert.ok(broad.native.includes('node:child_process'), 'the negative control reaches actual process launchers');
 });
 
-test('clause 1: this file pins no hash digest of the live conflict body or package.json', () => {
+test('clause 1: this file pins no hash digest of the live conflict body or package.json [C7,CD60,H16]', () => {
   const own = readFileSync(new URL(import.meta.url), 'utf8');
   assert.doesNotMatch(own, /\b[0-9a-f]{64}\b/u, 'no 64-hex digest literal remains');
   assert.doesNotMatch(own, new RegExp(['create' + 'Hash', 'sha' + '256'].join('|'), 'u'), 'no hashing of the live implementation body remains');
