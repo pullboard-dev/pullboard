@@ -537,6 +537,8 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
 <!-- events:end -->
 
+The current engine records a seat's vendor family on its `join` event and no longer writes a separate `family` event; boards from older engines may still carry `family` events with one `family` field.
+
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
 
 An engine-10 `reopen` of a verified item adds `supersedes` with the earlier accept event id and `landingFailure` with `{batch, tests: [{file, name}], mergeCommit}`. For a recorded red batch, `batch` is its id and the tests and merge commit come from that batch. For a hand-run landing, `batch` is `null`; the coordinator's note supplies a test path and name plus merge commit, which are recorded without checking that commit against the repository. The accept event and verdict row remain append-only, and merged items cannot be reopened. Engine-8 and engine-9 `reopen` events keep their original `{commit, note, judgment}` detail and submitted-only behavior.
