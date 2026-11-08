@@ -16,6 +16,8 @@ import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
+import { checkRunTickNotes } from '../../../../../packages/state/index.js';
+import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
 import { redGateReport } from '../../../../../packages/gate/index.js';
 import { runGateStages } from '../../../../../packages/gate/index.js';
@@ -194,6 +196,7 @@ import {
   browserAdmissionReporter,
   context,
   filesSince,
+  gateTestFiles,
   freezer,
   idArg,
   ordered,
@@ -206,6 +209,7 @@ import {
   claimOrdered,
   claimFreezer,
   withBoard,
+  actOn,
 } from '../cli.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
@@ -225,6 +229,8 @@ import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
+import { runPreflight } from '../submit-preflight.js';
+import { reportPreflight } from '../submit-preflight.js';
 
 /** Report wall time without sharing the execution closures of unrelated submit stages. */
 function reportSubmitStage(ctx, name, start) {
@@ -383,7 +389,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id)) : null;
+    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
     if (clauseProblem) throw clauseProblem;
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
@@ -514,7 +520,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   });
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
   if (inspectClauses) await withBoard(ctx, async board => {
-    const summary = clauseInspectionSummary(held, store.itemThread(board, id));
+    const summary = clauseInspectionSummary(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
     if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
@@ -748,9 +754,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
-  // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
+  // Independent stages start together; a red refuses immediately. A driven gate (ctx.runGateStages) records each stage [C7].
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
-  const stages = await runGateStages([
+  const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
       if (remoteMode) return runRemotePart('preflight', signal);
       return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
@@ -992,11 +998,46 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }
 
+/** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */
+async function preflightHere(ctx) {
+  const { root } = ctx.info;
+  const changed = tryGit(root, ['diff', '--name-only', '-z', 'refs/heads/main...HEAD']);
+  const files = changed.status === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
+  return reportPreflight(await runPreflight(root, files), line => ctx.io.say(line));
+}
+
 /** Run `pullboard submit` and return its exit code. */
+/**
+ * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ */
+export async function recordClauseTicks(io, itemId, files) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
+/**
+ * Tick the claimed item's test clauses after a green `pullboard check` run of its frozen check, a test file or a shell command.
+ * Why: a check such as `test ! -e src/x.js` names no file `pullboard test` could run, yet proves its clauses [C7].
+ */
+export async function recordCheckTicks(io, itemId) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of checkRunTickNotes(found, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
 export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
   if (companionInput && (!companionInput.file || !companionInput.key || !companionInput.author)) {
     throw new Refused('USAGE', 'use pullboard submit <id> --companion <patch-file> --key <key> --author <owning-seat>');

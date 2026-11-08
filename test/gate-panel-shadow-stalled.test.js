@@ -1,4 +1,5 @@
 /** The gate panel calls a lease-free shadow gate stalled only when no live hand-off worker runs it [C7]. */
+import { setDriverProcess } from './gate-driver-fixture.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -89,9 +90,8 @@ test('clause 1: show and status read a lease-free running shadow gate as running
     createJob(board.db, { id: job.id, kind: 'gate', item: id, candidate: job.commit, base: job.main, now: 0 });
     writeStep(board.db, job.id, 'running', {}, { now: 0 });
   } finally { board.db.close(); }
-  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
-  mkdirSync(directory, { recursive: true });
-  const record = pid => writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: job.id, pid, started: null, relaunches: 0 }) + '\n');
+  // The gate's driver is recorded on its drive job, as the dispatcher records the process it started [C7].
+  const record = pid => setDriverProcess(join(box.repo, '.git', 'pullboard', 'board.sqlite'), job.id, { pid });
 
   record(process.pid);
   assert.match(showText(box, id), /queued gate: running at /u, 'show: a live worker keeps the lease-free gate running');

@@ -93,7 +93,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const clauses = settings.inspection?.clauses === true;
     if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (legacy machine value; submit uses verify.inspectClauses from accepted main)`, values.detail === true);
     const budget = workerBudget();
-    sayDescribed(io, `workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
+    sayDescribed(io, `workers.budget: ${budget?.spend ? `${budget.spend}/${budget.window} (spend pullboard run --scale may use across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -137,7 +137,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
   if (first === 'workers.budget') {
     const settings = setWorkerBudget(parseWorkerBudget(second));
     io.result?.({ settings });
-    io.say(`workers.budget set to ${settings.workers.budget.seatHours} seat-hours per ${settings.workers.budget.window}`);
+    io.say(`workers.budget set to ${settings.workers.budget.spend} spend per ${settings.workers.budget.window}`);
     return 0;
   }
   if (first === 'gate.runnerWaitMs') {
