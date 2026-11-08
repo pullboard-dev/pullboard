@@ -100,7 +100,7 @@ test('an exact-main failure is fully collected with later selected work before l
   assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.batch));
   assert.ok(landed.merged, 'the batch landed');
   assert.ok(readFileSync(marker, 'utf8'), 'the later selected test body ran');
-  assert.deepEqual((landed.batch.proof?.knownMain ?? landed.batch.knownMain ?? []).map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']], JSON.stringify({ proof: landed.batch.proof, knownMain: landed.batch.knownMain }).slice(0, 1500) + '\nLOG:' + (()=>{ try { return readFileSync(landed.batch.proof.logPath, 'utf8').slice(-3000); } catch (e) { return String(e); } })() + '\nLINES:' + JSON.stringify(landed.lines).slice(0, 3000));
+  assert.deepEqual(landed.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']], JSON.stringify(landed.batch.proof).slice(0, 1500));
 
   const blockedProject = realNodeMainProject();
   const newRed = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('new-batch-red', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('new red'); });\n";
