@@ -133,7 +133,7 @@ function bigTrunkMerge(t) {
   return box;
 }
 
-test('a merge of a trunk that moved past the scan limit scans only the small resolution [L3,C7]', t => {
+test('clause 1: a merge of a trunk that moved past the scan limit scans only the small resolution [L3,C7]', t => {
   const box = bigTrunkMerge(t);
   writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "both";\n');
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
@@ -141,7 +141,7 @@ test('a merge of a trunk that moved past the scan limit scans only the small res
   assert.equal(commit.status, 0, commit.stderr + commit.stdout);
 });
 
-test('a merge resolution that itself exceeds the scan limit is still refused [L3,C7]', t => {
+test('clause 1: a merge resolution that itself exceeds the scan limit is still refused [L3,C7]', t => {
   const box = bigTrunkMerge(t);
   writeFileSync(join(box.lane, 'core', 'file.js'), 'ordinary text\n'.repeat(700_000));
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
