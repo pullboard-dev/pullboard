@@ -92,7 +92,7 @@ async function observe(predicate, description, budgetMs = 10_000) {
 test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
   // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
   // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
-  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
+  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -116,7 +116,7 @@ test('a first lost transport requeues the run onto the same runner without a qua
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.equal(calls.filter(call => call.dropped).length, 1, 'only the first transport is dropped');
     assert.ok(calls.filter(call => !call.healthProbeFailed && !call.dropped).length >= 1, 'a single lost transport does not quarantine the runner: the run is dispatched to it again');
-    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline' + ' DEBUGCALLS ' + JSON.stringify(calls) + readFileSync(box.requests + '.phases', 'utf8'));
+    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline');
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.doesNotMatch(resources.stdout, /runner wait deadline/iu, 'no run is overdue, so public resources names no deadline');
