@@ -11,6 +11,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { events } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { removeSandboxes, workerGone } from './submit-handoff-fixture.js';
 
 /** Require a real ordinary CLI acknowledgement before reading its document. */
 function document(result) {
@@ -38,7 +39,11 @@ export async function submitHandoffEventContract(t) {
       const job = id ? read(board => submitHandoff(board, id)) : null;
       return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
     }, 'actual native handoff worker cleanup', 120000);
-    helpers.cleanup();
+    // The supervisor still removes its worktree and tool snapshot after the source goes: wait for it to exit, then
+    // remove asynchronously, never the shared synchronous rmSync retries that block past the 30 s file-exit ceiling.
+    const job = id ? read(board => submitHandoff(board, id)) : null;
+    if (job) await workerGone(helpers, box, job.id);
+    await removeSandboxes(helpers);
   });
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));

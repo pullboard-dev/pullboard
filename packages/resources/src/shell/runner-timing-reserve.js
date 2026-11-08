@@ -85,8 +85,22 @@ function refuseTimingRestriction(reserved, waiter) {
   }
 }
 
-/** Whether a waiter may use a runner while one is kept for timed checks: a timed check only it, an ordinary run any other. */
-export function timingReserveAllows(reserved, waiter, runner) {
+/**
+ * Whether a waiter may use a runner while one is kept for timed checks: a timed check only it, an ordinary run any other.
+ * With the gate line as `lendingTo`, it asks instead whether the kept runner lends this ordinary run a slot.
+ */
+export function timingReserveAllows(reserved, waiter, runner, lendingTo = null) {
+  if (lendingTo) return runner.host === reserved && timingReserveLends(reserved, waiter, lendingTo);
   if (!reserved) return true;
   return waiter.timing === 1 ? runner.host === reserved : runner.host !== reserved;
+}
+
+/**
+ * Whether the kept runner may lend a free slot to this ordinary run once no other runner fits it. Why: with no timed
+ * check waiting, a kept runner that refuses ordinary work sits idle while the queue waits (7 Nov: the 12-core Studio
+ * was kept for most cores and took no run for hours). A waiting timed check stops the lending, so the kept runner
+ * drains to it as its lent runs finish.
+ */
+export function timingReserveLends(reserved, waiter, waiters) {
+  return Boolean(reserved) && waiter.timing !== 1 && !waiters.some(other => other.timing === 1 && other.remote === 1);
 }

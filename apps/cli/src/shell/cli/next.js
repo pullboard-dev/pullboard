@@ -33,6 +33,7 @@ import { relayLinked } from '../../../../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { openItemFolder } from '../item-folder.js';
+import { liveFolderRefusal } from '../item-folder.js';
 import { claimOrdered } from './claim.js';
 import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
@@ -128,11 +129,24 @@ export async function nextOnce(ctx, values) {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
     if (held) {
-      const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+      let itemFolder;
+      try { itemFolder = await openNextFolder(target, board, holder, item.item_id); }
+      catch (error) {
+        // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
+        // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
+        if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_SESSION_LIVE') throw error;
+        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder held by another live session: ${error.message}`, 'OTHER']);
+        return { retry: true, retryDetail: { phase: 'held folder', item: item.item_id, code: error.code, message: error.message } };
+      }
       return { item, held, shared, reviewSkipped, reasons,
         ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
     }
     ctx.io.nextPhase?.('claim', item.item_id);
+    // A folder another live session holds would refuse after the claim, and the same item would be picked again on
+    // every next; the caller leaves it out and selects the next eligible item, while an explicit claim still refuses (#3688).
+    const live = await liveFolderRefusal(target, board, holder, item.item_id);
+    if (live) return { retry: true, skipItem: item.item_id,
+      retryDetail: { phase: 'claim', item: item.item_id, code: live.code, message: live.message } };
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
@@ -220,7 +234,7 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item))
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
-  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
