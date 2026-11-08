@@ -46,7 +46,8 @@ export async function run(io, { first, second, rest, values }) {
   const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
   const agent = resourceAgent(ctx) ?? `pid-${process.pid}`;
   const item = claimedItem(ctx, agent);
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
+  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, compareMain: values['compare-main'] === true, agent, item, onWait: io.gateWaitReporter(io), say: line => io.err(line) });
+  if (values['compare-main'] === true && !result.green) io.err('pullboard test: waiting on the main comparison (--compare-main)');
   result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
   const covered = new Set(result.mainFailures.map(row => row.file));
@@ -61,6 +62,7 @@ export async function run(io, { first, second, rest, values }) {
   if (!values.json && result.output) io.say(result.output.trimEnd());
   if (result.green && item !== undefined) await recordClauseTicks(io, item, files, headCommit(ctx.info.root));
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
+  if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
   return result.green ? 0 : 1;
 }
