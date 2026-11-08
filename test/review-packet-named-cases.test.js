@@ -1,6 +1,7 @@
 /** Gate receipts keep each named case of a file the frozen criterion names, and the review packet lists them [C7,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -9,9 +10,15 @@ import { testOutcomeCollector } from '../packages/gate/index.js';
 import { singleFileTapOutcomes } from '../packages/gate/src/shell/tap-tests.js';
 
 const helpers = createE2eHelpers();
-// A green submit starts the detached verification comparison, which can still be writing the board directory.
-after(() => {
-  for (const dir of helpers.sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
+/**
+ * A green submit starts detached board workers (the verification comparison among them) that can still be writing
+ * the fixture. A synchronous rmSync retrying ENOTEMPTY for them blocked the main thread past the runner's 30 s
+ * file-exit timeout, which killed this file with a live Socket handle; delete asynchronously within a 15 s budget
+ * and leave a fixture a worker still holds to the temporary directory [C7].
+ */
+after(async () => {
+  await Promise.all(helpers.sandboxes.map(dir => rm(dir, { recursive: true, force: true, maxRetries: 75, retryDelay: 200 })
+    .catch(() => { /* A detached worker still writing past the budget keeps its temporary fixture. */ })));
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
