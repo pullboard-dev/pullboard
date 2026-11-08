@@ -1,7 +1,7 @@
 // pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads src/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
 import { viewApiPorts } from '../../apps/view/index.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -156,6 +156,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
     assert.deepEqual(listed.lines, ['Loading…', 'Loading…'], 'unknown counts say loading rather than inventing zeros');
     await chrome.stable('window.__projectStateGate.release()');
     await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && !document.body.classList.contains('loading')`);
+    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     const before = await read();
     assert.match(before.main, /Alpha-only/);
     assert.match(before.status, /^2\s+items\b/u);
@@ -233,6 +234,7 @@ test('the page never tells a person with boards to run init while the list loads
     await chrome.stable("dispatchEvent(new PopStateEvent('popstate', { state: null })), true");
     for (let poll = 0; poll < 5; poll += 1) polls.push(await told());
     await chrome.stable("window.__listGate.release('state')");
+    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && !document.body.classList.contains('loading') && document.body.innerText.includes('Alpha waiting item')`);
     polls.push(await told());
     assert.deepEqual(polls.filter(Boolean), [], 'a person with a board never reads No boards yet or pullboard init while the list loads');
@@ -823,7 +825,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   box.git(primary, 'add', '-A');
   box.git(primary, 'commit', '-q', '-m', 'chore: retain migration fixture source');
   box.git(primary, 'worktree', 'add', '-q', '-b', 'view/future', linked, 'main');
-  const boardSource = join(linked, 'src/board-schema-source.js');
+  const boardSource = join(linked, 'packages/store/src/shell/board-schema-source.js');
   const original = readFileSync(boardSource, 'utf8');
   const future = original.replace('export const SCHEMA_VERSION = 3;', 'export const SCHEMA_VERSION = 4;');
   assert.notEqual(future, original, 'only the linked running code expects the future schema');
@@ -839,7 +841,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
     finally { db.close(); }
     assert.equal(createHash('sha256').update(readFileSync(file)).digest('hex'), before, 'refused board file is byte-identical');
   };
-  const projection = await import(pathToFileURL(join(linked, 'src/cli/view-state.js')).href);
+  const projection = await import(pathToFileURL(join(linked, 'apps/cli/src/shell/cli/view-state.js')).href);
   assert.throws(() => projection.projectState(refused.repo), error => error.code === 'UNMERGED_SCHEMA',
     'the view projector uses the running linked-source guard');
   unchanged();
