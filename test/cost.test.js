@@ -78,7 +78,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   const box = costProject('fixture-claude');
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -248,7 +248,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
   const box = costProject('fixture-codex');
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
