@@ -501,6 +501,7 @@ test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout
           await filter(kind, 'all');
           r = await read(kind);
           const all = Object.fromEntries(r.rows.map((row) => [row.id, row.chip]));
+          // Doctrine keeps the tier in its row slot (landed in 89147f4454); the recorded decision shows only in the detail.
           assert.deepEqual([all[first], all[second]], ['must', 'must'], `${tab}: Spec and Doctrine both keep the tier in the row; the recorded decision shows in the detail, not the row`);
           if (kind === 'spec') assert.deepEqual([all.S2, all.S3], [null, 'must'], `${tab}: Spec never replaces the tier slot with pending or approved status`);
           else assert.deepEqual([all.PB1, all.PB7], ['must', 'To review'], `${tab}: standard rules keep their tier or explicit review state`);
@@ -1088,7 +1089,7 @@ test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { 
 
 // Hang ceiling: four three-tab layouts, native input and real Git/SQLite setup; two 120s journey budgets plus setup headroom.
 
-/** Compare real Items, Spec and Doctrine rendering and native selection across four viewport/theme layouts. */
+/** Compare real Items, Spec and Doctrine rendering and native selection across four viewport/theme layouts. Doctrine records take the Spec record grid (landed in 6e59717725 and cead5a98d7), so their geometry is compared to the Spec row; the font stays on the Items row. */
 test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for shared-row checks.');
