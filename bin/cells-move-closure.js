@@ -95,15 +95,6 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, 
       if (isBuiltin(specifier)) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
-      // A literal JSON data import (the package version) is committed bytes the walk reads and counts, never code it parses.
-      if (/\.json$/u.test(target) && /\bwith\s*\{\s*type\s*:\s*['"]json['"]\s*\}/u.test(sources[index])) {
-        if (!reached.has(target)) {
-          reached.add(target);
-          bytes += Buffer.byteLength(sourceAt(root, target, allowed));
-          if (reached.size > 4096 || bytes > 1_048_576) throw new Error(`${label} closure exceeds source bounds (4096 files or 1 MiB)`);
-        }
-        continue;
-      }
       if (!/\.[cm]?js$/u.test(target)) {
         const chain = [level[index]];
         for (let at = via.get(chain[0]); at && chain.length < 12; at = via.get(at)) chain.unshift(at);
