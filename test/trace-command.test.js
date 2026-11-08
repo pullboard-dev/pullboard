@@ -1,11 +1,9 @@
 /** pullboard trace rebuilds an agent's or an item's timeline from trace lines and board events [C7]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
 import { sinceCutoff, traceLine, traceTimeline } from '../apps/cli/src/shell/cli-trace.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -13,9 +11,7 @@ after(e2e.cleanup);
 /** A scratch repo with one open item on the web lane; returns the box and the item id. */
 function scratch() {
   const box = e2e.project('true');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Trace me', criterion: 'The file is committed.' });
-  store.closeBoard(board);
+  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Trace me', criterion: 'The file is committed.' }).item_id;
   return { box, id };
 }
 

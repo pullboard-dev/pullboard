@@ -1,6 +1,6 @@
 /** The pullboard trace command: an agent's or an item's timeline from the command trace and the board's events [C7]. */
-import { Refused } from '../../../../../packages/kernel/index.js';
 import { context } from '../cli.js';
+import { refusal } from '../cli.js';
 import { withBoard } from '../cli.js';
 import { readTraceLines } from '../cli-trace.js';
 import { sinceCutoff } from '../cli-trace.js';
@@ -14,9 +14,9 @@ const TRACE_VERSION = 1;
 
 /** Run `pullboard trace <agent|item>`; it only reads, and prints one line per call or board event in time order. */
 export function run(io, { first, second, rest, values }) {
-  if (!first || second || rest.length) throw new Refused('USAGE', USAGE);
+  if (!first || second || rest.length) throw refusal('USAGE', USAGE);
   const since = values.since === undefined ? null : sinceCutoff(values.since);
-  if (values.since !== undefined && since === null) throw new Refused('USAGE', `--since takes a number and s, m, h or d, like 2h; ${USAGE}`);
+  if (values.since !== undefined && since === null) throw refusal('USAGE', `--since takes a number and s, m, h or d, like 2h; ${USAGE}`);
   const ctx = context(io);
   const events = withBoard(ctx, board => board.db.prepare('SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event ORDER BY event_id').all());
   const subject = String(first);
