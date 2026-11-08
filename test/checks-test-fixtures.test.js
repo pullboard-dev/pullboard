@@ -111,7 +111,7 @@ test('clause 1: the fixture check finds no site past its ceilings in this reposi
 test('clause 2: every helper path the check names exists in the tree and appears in its messages [C7]', () => {
   for (const [kind, path] of Object.entries(FIXTURE_HELPERS)) {
     assert.ok(existsSync(join(REPO, path)), `${kind} names ${path}, which must exist`);
-    const message = fixtureSites(kind === 'model' ? "x({ model: 'm' });" : kind === 'raw-cli' ? "box.run(box.repo, 'add', 'web');" : "mkdtempSync('x');", 'test/example.test.js')
+    const message = fixtureSites(kind === 'model' ? "x({ model: 'm' });" : kind === 'raw-cli' ? "box.run(box.repo, 'add', 'web');" : kind === 'hand-policy' ? "writeFileSync(join(d, 'pullboard.json'), '{}');" : "mkdtempSync('x');", 'test/example.test.js')
       .find(row => row.kind === kind)?.text ?? '';
     assert.ok(message.includes(path), `${kind} message names ${path}`);
   }
