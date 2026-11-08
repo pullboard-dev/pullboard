@@ -12,6 +12,7 @@ import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { Readable, Transform } from 'node:stream';
 import { once } from 'node:events';
+import { stopSender } from './relay-sender-fixture.js';
 import {
   cpSync,
   existsSync,
@@ -579,11 +580,12 @@ globalThis.fetch = function tracedFetch(input, init) {
   t.after(async () => {
     nextConfirmationStatusHold = null;
     for (const hold of confirmationStatusHolds) hold.release();
+    await stopSender(root);
     api.close();
     server.closeAllConnections();
     if (server.listening) await new Promise(ready => server.close(ready));
     auth.close();
-    rmSync(scratch, { recursive: true, force: true });
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
   });
 
   /** Stop the real relay listener and close active sockets to model a network outage. */
