@@ -89,11 +89,11 @@ for (const hold of [true, false]) {
 }
 
 test('remaining window budget bounds the target independently of the sampling interval [C7,B26]', () => {
-  const state = { budget: { seatHours: 40, window: 'day' }, usedHours: 0, cycleHours: 1 / 60,
+  const state = { budget: { spend: 40, window: 'day' }, usedSpend: 0, cycleHours: 1 / 60,
     hoursLeft: 10, worth: null, workers: [], reviews: 20, builds: 20 };
   assert.equal(planWorkerScale(state).target, 4);
   assert.equal(planWorkerScale({ ...state, hoursLeft: 20 }).target, 2);
-  assert.equal(planWorkerScale({ ...state, budget: { seatHours: 1000, window: 'day' } }).target, 4, 'unknown worth never permits an unbounded fleet');
+  assert.equal(planWorkerScale({ ...state, budget: { spend: 1000, window: 'day' } }).target, 4, 'unknown worth never permits an unbounded fleet');
   assert.equal(planWorkerScale({ ...state, hoursLeft: 5, worth: 8 }).target, 8, 'a known measured worth retains its explicit capacity');
   const noon = Date.parse('2026-11-03T12:00:00.000Z');
   assert.equal(workerWindowHours('day', noon), 12);

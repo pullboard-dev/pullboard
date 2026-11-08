@@ -29,6 +29,7 @@ import {
 import {
   git,
   gitChildEnv,
+  gitExecFileSync,
 } from '../../../git/index.js';
 import { machineHome } from '../../../resources/index.js';
 import { withFileLock } from '../../../outbox/index.js';
@@ -98,7 +99,7 @@ function pinnedCheckerFingerprintFromGit(root, commit) {
     for (let index = 0; index < Math.min(a.length, b.length); index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
     return a.length - b.length;
   });
-  const out = rows.length ? execFileSync('git', ['-C', root, 'cat-file', '--batch'], { input: rows.map(row => `${row.sha}\n`).join(''), env, maxBuffer: 1 << 30 }) : Buffer.alloc(0);
+  const out = rows.length ? gitExecFileSync(['-C', root, 'cat-file', '--batch'], { input: rows.map(row => `${row.sha}\n`).join(''), env, maxBuffer: 1 << 30 }) : Buffer.alloc(0);
   const files = [];
   let offset = 0;
   for (const row of rows) {
@@ -158,10 +159,18 @@ function save(file, data) {
   finally { rmSync(temporary, { force: true }); }
 }
 
-/** Build a verified accepted tree off-path, reusing the nearest compatible completed ancestor where possible. */
-export async function warmAcceptedCells(root, commit, { withCheckout, withLock } = {}) {
+/**
+ * Build a verified accepted tree off-path, reusing the nearest compatible completed ancestor where possible.
+ * `trunk` is the accepted commit or ref the produced commit must descend into: main's branch on the coordinator, the
+ * controller's pinned main on a runner, whose checkout's main branch is the candidate's merged trunk (#2535).
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} commit - The accepted commit whose inventory is produced.
+ * @param {{ withCheckout: Function, withLock: Function, trunk?: string }} ports
+ */
+export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main' } = {}) {
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
-  git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
+  git(root, ['merge-base', '--is-ancestor', commit, trunk], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'bin/cells-plan.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
   // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
   // the pinned one and otherwise re-runs bin/main-audit.js from the pinned checkout, so readers find it by the commit alone.
