@@ -9,7 +9,7 @@ import { splitSeam } from '../src/core/file-runtime-cap.js';
 
 const tests = [{ name: 'a', durationMs: 50_000 }, { name: 'b', durationMs: 60_000 }, { name: 'c', durationMs: 70_000 }];
 
-test('clause 1: a candidate that pushes a file past two minutes is refused naming the file and a split seam', () => {
+test('clause 1: a candidate that pushes a file past two minutes is refused naming the file and a split seam [C7]', () => {
   const report = fileRuntimeCapReport({ 'test/x.test.js': { durationMs: 180_000, tests } }, { 'test/x.test.js': 60_000 });
   assert.equal(FILE_RUNTIME_CAP_MS, 120_000);
   assert.equal(report.ok, false);
@@ -18,7 +18,7 @@ test('clause 1: a candidate that pushes a file past two minutes is refused namin
   assert.match(fileRuntimeCapOutput(report), /^file runtime cap: test\/x\.test\.js/);
 });
 
-test('clause 1: a file already over two minutes is listed for a split item, not refused, unless it grows past the cap again', () => {
+test('clause 1: a file already over two minutes is listed for a split item, not refused, unless it grows past the cap again [C7]', () => {
   const before = { 'test/slow.test.js': 300_000, 'test/fast.test.js': 5_000 };
   const same = fileRuntimeCapReport({ 'test/slow.test.js': 310_000 }, before);
   assert.equal(same.ok, true);
@@ -29,7 +29,7 @@ test('clause 1: a file already over two minutes is listed for a split item, not 
   assert.equal(fileRuntimeCapFailure('test/new.test.js', 500_000, undefined), null);
 });
 
-test('clause 1: the split seam falls back to a generic cut without per-test times and rejects bad input', () => {
+test('clause 1: the split seam falls back to a generic cut without per-test times and rejects bad input [C7]', () => {
   assert.match(splitSeam([]), /top-level describe\/test groups/);
   assert.match(splitSeam(tests), /60s in the first file|110s in the first file/);
   assert.throws(() => fileRuntimeCapFailure('f', Number.NaN, 0), /missing test file runtime/);
