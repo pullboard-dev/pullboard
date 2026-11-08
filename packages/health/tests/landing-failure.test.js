@@ -70,7 +70,7 @@ test('a later landing retires the failed batch instead of raising a stale except
   assert.equal(box.publish(), null);
 });
 
-test('a refused batch whose items all landed by another path raises no finding, one still open does [B3,R3,A6,C7]', t => {
+test('clause 1: a refused batch whose items all landed by another path raises no finding, one still open does [B3,R3,A6,C7]', t => {
   const box = fixture(t);
   assert.equal(landingFailureFindings(box.board).length, 1, 'an unlanded item keeps the finding');
   const other = addItem(box.board, { by: 'coordinator', lane: 'core', title: 'Second', criterion: 'It holds.' });
