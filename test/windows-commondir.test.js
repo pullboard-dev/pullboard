@@ -11,7 +11,7 @@ import { canonicalCommonDir, repoInfo, sameCommonDir } from '../packages/git/ind
 
 const root = resolve(import.meta.dirname, '..');
 
-test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and compare equal', () => {
+test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and compare equal [C7]', () => {
   assert.equal(canonicalCommonDir('C:\\x\\.git'), 'C:/x/.git');
   assert.equal(canonicalCommonDir('C:/x/.git'), 'C:/x/.git');
   assert.equal(canonicalCommonDir('c:\\x\\.git\\'), 'C:/x/.git');
@@ -22,12 +22,12 @@ test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and comp
   assert.equal(canonicalCommonDir('/tmp/a\\b/.git'), '/tmp/a\\b/.git', 'POSIX paths keep a literal backslash');
 });
 
-test('clause 1: repoInfo returns the canonical commonDir', () => {
+test('clause 1: repoInfo returns the canonical commonDir [C7]', () => {
   const info = repoInfo(root);
   assert.equal(info.commonDir, canonicalCommonDir(info.commonDir));
 });
 
-test('clause 2: laneSeatContext reuses the invoking seat when both commonDir spellings name one repo', async t => {
+test('clause 2: laneSeatContext reuses the invoking seat when both commonDir spellings name one repo [C7]', async t => {
   const dir = privateFixtureFiles('pb-wincommon-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const run = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
@@ -64,7 +64,7 @@ function sources(dir, out = []) {
   return out;
 }
 
-test('clause 3: no raw commonDir === or !== comparison outside the canonical helper', () => {
+test('clause 3: no raw commonDir === or !== comparison outside the canonical helper [C7]', () => {
   const raw = /\w*commonDir\)?\s*[!=]==(?!\s*['"`]|\s*null\b)|[!=]==\s*[\w.?()]*commonDir/iu;
   // resident-client and current-cli compare two paths from one Git answer and must stay import-light.
   const allowed = new Set(['bin/resident-client.js', 'bin/current-cli.js', 'packages/git/src/shell/git.js']);
