@@ -8,9 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { cachedCellsRun } from '../src/cells-cache.js';
-import { cellsCacheEnabled } from '../src/cells-cache.js';
-import { cellsStateKey } from '../src/cells-cache.js';
+import { cachedCellsRun, cellsCacheEnabled, cellsStateKey } from '../packages/codemap/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 

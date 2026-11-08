@@ -14,6 +14,7 @@
   ["src/cell-lint-roots.js","packages/codemap/src/shell/cell-lint-roots.js","rule"],
   ["src/cell-lint-store.js","packages/codemap/src/shell/cell-lint-store.js","rule"],
   ["src/cell-lints.js","packages/codemap/src/shell/cell-lints.js","rule"],
+  ["src/cells-cache.js","packages/codemap/src/shell/cells-cache.js","rule"],
   ["src/cells-plan-cuts.js","packages/codemap/src/core/cells-plan-cuts.js","rule"],
   ["src/cells-plan.js","packages/codemap/src/shell/cells-plan.js","rule"],
   ["src/code-map.js","packages/codemap/src/shell/code-map.js","seed"],

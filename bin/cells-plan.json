@@ -234,6 +234,9 @@
       "file": "bin/cells-plan/43-app-relay.json"
     }
   ],
+  "allowedEdges": [
+    "codemap->git"
+  ],
   "stays": [
     {
       "path": "src/index.js",
@@ -435,10 +438,6 @@
     },
     {
       "path": "bin/cells-submit-checks.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/cells-cache.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {

@@ -9,6 +9,7 @@ export * from './src/shell/cell-lints.js';
 export { ROOT_FILES, ROOT_FOLDERS, rootAllowed, strayNextStep } from './src/core/root-allowlist.js';
 export * from './src/core/cells-plan-cuts.js';
 export * from './src/shell/cells-plan.js';
+export { cachedCellsRun, cellsCacheEnabled, cellsStateKey } from './src/shell/cells-cache.js';
 export * from './src/shell/code-map.js';
 export * from './src/core/import-map.js';
 export * from './src/core/path-map-operands.js';
