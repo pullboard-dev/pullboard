@@ -36,18 +36,24 @@ import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
+import { rowSink } from '../../../../packages/drive/index.js';
+import { recordJobRow } from '../../../../packages/drive/index.js';
 import { gateDriveJobId } from '../../../../packages/drive/index.js';
 import { GATE_DRIVE_KIND } from '../../../../packages/drive/index.js';
 import { createJob } from '../../../../packages/jobs/index.js';
 import { nameJob } from '../../../../packages/jobs/index.js';
 import { finishJob } from '../../../../packages/jobs/index.js';
+import { jobView } from '../../../../packages/jobs/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
+import { borrowGateCheckout } from './gate-checkout-pool.js';
+import { discardGateCheckout } from './gate-checkout-pool.js';
+import { returnGateCheckout } from './gate-checkout-pool.js';
+import { gateCheckoutPool } from './gate-checkout-pool.js';
 
-/** Keep Git operations on the native common repository even if the builder removes its checkout. */
-function jobGit(commonDir, args) {
-  const result = gitSpawnSync(['--git-dir', commonDir, ...args], { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-  if (result.status !== 0) throw new Refused('SUBMIT_HANDOFF_SOURCE', `queued source Git ${args[0]} failed: ${String(result.stderr ?? '').slice(0, 1000)}`);
-  return result.stdout.trim();
+/** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
+function gateGit(args) {
+  const result = gitSpawnSync(args, { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  return { ok: result.status === 0, out: String(result.stdout ?? '').trim(), err: String(result.stderr ?? '') };
 }
 
 /** Read an owned request location without treating its paths as actor authority. */
@@ -162,7 +168,7 @@ export function handoffGreenResult(ctx, lockWaits) {
  * @param {any} error - The gate's refusal.
  */
 export function handoffRefusedResult(error) {
-  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) };
+  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}), ...(error?.windowSpent === true ? { windowSpent: true } : {}) };
 }
 
 /**
@@ -174,11 +180,18 @@ export function handoffRefusedResult(error) {
  * @param {{ item: number, infra?: string }} request
  * `healthy` and `wait` replace the rerun's runner probe and pause, as submitUntilSettled takes them; a fixture passes them.
  *
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, agentId?: string, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
  */
-export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait }) {
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
+    // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
+    onInfrastructure: async rerun => {
+      try {
+        await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
+          text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]));
+      } catch (error) { process.stderr.write(`infrastructure rerun not recorded: ${error.message}\n`); }
+    },
     ...(healthy ? { healthy } : {}), ...(wait ? { wait } : {}) });
   return handoffGreenResult(ctx, lockWaits);
 }
@@ -264,6 +277,24 @@ async function settledWithin(running, ms) {
 }
 
 /**
+ * The coordinator-side recorder of a driven gate: it reads the drive job once for the driver's starting copy and then
+ * writes each step, ticket and verdict row the drive loop emits. It is the only board handle a gate's drive reaches;
+ * the drive loop itself holds none, so it can move to a runner that has no board.sqlite (#3664).
+ *
+ * @param {any} nativeBoard - The native board module, which opens the board file.
+ * @param {string} file - The board file.
+ * @returns {{ view: (job: string) => ReturnType<typeof jobView>, record: (row: object) => any, close: () => void }}
+ */
+export function boardRecorder(nativeBoard, file) {
+  const board = nativeBoard.openBoard(file);
+  return {
+    view: job => jobView(board.db, job),
+    record: row => recordJobRow(board.db, /** @type {any} */ (row)),
+    close: () => store.closeBoard(board),
+  };
+}
+
+/**
  * Run one queued submit gate as a drive-cell job, in this process: the dispatcher admitted it to `owner` and started
  * this process for it. The gate (canonical Submit from the captured source) runs through driveOnce's gate path, its
  * stages written to the drive job as they settle, and its result is recorded on the hand-off once the verdict is
@@ -273,12 +304,17 @@ async function settledWithin(running, ms) {
  * Why one process: the gate's state lives in the job rows, so this process holds nothing a successor needs; the
  * dispatcher starts exactly one per admitted gate, and nothing else is launched for it.
  *
+ * The drive loop holds no board handle: it runs over rowSink and emits its step, ticket and verdict rows to the
+ * coordinator-side recorder (`record`, boardRecorder by default), which alone writes them to the board [C7].
+ *
  * @param {string} requestFile - The hand-off's captured request.json.
- * @param {{ nativeBoard: any, owner: string }} options - The board module, and the driver id the dispatcher admitted.
- * @returns {Promise<{ stalled: boolean } | undefined>} Whether a stalled run was ended on the way; its stage may still
- *   hold this process, so the entry ends the process once the result is recorded.
+ * @param {{ nativeBoard: any, owner: string, record?: typeof boardRecorder, submit?: typeof submitHere }} options - The
+ *   board module, the driver id the dispatcher admitted, the recorder that writes the drive's rows, and the gate's Submit.
+ * @returns {Promise<{ stalled?: boolean, stopped?: boolean } | undefined>} `stopped` when a stop signal ended the driver,
+ *   whose handler frees the lease and exits the process; otherwise the result is recorded (`stalled` when a stalled run
+ *   was ended on the way) and the entry ends the process, so a leaked handle never holds its slot (#3108, #3661).
  */
-export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
+export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, record = boardRecorder, submit }) {
   if (typeof owner !== 'string' || !owner) throw new Refused('DRIVE_OWNER', 'a gate driver needs the owner the dispatcher admitted it under');
   const { request, directory, root } = workerRequest(requestFile);
   let ctx;
@@ -286,16 +322,20 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   const drive = gateDriveJobId(request.job);
   const stopper = new AbortController();
   const inflight = new Set();
-  /** Remove this driver's disposable checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
+  /** Discard this driver's checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
   const removeCheckout = () => {
     if (!attached) return;
     attached = false;
-    jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
+    discardGateCheckout(gateGit, request.commonDir, root);
   };
-  /** Remove this driver's disposable checkout and its own tool snapshot, once the gate has ended. */
+  /**
+   * Give this driver's checkout back to the kept checkouts and remove its own tool snapshot, once the gate has ended.
+   * Only an exactly clean checkout at the candidate is kept; a dirty or broken one is discarded (#3700).
+   */
   const cleanup = () => {
     const owned = attached;
-    try { removeCheckout(); }
+    attached = false;
+    try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
     finally { if (owned) cleanupToolSnapshot(request); }
   };
   /**
@@ -320,10 +360,14 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   process.once('SIGINT', terminate('SIGINT'));
   let stalled = false;
   try {
-    // A killed driver can leave this job's own disposable checkout behind; the admitted driver replaces it.
-    if (existsSync(root)) jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
-    jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
+    // A killed driver can leave this job's own checkout behind in an unknown state; the admitted driver discards it.
+    if (existsSync(root)) discardGateCheckout(gateGit, request.commonDir, root);
+    // A kept checkout moved to the candidate writes only the files that differ, not the whole tree per gate (#3700).
+    let checkout;
+    try { checkout = borrowGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
+    catch (error) { throw new Refused('SUBMIT_HANDOFF_SOURCE', error.message); }
     attached = true;
+    process.stderr.write(`PULLBOARD_GATE_CHECKOUT ${JSON.stringify(checkout)}\n`);
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
@@ -337,17 +381,18 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
       createJob(board.db, { id: drive, kind: GATE_DRIVE_KIND, item: request.item, candidate: request.commit });
       nameJob(board.db, drive, { item: request.item, candidate: request.commit });
     });
-    const gate = drivenHandoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
-      stop: stopper.signal, inflight });
-    const board = nativeBoard.openBoard(ctx.file);
+    const gate = drivenHandoffGate(ctx, request, { agentId: job.agentId, waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
+      stop: stopper.signal, inflight, submit });
+    const recorder = record(nativeBoard, ctx.file);
     let result;
     try {
+      // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
-      const last = await drainLoop(board.db, drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult });
+      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult });
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
       stalled = last.job.steps.some(step => step.name === 'gate.stalled');
-    } finally { store.closeBoard(board); }
+    } finally { recorder.close(); }
     if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
     // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
     // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
@@ -357,11 +402,12 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
-    if (stopper.signal.aborted) return;
+    if (stopper.signal.aborted) return { stopped: true };
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }
+  return stopper.signal.aborted ? 'stopped' : 'settled';
 }

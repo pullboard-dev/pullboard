@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A real browser confirms the exact SSH relay board intent [P6,H5]. */
 import assert from 'node:assert/strict';
