@@ -31,7 +31,7 @@ async function run(box, cwd, args) {
   return { code, stdout, stderr, data: args.includes('--json') ? JSON.parse(stdout) : null };
 }
 
-/** Create an isolated real repo, two joined builders, a reviewer and source-backed claim policy. */
+/** Create an isolated real repo, two joined builders (unrouted items are strong, so every seat joins strong), a reviewer and source-backed claim policy. */
 async function project(t, ratio = 3) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-review-cli-')));
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
@@ -51,6 +51,8 @@ async function project(t, ratio = 3) {
   const clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
   const box = { root, dir, clock, git };
   git(root, 'init', '-q', '-b', 'main');
+  // The unattended runner pins attempts with Git from the process environment, which carries no identity.
+  git(root, 'config', 'user.name', 'Review fixture'); git(root, 'config', 'user.email', 'review@example.invalid');
   const initialized = await run(box, root, ['init', '--json']);
   assert.equal(initialized.code, 0, initialized.stderr);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: { reviewRatio: ratio },
@@ -64,10 +66,10 @@ async function project(t, ratio = 3) {
   }
   box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
-  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture-Builder' });
-  box.peerId = store.register(box.board, { lane: 'web', path: box.peer, family: 'Fixture-Peer' });
-  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture-Reviewer' });
-  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2, family: 'Fixture-Reviewer-Two' });
+  box.builderId = store.register(box.board, { lane: 'web', path: box.builder, route: 'strong', family: 'Fixture-Builder' });
+  box.peerId = store.register(box.board, { lane: 'web', path: box.peer, route: 'strong', family: 'Fixture-Peer' });
+  box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, route: 'strong', family: 'Fixture-Reviewer' });
+  box.reviewer2Id = store.register(box.board, { lane: 'review', path: box.reviewer2, route: 'strong', family: 'Fixture-Reviewer-Two' });
   return box;
 }
 
