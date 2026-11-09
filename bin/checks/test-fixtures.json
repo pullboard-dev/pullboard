@@ -296,6 +296,9 @@
   "packages/runners/tests/runner-controller-generation.test.js": {
     "tempdir": 2
   },
+  "packages/runners/tests/hang-resolves-at-cap.test.js": {
+    "tempdir": 1
+  },
   "packages/runners/tests/runner-slots-measured.test.js": {
     "tempdir": 1,
     "hand-policy": 1
