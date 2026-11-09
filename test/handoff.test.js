@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
@@ -12,7 +12,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { HANDOFF_ENGINE } from '../src/handoff-engine.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureGit } from './fixture-child.js';
 

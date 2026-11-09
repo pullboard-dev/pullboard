@@ -1474,10 +1474,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/empty-submit.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/dead-handoff-retry-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
@@ -1726,6 +1722,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/no-runtime-assumptions.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/checks/sync-spawn-in-leases.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1744,6 +1744,11 @@
     {
       "path": "src/move-history/248.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cut-shims.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "codemap"
     }
   ],
   "retired": [
@@ -3485,6 +3490,9 @@
     }
   ],
   "allowedEdges": [
+    "apps/cli->kernel",
+    "gate->jobs",
+    "resources->jobs",
     "codemap->git",
     "runners->config",
     "runners->kernel",
@@ -3507,6 +3515,7 @@
     "gate->store",
     "github->store",
     "items->git",
+    "items->kernel",
     "items->store",
     "keys->store",
     "landing->git",
@@ -3524,6 +3533,8 @@
     "sentinels->store",
     "state->store",
     "stats->store",
-    "sync->store"
+    "sync->store",
+    "apps/cli->kernel",
+    "apps/cli->git"
   ]
 }

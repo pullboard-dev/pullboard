@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { healDelay } from './runner-leak-heal.js';
 import { healLeakedRunner } from './runner-leak-heal.js';
+import { liveJobIds } from './runner-leak-heal.js';
 import { probeStanding } from '../../../transport/index.js';
 
 /** Doubts about a runner that only its transport probe settles: one good probe lifts them, two failures 30 s apart quarantine. */
@@ -259,7 +260,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     if (result?.healthy === true) { /* Lifted by the transport probe. */ }
     else if (legacy) {
       if (typeof idleProbe === 'function') {
-        try { result = await idleProbe(configured.get(row.host)); }
+        try { result = await idleProbe(configured.get(row.host), undefined, { liveJobs: liveJobIds(db, row.host) }); }
         catch { result = { healthy: false, step: 'idle proof', reason: 'pinned-worker idle observation unavailable' }; }
         if (result?.healthy !== true || result.idle !== true || result.writable !== true)
           result = { ...result, healthy: false, step: 'idle proof', reason: result?.reason ?? 'pinned-worker idle and writable proof missing' };
@@ -273,7 +274,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
       const failedProbe = unresponsive ? result : null;
       if (result?.healthy !== true && (result?.idleRequired === true || unresponsive) && typeof idleProbe === 'function') {
-        try { result = await idleProbe(configured.get(row.host), pending); }
+        try { result = await idleProbe(configured.get(row.host), pending, { liveJobs: liveJobIds(db, row.host) }); }
         catch { result = { healthy: false, step: 'idle proof', reason: 'exact launch idle observation unavailable' }; }
         if (result?.healthy !== true || result.idle !== true || result.writable !== true)
           result = { ...result, healthy: false, step: 'idle proof', reason: result?.reason ?? 'exact launch idle and writable proof missing' };

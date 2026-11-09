@@ -7,6 +7,8 @@ import { readSeatTiming } from '../../../../../src/seat-ledger.js';
 import { seatLedger } from '../../../../../src/seat-ledger.js';
 import { seatLines } from '../../../../../src/seat-ledger.js';
 import { worktreeActivity } from '../../../../../src/seat-ledger.js';
+import { commandTimingReport } from '../../core/command-timing.js';
+import { commandTimingLines } from '../../core/command-timing.js';
 
 export function run(io) {
   const ctx = context(io);
@@ -16,8 +18,13 @@ export function run(io) {
   });
   const holders = new Set(snapshot.items.filter(item => item.item_status === 'claimed').map(item => item.item_owner));
   const activity = new Map(snapshot.agents.filter(agent => holders.has(agent.agent_id)).map(agent => [agent.agent_id, worktreeActivity(agent.agent_path)]));
-  const rows = seatLedger(snapshot.agents, snapshot.items, snapshot.events, readSeatTiming(ctx.info.commonDir), Date.now(), activity);
-  io.result?.({ seats: rows });
+  const records = readSeatTiming(ctx.info.commonDir);
+  const rows = seatLedger(snapshot.agents, snapshot.items, snapshot.events, records, Date.now(), activity);
+  // The last day of command rows: the same window the seat states use.
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const timing = commandTimingReport(records.filter(row => row.start >= since));
+  io.result?.({ seats: rows, timing });
   for (const line of seatLines(rows)) io.say(line);
+  for (const line of commandTimingLines(timing)) io.say(line);
   return 0;
 }

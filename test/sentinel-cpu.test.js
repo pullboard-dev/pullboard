@@ -4,12 +4,12 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { CPU_SENTINEL_ENGINE } from '../src/cpu-sentinel-engine.js';
-import { HEALTH_SHOUT_CAP } from '../src/board-health-receipts.js';
+import { HEALTH_SHOUT_CAP } from '../packages/store/src/core/board-health-receipts.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 // CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.

@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';

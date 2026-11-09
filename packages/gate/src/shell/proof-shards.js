@@ -178,8 +178,8 @@ export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHAR
 
 /**
  * How many shards a proof's files split into. An explicit `batchFiles` cuts batches of about that many files. Without
- * one, a pool with free slots gets one shard per free slot (at least two, at most one per file), so every shard starts
- * at once on its own slot; a pool with none falls back to PROOF_BATCH_FILES batches that slots freed mid-proof can take.
+ * one, a pool with free slots gets one shard per free slot (at least two, at most one per file), so each stays small
+ * and up to PROOF_MAX_SHARDS lanes pull them; a pool with none falls back to PROOF_BATCH_FILES batches.
  *
  * Why: 6 files cut into batches of 3 made 2 batches, and the gate's lane ran both one after the other while runner
  * slots idled: "proof ran 2 batches on the gate's lane and up to 1 more runner slots", 805 s at p90 (8 Nov) [C7].
@@ -195,6 +195,16 @@ export function proofShardCount(fileCount, { freeSlots = 0, batchFiles = null } 
   if (free < 1) return Math.ceil(fileCount / PROOF_BATCH_FILES);
   return Math.min(fileCount, Math.max(2, free));
 }
+
+/**
+ * The most lanes one gate runs at once, its own lane included; the other shards wait on the queue for a free lane.
+ * Why: each running shard is its own runner-controller process on the coordinator. One lane per free slot let a single
+ * gate start 13 controllers; at load 59 the confirming probes took 100–200 s and marked every idle runner unresponsive,
+ * stopping all gates (8 Nov). Capping the shard count instead made each shard's spec carry a third of the files and
+ * pass the 1 MiB runner request limit (RUNNER_REQUEST_LIMIT on #3578, #3588, #3878), so shards stay small and only
+ * the lanes are capped [C7].
+ */
+export const PROOF_MAX_SHARDS = 3;
 
 /**
  * Split proof files into the queue's shards (proofShardCount), balanced by recorded file times through the landing
@@ -258,7 +268,7 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
   if (queue.length < 2 && !reused.length) return null;
   const batches = queue.length;
   const settled = [];
-  let inflight = 0, failure = null, pending = 0, slots = 0, mostSlots = 0;
+  let inflight = 0, failure = null, pending = 0, slots = 0, mostSlots = 0, requests = 0;
   let wake = () => {};
   let changed = new Promise(resolve => { wake = resolve; });
   /** Wake every lane waiting on the queue: a batch settled or went back on it. */
@@ -321,6 +331,7 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
   };
   /** Ask for one more slot until a lane on it ends with the queue empty; no slot or a dropped runner asks again. */
   const request = async () => {
+    requests += 1;
     pending += 1;
     let waiting = true;
     /** Count the request admitted once, and open another while batches outnumber the requests still waiting. */
@@ -346,14 +357,18 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
         if (!waiting) { waiting = true; pending += 1; }
         if (!closed() && queue.length) await pause(retryMs);
       }
-    } finally { if (waiting) pending -= 1; }
+    } finally { if (waiting) pending -= 1; requests -= 1; }
   };
-  /** Open one more slot request while batches outnumber the requests already waiting. */
+  /**
+   * Open one more slot request while batches outnumber the requests already waiting and the gate's lanes are under
+   * PROOF_MAX_SHARDS. A request is a lane for its whole life: its slot pulls batch after batch, and a dropped slot asks
+   * again inside the same request, so a lane never needs reopening from a lane's own end.
+   */
   function grow() {
-    if (takeSlot && !closed() && queue.length > pending) request().catch(error => { failure ??= error; notify(); });
+    if (takeSlot && !closed() && queue.length > pending && requests < PROOF_MAX_SHARDS - 1) request().catch(error => { failure ??= error; notify(); });
   }
   const gate = gateLane();
-  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.floor(freeSlots)) : 1;
+  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.min(PROOF_MAX_SHARDS - 1, Math.floor(freeSlots))) : 1;
   for (let count = 0; count < opening; count += 1) grow();
   await gate;
   // Drain every running batch before refusing, so each slot's receipt and lease stay accurate.

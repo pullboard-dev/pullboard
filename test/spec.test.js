@@ -10,7 +10,7 @@ import { checkLoosening } from '../packages/doctrine/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, draftSpecRow, recordRowVerification } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
@@ -27,7 +27,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
 import { preCommitProblems } from '../packages/commits/index.js';
-import { standardDoctrine } from '../src/doctrine.js';
+import { standardDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { requireRelayOnChannel } from '../packages/person/index.js';
 import { RECORDED_GENERIC_NEXT } from '../packages/state/index.js';

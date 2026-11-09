@@ -70,7 +70,8 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
   if (stopLeaked) return stopLeakedRunnerJobs(runner, { liveJobs });
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
-  const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
+  // An idle proof names the controller's live jobs on this host, so they cost only their own slots (runner-orphan-holders.js).
+  const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }), ...(idle && liveJobs.length ? { liveJobs } : {}) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
   const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime,
     (restart ? ' --restart ' : ' --health ') + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',

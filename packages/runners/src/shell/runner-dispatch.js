@@ -9,6 +9,7 @@ import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -123,9 +124,16 @@ export async function runOnRunnerAsync(root, command, options) {
   child.on('error', caught => { error ??= caught; });
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
+  // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
+  const span = { startedAt: Date.now(), host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
-    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ?? null });
+    return result;
+  } catch (failure) {
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
+    throw failure;
   } finally { signal?.removeEventListener('abort', abort); }
   } finally { installation?.cleanup(); }
 }
@@ -237,6 +245,23 @@ export function runnerUnavailableRefusal(request, unavailable) {
   return error;
 }
 
+/**
+ * The time by which this dispatch's worker must print READY: the lease's queue deadline, or a full startup budget
+ * from this dispatch's own start when the lease names one and that ends later. Null means no READY bound.
+ * Why: the lease's deadline is when its queue wait ends, fixed at admission. A gate ran doctrine for 177 s on its
+ * lease and then sent proof batches with that deadline long past, so each batch was cut off before its worker could
+ * answer and logged a missed READY on a healthy runner; 15 of 36 gates did so, one 127 times (#3563, 8 Nov) [C7].
+ *
+ * @param {{ runnerWaitDeadline?: number, runnerStartupMs?: number }} options
+ * @param {number} startedAt - When this dispatch began connecting.
+ * @returns {number|null}
+ */
+export function startupDeadline(options, startedAt) {
+  if (!Number.isSafeInteger(options.runnerWaitDeadline)) return null;
+  if (!Number.isSafeInteger(options.runnerStartupMs) || options.runnerStartupMs <= 0) return options.runnerWaitDeadline;
+  return Math.max(options.runnerWaitDeadline, startedAt + options.runnerStartupMs);
+}
+
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
@@ -298,10 +323,11 @@ async function runInController(root, command, options, ports) {
     };
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
-    if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
+    const readyDeadline = startupDeadline(options, request.phaseAt.start);
+    if (readyDeadline !== null) runnerWaitTimer = setTimeout(() => {
       request.admissionDeadlineExceeded = true;
       abort();
-    }, Math.max(0, options.runnerWaitDeadline - Date.now()));
+    }, Math.max(0, readyDeadline - Date.now()));
     options.signal?.addEventListener('abort', abort, { once: true });
     removeAbort = () => options.signal?.removeEventListener('abort', abort);
     if (options.signal?.aborted) abort();

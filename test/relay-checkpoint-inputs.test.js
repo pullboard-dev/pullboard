@@ -3,7 +3,7 @@ import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/in
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import { recordBlock } from '../packages/items/index.js';
 import {
   relayPresentation,

@@ -23,6 +23,8 @@ import { workProgress } from '../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../roadmap/index.js";
 import { proofStats } from "../../../stats/index.js";
 import { readCapacity } from "../../../stats/index.js";
+import { budgetState } from "../../../stats/index.js";
+import { loadMachineSettings } from "../../../config/index.js";
 import { ruleProofCounts } from "../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../items/index.js";
 import { withListFields } from "../../../items/index.js";
@@ -109,7 +111,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.personRequests = projectData.personRequests;
     Object.assign(state, personSigningPresentation(root, board, config));
     state.milestones = projectData.milestones;
-    state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now()); // Needs you below is recomputed with them [C6].
+    state.blocks = personBlockWords(repoInfo(root).commonDir, board.clock.now(), localCapacity ? machineBudgetState(board, observedAt) : undefined); // Needs you below is recomputed with them [C6].
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
     // The forecast reads this machine's derived proof-counter index, which sealed exports omit, so only the local host adds it.
@@ -175,4 +177,15 @@ export function stateFileInputs(root, config, { fitFile }) {
 export function fileRevision(file) {
   if (!existsSync(file.path)) return [file.name, null];
   return [file.name, createHash('sha256').update(readFileSync(file.path)).digest('hex')];
+}
+
+/**
+ * Spend against this machine's budget setting for Needs you [N2]; undefined with no budget set, so nothing is read.
+ *
+ * @param {object} board an open board
+ * @param {number} now epoch milliseconds
+ */
+function machineBudgetState(board, now) {
+  const settings = loadMachineSettings();
+  return settings.budget ? budgetState(board, settings.costPrices, settings.budget, now) : undefined;
 }

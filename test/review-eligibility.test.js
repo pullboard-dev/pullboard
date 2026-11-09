@@ -2,13 +2,13 @@
 import { VENDOR_FAMILY_ENGINE } from '../src/vendor-family-engine.js';
 import { canonicalFamily } from '../packages/verify/index.js';
 import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
-import * as queueStore from '../src/board.js';
-import { roadmap } from '../src/board-milestones.js';
+import * as queueStore from '../packages/store/index.js';
+import { roadmap } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 /** Private board-state fixtures exercise independence; synthetic commits and events are not gate proof [V4,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { REVIEW_ROUTING_ENGINE } from '../src/review-routing-engine.js';
@@ -26,7 +26,7 @@ import { minimumMoveEngine } from '../packages/moves/index.js';
 import { familyIndex } from '../packages/verify/index.js';
 import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
-import { seatFamily } from '../src/family-declaration.js';
+import { seatFamily } from '../packages/items/index.js';
 import { parentSessionDigest as parentSessionDigestOf } from '../packages/items/index.js';
 import { familyName } from '../packages/verify/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
