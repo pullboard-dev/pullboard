@@ -36,7 +36,6 @@
     "src/cli.js#itemLine": 1,
     "src/cli.js#resultCommands": 1,
     "src/cli.js#VERSION": 1,
-    "src/cockpit.js#PULLBOARD_COMMANDS": 1,
     "src/code-map.js#buildCodeMap": 1,
     "src/code-map.js#ensureCodeMap": 1,
     "src/code-map.js#mask": 1,
