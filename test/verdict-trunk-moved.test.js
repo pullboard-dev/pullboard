@@ -61,8 +61,8 @@ test('page is built', () => {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
   json(box.run(box.web, 'submit', '1', '--json'));
   // A landing between submit and review moves the composed main, so the sealed submit proof is not reused and the frozen check runs here.
-  writeFileSync(join(box.repo, 'api/earlier.js'), 'export const earlier = 1;\n');
-  box.git(box.repo, 'add', 'api/earlier.js');
+  writeFileSync(join(box.repo, 'web/shared.js'), `export const shared = 2;\n${PAD}\n`);
+  box.git(box.repo, 'add', 'web/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
