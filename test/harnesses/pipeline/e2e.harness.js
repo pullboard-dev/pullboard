@@ -11,6 +11,10 @@ import { ROOT, from, gone, guardProcesses, hopCheck, waitUntil, within } from '.
 import { dispatchers, handoffProject, json, mainTooling } from './handoff-project.js';
 
 const { joinFixtureSeat } = await from('test/testkit-fixture.js');
+const { gateSpanFolder, readGateSpans } = await from('packages/jobs/index.js');
+
+/** The widest stretch of a gate no recorded phase may leave uncovered, on the local runner stand-in [C7]. */
+const PHASE_GAP_MS = 10_000;
 
 /**
  * How long a lease may go unrenewed while its gate runs: half the 2-minute lease (DJ12-DJ14). The drive renews every
@@ -120,6 +124,21 @@ test('one item goes from claim to merged through every hop, each state change on
     assert.ok(receipts.length >= 1, 'the green gate left a proof receipt on the item');
     assert.ok(JSON.stringify(receipts).includes(done.item.item_commit), 'the receipt names the submitted commit');
     return { ms: Date.now() - releasedAt, measured: `release to green with ${receipts.length} receipt(s)` };
+  }));
+
+  await t.test('phase-gaps', () => hopCheck('phase-gaps', async () => {
+    // Every moment of the gate belongs to a recorded phase: no stretch longer than PHASE_GAP_MS is covered by none.
+    const spans = readGateSpans(gateSpanFolder(join(box.repo, '.git')), { since: submittedAt - 60_000, now: Date.now() + 60_000 })
+      .filter(span => span.job === running.id && span.phase !== 'gate').sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    assert.ok(spans.some(span => span.phase === 'result'), 'the gate recorded its result span');
+    let reach = Date.parse(spans[0].end), widest = { ms: 0, between: 'none' }, last = spans[0];
+    for (const span of spans.slice(1)) {
+      const gap = Date.parse(span.start) - reach;
+      if (gap > widest.ms) widest = { ms: gap, between: `${last.phase} -> ${span.phase}` };
+      if (Date.parse(span.end) > reach) { reach = Date.parse(span.end); last = span; }
+    }
+    within(widest.ms <= PHASE_GAP_MS, `no gap over ${PHASE_GAP_MS} ms between gate phases`, { ms: widest.ms, measured: `widest gap ${widest.ms} ms (${widest.between}) over ${spans.length} spans` });
+    return { ms: widest.ms, measured: `widest gap ${widest.ms} ms (${widest.between}) over ${spans.length} spans` };
   }));
 
   await t.test('green-review', () => hopCheck('green-review', async () => {
