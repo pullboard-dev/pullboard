@@ -53,8 +53,7 @@ if (process.argv[2] === 'hook') {
 
 // Select immutable tooling before redirecting a stale worktree to today's CLI.
 // Only these two small modules load here; the dispatcher loads after the resident path declines, so a warm client stays thin [H24].
-const { selectedToolEntry } = await import('../apps/cli/src/shell/pinned-tool-build.js');
-const { asksVersion } = await import('../apps/cli/src/shell/cli-main/options.js');
+const { selectedToolEntry, asksVersion } = await import('../apps/cli/core.js');
 if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
     const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
@@ -91,7 +90,7 @@ else {
     try { process.kill(outer, 0); outerAlive = true; } catch (error) { outerAlive = error?.code === 'EPERM'; }
   }
   if (!outerAlive) process.env.PULLBOARD_CLI_PID = String(process.pid);
-  const { main } = await import('../apps/cli/src/shell/cli-main.js');
+  const { cliMain$main: main } = await import('../apps/cli/index.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
   process.exitCode = await main(process.argv.slice(2), {
     cwd: process.cwd(),
