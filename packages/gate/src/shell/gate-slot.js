@@ -325,7 +325,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
     runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    runnerIdleProbe: (runner, previous, { liveJobs = [] } = {}) => probeRunnerHealth(runner, previous, { idle: true, liveJobs }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
@@ -409,8 +409,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         infrastructureAttempts.push(failure);
         lease.infrastructureAttempts = [...infrastructureAttempts];
-        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
-          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        // Only the dispatch's own READY timer names a missed READY: the lease's queue deadline passes during any long
+        // phase, so reading the clock against it marked a plain transport loss as a readiness failure (#3563) [C7].
+        const admissionDeadline = !cleanup && error.diagnostic?.reason === 'admission-deadline';
         // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
         // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
         // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
