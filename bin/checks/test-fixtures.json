@@ -296,6 +296,9 @@
   "packages/runners/tests/runner-controller-generation.test.js": {
     "tempdir": 2
   },
+  "packages/runners/tests/hang-resolves-at-cap.test.js": {
+    "tempdir": 1
+  },
   "packages/runners/tests/runner-slots-measured.test.js": {
     "tempdir": 1,
     "hand-policy": 1
@@ -759,7 +762,7 @@
   "test/cells-inventory-incremental.test.js": {
     "tempdir": 1
   },
-  "test/cells-inventory-producer.test.js": {
+  "apps/lib/tests/cells-inventory-producer.test.js": {
     "raw-board": 1
   },
   "test/cells-move.test.js": {
@@ -1452,10 +1455,10 @@
   "test/durable-b0-drive-full-gate.test.js": {
     "raw-board": 1
   },
-  "test/durable-drive-12.test.js": {
+  "apps/lib/tests/durable-drive-12.test.js": {
     "raw-board": 1
   },
-  "test/durable-drive-13.test.js": {
+  "apps/lib/tests/durable-drive-13.test.js": {
     "raw-board": 1
   },
   "test/durable-drive-14.test.js": {
@@ -1464,38 +1467,38 @@
   "test/durable-drive-15.test.js": {
     "raw-board": 3
   },
-  "test/durable-flake-23.test.js": {
+  "apps/lib/tests/durable-flake-23.test.js": {
     "raw-board": 1
   },
-  "test/durable-inventory-21.test.js": {
+  "apps/lib/tests/durable-inventory-21.test.js": {
     "raw-board": 1
   },
-  "test/durable-jobs-1.test.js": {
+  "apps/lib/tests/durable-jobs-1.test.js": {
     "raw-board": 1
   },
-  "test/durable-jobs-2.test.js": {
+  "apps/lib/tests/durable-jobs-2.test.js": {
     "raw-board": 1
   },
   "test/durable-jobs-3.test.js": {
     "raw-board": 2
   },
-  "test/durable-jobs-4.test.js": {
+  "apps/lib/tests/durable-jobs-4.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-18.test.js": {
+  "apps/lib/tests/durable-land-18.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-19.test.js": {
+  "apps/lib/tests/durable-land-19.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-finish-done.test.js": {
+  "apps/lib/tests/durable-land-finish-done.test.js": {
     "raw-board": 1
   },
   "test/durable-mainred-22.test.js": {
     "raw-board": 2,
     "hand-policy": 1
   },
-  "test/durable-pull-runner-27.test.js": {
+  "apps/lib/tests/durable-pull-runner-27.test.js": {
     "raw-board": 1
   },
   "test/durable-review-24.test.js": {
@@ -2015,7 +2018,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/landing-hung-file.test.js": {
+  "packages/landing/tests/landing-hung-file.test.js": {
     "tempdir": 1,
     "hand-policy": 2,
     "env-spread": 1
@@ -2032,7 +2035,7 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "test/landing-local-lease.test.js": {
+  "apps/lib/tests/landing-local-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -2069,7 +2072,7 @@
   "test/landing-refuses-unplaced.test.js": {
     "raw-board": 2
   },
-  "test/landing-regenerates-docs.test.js": {
+  "packages/landing/tests/landing-regenerates-docs.test.js": {
     "tempdir": 2
   },
   "test/landing-reopen-own-red.test.js": {
@@ -2079,7 +2082,7 @@
   "apps/cli/tests/landing-reschedules-itself.test.js": {
     "repo-read": 2
   },
-  "test/landing-reuses-green-tree.test.js": {
+  "apps/lib/tests/landing-reuses-green-tree.test.js": {
     "raw-board": 2,
     "tempdir": 1
   },
@@ -2090,7 +2093,7 @@
   "packages/gate/tests/landing-selection-complete.test.js": {
     "tempdir": 2
   },
-  "test/landing-shards-name-filter.test.js": {
+  "packages/landing/tests/landing-shards-name-filter.test.js": {
     "tempdir": 1,
     "hand-policy": 2,
     "env-spread": 1
@@ -2119,7 +2122,7 @@
     "tempdir": 2,
     "raw-board": 1
   },
-  "test/landing-worker-capacity.test.js": {
+  "packages/landing/tests/landing-worker-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 1
   },
@@ -2145,7 +2148,7 @@
   "packages/gate/tests/legacy-watchdog.test.js": {
     "tempdir": 1
   },
-  "test/line-capacity.test.js": {
+  "apps/lib/tests/line-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 12
@@ -2320,7 +2323,7 @@
   "test/moves-move-closure.test.js": {
     "tempdir": 2
   },
-  "test/multiple-claims-board.test.js": {
+  "apps/lib/tests/multiple-claims-board.test.js": {
     "raw-board": 9
   },
   "packages/flakes/tests/native-flakes.test.js": {
@@ -2379,7 +2382,7 @@
     "model": 4,
     "raw-board": 8
   },
-  "test/no-policy-rebinds.test.js": {
+  "apps/lib/tests/no-policy-rebinds.test.js": {
     "tempdir": 5,
     "hand-policy": 4,
     "raw-board": 3
@@ -2417,7 +2420,7 @@
   "test/pairing.test.js": {
     "tempdir": 1
   },
-  "test/parent-session.test.js": {
+  "apps/lib/tests/parent-session.test.js": {
     "tempdir": 4,
     "raw-board": 6,
     "hand-policy": 1
@@ -2461,7 +2464,7 @@
   "test/person-signing-case.js": {
     "hand-policy": 4
   },
-  "test/pinned-claim-lapse.test.js": {
+  "apps/lib/tests/pinned-claim-lapse.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -2624,7 +2627,7 @@
     "tempdir": 2,
     "raw-board": 4
   },
-  "test/red-return-idle-lapse.test.js": {
+  "apps/lib/tests/red-return-idle-lapse.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -2702,7 +2705,7 @@
     "raw-board": 13,
     "model": 1
   },
-  "test/relay-composed-styles.test.js": {
+  "apps/relay/tests/relay-composed-styles.test.js": {
     "repo-read": 1
   },
   "test/relay-computer-name.test.js": {
@@ -2815,7 +2818,7 @@
   "apps/relay/tests/relay-phone-grants.test.js": {
     "tempdir": 1
   },
-  "test/relay-retention.test.js": {
+  "apps/relay/tests/relay-retention.test.js": {
     "tempdir": 1
   },
   "test/relay-rigor.test.js": {
@@ -2893,7 +2896,7 @@
   "test/release-transport-cases.js": {
     "tempdir": 1
   },
-  "test/release-twice-hold.test.js": {
+  "apps/lib/tests/release-twice-hold.test.js": {
     "tempdir": 4,
     "raw-board": 20
   },
@@ -3164,7 +3167,7 @@
   "packages/runners/tests/runner-capsule-stdin.test.js": {
     "tempdir": 2
   },
-  "test/runner-cleanup-foreign-process.test.js": {
+  "apps/runner/tests/runner-cleanup-foreign-process.test.js": {
     "tempdir": 3,
     "hand-policy": 1
   },
