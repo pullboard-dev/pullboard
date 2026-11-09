@@ -1,13 +1,18 @@
 /** Only an explicit work-spec version mismatch refreshes the pinned runner tooling once [C7,#2855]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { cellSandbox } from './cell-fixture.js';
-import { committedToolingSnapshot, cleanupToolingSnapshots } from './runner-tooling-fixture.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
+import { committedToolingSnapshot } from '../../../test/runner-tooling-fixture.js';
+import { cleanupToolingSnapshots } from '../../../test/runner-tooling-fixture.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 /** Simulate an older worker's pre-execution reply, then let the real pinned capsule execute after refresh. */
 function mismatchTransport(box, paths, mode) {
@@ -44,7 +49,7 @@ test('a mismatched runner refreshes once, a second mismatch names both versions,
   box.git(project, 'init', '-q', '-b', 'main');
   box.git(project, 'add', '.');
   box.git(project, 'commit', '-qm', 'fixture');
-  const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '..'), box.env);
+  const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '../../..'), box.env);
   const paths = { bin: join(box.dir, 'bin'), worker: join(box.dir, 'worker'), home: join(box.dir, 'worker-home'),
     machineHome: join(box.dir, 'worker-machine'), requests: join(box.dir, 'requests') };
   for (const dir of [paths.bin, paths.worker, paths.home, paths.machineHome]) mkdirSync(dir);

@@ -7,10 +7,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Fail the first actual worker probe, then execute the real pinned idle worker on a private host. */
 function observe(t, live) {
@@ -25,7 +25,7 @@ function observe(t, live) {
   const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
     `process.stderr.write(${JSON.stringify('fixture worker start refused\n')}); ${failure}`));
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
+  const url = name => pathToFileURL(join(import.meta.dirname, '../../../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';

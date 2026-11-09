@@ -680,7 +680,7 @@
       "cells": 2,
       "deep": 0
     },
-    "apps/lib/src/shell/relay-sender-main.js": {
+    "apps/cli/src/shell/relay-sender-main.js": {
       "cells": 2,
       "deep": 0
     },
@@ -4292,14 +4292,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/cli-context.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-main.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/cli-presence.js": {
       "cells": 1,
       "deep": 0
@@ -5507,5 +5499,12 @@
       "imports": [],
       "deepImporters": 1
     }
+  },
+  "lightDoors": {
+    "packages/drive/core.js": 9,
+    "packages/verify/core.js": 17,
+    "packages/store/core.js": 34,
+    "packages/doctrine/core.js": 50,
+    "packages/gate/core.js": 10
   }
 }

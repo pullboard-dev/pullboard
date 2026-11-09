@@ -1,14 +1,15 @@
 /** Private pinned-worker recovery and sentinel controls for an idle legacy runner [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Run the pinned health command against one private SSH stand-in and machine home. */
 function remoteFixture(t, body) {
@@ -34,8 +35,8 @@ function remoteFixture(t, body) {
 }
 
 test('an idle pinned runner with stale job files and missing exact completion recovers once with an audited reason [C7]', t => {
-  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
+  const runners = pathToFileURL(join(import.meta.dirname, '../../../src/runners.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../../../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, () => `
     import { DatabaseSync } from 'node:sqlite';
     import { probeRunnerHealth } from ${JSON.stringify(runners)};
@@ -66,8 +67,8 @@ test('an idle pinned runner with stale job files and missing exact completion re
 });
 
 test('a live job stays unavailable and its next idle probe waits thirty seconds [C7]', t => {
-  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
+  const runners = pathToFileURL(join(import.meta.dirname, '../../../src/runners.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../../../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, ({ root }) => `
     import { DatabaseSync } from 'node:sqlite';
     import { spawn } from 'node:child_process';
@@ -115,8 +116,8 @@ test('a live job stays unavailable and its next idle probe waits thirty seconds 
 });
 
 test('a job owner outside its job cwd blocks recovery only until that process exits [C7]', t => {
-  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const transport = pathToFileURL(join(import.meta.dirname, '../packages/runners/index.js')).href;
+  const runners = pathToFileURL(join(import.meta.dirname, '../../../src/runners.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../../../packages/runners/index.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
     import { spawn } from 'node:child_process';
     import { once } from 'node:events';
@@ -126,7 +127,7 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
     const job = join(${JSON.stringify(root)}, 'jobs', 'owned-job');
     mkdirSync(job);
-    const script = 'import {processCensus} from ' + JSON.stringify(${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)}) + ';import {recordRunnerOwner} from ' + JSON.stringify(${JSON.stringify(transport)})
+    const script = 'import {processCensus} from ' + JSON.stringify(${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../apps/runner/index.js')).href)}) + ';import {recordRunnerOwner} from ' + JSON.stringify(${JSON.stringify(transport)})
       + ';recordRunnerOwner(' + JSON.stringify(job) + ',processCensus);setInterval(()=>{},60000);';
     const owner = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: 'ignore' });
     let held;
@@ -146,7 +147,7 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
 });
 
 test('an unmarked legacy worker through an alias blocks only its own runner root [C7]', t => {
-  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+  const runners = pathToFileURL(join(import.meta.dirname, '../../../src/runners.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
     import { spawn } from 'node:child_process';
     import { once } from 'node:events';
@@ -182,7 +183,7 @@ test('an unmarked legacy worker through an alias blocks only its own runner root
 });
 
 test('a runner resource lease prevents an idle proof even without a job cwd [C7]', t => {
-  const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
+  const runners = pathToFileURL(join(import.meta.dirname, '../../../src/runners.js')).href;
   const { actual } = remoteFixture(t, ({ machineHome }) => `
     import { DatabaseSync } from 'node:sqlite';
     import { join } from 'node:path';
@@ -201,8 +202,8 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
 });
 
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
-  const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
-  const health = pathToFileURL(join(import.meta.dirname, '../packages/health/index.js')).href;
+  const recovery = pathToFileURL(join(import.meta.dirname, '../../../packages/resources/index.js')).href;
+  const health = pathToFileURL(join(import.meta.dirname, '../../../packages/health/index.js')).href;
   const box = cellProject(t, { gate: 'true' });
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;

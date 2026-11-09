@@ -6,8 +6,9 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { posix, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   lex,
   lineAt,
@@ -44,6 +45,51 @@ export function cellOf(path) {
   const match = /^((?:packages|apps)\/[^/]+)\/(.*)$/u.exec(path);
   if (!match) return { cell: ROOT_OWNER, deep: false };
   return { cell: match[1].replace(/^packages\//u, ''), deep: match[2].startsWith('src/') };
+}
+
+/** A light door (a cell's core.js that may re-export shell modules) must cold-load within this many milliseconds [C7]. */
+export const LIGHT_DOOR_BUDGET_MS = 100;
+
+/**
+ * Every cell's declared light front door, read from the plan index and its shards.
+ *
+ * @param {string} root
+ * @returns {string[]} Repo-relative core.js paths, in plan order; a missing or unreadable plan declares none.
+ */
+export function lightDoorsOf(root) {
+  const doors = [];
+  try {
+    const index = JSON.parse(readFileSync(resolve(root, 'bin/cells-plan.json'), 'utf8'));
+    for (const row of index.cells ?? []) {
+      const cell = JSON.parse(readFileSync(resolve(root, row.file), 'utf8'));
+      if (typeof cell.lightFrontDoor === 'string') doors.push(cell.lightFrontDoor);
+    }
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  return doors;
+}
+
+/**
+ * The cold load time of one module in a fresh Node process, import only (no process start), in whole milliseconds.
+ * Why: a light door promises light-path code a cheap load; a loaded machine adds noise, so the best of up to five tries counts.
+ *
+ * @param {string} root
+ * @param {string} door - Repo-relative module path.
+ * @returns {Promise<number>} Milliseconds, or Infinity when it never loads.
+ */
+export async function coldLoadMs(root, door) {
+  const script = `const t = performance.now(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); process.stdout.write(String(performance.now() - t));`;
+  let best = Infinity;
+  for (let attempt = 0; attempt < 5 && best > LIGHT_DOOR_BUDGET_MS; attempt += 1) {
+    const ms = await new Promise(done => {
+      let out = '';
+      const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });
+      child.stdout.on('data', chunk => { out += chunk; });
+      child.on('error', () => done(Infinity));
+      child.on('close', status => done(status === 0 ? Number(out) : Infinity));
+    });
+    if (ms < best) best = ms;
+  }
+  return Number.isFinite(best) ? Math.max(1, Math.round(best)) : Infinity;
 }
 
 /**
@@ -168,6 +214,22 @@ export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(rea
 }
 
 /**
+ * Refuse each light door that cold-loads over its budget. Why: a light door promises light-path code a cheap load;
+ * the measure starts child processes, so it runs here beside the edge check and never inside the synchronous leased audit.
+ *
+ * @param {string} root
+ * @returns {Promise<{ path: string, line: number, text: string }[]>}
+ */
+export async function lightDoorProblems(root) {
+  const problems = [];
+  for (const door of lightDoorsOf(root)) {
+    const ms = await coldLoadMs(root, door);
+    if (ms > LIGHT_DOOR_BUDGET_MS) problems.push({ path: door, line: 1, text: `light door cold load ${Number.isFinite(ms) ? `${ms} ms` : 'fails'} exceeds its ${LIGHT_DOOR_BUDGET_MS} ms budget; drop the heavy re-export from ${door}, or move it behind the cell index` });
+  }
+  return problems;
+}
+
+/**
  * Refuse every backwards edge between the six durable cells: an import from one of them into another that its row in
  * DURABLE_CELLS does not allow. A plan declaration never allows one, so these edges are read before the plan filter.
  *
@@ -189,15 +251,17 @@ export function durableEdgeProblems(root, { files, read = file => readFileSync(r
   return problems;
 }
 
-/** Record the ceilings at today's undeclared counts. */
-export function writeCellsEdgeCeilings(root) {
-  writeFileSync(CEILINGS, `${JSON.stringify(ceilingsOf(cellsEdgeReport(root)), null, 2)}\n`);
+/** Record the ceilings at today's undeclared counts, and each light door's measured cold load in ms. */
+export async function writeCellsEdgeCeilings(root) {
+  const lightDoors = {};
+  for (const door of lightDoorsOf(root)) lightDoors[door] = await coldLoadMs(root, door);
+  writeFileSync(CEILINGS, `${JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), lightDoors }, null, 2)}\n`);
   return [];
 }
 
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
-  else if (process.argv.includes('--write')) report(writeCellsEdgeCeilings(root));
-  else report(cellsEdgeProblems(root));
+  else if (process.argv.includes('--write')) report(await writeCellsEdgeCeilings(root));
+  else report([...cellsEdgeProblems(root), ...await lightDoorProblems(root)]);
 }

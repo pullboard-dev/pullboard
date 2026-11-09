@@ -3818,7 +3818,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/gate-shard-reuse.test.js": {
+    "packages/gate/tests/gate-shard-reuse.test.js": {
       "cells": [
         "app:lib",
         "gate"
@@ -3983,7 +3983,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/handoff-dispatcher-survives-launcher.test.js": {
+    "packages/resources/tests/handoff-dispatcher-survives-launcher.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -4347,7 +4347,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/infra-retry.test.js": {
+    "packages/gate/tests/infra-retry.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -6878,7 +6878,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/precommit-static-parity.test.js": {
+    "packages/gate/tests/precommit-static-parity.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9075,7 +9075,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/run-tests-empty-selection.test.js": {
+    "packages/gate/tests/run-tests-empty-selection.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9217,7 +9217,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-cleanup-recovery.test.js": {
+    "packages/runners/tests/runner-cleanup-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9269,7 +9269,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-exclusive-drain.test.js": {
+    "packages/resources/tests/runner-exclusive-drain.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9301,7 +9301,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-history-single-flight.test.js": {
+    "packages/runners/tests/runner-history-single-flight.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9361,7 +9361,7 @@
         "spawns a child process (test/runner-idle-dead-holder.test.js)"
       ]
     },
-    "test/runner-idle-recovery.test.js": {
+    "apps/runner/tests/runner-idle-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9406,7 +9406,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-leak-heal-spares-live-jobs.test.js": {
+    "packages/resources/tests/runner-leak-heal-spares-live-jobs.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9606,7 +9606,7 @@
         "spawns a child process (test/runner-self-heal.test.js)"
       ]
     },
-    "test/runner-self-recovery.test.js": {
+    "apps/runner/tests/runner-self-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9757,7 +9757,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-unresponsive-recovery.test.js": {
+    "packages/resources/tests/runner-unresponsive-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9773,7 +9773,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-warm-pool.test.js": {
+    "packages/runners/tests/runner-warm-pool.test.js": {
       "cells": [
         "gate",
         "kernel",
@@ -9801,7 +9801,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-work-spec-refresh.test.js": {
+    "packages/runners/tests/runner-work-spec-refresh.test.js": {
       "cells": [
         "app:lib",
         "gate",
@@ -9836,7 +9836,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-worker-restart.test.js": {
+    "apps/runner/tests/runner-worker-restart.test.js": {
       "cells": [
         "app:lib",
         "kernel",

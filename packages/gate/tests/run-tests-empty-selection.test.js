@@ -5,10 +5,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { cellSandbox } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const RUNNER = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+const RUNNER = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
 const REFUSAL = '[TEST_SELECTION_EMPTY]';
 
 /** A disposable repository with one passing test file, so a run that is admitted has something to run. */
