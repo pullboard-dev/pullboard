@@ -1,11 +1,11 @@
 /** Pure populated Dashboard HTML from deterministic data; native wiring remains in the audit journey [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardHtml } from '../../apps/view/src/core/view/dashboard-render.js';
-import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
-import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
-import { dashboardData } from './view-data.js';
-import { compareFlowWindows } from '../../packages/stats/src/core/stats-flow.js';
+import { dashboardHtml } from '../../src/core/view/dashboard-render.js';
+import { dashboardModel } from '../../src/shell/view/dashboard-model.js';
+import { roadmapSummary } from '../../src/core/view/roadmap-summary.js';
+import { dashboardData } from '../../../../test/cockpit/view-data.js';
+import { compareFlowWindows } from '../../../../packages/stats/index.js';
 
 /** Extract a single named Dashboard section so row and footer assertions stay scoped. */
 function section(html, name) {

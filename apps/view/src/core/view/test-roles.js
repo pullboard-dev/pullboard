@@ -36,7 +36,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Review notes and metadata render through the actual verdict functions with prepared links and explicit labels; no page or native review is fabricated."
   },
-  "test/cockpit/pipeline-pure.test.js": {
+  "apps/view/tests/cockpit/pipeline-pure.test.js": {
     "kind": "logic",
     "reason": "Full snapshot and summary stage projections use canonical event matching and explicit lifecycle data; native API and Chrome pipeline navigation remain journeys."
   },
@@ -48,7 +48,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Settings rows, hosted state and star markup run over supplied data, without the manifest reader, network reader or DOM writer."
   },
-  "test/cockpit/needs-data.test.js": {
+  "apps/view/tests/cockpit/needs-data.test.js": {
     "kind": "logic",
     "reason": "Explicit board-shaped values exercise person-only obligations, proposal eligibility, held clocks and HTML without a native board or browser."
   },
@@ -160,7 +160,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "dashboard-model.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
-  "test/cockpit/dashboard-render.test.js": {
+  "apps/view/tests/cockpit/dashboard-render.test.js": {
     "kind": "logic",
     "reason": "dashboard-render.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
