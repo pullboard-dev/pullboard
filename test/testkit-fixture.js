@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { closeBoard, openBoard } from '../apps/lib/index.js';
+// The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
+import { closeBoard } from '../apps/lib/src/core/native-board.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 
 /** The model name fixture seats join with when a test passes `--model` itself. */
@@ -189,6 +191,20 @@ export function fixtureCommittedPolicy(box, policy) {
  */
 export function fixtureOpenBoard(box) {
   return openBoard(box.boardFile, undefined, { gitRoot: box.web });
+}
+
+/**
+ * Open a board file in process with an optional clock; the caller closes it.
+ *
+ * Why: the cell fixture opens real boards through this one kit seam, so no cell test opens the store by hand.
+ *
+ * @param {string} file - The board.sqlite path, or ':memory:'.
+ * @param {{ now: () => Date }} [clock] - The board clock; the native clock when omitted.
+ * @param {object} [options] - openBoard options such as gitRoot.
+ * @returns {object} The open board.
+ */
+export function openKitBoard(file, clock, options) {
+  return openBoard(file, clock, options);
 }
 
 /**

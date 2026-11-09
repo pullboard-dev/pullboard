@@ -83,6 +83,36 @@ test('clause 1: prove fans proof files across free slots into one receipt: 6 fil
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), six, 'every file runs exactly once');
 });
 
+test('clause 1: prove fans proof files across free slots into one receipt: while the item check holds the gate lease, slot lanes start at once and the gate lane joins after [C7]', { timeout: 10_000 }, async () => {
+  // #3841 (9 Nov): the item check ran 173 s alone on the gate's lease; its shards were admitted only after it ended.
+  const six = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
+  const calls = [];
+  let checkDone;
+  const gateLaneFree = new Promise(resolve => { checkDone = resolve; });
+  let slotsStarted;
+  const started = new Promise(resolve => { slotsStarted = resolve; });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  /** One shard run; slot runs stay open until the test releases them, so the gate lane can only start beside them. */
+  const run = label => async files => {
+    calls.push({ label, files });
+    if (calls.filter(call => call.label === 'slot').length === 2) slotsStarted();
+    if (label === 'slot') await held;
+    return { isGreen: true, exitCode: 0, output: `ok ${files.join(' ')}` };
+  };
+  const proof = runProofShards(six, { freeSlots: 3, retryMs: 10, runFirst: run('gate'), takeSlot: lane => lane(run('slot')), gateLaneFree });
+  await started;
+  assert.deepEqual(calls.map(call => call.label), ['slot', 'slot'], 'two slot lanes run shards while the check holds the gate lease');
+  for (let turn = 0; turn < 20; turn += 1) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.some(call => call.label === 'gate'), false, 'the gate lane runs nothing until the check is done');
+  checkDone();
+  while (!calls.some(call => call.label === 'gate')) await new Promise(resolve => setImmediate(resolve));
+  release();
+  const shards = await proof;
+  assert.deepEqual(calls.map(call => call.label).sort(), ['gate', 'slot', 'slot'], 'the gate lane takes the remaining shard once free');
+  assert.deepEqual(shards.flatMap(shard => shard.files).sort(), six, 'every file runs exactly once');
+});
+
 test('clause 1: prove fans proof files across free slots into one receipt: each lane pays one dispatch, so 69 files on 18 free slots take 3 transfers and 3 READYs, not 23 [C7]', { timeout: 10_000 }, async () => {
   // #3883's proof shape (9 Nov): 69 owed files, 18 free slots, about 2 s each. Measured warm dispatch: 4 s transfer + 3.5 s READY.
   const DISPATCH_MS = 4_000 + 3_500;

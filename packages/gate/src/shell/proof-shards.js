@@ -278,13 +278,14 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
  *   runFirst: (files: string[]) => Promise<object>,
  *   takeSlot?: ((lane: (run: (files: string[]) => Promise<object>) => Promise<void>, queue: { closed: () => boolean }) => Promise<unknown>) | null,
  *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number|null }} options - `freeSlots` is how many slot requests open at once; with no
+ *   retryMs?: number, batchFiles?: number|null, gateLaneFree?: Promise<unknown>|null }} options - `freeSlots` is how many slot requests open at once; with no
  *   `batchFiles` the files split one shard per lane, so each lane pays one dispatch; `takeSlot` takes one runner slot, calls `lane` with that
- *   slot's run and releases the slot when `lane` settles.
+ *   slot's run and releases the slot when `lane` settles; `gateLaneFree` settles when the gate's own lease may run a
+ *   batch (it may still run the item check), while slot requests open at once.
  * @returns {Promise<{ files: string[], run: object }[] | null>} Each batch's files and run in queue order, then reused.
  */
 export async function runProofShards(files, { freeSlots = 0, times = {}, root = null, runFirst, takeSlot = null, passes = null,
-  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null }) {
+  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null, gateLaneFree = null }) {
   const reused = reusablePasses(passes, files, timingRunId);
   const covered = new Set(reused.flatMap(shard => shard.files));
   const owed = files.filter(file => !covered.has(file));
@@ -333,6 +334,8 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
    */
   const gateLane = async () => {
     let rest = false;
+    // The gate's own lease may still run the item check; its lane joins once that is done, while slot lanes start now.
+    if (gateLaneFree) await gateLaneFree;
     while (!closed()) {
       if (!queue.length || rest || gateDropped && slots > 0) { rest = false; await changed; continue; }
       const dropped = await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), Boolean(takeSlot));
@@ -417,18 +420,19 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
  *   remoteOptions?: { source?: { tree?: string }, metadata: { timingRunId?: string } }, localOptions?: object }} execution - The proof's profiled execution.
  * @param {{ files: string[], filesCommand: (files: string[]) => string, takeSlot?: Parameters<typeof runProofShards>[1]['takeSlot'],
  *   freeSlots?: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number }} options
+ *   retryMs?: number, batchFiles?: number, gateLaneFree?: Promise<unknown>|null }} options - `gateLaneFree` holds runs on the gate's own lease.
  * @returns {Promise<object>} The one run the proof receipt records.
  */
 export async function proveBatches(root, execution, { files, filesCommand, takeSlot = null, freeSlots = 0, times = {}, say, retryMs, batchFiles,
-  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])) }) {
+  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])), gateLaneFree = null }) {
   const onRunner = Boolean(execution.gateLease?.runner);
   const runners = execution.gateLease?.executionServices?.runners;
   const runFirst = onRunner
     ? batch => runners.runOnRunnerAsync(root, filesCommand(batch), execution.remoteOptions)
     : batch => runShellAsync(root, filesCommand(batch), execution.localOptions);
   const shards = await runProofShards(files, { freeSlots, times, root, runFirst, takeSlot: onRunner ? takeSlot : null, passes,
-    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles });
+    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles, gateLaneFree });
+  if (!shards && gateLaneFree) await gateLaneFree;
   if (!shards) return onRunner ? runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions) : runFirst(files);
   // The one local lane's single run is today's command over every file; it is the run, not a merge of one.
   return shards.length === 1 && shards[0].files.length === files.length ? shards[0].run : mergeShardRuns(shards);
