@@ -161,7 +161,8 @@ export function itemLedger({ item, events, gateSpans = [], landingSpans = [], ba
     if (piece.hop === 'gate') {
       for (const part of tile(piece.start, piece.end, gates, 'gate.untraced')) segments.push({ hop: part.label, parent: 'gate', start: part.start, end: part.end });
     } else if (piece.hop === 'land') {
-      const from = window ? Math.max(piece.start, window.start) : piece.end;
+      // A batch that starts after this landing hop ended (a later reject, say) leaves the whole hop a queue wait.
+      const from = window ? Math.min(piece.end, Math.max(piece.start, window.start)) : piece.end;
       if (from > piece.start) segments.push({ hop: 'land.queue', parent: 'land', start: piece.start, end: from });
       for (const part of tile(from, piece.end, lands, 'land.untraced')) segments.push({ hop: part.label, parent: 'land', start: part.start, end: part.end });
     } else segments.push({ hop: piece.hop, parent: null, start: piece.start, end: piece.end });

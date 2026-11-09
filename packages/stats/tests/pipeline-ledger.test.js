@@ -156,13 +156,18 @@ test('audit: every second of every item\'s claim-to-end time is attributed to a 
       { at: at(base + 20), kind: 'claim', by: `core-${item}`, item }); continue; }
     events.push({ at: at(base + 13), kind: 'accept', by: 'core-50', item }, { at: at(base + 19), kind: 'merged', by: 'coordinator', item });
   }
+  // #13 is accepted, then rejected before the landing batch that names it starts: no time is counted twice.
+  events.push({ at: at(100), kind: 'claim', by: 'core-13', item: 13 }, { at: at(101), kind: 'submit', by: 'core-13', item: 13 },
+    { at: at(102), kind: 'reserve', by: 'core-50', item: 13 }, { at: at(103), kind: 'accept', by: 'core-50', item: 13 },
+    { at: at(105), kind: 'reject', by: 'core-51', item: 13 });
+  const batches = [{ id: 'late', startedAt: at(110), at: at(112), candidates: [13] }];
   events.sort((a, b) => a.at - b.at);
-  const ledger = pipelineLedger({ since: at(0), now: at(200), item: null, events, gateSpans });
-  assert.equal(ledger.items, 12);
+  const ledger = pipelineLedger({ since: at(0), now: at(200), item: null, events, gateSpans, batches });
+  assert.equal(ledger.items, 13);
   assert.ok(ledger.audit.totalMs > 0);
-  assert.ok(ledger.audit.unattributedShare < 0.01, `unattributed ${ledger.audit.unattributedShare}`);
+  assert.ok(Math.abs(ledger.audit.unattributedShare) < 0.01, `unattributed ${ledger.audit.unattributedShare}`);
   assert.deepEqual(ledger.audit.items, []);
-  for (let item = 1; item <= 12; item += 1) assertTiles(pipelineLedger({ since: at(0), now: at(200), item, events, gateSpans }).ledgers[0]);
+  for (let item = 1; item <= 13; item += 1) assertTiles(pipelineLedger({ since: at(0), now: at(200), item, events, gateSpans, batches }).ledgers[0]);
   const hops = new Set(ledger.hops.map(row => row.hop));
   for (const hop of ['build', 'gate', 'gate.tests', 'gate.untraced', 'after failed gate', 'review', 'rework after reject', 'unowned', 'land', 'land.queue']) assert.ok(hops.has(hop), `hop ${hop} appears`);
 });
