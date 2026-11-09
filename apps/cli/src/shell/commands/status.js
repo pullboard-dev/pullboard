@@ -39,7 +39,7 @@ import { ruleProofCounts } from '../../../../../packages/verify/index.js';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
 import { handoffCapLine } from '../../../../../packages/resources/index.js';
-import { longestRecentHolds } from '../../../../../src/board-hold-log.js';
+import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
 import { reviewQueueLine } from '../../../../../packages/verify/index.js';

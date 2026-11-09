@@ -440,18 +440,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/board-hold-log.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-ratchet.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-baseline.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-pure-front-door.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -696,10 +684,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/seat-ledger.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/command-docs/seats.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -721,10 +705,6 @@
     },
     {
       "path": "src/move-history/201.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/untouched-claim-observation.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -2010,6 +1990,7 @@
     "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
+    "apps/cli->seats",
     "apps/cli->items",
     "apps/cli->landing",
     "apps/cli->apps/runner",
@@ -2097,6 +2078,8 @@
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
+    "store->resources",
+    "store->git",
     "github->items"
   ]
 }

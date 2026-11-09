@@ -85,7 +85,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/claim.js": {
-      "cells": 16,
+      "cells": 10,
       "deep": 1
     },
     "apps/cli/src/shell/cli/join.js": {
@@ -93,7 +93,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/next.js": {
-      "cells": 14,
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/src/shell/cli/project-ports.js": {
@@ -373,7 +373,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/release.js": {
-      "cells": 6,
+      "cells": 4,
       "deep": 0
     },
     "apps/cli/src/shell/commands/reopen.js": {
@@ -461,8 +461,8 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/status.js": {
-      "cells": 16,
-      "deep": 2
+      "cells": 12,
+      "deep": 0
     },
     "apps/cli/src/shell/commands/submit.js": {
       "cells": 21,
@@ -3645,7 +3645,7 @@
       "deep": 0
     },
     "packages/store/src/shell/board-write-lock.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 1
     },
     "packages/store/src/shell/board-write-preparation.js": {
@@ -4033,10 +4033,6 @@
       "deep": 0
     },
     "src/board-hold-lane.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-hold-log.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4532,10 +4528,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/seat-ledger.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/sentinels.js": {
       "cells": 1,
       "deep": 0
@@ -4573,10 +4565,6 @@
       "deep": 0
     },
     "src/trusted-policy-read.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/untouched-claim-observation.js": {
       "cells": 1,
       "deep": 0
     },

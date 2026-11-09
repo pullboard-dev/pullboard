@@ -16,7 +16,7 @@ import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { parseProcessCensus } from "../../../kernel/src/core/process-census.js";
-import { recordBoardHold } from "../../../../src/board-hold-log.js";
+import { recordBoardHold } from "./board-hold-log.js";
 
 const pending = new WeakMap();
 let ownIdentity;
