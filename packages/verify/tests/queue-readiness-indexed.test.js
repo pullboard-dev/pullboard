@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { itemFileCollisions } from '../../items/src/core/item-files.js';
-import { itemFiles } from '../../items/src/core/item-files.js';
+import { itemFileCollisions } from '../../items/index.js';
+import { itemFiles } from '../../items/index.js';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { wallLoadFactor } from '../../drive/core.js';
-import { readyItems } from '../../../src/queue-readiness.js';
+import { readyItems } from '../../queue/core.js';
 
 /** The pre-index reference: every candidate against every item. */
 function naive(item, items) {

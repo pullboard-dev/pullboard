@@ -1,5 +1,5 @@
 import { seatFamily } from "../shell/family-declaration.js";
-import { itemWaits } from "../../../../src/queue-readiness.js";
+import { itemWaits } from "../../../queue/core.js";
 /**
  * pullboard queue (#797): the work queue agents pull from, top to bottom. Each unshipped release is a
  * breakpoint with its landed count, then its pullable items in the order next serves them, each with
