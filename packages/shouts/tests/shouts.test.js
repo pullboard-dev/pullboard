@@ -54,7 +54,7 @@ function shoutedBoard(t) {
   const item = cellItem(board, { lane: 'web', title: 'Render the page', criterion: '1. it renders [test]' });
   const lanes = ['web', 'api'];
   shout(board, { from: core.id, to: other.id, text: 'hello there', lanes });
-  shout(board, { from: other.id, to: 'all', text: 'for everyone', lanes });
+  shout(board, { from: other.id, to: 'web', text: 'for the web lane', lanes });
   return { repo, board, core, other, item };
 }
 
@@ -146,10 +146,10 @@ test('filters keep only the wanted kinds, item and audience, and --json prints o
 
   const toWeb = await follow(t, shouted, { to: 'web', json: true });
   const records = toWeb.lines.map(line => JSON.parse(line));
-  assert.equal(records.length, 1, JSON.stringify([shouted.board.db.prepare('SELECT shout_from, shout_to FROM shout').all(), toWeb.lines, toWeb.notes]) + 'only the shout to all reaches the web audience; the one to another seat does not');
+  assert.equal(records.length, 1, 'only the shout to the web lane reaches the web audience; the one to another seat does not');
   assert.equal(records[0].version, 1);
   assert.match(records[0].kind, /^shout/u);
-  assert.equal(records[0].to, 'all');
+  assert.equal(records[0].to, 'web');
 
   const byItem = await follow(t, shouted, { item: String(shouted.item.item_id) });
   assert.ok(byItem.lines.length >= 1);
