@@ -12,7 +12,6 @@
     "src/affected-tests.js",
     "src/board-landing-lease.js",
     "src/board-store.js",
-    "src/board.js",
     "src/check-timing.js",
     "src/cli-presence.js",
     "src/family-declaration.js",
