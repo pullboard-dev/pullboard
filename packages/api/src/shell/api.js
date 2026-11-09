@@ -866,6 +866,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;
   const event = events.find((row) => row.event_kind === kind) ?? events.at(-1);
+  if (!event && body.verb === 'next') return { status: 200, body: { version: VERSION, event: null, result } };
   if (!event) throw new Error(`move ${body.verb} produced no event${diagnostics ? `: ${diagnostics}` : ''}`);
   return { status: 200, body: { version: VERSION, event, result } };
 }

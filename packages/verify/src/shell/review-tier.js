@@ -15,7 +15,7 @@ const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
   // Preserve the strict tier of the exact moved relay workers (#1591).
   'apps/lib/src/shell/relay-checkpoint-worker.js',
-  'apps/lib/src/shell/relay-sender-main.js',
+  'apps/cli/src/shell/relay-sender-main.js',
   // Exact store identities retain Strict after both cells move (#1570).
   'packages/store/src/core/known-main-reworks.js',
   'packages/store/src/shell/proof-receipts.js',
@@ -53,7 +53,7 @@ const SOURCE_FILES = new Set([
   'package.json', 'pullboard.json', 'bin/run-tests.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/shell/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
-  'src/affected-tests.js', 'src/test-selection.js', 'src/test-result-store.js', 'src/test-file-dispatch.js',
+  'packages/gate/src/shell/affected-tests.js', 'src/test-selection.js', 'src/test-result-store.js', 'src/test-file-dispatch.js',
   'src/test-run.js', 'packages/gate/src/shell/test-file-pool.js', 'src/test-isolation.js', 'src/test-action-cache.js',
   'src/test-action-transfer.js', 'src/test-placement.js', 'src/module-imports.js',
   'src/submit-admission.js', 'src/check-mask.js', 'src/check-baseline.js', 'src/check-baseline-worker.js',

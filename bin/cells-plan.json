@@ -1545,6 +1545,54 @@
         "packages/resources/tests/lsof-lookups.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -1578,10 +1626,6 @@
     },
     {
       "path": "src/cli-hook-work.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/relay-sender-main.js",
       "cell": "app:lib"
     },
     {
@@ -1972,6 +2016,8 @@
     "items->git",
     "items->kernel",
     "items->store",
+    "items->queue",
+    "queue->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
@@ -2027,6 +2073,10 @@
     "(root)->doctrine",
     "(root)->landing",
     "person->doctrine",
-    "blueprints->doctrine"
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine"
   ]
 }

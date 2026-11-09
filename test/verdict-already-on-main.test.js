@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** A verified item whose change main already carries closes as landed, never STALE_VERDICT [C7,#2980]. */
 import { assert, helpers, run, store, test, withBoard } from './team-scenarios.fixture.js';
 import { join } from 'node:path';

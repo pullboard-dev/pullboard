@@ -487,7 +487,7 @@ test('the repository test-tree guards list only source scanners and launch no br
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards), [], 'no guard file declares a browser');
-  const forbiddenImports = new Set(['src/board.js', 'apps/view/index.js', 'src/gate.js', 'test/board-fixture.js',
+  const forbiddenImports = new Set(['packages/store/src/shell/board.js', 'apps/view/index.js', 'src/gate.js', 'test/board-fixture.js',
     'test/e2e-helpers.js', 'test/cockpit/fixture.js', 'test/chrome-fixture.js']);
   const scanFiles = [
     'packages/gate/tests/gui-marker-guard.test.js',

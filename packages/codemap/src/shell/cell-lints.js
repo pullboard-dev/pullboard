@@ -29,7 +29,10 @@ function declaredPureEntries(files) {
         || row.file !== `bin/cells-plan/${String(row.order).padStart(2, '0')}-${row.name.replace(':', '-')}.json`) continue;
       const cell = JSON.parse(files.get(row.file)?.toString('utf8') ?? 'null');
       if (cell?.name === row.name && cell.order === row.order && /^packages\/[a-z][a-z0-9-]*$/u.test(cell.root)
-        && cell.frontDoor === `${cell.root}/index.js` && cell.pureFrontDoor === `${cell.root}/core.js`) entries.add(cell.pureFrontDoor);
+        && cell.frontDoor === `${cell.root}/index.js` && [cell.pureFrontDoor, cell.lightFrontDoor].filter(Boolean).length === 1
+        && (cell.pureFrontDoor ?? cell.lightFrontDoor) === `${cell.root}/core.js`) entries.add(cell.pureFrontDoor ?? cell.lightFrontDoor);
+      // A declared pure.js sits beside the index and any core.js, so it is an entry too, never a stray.
+      if (cell?.name === row.name && cell.pureDoor === `${cell.root}/pure.js` && /^packages\/[a-z][a-z0-9-]*$/u.test(cell.root)) entries.add(cell.pureDoor);
     }
   } catch { /* An unreadable declaration never widens the accepted anatomy. */ }
   return entries;

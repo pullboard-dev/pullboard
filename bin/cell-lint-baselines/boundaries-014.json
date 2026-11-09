@@ -313,7 +313,6 @@
     "test/next-order.test.js->test/e2e-helpers.js": 1,
     "test/next-order.test.js->test/next-order-fixture.js": 1,
     "test/next-steps.test.js->packages/kernel/src/core/refused.js": 1,
-    "test/next-steps.test.js->src/doctrine.js": 1,
     "test/next-steps.test.js->src/next-step-words.js": 1,
     "test/next-steps.test.js->src/next-steps.js": 1,
     "test/next-steps.test.js->src/recorded-refusal.js": 1,

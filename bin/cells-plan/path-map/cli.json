@@ -1,6 +1,7 @@
 {
   "src/cli-board-read.js": "apps/cli/src/shell/cli-board-read.js",
   "src/cli-context.js": "apps/cli/src/shell/cli-context.js",
+  "src/relay-sender-main.js": "apps/cli/src/shell/relay-sender-main.js",
   "src/cli-help.js": "apps/cli/src/shell/cli-help.js",
   "src/cli-identity.js": "apps/cli/src/shell/cli-identity.js",
   "src/cli-main.js": "apps/cli/src/shell/cli-main.js",
