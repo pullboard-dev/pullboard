@@ -2469,7 +2469,7 @@
     "tempdir": 5,
     "model": 1
   },
-  "test/privacy-scan-guard.test.js": {
+  "packages/sandbox/tests/privacy-scan-guard.test.js": {
     "repo-read": 1
   },
   "test/private-board-move-fixture.js": {

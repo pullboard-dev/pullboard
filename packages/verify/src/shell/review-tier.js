@@ -55,7 +55,7 @@ const SOURCE_FILES = new Set([
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/shell/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
   'packages/gate/src/shell/affected-tests.js', 'src/test-selection.js', 'src/test-result-store.js', 'src/test-file-dispatch.js',
   'src/test-run.js', 'packages/gate/src/shell/test-file-pool.js', 'src/test-isolation.js', 'src/test-action-cache.js',
-  'src/test-action-transfer.js', 'src/test-placement.js', 'src/module-imports.js',
+  'src/test-action-transfer.js', 'src/test-placement.js', 'packages/gate/src/shell/module-imports.js',
   'src/submit-admission.js', 'src/check-mask.js', 'src/check-baseline.js', 'src/check-baseline-worker.js',
   'src/known-main-reworks.js', 'src/known-main-failures.js', 'src/main-failure-matches.js',
   // These specific review modules judge authority/results; presentation and queue families stay Standard.

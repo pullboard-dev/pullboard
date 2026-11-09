@@ -365,7 +365,6 @@
     "test/test-result-fleet-fixture.js->test/fixture-child.js": 1,
     "test/test-result-fleet-fixture.js->test/runner-ssh-fixture.js": 1,
     "test/test-runner.test.js->bin/run-tests.js": 1,
-    "test/test-runner.test.js->src/module-imports.js": 1,
     "test/test-runner.test.js->src/package-files.js": 1,
     "test/test-runner.test.js->test/fixture-child.js": 1,
     "test/test-value.test.js->src/board.js": 1,
