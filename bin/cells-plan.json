@@ -1626,7 +1626,7 @@
     },
     {
       "path": "src/cli-hook-work.js",
-      "cell": "app:lib"
+      "cell": "app:cli"
     },
     {
       "path": "bin/static-style-checks.js",
@@ -2003,7 +2003,6 @@
     "api->git",
     "api->store",
     "apps/lib->store",
-    "apps/lib->apps/cli",
     "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
@@ -2016,6 +2015,8 @@
     "items->git",
     "items->kernel",
     "items->store",
+    "items->queue",
+    "queue->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
@@ -2064,6 +2065,8 @@
     "rigor->state",
     "sandbox->state",
     "sandbox->items",
+    "sandbox->config",
+    "sandbox->git",
     "commits->kernel",
     "rigor->store",
     "(root)->store",
@@ -2072,6 +2075,12 @@
     "(root)->doctrine",
     "(root)->landing",
     "person->doctrine",
-    "blueprints->doctrine"
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine",
+    "store->items",
+    "github->items"
   ]
 }

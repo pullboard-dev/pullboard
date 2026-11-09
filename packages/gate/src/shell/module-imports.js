@@ -42,7 +42,7 @@ const PARSER = [
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function compileSources(sources) {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS)) return compileFresh(sources);
+  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
   const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
   return storedCompilations(epoch, sources, compileFresh);
 }

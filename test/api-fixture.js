@@ -22,6 +22,7 @@ import { JSON_SHAPES } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { addItem as addBoardItem, appendFact } from '../packages/store/index.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
@@ -119,6 +120,24 @@ export function bindApiFixtureMachine(t, env) {
     });
   }
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
+}
+
+/**
+ * Add an item at a route the way the board admits it: a light item is filed mid, then diagnosed by the coordinator.
+ * Why: a light item needs a current diagnosis fact (#3120), so a direct light add refuses DIAGNOSIS_REQUIRED.
+ */
+export function addRoutedItem(board, fields) {
+  const id = addBoardItem(board, { ...fields, route: fields.route === 'light' ? 'mid' : fields.route });
+  if (fields.route === 'light') appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: fields.brief });
+  return id;
+}
+
+/** File a light item through the CLI: `json` adds it mid and checks the add shape, then its own brief diagnoses it; returns the added document. */
+export function addLightViaCli(json, box, cwd, args) {
+  const added = json(box, cwd, 'add', args, 'add');
+  const diagnosed = box.run(cwd, 'fact', String(added.item.item_id), 'diagnosis', args[args.indexOf('--brief') + 1], '--json');
+  assert.equal(diagnosed.status, 0, diagnosed.stderr || diagnosed.stdout);
+  return added;
 }
 
 /**

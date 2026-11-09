@@ -1,5 +1,5 @@
 /** Review reservations as job leases: reserve, renew, reclaim on the 2-minute rule [C7]. */
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/core.js";
 import { LEASE_MS } from "../core/lease-rules.js";
 import { createJob } from "./job-store.js";
 import { writeStep } from "./job-store.js";

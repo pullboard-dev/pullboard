@@ -17,6 +17,7 @@ import { writeBoardCommand } from '../packages/store/index.js';
 import { prepareCheckBaseline } from '../packages/gate/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Wait for an owned fixture process to reach its explicit barrier, never a performance threshold. */
 function until(read, label) {
@@ -32,6 +33,15 @@ test('a real baseline worker completes during claim preparation without strandin
   const box = e2e.project('true');
   const entered = join(box.dir, 'baseline-entered');
   const release = join(box.dir, 'baseline-release');
+  // A check baseline runs only on a registered runner (#2520), so the SSH stand-in is this box's one runner.
+  const bin = join(box.dir, 'ssh-bin');
+  const remoteHome = join(box.dir, 'worker-home');
+  for (const folder of [bin, join(box.dir, 'worker'), remoteHome, join(remoteHome, '.pullboard'), box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: join(remoteHome, '.pullboard'), requests: join(box.dir, 'ssh-requests.jsonl') });
+  box.env.PATH = `${bin}:${box.env.PATH}`;
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
+  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1').code, 0);
+  assert.equal(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off').code, 0);
   let board;
   let peer;
   let worker;

@@ -12,8 +12,8 @@ import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
-import { lex } from '../../../kernel/index.js';
-import { literalShellWords } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/core.js';
+import { literalShellWords } from '../../../kernel/core.js';
 
 const binaries = new Map();
 

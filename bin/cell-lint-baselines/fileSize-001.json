@@ -50,7 +50,6 @@
     "src/runner-worker.js": 621,
     "src/runners.js": 391,
     "src/serve.js": 195,
-    "src/spec.js": 124,
     "src/test-file-dispatch.js": 69,
     "src/test-file-pool.js": 10,
     "src/view.css": 845,

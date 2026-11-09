@@ -3046,25 +3046,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/conveyor-claim-returns.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "items",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/conveyor-returns.test.js": {
       "cells": [
         "app:lib",
@@ -4147,25 +4128,6 @@
       ],
       "reasons": [
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/held-claim-selection.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "imports past store front door (packages/store/src/shell/board-next-for.js)",
         "runs the CLI (test/next-take-fixture.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
@@ -5409,24 +5371,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/liveness-reviews.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/lock-hold-budget-command.fixture.js": {
       "cells": [
         "app:lib",
@@ -5924,24 +5868,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/next-light-reserve.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/next-never-seat-checkout.test.js": {
       "cells": [
         "app:lib",
@@ -5956,25 +5882,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/next-no-review-cover-wait.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/next-no-review-for-builder.test.js": {
@@ -6047,24 +5954,6 @@
       ]
     },
     "test/next-red-notice-once.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/next-release-cooldown.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -6231,24 +6120,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/next-submitting-seat.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/next-take-fixture.js": {
@@ -6931,23 +6802,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/private-rehome-grants.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "state",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/products.test.js": {
       "cells": [
         "app:lib",
@@ -7188,17 +7042,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/queue-readiness-indexed.test.js": {
-      "cells": [
-        "items",
-        "queue",
-        "verify"
-      ],
-      "reasons": [
-        "imports past items front door (packages/items/src/core/item-files.js)",
-        "imports past queue front door (src/queue-readiness.js)"
-      ]
-    },
     "test/queued-red-returns-to-builder.test.js": {
       "cells": [
         "app:lib",
@@ -7293,23 +7136,6 @@
         "app:cli",
         "app:lib",
         "config",
-        "kernel",
-        "outbox",
-        "person",
-        "state",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/reject-reopens-to-any.test.js": {
-      "cells": [
-        "app:lib",
         "kernel",
         "outbox",
         "person",
@@ -8487,25 +8313,6 @@
         "imports past landing front door (packages/landing/src/shell/release-queue.js)"
       ]
     },
-    "test/release-rescope.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/release-speed.test.js": {
       "cells": [
         "app:lib",
@@ -8635,25 +8442,6 @@
       ],
       "reasons": [
         "component test helper; moves with its importers"
-      ]
-    },
-    "test/rescope-exclusion-expires.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/reserve-next-review-lock.test.js": {
@@ -8915,25 +8703,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/review-starve.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/reviews-first-next.test.js": {
       "cells": [
         "app:cli",
@@ -9033,7 +8802,6 @@
       ],
       "reasons": [
         "imports past doctrine front door (packages/doctrine/src/shell/doctrine.js)",
-        "imports past queue front door (src/queue-readiness.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
     },
@@ -9399,7 +9167,7 @@
         "spawns a child process (test/runner-idle-dead-holder.test.js)"
       ]
     },
-    "test/runner-idle-recovery.test.js": {
+    "apps/runner/tests/runner-idle-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9442,21 +9210,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "packages/resources/tests/runner-leak-heal-spares-live-jobs.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources",
-        "runners"
-      ],
-      "reasons": [
-        "imports past resources front door (packages/resources/src/shell/runner-leak-heal.js)",
-        "imports past runners front door (packages/runners/src/shell/runner-leak-stop.js)",
-        "spawns a child process (test/runner-leak-heal-spares-live-jobs.test.js)"
       ]
     },
     "test/runner-load-aware-dispatch.test.js": {
@@ -9644,7 +9397,7 @@
         "spawns a child process (test/runner-self-heal.test.js)"
       ]
     },
-    "test/runner-self-recovery.test.js": {
+    "apps/runner/tests/runner-self-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9874,7 +9627,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-worker-restart.test.js": {
+    "apps/runner/tests/runner-worker-restart.test.js": {
       "cells": [
         "app:lib",
         "kernel",
