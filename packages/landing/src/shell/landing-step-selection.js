@@ -187,7 +187,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).
-  const failed = roundFailures(batches);
+  const failed = landingTurns(batches, roundFailures(batches), pending);
   pending.sort((left, right) => {
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
@@ -281,6 +281,31 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
   }
   return { ready, blocked };
+}
+
+/**
+ * Each item's place behind untried work: its failure turn, or, for an item whose latest batch ended blocked for a
+ * reason that names no test (LAND_DIAGNOSTIC), one turn after every failure. Ordering only; batch sizing still reads
+ * roundFailures alone. Why: such a block counted as no outcome, so #3478 and #3687 kept their accept-order place and
+ * were retried four times while #3862 and #3852, accepted later and never tried, waited 10 to 12 minutes on 9 Nov [C7].
+ *
+ * @param {object[]} batches - The board's landing batches, oldest first.
+ * @param {Map<number, number>} failed - roundFailures(batches).
+ * @param {{ item_id: number, item_commit: string }[]} pending - The verified items; a block of an older commit is not theirs.
+ * @returns {Map<number, number>}
+ */
+export function landingTurns(batches, failed, pending) {
+  const commits = new Map(pending.map(item => [item.item_id, item.item_commit]));
+  const turns = new Map(failed);
+  let clock = Math.max(0, ...failed.values());
+  const latest = new Map();
+  for (const batch of batches) if (batch?.id) latest.set(batch.id, batch);
+  for (const batch of latest.values()) {
+    if (batch.state !== 'blocked' || batch.dropped || batch.supersededByMain) continue;
+    clock += 1;
+    for (const entry of batch.items ?? batch.candidates ?? []) if (!failed.has(entry.id) && commits.get(entry.id) === entry.commit) turns.set(entry.id, clock);
+  }
+  return turns;
 }
 
 /**
