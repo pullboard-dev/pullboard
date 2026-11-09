@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -28,8 +28,7 @@ function claimOn(trunk) {
   const id = String(JSON.parse(added.out).item.item_id);
   const seat = join(box.dir, `seat-${trunk}`);
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/one', seat);
-  const joined = fixtureJoin(box.run, seat, 'app');
-  assert.equal(joined.code, 0, joined.err || joined.out);
+  joinFixtureSeat(box, seat, 'app');
   const claimed = box.run(seat, 'claim', id, '--json');
   return { box, root, claimed };
 }
