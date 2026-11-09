@@ -3,6 +3,7 @@ import { COST_ENGINE } from '../../../../src/cost-engine.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from '../../../kernel/index.js';
+import { usageDollars } from '../../../config/index.js';
 import { COUNTS } from './cost-read.js';
 import { UNKNOWN_USAGE_REASONS } from './cost-read.js';
 import { sumUsage } from './cost-read.js';
@@ -85,4 +86,31 @@ export function storedSeatUsage(board, agent) {
     const value = JSON.parse(row.meta_value);
     return { agentId: value.agent, item: value.item, revision: value.revision, observedAt: value.observedAt, shared: value.shared ?? false, records: value.records };
   }).filter((value) => value.agentId === agent);
+}
+
+/** Share of a limit at which a budget starts to warn. */
+const BUDGET_WARN_AT = 0.8;
+
+/**
+ * Read a board's spend against its budget as ok, warn from 80 percent, or stop at 100 percent of either limit [N2].
+ * Dollars come from the usage records each seat last published: the daily limit counts records observed on the
+ * UTC day of `now`, the total limit counts all of them. With no budget set the state is ok and carries no limit.
+ *
+ * @param {object} board an open board
+ * @param {object} prices dollars per million tokens by model
+ * @param {{dailyUsd?: number, totalUsd?: number}|undefined} budget the machine budget setting
+ * @param {number} now epoch milliseconds that decide which records count as today
+ * @returns {{state: 'ok'|'warn'|'stop', spend: number, limit: number|null, which: 'dailyUsd'|'totalUsd'|null}}
+ */
+export function budgetState(board, prices, budget, now) {
+  const rows = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().map(row => JSON.parse(row.meta_value));
+  const day = new Date(now).toISOString().slice(0, 10);
+  const dollars = values => usageDollars(values.flatMap(value => value.records.map(record => ({ ...record, shared: Boolean(value.shared) }))), prices).knownCostUSD;
+  const spend = { dailyUsd: dollars(rows.filter(value => new Date(value.observedAt).toISOString().slice(0, 10) === day)), totalUsd: dollars(rows) };
+  const limits = ['dailyUsd', 'totalUsd'].filter(name => budget?.[name] !== undefined);
+  if (!limits.length) return { state: 'ok', spend: spend.totalUsd, limit: null, which: null };
+  // The limit nearest its ceiling decides the state.
+  const which = limits.reduce((worst, name) => spend[name] / budget[name] > spend[worst] / budget[worst] ? name : worst);
+  const ratio = spend[which] / budget[which];
+  return { state: ratio >= 1 ? 'stop' : ratio >= BUDGET_WARN_AT ? 'warn' : 'ok', spend: spend[which], limit: budget[which], which };
 }

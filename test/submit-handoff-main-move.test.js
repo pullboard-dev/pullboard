@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Observe only this private CLI fixture's durable job and item state. */
 function state(box) {
@@ -47,7 +49,9 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   const config = join(box.repo, 'pullboard.json');
-  writeFileSync(config, JSON.stringify({ ...helpers.CONFIG,
+  // The bar names the runner and its test file; the web lane must own them or claim refuses CROSS_OWNERSHIP.
+  const lanes = { ...helpers.CONFIG.lanes, web: { ...helpers.CONFIG.lanes.web, owns: [...helpers.CONFIG.lanes.web.owns, 'bin/run-tests.js', 'test/feature.test.js'] } };
+  writeFileSync(config, JSON.stringify({ ...helpers.CONFIG, lanes,
     gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff: true } }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: enable private queued gate [G1]');
@@ -59,7 +63,8 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(box.id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(box.id));
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const built = helpers.commitFile(box, box.web, 'web/feature.js', "export const feature='item';\n", 'feat(web): private candidate [G1]');
   assert.equal(built.status, 0, built.stderr);
   const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
@@ -81,13 +86,11 @@ process.stdout.write=function(...args) {
 };\n`);
   t.after(async () => {
     const job = state(box).job;
-    if (job) await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-      const directory = join(box.repo, '.git/pullboard/submit-handoffs', job.id);
-      const request = join(directory, 'request.json');
-      return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-        && !existsSync(join(directory, 'source'));
-    }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
-    helpers.cleanup();
+    if (job) await helpers.waitFor(() => !['queued', 'running'].includes(state(box).job?.state), // budget: owned worker cleanup hang ceiling; no throughput claim.
+      'queued worker finished', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+    // The gate driver and dispatcher still write for a moment after the job ends; remove the tree only once they are done.
+    await gateSettled(helpers, box, job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, main, commit, marker, preload };
 }
@@ -119,7 +122,7 @@ test('queued submit still refuses a main rewind during native preflight [V4,H16,
   const box = fixture(t, true);
   const result = submit(box);
   assert.ok(existsSync(box.marker), result.stdout + result.stderr);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 1, `${result.stdout}${result.stderr}\nrepo head ${box.git(box.repo, 'rev-parse', 'HEAD')}; captured main ${box.main}; marker ${readFileSync(box.marker, 'utf8')}; job ${JSON.stringify(state(box).job)}`);
   assert.match(result.stdout + result.stderr, /SUBMIT_HANDOFF_SOURCE/u);
   assert.equal(state(box).job, null, 'a rewound policy grants no queued worker');
 });
@@ -138,6 +141,6 @@ for (const mode of ['unrelated', 'twice', 'policy']) test(`queued gate handles $
   } else {
     assert.notEqual(completed.job.state, 'green', JSON.stringify(completed.job));
     const refusal = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8'));
-    assert.match(JSON.stringify(refusal), /verify\.family/u);
+    assert.match(JSON.stringify(refusal), /UNDECLARED_BUILDER_FAMILY/u);
   }
 });
