@@ -128,9 +128,14 @@ test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once 
 
 test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when it is reclaimed', () => {
   const box = e2e.project();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Light bar check', '--route', 'light', '--criterion', 'the page renders', '--check', 'true',
+  // A light route needs a recorded diagnosis, so the item is filed mid, diagnosed, then lowered.
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Light bar check', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
+  const diagnosed = box.run(box.repo, 'fact', '1', 'diagnosis', 'Files: web/page.html\nChange: render the page heading\nTest case: the page renders');
+  assert.equal(diagnosed.code, 0, diagnosed.err);
+  const lowered = box.run(box.repo, 'edit', '1', '--route', 'light');
+  assert.equal(lowered.code, 0, lowered.err);
   const enabled = box.run(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
     '--window', '{"windowMinutes":60,"activeReviewers":2}');
   assert.equal(enabled.code, 0, enabled.err);

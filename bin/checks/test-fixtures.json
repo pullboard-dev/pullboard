@@ -92,11 +92,11 @@
   "packages/gate/tests/shim-import-ratchet.test.js": {
     "hand-policy": 1
   },
-  "packages/commits/tests/landing-message.test.js": {
+  "test/landing-message.test.js": {
     "hand-policy": 1,
     "model": 1
   },
-  "packages/commits/tests/merge-hooks.test.js": {
+  "packages/doctrine/tests/merge-hooks.test.js": {
     "tempdir": 4,
     "hand-policy": 9
   },
@@ -2373,7 +2373,7 @@
     "hand-policy": 2,
     "raw-board": 12
   },
-  "test/no-eligible-reviewer.test.js": {
+  "apps/lib/tests/no-eligible-reviewer.test.js": {
     "model": 4,
     "raw-board": 8
   },
