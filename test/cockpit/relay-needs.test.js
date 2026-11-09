@@ -141,7 +141,9 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     await chrome.stable(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
     box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
     await chrome.stable('window.__transportUpdate()');
-    assert.equal(await chrome.stable("data?.project?.items.some((item) => item.title === 'Transport refresh item') && window.__samePage === true"), true, 'onUpdate refreshes state in the same page without relying on the poll');
+    const refreshed = JSON.parse(await chrome.stable("JSON.stringify({ samePage: window.__samePage === true, titles: (data?.project?.items || []).map((item) => item.title), live: document.querySelector('#live').textContent, calls: window.__transportCalls.slice(-4) })"));
+    assert.equal(refreshed.samePage, true, 'onUpdate refreshes in the same page');
+    assert.ok(refreshed.titles.includes('Transport refresh item'), 'onUpdate refreshes state in the same page without relying on the poll: ' + JSON.stringify(refreshed));
     assert.ok(forwarded.every((method) => method === 'GET'), 'transport update refreshed through reads only');
 
   } finally {
