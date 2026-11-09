@@ -1409,8 +1409,8 @@
       "deep": 0
     },
     "packages/gate/src/shell/browser-admission.js": {
-      "cells": 4,
-      "deep": 2
+      "cells": 2,
+      "deep": 1
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -2364,10 +2364,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/moves/src/core/moves/applyRowDecisions.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "packages/moves/src/core/moves/attachItemPatch.js": {
       "cells": 2,
       "deep": 1
@@ -3069,7 +3065,7 @@
       "deep": 0
     },
     "packages/spec/src/shell/spec.js": {
-      "cells": 3,
+      "cells": 2,
       "deep": 0
     },
     "packages/state/src/core/agent-grant.js": {
@@ -4308,10 +4304,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/cli.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/cockpit.js": {
       "cells": 1,
       "deep": 0
@@ -4428,10 +4420,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/engine.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/exit-rules-continuation.js": {
       "cells": 1,
       "deep": 0
@@ -4477,10 +4465,6 @@
       "deep": 0
     },
     "src/landing-failure-report.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-shards.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4571,10 +4555,6 @@
     "src/module-imports.js": {
       "cells": 1,
       "deep": 1
-    },
-    "src/next-step-words.js": {
-      "cells": 1,
-      "deep": 0
     },
     "src/outside-store.js": {
       "cells": 1,

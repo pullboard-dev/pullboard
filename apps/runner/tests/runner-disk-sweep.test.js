@@ -9,12 +9,12 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { sweepRunnerDisk } from '../../../apps/runner/index.js';
-import { assertDiskFree } from '../../../apps/runner/index.js';
-import { treeBytes } from '../../../apps/runner/index.js';
-import { processCensus } from '../../../apps/runner/index.js';
-import { takeResource } from '../index.js';
-import { acquireResourceApi } from '../../../apps/runner/index.js';
+import { sweepRunnerDisk } from '../index.js';
+import { assertDiskFree } from '../index.js';
+import { treeBytes } from '../index.js';
+import { processCensus } from '../index.js';
+import { takeResource } from '../../../packages/resources/index.js';
+import { acquireResourceApi } from '../index.js';
 
 const resources = { takeResource };
 const MB = 1024 * 1024;
