@@ -3651,7 +3651,7 @@
   "test/submit-replaces-gate.test.js": {
     "raw-board": 1
   },
-  "apps/cli/tests/submit-runner-plan.test.js": {
+  "test/submit-runner-plan.test.js": {
     "tempdir": 2
   },
   "test/submit-spec-row-proof.test.js": {

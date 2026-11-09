@@ -10,11 +10,11 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { remoteSubmitAnalysis } from '../apps/cli/src/shell/submit-remote-gate.js';
-import { sharedRemoteAnalysis } from '../apps/cli/src/shell/submit-remote-gate.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
-import { runFixtureGit } from './fixture-child.js';
+import { remoteSubmitAnalysis } from '../src/shell/submit-remote-gate.js';
+import { sharedRemoteAnalysis } from '../src/shell/submit-remote-gate.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const PARTS = ['preflight', 'selection', 'cells', 'static', 'doctrine'];
 const RULES = [{ id: 'C9', text: 'no file over the cap', command: 'node bin/checks/file-size.js', count: 0, committed: 0, holds: true,

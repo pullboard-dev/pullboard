@@ -49728,7 +49728,7 @@
       ]
     },
     {
-      "file": "apps/cli/tests/submit-runner-plan.test.js",
+      "file": "test/submit-runner-plan.test.js",
       "tier": "T3",
       "packages": [
         ".",
