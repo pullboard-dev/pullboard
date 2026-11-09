@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../../store/src/shell/board.js";
+import * as store from "../../store/index.js";
 import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 
