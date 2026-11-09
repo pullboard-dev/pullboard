@@ -547,8 +547,8 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     const normalOffer = normalMid.run('next', '--json');
     assert.equal(normalOffer.code, 0, normalOffer.err);
     assert.equal(JSON.parse(normalOffer.out).item.item_id, middle, 'without evidence, same-tier milestone order remains unchanged');
-    // Not a quality release: two BLOCKED releases would escalate an item past this mid seat (#3219).
-    assert.equal(normalMid.run('release', String(middle), '--reason', 'ROUTED_ELSEWHERE', '--no-next').code, 0);
+    // OTHER only frees the claim: BLOCKED twice escalates the item past this mid seat (#3219), and BLOCKED or ROUTED_ELSEWHERE hide it from next for this lane and route (#3014).
+    assert.equal(normalMid.run('release', String(middle), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0);
     assert.equal(JSON.parse(cli(box.root, box.env, 'show', String(rework), '--json').out).item_status, 'open', 'the controlled release leaves the rework open for inherited-red attribution');
 
     const submitter = builder(box);
@@ -581,18 +581,18 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     assert.equal(JSON.parse(offered.out).item.item_id, rework, 'the unique main-red rework leads an earlier-milestone item within the same tier');
     const middleHolder = builder(box);
     assert.equal(middleHolder.run('claim', String(middle)).code, 0, 'a different builder can claim the non-priority same-tier item');
-    assert.equal(afterEvidence.run('release', String(rework), '--reason', 'ROUTED_ELSEWHERE', '--no-next').code, 0, 'release the selected rework before asking for another claim');
+    assert.equal(afterEvidence.run('release', String(rework), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0, 'release the selected rework before asking for another claim');
     const sole = afterEvidence.run('next', '--json');
     assert.equal(sole.code, 0, sole.err);
     assert.equal(JSON.parse(sole.out).item.item_id, rework, 'the only eligible same-tier item is never removed by prioritization');
-    assert.equal(afterEvidence.run('release', String(rework), '--reason', 'ROUTED_ELSEWHERE', '--no-next').code, 0);
-    assert.equal(middleHolder.run('release', String(middle), '--reason', 'ROUTED_ELSEWHERE', '--no-next').code, 0);
+    assert.equal(afterEvidence.run('release', String(rework), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0);
+    assert.equal(middleHolder.run('release', String(middle), '--reason', 'OTHER', '--note', 'fixture frees the claim', '--no-next').code, 0);
     put(box.root, 'README.md', 'A new main commit has no cached comparison yet.\n');
     const newMain = commit(box.root, box.env, 'chore: advance main fixture');
     assert.notEqual(newMain, main);
     const afterMainChange = builder(box).run('next', '--json');
     assert.equal(afterMainChange.code, 0, afterMainChange.err);
-    assert.equal(JSON.parse(afterMainChange.out).item?.item_id, middle, afterMainChange.out + 'a cache for the former main cannot reorder the current main');
+    assert.equal(JSON.parse(afterMainChange.out).item.item_id, middle, 'a cache for the former main cannot reorder the current main');
   });
 
   await t.test('multiple approved rows never produce a guessed row or item [V1]', (sub) => {
