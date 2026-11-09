@@ -40,7 +40,7 @@ export function loadProcessPorts() {
     submitHandoffWorker: fileURLToPath(new URL('../apps/cli/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
-      void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+      void import('../apps/cli/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
     },
   }));
 }

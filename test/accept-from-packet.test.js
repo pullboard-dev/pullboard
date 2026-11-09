@@ -167,7 +167,7 @@ test('a fully covered packet accepts in under 10 s with no checkout, test proces
   assert.ok(existsSync(marker), 'the landing gate ran the item test');
 });
 
-test('a packet with one uncovered clause runs the frozen check and names the clause that forced it [V4,C7]', { timeout: 240_000 }, () => {
+test('a packet with one uncovered clause takes the full path, reuses the submit proof and names the clause that forced it [V4,C7]', { timeout: 240_000 }, () => {
   const { box, id, head, packet, marker } = submittedItem({ uncovered: true });
   assert.deepEqual(packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n), [3]);
   // The full path checks the submitted commit out, as today.
@@ -175,9 +175,11 @@ test('a packet with one uncovered clause runs the frozen check and names the cla
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   ok(box, reviewer, 'join', 'api', '--route', 'strong');
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
-  assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
+  assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; taking the full accept path`, 'u'));
   assert.doesNotMatch(accepted.out, /accepted from review packet/u);
-  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
+  // The full path found the submit proof still covers this head, so it says so and runs no test of its own.
+  assert.match(accepted.out, /reused submit proof [a-f0-9-]{36}/u);
+  assert.equal(existsSync(marker), false, `no test process ran: ${accepted.out}`);
 });
 
 test('a reasoning clause the reviewer read accepts from the packet; unread, it runs the frozen check [V4,C7]', { timeout: 240_000 }, () => {
@@ -191,14 +193,16 @@ test('a reasoning clause the reviewer read accepts from the packet; unread, it r
   assert.match(verdict.verdict_note, /read clauses 1, 2, 3; no recorded run: 3/u);
 });
 
-test('an unread reasoning clause still runs the frozen check and names itself [V4,C7]', { timeout: 240_000 }, () => {
+test('an unread reasoning clause takes the full path, reuses the submit proof and names itself [V4,C7]', { timeout: 240_000 }, () => {
   const { box, id, head, marker } = submittedItem({ uncovered: false, reasoning: true });
   const reviewer = join(box.dir, 'api-review-at-head');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   ok(box, reviewer, 'join', 'api', '--route', 'strong');
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
-  assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
-  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
+  assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; taking the full accept path`, 'u'));
+  // The full path found the submit proof still covers this head, so it says so and runs no test of its own.
+  assert.match(accepted.out, /reused submit proof [a-f0-9-]{36}/u);
+  assert.equal(existsSync(marker), false, `no test process ran: ${accepted.out}`);
 });
 
 test('an uncovered free-text clause the reviewer read accepts from the packet [V4,C7]', { timeout: 240_000 }, () => {

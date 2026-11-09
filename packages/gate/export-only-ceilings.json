@@ -15,10 +15,7 @@
     "src/board-store.js",
     "src/board.js",
     "src/check-timing.js",
-    "src/cli-context.js",
-    "src/cli-main.js",
     "src/cli-presence.js",
-    "src/cockpit.js",
     "src/doctrine.js",
     "src/family-declaration.js",
     "src/landing-failure-report.js",
@@ -27,7 +24,6 @@
     "src/module-imports.js",
     "src/runner-worker.js",
     "src/runners.js",
-    "src/serve.js",
     "src/spec.js",
     "src/view/test-policy.js",
     "src/view/test-roles.js"

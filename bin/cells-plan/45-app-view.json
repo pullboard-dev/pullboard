@@ -10,7 +10,6 @@
   ["src/needs-state.js","apps/view/src/shell/needs-state.js","seed"],
   ["src/needs-summary.js","apps/view/src/core/needs-summary.js","seed"],
   ["src/resume-needs.js","apps/view/src/core/resume-needs.js","seed"],
-  ["src/serve.js","apps/view/src/shell/serve.js","seed"],
   ["src/view-session.js","apps/view/src/shell/view-session.js","seed"],
   ["src/view.css","apps/view/src/shell/view.css","seed"],
   ["src/view.js","apps/view/src/core/view.js","seed"],
@@ -93,7 +92,6 @@
   ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
  "reexports": [
-  "src/serve.js",
   "src/view/test-policy.js",
   "src/view/test-roles.js"
  ],
@@ -116,7 +114,7 @@
   {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
-  {"cell":"api","imports":2,"edges":["src/api.js->src/serve.js","src/api.js->src/view-state-summary.js"]}
+  {"cell":"api","imports":1,"edges":["src/api.js->src/view-state-summary.js"]}
  ],
  "ratchets": {
   "legacySource": -3,

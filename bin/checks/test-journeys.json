@@ -426,22 +426,6 @@
         "component test helper; moves with its importers"
       ]
     },
-    "test/brief-quoted-check-path.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/browser-admission-runners.test.js": {
       "cells": [
         "api",
@@ -3237,30 +3221,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/dispatcher-kill-eperm.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/dispatcher-kill-eperm.test.js)"
-      ]
-    },
-    "test/dispatcher-slot-locked.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/dispatcher-slot-locked.test.js)"
-      ]
-    },
     "test/doctor.test.js": {
       "cells": [
         "commits",
@@ -3586,25 +3546,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/family-read-scope.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "items",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/fixture-copiers.test.js": {
@@ -3995,30 +3936,6 @@
       ],
       "reasons": [
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/handoff-dispatcher-capacity-function.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/handoff-dispatcher-capacity-function.test.js)"
-      ]
-    },
-    "test/handoff-dispatcher-connections.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/handoff-dispatcher-connections.test.js)"
       ]
     },
     "test/handoff-dispatcher-liveness.test.js": {
@@ -4429,24 +4346,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/inbox-starts-at-join.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/infra-retry.test.js": {
       "cells": [
         "app:lib",
@@ -4536,23 +4435,6 @@
         "outbox",
         "person",
         "resources",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/inspection-clause-evidence.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "state",
         "store",
         "sync"
       ],
@@ -4885,18 +4767,6 @@
         "gate",
         "kernel",
         "landing"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/known-main-affected.fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/known-main-reads-main-red-items.test.js": {
-      "cells": [
-        "app:cli",
-        "kernel",
-        "store"
       ],
       "reasons": [
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
@@ -5844,22 +5714,6 @@
         "component test helper; moves with its importers"
       ]
     },
-    "test/multiple-claims-cli.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/native-cli-fixture.js": {
       "cells": [
         "app:cli",
@@ -6141,24 +5995,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/next-offers-overlapping.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/next-order-fixture.js": {
@@ -10154,20 +9990,6 @@
         "imports past moves front door (packages/moves/src/core/moves/verify.js)"
       ]
     },
-    "test/sentinel-machine-stall.test.js": {
-      "cells": [
-        "app:lib",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "imports past health front door (packages/health/src/core/machine-stall.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/sentinel-rank.test.js": {
       "cells": [
         "app:cli",
@@ -10621,22 +10443,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/submit-compare.test.js)",
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/submit-derived-family.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
       ]
     },
     "test/submit-doctrine-on-runner.test.js": {
