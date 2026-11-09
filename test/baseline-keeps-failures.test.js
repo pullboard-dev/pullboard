@@ -1,6 +1,6 @@
 /** Red baselines and derived main-red repairs retain named first diagnostics [C7,V4]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -8,12 +8,24 @@ import { fixture, cli, rows } from './known-main-affected.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { baselineFailureDetails } from '../packages/gate/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 test('a red baseline with two real failing cases prints both first error lines in show [C7]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   // The private CLI launches its own test process, not a child of this node:test protocol.
   delete box.env.NODE_TEST_CONTEXT;
+  // A check baseline is measured on a registered runner, so the box registers the SSH stand-in as one (#2520).
+  const bin = join(box.dir, 'ssh-bin');
+  const worker = join(box.dir, 'worker');
+  const remoteHome = join(box.dir, 'worker-home');
+  const remoteMachineHome = join(remoteHome, '.pullboard');
+  for (const folder of [bin, worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(box.dir, 'ssh-requests.jsonl') });
+  box.env.PATH = bin + ':' + box.env.PATH;
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
+  assert.equal(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json').code, 0);
+  assert.equal(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json').code, 0);
   writeFileSync(join(box.repo, 'two-fail.test.js'), "import { test } from 'node:test';\ntest('first broken case', () => { throw new Error('first diagnostic'); });\ntest('second broken case', () => { throw new Error('second diagnostic'); });\n");
   box.git(box.repo, 'add', 'two-fail.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: two failing baseline cases');
