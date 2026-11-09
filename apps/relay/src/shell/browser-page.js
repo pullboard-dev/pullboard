@@ -57,7 +57,6 @@ const BROWSER_MODULES = {
  * door that has no pure core.js. A cell front door with a pure core.js is read as that core.js without an entry here.
  */
 const BROWSER_STANDINS = {
-  'src/machine.js': '/relay/engine.js',
   'src/relay-device-keys.js': new URL('../../../../packages/keys/src/core/relay-device-keys.js', import.meta.url),
   'packages/keys/index.js': new URL('../../../../packages/keys/src/core/relay-device-keys.js', import.meta.url),
   'src/relay-page-layout.js': new URL('../../../../packages/pages/src/core/relay-page-layout.js', import.meta.url),

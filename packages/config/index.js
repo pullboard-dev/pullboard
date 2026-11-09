@@ -1,4 +1,5 @@
 /** Named configuration front door preserving original bindings [C7,CD60]. */
+export { configFromSource, loadConfig, environmentProblem } from './core.js';
 export {
   commandDocs,
   declaredCommandShapes,
@@ -11,11 +12,8 @@ export {
   defaults,
   durationMs,
   configProblems,
-  loadConfig,
   doctrineFile,
   frozenCheckCeilingMs,
-  configFromSource,
-  environmentProblem,
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
@@ -123,7 +121,7 @@ export {
   usageDollars,
   localUsage,
   dollarText,
-} from './core.js';
+} from './pure.js';
 export {
   maintenanceDefaults,
   maintenanceConfigProblems,

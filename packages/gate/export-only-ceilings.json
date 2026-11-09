@@ -12,7 +12,6 @@
     "src/check-timing.js",
     "src/cli-presence.js",
     "src/landing-test-policy.js",
-    "src/machine.js",
     "src/module-imports.js",
     "src/runner-worker.js",
     "src/runners.js",
