@@ -99,7 +99,7 @@ function fixture(t) {
   return { ...box, helpers, id, started };
 }
 
-test('a running handoff with a dead worker pid is recovered and a new submit queues [C7,V4]', async t => {
+test('#3995 clause 1: killing the submit worker mid-tests relaunches the same gate, which finishes from its last recorded section with no SUBMIT_HANDOFF_DEAD [C7,V4]', async t => {
   const box = fixture(t);
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
@@ -111,18 +111,16 @@ test('a running handoff with a dead worker pid is recovered and a new submit que
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
-
-  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'pass\n', 'feat(web): next candidate [G1]').status, 0);
-  const next = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
-  assert.doesNotMatch(next.out + next.err, /SUBMIT_HANDOFF_PENDING/u, 'a dead running job never refuses the next submit');
-  assert.equal(document(next).queued, true);
+  // Let the relaunched gate pass its held section, then ask for the same head again: recovery relaunches the job.
+  writeFileSync(join(box.dir, 'release'), 'release\n');
+  const again = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
+  assert.doesNotMatch(again.out + again.err, /SUBMIT_HANDOFF_DEAD/u, 'a dead running worker never ends the gate');
+  await box.helpers.waitFor(() => driverRecord(box.boardFile, first.id)?.relaunches === 1, 'the same job was relaunched', 120000); // budget: relaunch ceiling, no timing assertion.
+  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the relaunched gate finished', 120000); // budget: real gate ceiling, no timing assertion.
   const after = state(box, box.id);
-  assert.notEqual(after.job.id, first.id, 'the next submit queued its own job');
-  const retired = JSON.parse(readFileSync(join(directory, 'refusal.json'), 'utf8'));
-  assert.equal(retired.error.code, 'SUBMIT_HANDOFF_DEAD');
-  assert.match(retired.error.message, /running submit worker is dead/u);
-  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the new gate finished', 120000); // budget: real gate ceiling, no timing assertion.
-  assert.equal(state(box, box.id).item.item_status, 'submitted');
+  assert.equal(after.job.id, first.id, 'the gate finished on its original job');
+  assert.equal(existsSync(join(directory, 'refusal.json')), false, 'no refusal was written for the dead worker');
+  assert.equal(after.item.item_status, 'submitted');
 });
 
 /** The lease renewal interval the blocked-driver tests run with; production renews every 5 s. */

@@ -21,6 +21,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../../packages/drive/index.js';
 /** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
 export { stalledGateDriveFindings } from '../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
@@ -122,6 +123,44 @@ export function currentHandoffTools(request, job, commonDir) {
 
 /** The refresh a retry preparation calls: current tools for the retry's job, from the stopped request's tool root. */
 function retryTools(ctx) { return (id, request) => currentHandoffTools(request, id, ctx.info.commonDir); }
+
+/** How many times a running gate's dead worker is relaunched on the same job before the gate ends as infrastructure. */
+export const RUNNING_RELAUNCH_LIMIT = 2;
+
+/**
+ * Relaunch a running gate whose worker died, on the same job: the new driver resumes the gate's drive job from its last
+ * recorded section. Refuses SUBMIT_HANDOFF_RECOVERY, which ends the gate as today, once RUNNING_RELAUNCH_LIMIT
+ * relaunches are spent or when the captured request or tools cannot be proved.
+ *
+ * Why: on 8 Nov 71 of 111 infrastructure stops were SUBMIT_HANDOFF_DEAD, mostly running gates whose worker died; each
+ * lost its recorded sections and waited for a full retry, though the worker already resumes a running job (#3995).
+ *
+ * @param {any} ctx
+ * @param {number} itemId
+ * @param {{ id: string, commit: string }} current - The running hand-off record.
+ * @param {{ relaunches: number, owner?: string | null }} worker - Its driver record.
+ * @param {string} directory - The job's folder holding request.json.
+ */
+async function relaunchRunningGate(ctx, itemId, current, worker, directory) {
+  const relaunches = worker.relaunches ?? 0;
+  if (relaunches >= RUNNING_RELAUNCH_LIMIT) {
+    throw new Refused('SUBMIT_HANDOFF_RECOVERY', `the running worker exited without a terminal result, again after ${relaunches} relaunches`);
+  }
+  rebuildCapturedTools(directory);
+  let request;
+  try { request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8')); }
+  catch { throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request is unreadable'); }
+  if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
+    || !handoffToolsAllowed(request.tools, current.id) || !existsSync(request.tools)
+    || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())) {
+    throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request or tools cannot be proved');
+  }
+  // The dead driver is proven gone, so its drive lease is freed now; the relaunched driver is admitted at once, not
+  // refused GATE_DRIVE_LEASED for the up to 2 minutes the dead lease would take to lapse.
+  if (worker.owner) withBoard(ctx, board => releaseLease(board.db, gateDriveJobId(current.id), worker.owner));
+  await launchCapturedWorker(directory, request.tools, ctx.info.commonDir, current, relaunches + 1);
+  ctx.io.say(`relaunched running submit #${itemId}; its gate resumes from its last recorded section`);
+}
 
 /** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
 const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
@@ -405,8 +444,12 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
   try {
     // A dead job on an item its seat no longer holds (released, withdrawn) still ends; it never shows running (#2627).
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
-    // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
-    if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
+    // A running gate resumes: its drive job holds every recorded section, and a driver admitted to it carries on from
+    // the last one, so a dead worker is relaunched on the same job instead of ending it SUBMIT_HANDOFF_DEAD (#3995).
+    if (current.state === 'running') {
+      await relaunchRunningGate(ctx, itemId, current, worker, directory);
+      return;
+    }
     // A lost place in line is re-placed once, at once; the marker counts it, so a second loss ends as infrastructure (#3153).
     if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST' && !replaceLostTicketOnce(directory)) throw new Refused('SUBMIT_HANDOFF_RECOVERY', `${worker.unstarted.message}, again after it was re-placed`);
     if (worker.unstarted?.code !== 'HANDOFF_TICKET_LOST' && worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
