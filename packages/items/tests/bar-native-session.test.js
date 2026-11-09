@@ -15,7 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { runFixtureChild } from "../../../test/fixture-child.js";
 import { join } from 'node:path';
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import * as store from "../../../src/board.js";
+import * as store from "../../store/index.js";
 import { openBoard } from "../../../apps/lib/index.js";
 import { parentSessionDigest } from "../src/shell/parent-session.js";
 

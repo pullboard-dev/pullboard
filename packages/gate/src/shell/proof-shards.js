@@ -177,18 +177,39 @@ export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHAR
 }
 
 /**
- * Split proof files into the queue's batches of about `batchFiles` files, balanced by recorded file times through the
- * landing planner and heaviest first, so the longest batches start soonest and no lane is left with a long tail.
+ * How many shards a proof's files split into. An explicit `batchFiles` cuts batches of about that many files. Without
+ * one, a pool with free slots gets one shard per free slot (at least two, at most one per file), so every shard starts
+ * at once on its own slot; a pool with none falls back to PROOF_BATCH_FILES batches that slots freed mid-proof can take.
+ *
+ * Why: 6 files cut into batches of 3 made 2 batches, and the gate's lane ran both one after the other while runner
+ * slots idled: "proof ran 2 batches on the gate's lane and up to 1 more runner slots", 805 s at p90 (8 Nov) [C7].
+ *
+ * @param {number} fileCount
+ * @param {{ freeSlots?: number, batchFiles?: number|null }} [options]
+ * @returns {number}
+ */
+export function proofShardCount(fileCount, { freeSlots = 0, batchFiles = null } = {}) {
+  if (fileCount < 1) return 0;
+  if (batchFiles != null) return Math.ceil(fileCount / Math.max(1, Math.floor(batchFiles) || 1));
+  const free = Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 0;
+  if (free < 1) return Math.ceil(fileCount / PROOF_BATCH_FILES);
+  return Math.min(fileCount, Math.max(2, free));
+}
+
+/**
+ * Split proof files into the queue's shards (proofShardCount), balanced by recorded file times through the landing
+ * planner and heaviest first, so the longest shards start soonest and no lane is left with a long tail.
  *
  * @param {string[]} files
  * @param {Record<string, number>} [times]
  * @param {string|null} [root]
- * @param {number} [batchFiles]
+ * @param {number|null} [batchFiles] - Files per batch; null shards by `freeSlots`.
+ * @param {number} [freeSlots]
  * @returns {Promise<string[][]>}
  */
-export async function proofBatches(files, times = {}, root = null, batchFiles = PROOF_BATCH_FILES) {
+export async function proofBatches(files, times = {}, root = null, batchFiles = null, freeSlots = 0) {
   const { planFreeSlotShards } = await import('../../../landing/index.js');
-  const { shards } = planFreeSlotShards(files, Math.ceil(files.length / Math.max(1, Math.floor(batchFiles) || 1)), times, root);
+  const { shards } = planFreeSlotShards(files, proofShardCount(files.length, { freeSlots, batchFiles }), times, root);
   return shards.sort((a, b) => b.weight - a.weight).map(shard => shard.files);
 }
 
@@ -221,18 +242,19 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
  *   runFirst: (files: string[]) => Promise<object>,
  *   takeSlot?: ((lane: (run: (files: string[]) => Promise<object>) => Promise<void>, queue: { closed: () => boolean }) => Promise<unknown>) | null,
  *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number }} options - `freeSlots` is how many slot requests open at once; `takeSlot`
- *   takes one runner slot, calls `lane` with that slot's run and releases the slot when `lane` settles.
+ *   retryMs?: number, batchFiles?: number|null }} options - `freeSlots` is how many slot requests open at once and, with
+ *   no `batchFiles`, how many shards the files split into; `takeSlot` takes one runner slot, calls `lane` with that
+ *   slot's run and releases the slot when `lane` settles.
  * @returns {Promise<{ files: string[], run: object }[] | null>} Each batch's files and run in queue order, then reused.
  */
 export async function runProofShards(files, { freeSlots = 0, times = {}, root = null, runFirst, takeSlot = null, passes = null,
-  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = PROOF_BATCH_FILES }) {
+  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null }) {
   const reused = reusablePasses(passes, files, timingRunId);
   const covered = new Set(reused.flatMap(shard => shard.files));
   const owed = files.filter(file => !covered.has(file));
   if (reused.length) say(`proof reuses ${covered.size} of ${files.length} files that passed for tree ${passes.tree.slice(0, 12)}; running ${owed.length}`);
   if (!owed.length) return reused;
-  const queue = (await proofBatches(owed, times, root, batchFiles)).map((batch, index) => ({ index, files: batch }));
+  const queue = (await proofBatches(owed, times, root, batchFiles, takeSlot ? freeSlots : 0)).map((batch, index) => ({ index, files: batch }));
   if (queue.length < 2 && !reused.length) return null;
   const batches = queue.length;
   const settled = [];

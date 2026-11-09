@@ -2,7 +2,7 @@
 export { criterionSize, defaultItemRoute } from './src/core/criterion-size.js';
 export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
-export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/shell/blocks.js';
 export { briefFiles } from './src/core/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/core/caught.js';
 export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/core/claims.js';

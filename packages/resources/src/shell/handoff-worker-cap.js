@@ -73,16 +73,21 @@ function handoffDispatcherEnvironment(source) {
  * submits queued while 42 of 54 runner slots sat idle, and on 4 Nov 51-60 gates queued behind 12 workers while 63
  * runner slots existed.
  *
- * @param {{ env?: object, cores?: number, runnerSlots?: number, runnersOnly?: boolean }} [options] - Environment, core count, total registered runner slots and whether checks run only on runners.
+ * The machine setting gate.handoffWorkers, passed as machineCap, sits between the two: the override still wins, then the
+ * setting, then the computed number. Why: the dispatcher and every library caller must get the same cap from this one
+ * function, so the setting is applied here and nowhere else [C7].
+ *
+ * @param {{ env?: object, cores?: number, runnerSlots?: number, runnersOnly?: boolean, machineCap?: number }} [options] - Environment, core count, total registered runner slots, whether checks run only on runners, and the machine setting gate.handoffWorkers when set.
  * @returns {{ cap: number, source: string }} A positive whole number and its origin, for the status line.
  */
-export function handoffWorkerCapacityDetail({ env = process.env, cores = availableParallelism(), runnerSlots = 0, runnersOnly = false } = {}) {
+export function handoffWorkerCapacityDetail({ env = process.env, cores = availableParallelism(), runnerSlots = 0, runnersOnly = false, machineCap } = {}) {
   const raw = env[HANDOFF_WORKER_CAP_ENV];
   if (raw !== undefined && raw !== '') {
     const value = Number(raw);
     if (!Number.isSafeInteger(value) || value < 1) throw new Refused('BAD_HANDOFF_WORKER_CAP', `${HANDOFF_WORKER_CAP_ENV} must be a whole number of 1 or more; unset it for the default`);
     return { cap: value, source: `${HANDOFF_WORKER_CAP_ENV} override` };
   }
+  if (Number.isSafeInteger(machineCap) && machineCap >= 1) return { cap: machineCap, source: 'gate.handoffWorkers machine setting' };
   const local = Math.max(1, Math.min(4, cores));
   if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return { cap: local, source: `local cores (${cores})` };
   // Each worker holds a Node process, a tool-tree copy and an SSH controller on this machine for its gate's whole run,
@@ -448,9 +453,25 @@ function resultWrittenAt(directory, since) {
   return null;
 }
 
-/** Signal a detached worker's whole process group, so its --execute child stops with it; a gone group is fine. */
-function signalWorker(worker, signal) {
-  try { process.kill(-worker.pid, signal); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+/**
+ * Signal a detached worker's whole process group, so its --execute child stops with it. A group that is gone (ESRCH) or
+ * that this dispatcher may not signal (EPERM, a pid since reused by another user's process) is logged and treated as no
+ * longer this dispatcher's worker; it is never thrown. Why: on 8 Nov a kill EPERM thrown from here ended the dispatcher
+ * twice (09:08Z and 09:16Z), each time followed by dead gates (#3727) [C7].
+ *
+ * @param {{ pid: number }} worker - The detached worker whose group is signalled.
+ * @param {string} signal - The signal to send.
+ * @param {{ kill?: (pid: number, signal: string) => void, entry?: { job?: string, foreign?: boolean } }} [options] - The kill call (tests pass a stand-in) and the running entry to mark.
+ * @returns {boolean} True when the signal was sent.
+ */
+export function signalWorker(worker, signal, { kill = process.kill, entry } = {}) {
+  try { kill(-worker.pid, signal); return true; }
+  catch (error) {
+    if (error?.code !== 'ESRCH' && error?.code !== 'EPERM') throw error;
+    if (entry) entry.foreign = true;
+    if (error.code === 'EPERM') logDispatcher(`signal ${signal} to the worker group of ${entry?.job ?? worker.pid} refused: ${error.code}; treated as not this dispatcher's worker`);
+    return false;
+  }
 }
 
 /**
@@ -460,9 +481,9 @@ function signalWorker(worker, signal) {
  */
 function boundAfterResult(entry, now, graceMs) {
   entry.resultAt ??= resultWrittenAt(entry.directory, entry.startedAt);
-  if (entry.resultAt === null || now - entry.resultAt < graceMs) return;
-  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM'); }
-  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
+  if (entry.foreign || entry.resultAt === null || now - entry.resultAt < graceMs) return;
+  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM', { entry }); }
+  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL', { entry });
 }
 
 /** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
