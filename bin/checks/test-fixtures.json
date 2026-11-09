@@ -3666,7 +3666,7 @@
   "test/test-command.test.js": {
     "hand-policy": 2
   },
-  "test/test-file-budget.test.js": {
+  "packages/landing/tests/test-file-budget.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "env-spread": 1
