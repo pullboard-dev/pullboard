@@ -165,7 +165,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', () => {
   const id = String(JSON.parse(added.out).item.item_id);
   const worktree = join(box.dir, 'app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/one', worktree);
-  const joined = fixtureJoin(box.run, worktree, 'app');
+  const joined = fixtureJoin(box.run, worktree, 'app', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const claimed = box.run(worktree, 'claim', id, '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
@@ -204,7 +204,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', () => {
   assert.equal(released.code, 0, released.err || released.out);
   const configuredWorktree = join(box.dir, 'configured-app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
-  const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app');
+  const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app', '--route', 'strong');
   assert.equal(configuredJoin.code, 0, configuredJoin.err || configuredJoin.out);
   const configuredClaim = box.run(configuredWorktree, 'claim', id, '--json');
   assert.equal(configuredClaim.code, 0, configuredClaim.err || configuredClaim.out);
