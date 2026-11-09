@@ -302,7 +302,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "packages/sandbox/tests/lane-bypass.test.js": {
+  "test/lane-bypass.test.js": {
     "tempdir": 1,
     "hand-policy": 2
   },
@@ -313,14 +313,14 @@
     "tempdir": 2,
     "repo-read": 1
   },
-  "packages/sandbox/tests/trunk.test.js": {
+  "test/trunk.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
   "packages/sandbox/tests/trusted-policy-ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/sandbox/tests/trusted-policy.test.js": {
+  "test/trusted-policy.test.js": {
     "hand-policy": 1
   },
   "packages/state/tests/bar-corrections.test.js": {
@@ -3140,7 +3140,7 @@
   "test/runner-cache-prune.test.js": {
     "tempdir": 2
   },
-  "packages/sandbox/tests/runner-cancel-on-red.test.js": {
+  "packages/gate/tests/runner-cancel-on-red.test.js": {
     "tempdir": 1
   },
   "test/runner-capacity-fixture.js": {

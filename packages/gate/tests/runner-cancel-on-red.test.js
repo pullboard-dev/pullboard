@@ -10,8 +10,8 @@ import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { runGateStages } from '../../gate/index.js';
-import { spawnCaptured } from '../index.js';
+import { runGateStages } from '../index.js';
+import { spawnCaptured } from '../../sandbox/index.js';
 
 /** Wait until the child process confirms its admitted job has started. */
 async function waitForFile(path, directory) {
