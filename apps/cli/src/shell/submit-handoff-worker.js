@@ -1,36 +1,33 @@
-import { refusalDocument } from '../../../../src/next-step-words.js';
+import { refusalDocument } from '../core/next-step-words.js';
 /** A gate's driver runs canonical Submit from its captured private source, never the builder checkout [C7]. */
 import {
   existsSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
-  rmSync,
-  realpathSync,
 } from 'node:fs';
 import {
   dirname,
-  basename,
   join,
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tmpdir } from 'node:os';
-import { gitSpawnSync } from '../../../../src/git-adapter.js';
-import { cleanGitEnvironment } from '../../../../src/git.js';
+import { gitSpawnSync } from '../../../../packages/git/index.js';
+import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import {
   context,
   withBoard,
-} from '../../../../src/cli-context.js';
-import { ordered } from '../../../../src/cli/claim.js';
+} from './cli-context.js';
+import { ordered } from './cli/claim.js';
 import {
   bindSubmitHandoffOrigin,
   submitHandoffRoot,
   isSubmitHandoffWorker,
 } from '../../../../packages/sandbox/index.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
-import { submitHere } from '../../../../src/commands/submit.js';
+import { submitHere } from './commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { removeJobToolSnapshot } from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { closeGateSpans } from '../../../../packages/resources/index.js';
 import { gateSpanCause } from '../../../../packages/resources/index.js';
@@ -38,8 +35,8 @@ import { onDispatcherLifelineEnd } from '../../../../packages/resources/index.js
 import { gateSpanFolder } from '../../../../packages/jobs/index.js';
 import { openGateSpans } from '../../../../packages/resources/index.js';
 import { recordGateSpan } from '../../../../packages/resources/index.js';
-import { acceptedCellsFromJob } from './main-audit-produce.js';
-import { submitUntilSettled } from './submit-infra-requeue.js';
+import { acceptedCellsFromJob } from '../../../../apps/lib/index.js';
+import { submitUntilSettled } from '../../../../apps/lib/index.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
 import { withGateProgress } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
@@ -136,21 +133,6 @@ async function recordWorkerFailure(ctx, request, directory, failure, { keepSeat 
         await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, failureCompletion(ctx.config, job, failure, keepSeat)]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
-  }
-}
-
-/**
- * Remove only the executing job's own temporary tool snapshot, including aliased temporary roots. A shared commit
- * snapshot is never named for one job, so it stays for every other queued or running gate that names it [C7].
- *
- * @param {{ job: string, tools?: string }} request - The executing job's captured request.
- * @param {string} [tools] - The running tools folder; defaults to the folder this module was loaded from.
- */
-export function cleanupToolSnapshot(request, tools = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))) {
-  if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
-    && dirname(realpathSync(tools)) === realpathSync(tmpdir())
-    && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
-    rmSync(tools, { recursive: true, force: true });
   }
 }
 
@@ -383,7 +365,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     const owned = attached;
     attached = false;
     try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
-    finally { if (owned) cleanupToolSnapshot(request); }
+    finally { if (owned) removeJobToolSnapshot(request, dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))); }
   };
   /**
    * A stop signal stops the gate's child processes through their own signals and waits for them to close, then frees

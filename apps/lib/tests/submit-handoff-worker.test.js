@@ -22,7 +22,7 @@ import { rowSink } from '../../../packages/drive/index.js';
 import { createJob } from '../../../packages/jobs/index.js';
 import { jobView } from '../../../packages/jobs/index.js';
 import { Refused } from '../../../packages/kernel/index.js';
-import { drivenHandoffGate } from '../src/shell/submit-handoff-worker.js';
+import { drivenHandoffGate } from '../../cli/src/shell/submit-handoff-worker.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
@@ -164,7 +164,7 @@ test('clause 1: a drive run through driveSubmitHandoff holds no board handle: wi
   const { box, board, id, request, owner, job, boardFile } = admittedGate(t);
   const env = { ...box.env, GATE_ROWS_TEST: JSON.stringify({ request, owner, board: boardFile, stages: SUBMIT_STAGES,
     native: new URL('../src/core/native-board.js', import.meta.url).href,
-    worker: new URL('../src/shell/submit-handoff-worker.js', import.meta.url).href,
+    worker: new URL('../../cli/src/shell/submit-handoff-worker.js', import.meta.url).href,
     kernel: new URL('../../../packages/kernel/index.js', import.meta.url).href }) };
   // budget: the existing owned-worker hang ceiling; assertions concern the recorded rows, not elapsed time.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', UNREADABLE_DRIVE],

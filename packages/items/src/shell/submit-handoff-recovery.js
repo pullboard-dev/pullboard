@@ -30,6 +30,22 @@ import { handoffQueueDirectory } from '../../../resources/index.js';
 const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
 
 /**
+ * Remove only the executing job's own temporary tool snapshot, including aliased temporary roots. A shared commit
+ * snapshot is never named for one job, so it stays for every other queued or running gate that names it [C7].
+ * Why: this module already owns the snapshot folders' names and their sweep, so the one removal of a job's own copy lives with them.
+ *
+ * @param {{ job: string, tools?: string }} request - The executing job's captured request.
+ * @param {string} tools - The running tools folder, which the caller found from where its own code was loaded.
+ */
+export function removeJobToolSnapshot(request, tools) {
+  if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
+    && dirname(realpathSync(tools)) === realpathSync(tmpdir())
+    && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
+    rmSync(tools, { recursive: true, force: true });
+  }
+}
+
+/**
  * Whether a captured tools folder is one this job may run from: its own per-job copy or a shared commit snapshot.
  * Why: submit shares one snapshot per Pullboard commit across gates, so recovery must reuse it, not demand a job name.
  *
