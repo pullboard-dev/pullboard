@@ -1529,6 +1529,70 @@
         "packages/gate/tests/landing-stage-composition.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2002,7 +2066,10 @@
     "commits->kernel",
     "rigor->store",
     "(root)->store",
+    "spec->kernel",
+    "gate->spec",
     "(root)->doctrine",
+    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine"
   ]

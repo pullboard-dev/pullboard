@@ -114,12 +114,12 @@ const CAUGHT = {
   '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
   '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   '../packages/store/src/core/board-rigor-auto-source.js#readAutomaticRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
   '../packages/person/src/shell/person-row-proof.js#signedRowDecisionsMatch': ['../packages/spec/src/shell/spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
