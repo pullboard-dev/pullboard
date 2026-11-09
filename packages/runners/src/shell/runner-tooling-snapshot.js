@@ -14,6 +14,7 @@ import { createRunnerModuleParser } from './runner-module-parser.js';
 import { parseWithPaths } from './runner-module-parser.js';
 
 const readers = new WeakMap();
+let lastCaptureReaders = null;
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
 const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/shell/runners.js',
   'packages/runners/src/shell/runner-source-scan.js', 'packages/runners/src/shell/runner-history-pack.js',
@@ -71,9 +72,17 @@ function changedSince(root, files, since) {
  * Why: callers capture at first dispatch, so since (the controller's load instant) keeps the load-time pin.
  */
 export function captureRunnerTooling(root, { since } = {}) {
-  const read = runnerPackageReader(root);
+  const absoluteRoot = resolve(root);
   const controllerEntry = readFileSync(join(root, 'bin/runner-controller.js'), 'utf8');
-  const providers = controllerProviderReader(root, controllerEntry);
+  if (lastCaptureReaders?.root !== absoluteRoot || lastCaptureReaders.entry !== controllerEntry) {
+    lastCaptureReaders = {
+      root: absoluteRoot,
+      entry: controllerEntry,
+      read: runnerPackageReader(absoluteRoot),
+      providers: controllerProviderReader(absoluteRoot, controllerEntry),
+    };
+  }
+  const { read, providers } = lastCaptureReaders;
   const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
     controllerEntry, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
