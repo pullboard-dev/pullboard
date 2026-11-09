@@ -104,12 +104,13 @@ test('a green receipt at exactly the composition\'s trees is reused and prove do
   assert.deepEqual(prove, { receipt: receiptKey(candidateTree, baseTree), reused: true, verdict: 'green', code: null });
 
   const other = landing(t);
-  const ran = handlers(other, { prove: () => ({ verdict: 'green' }) });
+  let proves = 0;
+  const ran = handlers(other, { prove: () => { proves += 1; return { verdict: 'green' }; } });
   const key = receiptKey(treeOf(other.repo, other.candidate), treeOf(other.repo, other.base));
   const red = { candidate: treeOf(other.repo, other.candidate), base: treeOf(other.repo, other.base), verdict: 'red' };
   const done = await finishSequence(other.db, 'land:1', { owner: 'd', repo: other.repo, steps: ran.steps, receipts: new Map([[key, red]]) });
   assert.equal(done.job.steps.find(step => step.name === 'prove').payload.code, 'NOT_GREEN');
-  assert.equal(ran.calls.some(([name]) => name === 'prove'), true, 'a red receipt is not reused');
+  assert.equal(proves, 1, 'a red receipt is not reused');
 });
 
 test('a red or infra proof stops the landing before merge, and a later run stays stopped [C7]', async t => {
