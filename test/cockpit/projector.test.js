@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import * as serve from '../../apps/cli/src/shell/cli/view-state.js';
-import { addMilestone } from '../../src/board-milestones.js';
+import { addMilestone } from '../../packages/store/index.js';
 import { projectItemState } from '../../packages/api/index.js';
 import { lifecycleEvent } from '../../packages/items/index.js';
 import { withdrawnFrom } from '../../packages/items/index.js';
