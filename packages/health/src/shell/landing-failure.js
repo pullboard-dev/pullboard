@@ -19,6 +19,12 @@ function acknowledgements(board) {
   return acknowledged;
 }
 
+/** An item is settled when it has a recorded merged commit or is withdrawn, however it landed; an unknown id is not settled. */
+function settled(board, id) {
+  const row = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id);
+  return Boolean(row && (row.item_status === 'withdrawn' || row.item_merged_commit));
+}
+
 /** Project only the newest batch for an item; a later attempt or landing retires its old failure. */
 export function landingFailureFindings(board, now = board.clock.now()) {
   const at = now.getTime(), ack = acknowledgements(board), seen = new Set(), findings = [];
@@ -27,6 +33,7 @@ export function landingFailureFindings(board, now = board.clock.now()) {
       ...(batch.conflicts ?? []), ...(batch.blocked ?? [])].map(entry => entry.id).filter(Number.isSafeInteger))];
     const affected = ids.filter(id => !seen.has(id));
     for (const id of ids) seen.add(id);
+    if (ids.length && ids.every(id => settled(board, id))) continue;
     if (!affected.length || batch.state === 'landed' || batch.supersededByMain
       || !batch.refusal && !['blocked', 'flaky', 'test-defect'].includes(batch.state)) continue;
     const since = batch.refusal?.at ?? batch.updatedAt;
