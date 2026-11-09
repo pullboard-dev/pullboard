@@ -58,7 +58,7 @@ import {context,cli$ordered as ordered,withBoard,resourceAgent} from './apps/cli
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './packages/landing/index.js';
 import {readGateReceipt,receiptStore} from './packages/gate/index.js';
-import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
+import {prepareEngineMove,applyEngineMove,appliedSequence} from './packages/state/index.js';
 import {QUARANTINE_CORE_ENGINE} from './packages/state/src/core/engines/quarantine-core-engine.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
 import {proofCounts} from './packages/verify/index.js';
