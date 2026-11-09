@@ -6,8 +6,7 @@
  */
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { refreshMainRedComparisons } from '../packages/landing/src/shell/main-red.js';
-import { holdRefreshFlight } from '../packages/landing/src/shell/main-red-refresh-flight.js';
+import { holdRefreshFlight, refreshMainRedComparisons } from '../packages/landing/index.js';
 
 const [root, previousMain, publishedMain] = process.argv.slice(2);
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
