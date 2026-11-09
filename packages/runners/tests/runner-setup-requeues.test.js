@@ -27,6 +27,8 @@ import {resultFrom,runnerExecutionServices} from ${JSON.stringify(runners)};
 import {landingExecutionServices} from ${JSON.stringify(landing)};
 import {addRunner,setGateSlots,setBrowserSlots} from ${JSON.stringify(config)};
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
+setGateSlots(1);
+setBrowserSlots(1);
 addRunner({host:'first',slots:1,browser:0,node:'/missing/node'});
 addRunner({host:'second',slots:1,browser:0,node:process.execPath});
 setBrowserSlots(0);
