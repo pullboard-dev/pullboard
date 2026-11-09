@@ -341,8 +341,30 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, slotOptions);
-  if (diagnostics.length) await diagnoseAfterResult(root, onFailure, diagnostics, slotOptions);
+  // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
+  if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;
+}
+
+/**
+ * Queue a red gate's flake diagnostics as jobs, then start running them in a slot of their own without waiting for it.
+ * The returned promise settles when the diagnostics have run; the gate's caller never has to await it.
+ *
+ * Why: asking for a second runner slot before the verdict returned held 22 gates about 60 minutes and lost two known
+ * reds as GATE_INFRA_EXHAUSTED (#3830). Queueing is a cheap board write; the slot wait is not.
+ *
+ * @param {string} root
+ * @param {(run: object, context: object) => Promise<void>} onFailure - The observer; its optional `queue` records the jobs.
+ * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
+ * @param {object} slotOptions - The gate's own slot options.
+ * @param {{ withSlot?: Function }} [options] - `withSlot` replaces the gate slot provider.
+ * @returns {Promise<{ done: Promise<void> }>} Resolves once the jobs are queued; `done` settles when the diagnostics have run.
+ */
+export async function startDiagnostics(root, onFailure, diagnostics, slotOptions, { withSlot = withGateSlot } = {}) {
+  for (const [run, context] of diagnostics) {
+    try { await onFailure.queue?.(run, context); } catch { /* A job that cannot be queued is still diagnosed in the slot below. */ }
+  }
+  return { done: diagnoseAfterResult(root, onFailure, diagnostics, slotOptions, withSlot) };
 }
 
 /**
@@ -356,11 +378,12 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
  * @param {(run: object, context: { root: string, command: string, lease: object }) => Promise<void>} onFailure
  * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
  * @param {object} slotOptions - The gate's own slot options.
+ * @param {Function} [withSlot] - The slot provider.
  * @returns {Promise<void>}
  */
-async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions) {
+async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions, withSlot = withGateSlot) {
   try {
-    await withGateSlot(root, async (lease) => {
+    await withSlot(root, async (lease) => {
       for (const [run, context] of diagnostics) {
         const phase = context.lease;
         Object.assign(lease, { timingOperation: 'submit', proof: phase.proof, runMetadata: phase.runMetadata, quarantines: phase.quarantines ?? [],
