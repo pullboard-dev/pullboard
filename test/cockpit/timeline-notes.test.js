@@ -90,7 +90,8 @@ test('long timeline notes expand in place and hashes show twelve characters with
 
     await chrome.send('Page.navigate', { url: href.href });
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
-    const itemHash = '#detail .stack [data-copy]';
+    // The item panel's header names the submitted commit beside the item's status.
+    const itemHash = '#detail .item-panel-status .item-head-hash [data-copy]';
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
