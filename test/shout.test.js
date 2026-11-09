@@ -66,7 +66,9 @@ test('one worker acknowledges both seats, preserves later mail, and suppresses i
   assert.deepEqual(store.inbox(f.board, f.primary).map(row => row.shout_id), [second]);
   assert.deepEqual(store.inbox(f.board, f.sibling), []);
   store.inbox(f.board, f.primary, { through: first });
-  assert.equal(store.agentById(f.board, f.primary).agent_last_shout_id, second, 'an older snapshot never rolls acknowledgement back');
+  // A full read moves the cursor past the self-alias shouts no seat receives, to the newest shout (441d31cb3d, #2480).
+  const newest = f.board.db.prepare('SELECT MAX(shout_id) AS id FROM shout').get().id;
+  assert.equal(store.agentById(f.board, f.primary).agent_last_shout_id, newest, 'an older snapshot never rolls acknowledgement back');
   assert.equal(shoutMatchesAudience(f.board.db, f.primary, new Set([f.sibling])), false, 'watch --to remains an explicit seat filter');
 });
 
@@ -82,7 +84,8 @@ test('a legacy cursor on another alias cannot hide its older directed message [B
   assert.deepEqual(store.inbox(board, primary).map(row => row.shout_id), [pending]);
   assert.deepEqual(store.inbox(board, sibling), []);
   assert.equal(store.agentById(board, primary).agent_last_shout_id, first);
-  assert.equal(store.agentById(board, sibling).agent_last_shout_id, pending);
+  // The worker's read moves every alias to the same newest shout, once the older one was delivered (441d31cb3d, #2480).
+  assert.equal(store.agentById(board, sibling).agent_last_shout_id, first);
 });
 
 test('activity freezes the worker inbox before a later sibling message arrives [B7,R2]', t => {
@@ -142,8 +145,9 @@ test('next and status surface directed instructions sent to another seat of this
   const session = 'private-worker-inbox-session';
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', web, 'main');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', api, 'main');
-  const first = document(inSession(box, session, web, 'join', 'web', '--json'));
-  document(inSession(box, session, api, 'join', 'api', '--json'));
+  const first = document(inSession(box, session, web, 'join', 'web', '--route', 'strong', '--json'));
+  // An unrouted item is strong, so both seats of the worker join strong and `next` has a takeable item.
+  document(inSession(box, session, api, 'join', 'api', '--route', 'strong', '--json'));
   document(fixtureAdd(box.run, box.repo, 'api', 'Read the worker instruction', '--specs', 'G2',
     '--criterion', 'The result exists', '--check', 'test -f api/result.txt', '--wait', '--json'));
   document(box.run(box.repo, 'shout', first.agent, 'Shared worker instruction', '--json'));
