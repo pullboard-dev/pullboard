@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
@@ -66,7 +66,7 @@ function project(box) {
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   box.env.PULLBOARD_MODEL ||= 'Fixture builder';
-  assert.match(fixtureJoin(box.run, web, 'web').out, /joined as web-1/);
+  assert.match(joinFixtureSeat(box, web, 'web').out, /joined as web-1/);
   return { repo, web };
 }
 
