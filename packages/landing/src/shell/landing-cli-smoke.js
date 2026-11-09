@@ -10,6 +10,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
+import { gateRunnerAdmission } from '../../../config/index.js';
+import { runCheckOnRunner } from './main-red.js';
+import { runTail } from './main-red.js';
+import { withMainCheckout } from './main-red.js';
 
 /** Each command gets this long; the whole smoke is about 15 s, so a hung command is a failure, not a wait. */
 const COMMAND_MS = 30_000;
@@ -144,4 +148,44 @@ export function runCommitCliSmoke(root, commit, { git = gitSpawnSync } = {}) {
     }
     return runLandingCliSmoke(directory, { git });
   } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+/** The candidate's own smoke, run by the runner in its checkout of the candidate tree. */
+const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } = await import('./packages/landing/src/shell/landing-cli-smoke.js'); runLandingCliSmoke(process.cwd());"`;
+
+/**
+ * Smoke a clean committed candidate checkout where this machine runs checks: on a runner when gate.runnersOnly is on,
+ * queueing for a free one and never falling back to a local process; otherwise here, as before (#3011).
+ * Why the candidate's own smoke module: the runner holds only the candidate tree, and a tree with bin/pullboard.js ships it.
+ *
+ * @param {string} candidate - A clean committed checkout of the candidate tree.
+ * @param {{ admission?: object, record?: boolean }} [options] - The captured runner admission; record remembers a green result for `pullboard merged`.
+ * @returns {Promise<{ ran: string[], runner?: string }>}
+ */
+export async function smokeCandidate(candidate, { admission = gateRunnerAdmission(), record = false } = {}) {
+  if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate, { record });
+  if (!existsSync(join(candidate, 'bin', 'pullboard.js'))) return { ran: [] };
+  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', admission });
+  if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
+  if (record) recordSmokeReceipt(candidate);
+  return { ran: ['runner'], runner: run.executionRunner };
+}
+
+/**
+ * Smoke a commit that is not checked out, as `pullboard merged` records one, where this machine runs checks (#3011).
+ * A tree whose landing batch already recorded a green smoke receipt is not smoked again.
+ *
+ * @param {string} root - Any checkout of the repository holding the commit.
+ * @param {string} commit - The candidate commit.
+ * @param {{ admission?: object }} [options] - The captured runner admission.
+ * @returns {Promise<{ ran: string[], runner?: string, reused?: boolean }>}
+ */
+export async function smokeCommit(root, commit, { admission = gateRunnerAdmission() } = {}) {
+  if (admission.runnerOnly !== true) return runCommitCliSmoke(root, commit);
+  if (smokeReceiptExists(root, commit, gitSpawnSync)) return { ran: [], reused: true };
+  const exists = gitSpawnSync(['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
+  if (exists.status !== 0) return { ran: [] };
+  const result = await withMainCheckout(root, commit, checkout => smokeCandidate(checkout, { admission }));
+  if (result.unavailable) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not check out ${commit.slice(0, 12)}: ${result.unavailable}; retry merged`);
+  return result;
 }

@@ -33,6 +33,7 @@ import {
   withGateSlot,
 } from '../../../gate/index.js';
 import { runMainComparison } from '../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../gate/index.js';
 import {
   readGateReceipt,
   receiptBody,
@@ -66,6 +67,7 @@ import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
+import { gateRunnerAdmission } from '../../../config/index.js';
 import { recentReceipts } from '../../../gate/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
@@ -376,9 +378,10 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, onStart, runnerAdmission = {}, execution, recordedRuns = [], contentCache = true } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, onStart, runnerAdmission = gateRunnerAdmission(), execution, recordedRuns = [], contentCache = true } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -790,4 +793,26 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     return [{ status, main: comparison.main, file: failure.file, name: failure.name,
       receiptId: receipt.id, ...(owner ? { owner } : {}), message: `${message} [main receipt ${receipt.id}]` }];
   });
+}
+
+/**
+ * Run one shell command in a clean committed checkout under a runner-only gate slot and return the run.
+ * Why the gate slot: it is the same runner path submit's checks take, so the command queues for a free runner and
+ * never falls back to a local process; a machine with no runners keeps running these checks locally (callers decide).
+ *
+ * @param {string} checkout - A clean committed checkout; the runner receives its HEAD.
+ * @param {string} command - The shell command to run at the checkout's root.
+ * @param {{ kind: string, admission?: object, onWait?: Function }} options - Receipt kind and the captured runner-only admission.
+ * @returns {Promise<{ isGreen: boolean, output: string, executionRunner?: string }>}
+ */
+export async function runCheckOnRunner(checkout, command, { kind, admission = gateRunnerAdmission(), onWait } = {}) {
+  return withGateSlot(checkout, lease => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }), {
+    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+    diagnostic: true, kind, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
+  });
+}
+
+/** The last few lines of a failed run, for a refusal that names what broke. */
+export function runTail(run) {
+  return String(run?.output ?? '').trim().split('\n').filter(line => !/ExperimentalWarning|trace-warnings/u.test(line)).slice(-3).join(' ');
 }
