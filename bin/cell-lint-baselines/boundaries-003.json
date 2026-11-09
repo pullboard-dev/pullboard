@@ -33,6 +33,7 @@
     "src/check-baseline.js->src/shell-run.js": 1,
     "src/check-baseline.js->src/timing.js": 1,
     "src/check-mask.js->packages/kernel/src/core/refused.js": 1,
+    "src/chrome-clone-check.js->src/native-user-directory.js": 1,
     "src/ci-flakes.js->packages/kernel/src/core/refused.js": 1,
     "src/ci-flakes.js->src/git.js": 1,
     "src/claims.js->packages/kernel/src/core/refused.js": 1,
