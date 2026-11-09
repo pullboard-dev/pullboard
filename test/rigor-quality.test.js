@@ -174,6 +174,7 @@ test('quality rules are drafted for the person and stay off until approved [D1,D
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config, null, 2));
   const clean = box.run(box.repo, 'rigor', 'quality');
   assert.equal(clean.code, 0, clean.out + clean.err);
-  assert.match(clean.out, /(?:^|\n)next: pullboard next --wait 1\n$/u);
-  assert.equal(clean.out.replace(/next: pullboard next --wait 1\n$/u, '').trim(), '', 'main against itself has no change to judge');
+  // Next steps never suggest --wait (0d3ce1cd90, #2905).
+  assert.match(clean.out, /(?:^|\n)next: pullboard next\n$/u);
+  assert.equal(clean.out.replace(/next: pullboard next\n$/u, '').trim(), '', 'main against itself has no change to judge');
 });
