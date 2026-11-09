@@ -1430,7 +1430,7 @@
     },
     "packages/gate/src/shell/chrome-clone-check.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/gate/src/shell/coordinator-release.js": {
       "cells": 4,
@@ -5043,10 +5043,6 @@
     "<-spec": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-store": {
-      "imports": [],
-      "deepImporters": 3
     },
     "git": {
       "imports": [
