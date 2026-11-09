@@ -27,7 +27,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from '../../../config/index.js';
 import { remoteRepository } from '../core/github-remote.js';
 import { withMachineHomeWrite } from '../../../resources/index.js';
-import { boardReferenceId } from '../../../kernel/src/core/registry-guards.js';
+import { boardReferenceId } from '../../../kernel/index.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';

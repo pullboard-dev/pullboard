@@ -750,7 +750,7 @@
     },
     "apps/relay/src/shell/board-links.js": {
       "cells": 4,
-      "deep": 2
+      "deep": 0
     },
     "apps/relay/src/shell/browser-model.js": {
       "cells": 3,
@@ -1717,8 +1717,8 @@
       "deep": 0
     },
     "packages/items/src/core/caught.js": {
-      "cells": 2,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/items/src/core/check-timing.js": {
       "cells": 1,
@@ -1731,10 +1731,6 @@
     "packages/items/src/core/critical-path-order.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/items/src/core/cross-repo-dependencies.js": {
-      "cells": 1,
-      "deep": 1
     },
     "packages/items/src/core/decision-origin.js": {
       "cells": 1,
@@ -1785,8 +1781,8 @@
       "deep": 0
     },
     "packages/items/src/core/item-routing.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/items/src/core/outside-sensitive.js": {
       "cells": 2,
@@ -1905,8 +1901,8 @@
       "deep": 0
     },
     "packages/items/src/shell/parent-session.js": {
-      "cells": 3,
-      "deep": 1
+      "cells": 2,
+      "deep": 0
     },
     "packages/items/src/shell/resume-sources.js": {
       "cells": 3,
@@ -2334,7 +2330,7 @@
     },
     "packages/merge/src/shell/trunk-conflict.js": {
       "cells": 1,
-      "deep": 2
+      "deep": 0
     },
     "packages/merge/src/shell/trunk-merge.js": {
       "cells": 2,
@@ -2554,7 +2550,7 @@
     },
     "packages/person/src/shell/person.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/person/src/shell/relay-adapter.js": {
       "cells": 1,
@@ -2654,7 +2650,7 @@
     },
     "packages/rigor/src/shell/rigor-conflicts.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/rigor/src/shell/rigor-draft.js": {
       "cells": 5,
@@ -2761,8 +2757,8 @@
       "deep": 0
     },
     "packages/runners/src/shell/runner-transport.js": {
-      "cells": 1,
-      "deep": 1
+      "cells": 3,
+      "deep": 2
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -2913,12 +2909,12 @@
       "deep": 1
     },
     "packages/seats/src/shell/projects.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/seats/src/shell/seat-checkout.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/seats/src/shell/seat-wake.js": {
       "cells": 2,
@@ -3166,7 +3162,7 @@
     },
     "packages/stats/src/core/bar-stats.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/build-calibration.js": {
       "cells": 1,
@@ -3190,11 +3186,11 @@
     },
     "packages/stats/src/core/stats-flow-window.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-flow.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-moves.js": {
       "cells": 1,
@@ -3202,7 +3198,7 @@
     },
     "packages/stats/src/core/stats-pipeline.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-time.js": {
       "cells": 1,
@@ -3246,7 +3242,7 @@
     },
     "packages/stats/src/shell/stats.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/store/src/core/board-accepted-reland.js": {
       "cells": 3,
@@ -3802,7 +3798,7 @@
     },
     "packages/verify/src/core/next-review.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/verify/src/core/post-move-handoff.js": {
       "cells": 1,
@@ -3882,7 +3878,7 @@
     },
     "packages/verify/src/shell/proof-counter-read.js": {
       "cells": 3,
-      "deep": 2
+      "deep": 0
     },
     "packages/verify/src/shell/proof-counters.js": {
       "cells": 2,
@@ -4072,10 +4068,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board-landing-lease.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/board-landing-local-lease.js": {
       "cells": 1,
       "deep": 0
@@ -4240,10 +4232,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board-store.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/board-submit.js": {
       "cells": 1,
       "deep": 0
@@ -4265,10 +4253,6 @@
       "deep": 0
     },
     "src/board-write-preparation.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4392,10 +4376,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/family-declaration.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/git-adapter.js": {
       "cells": 1,
       "deep": 0
@@ -4425,10 +4405,6 @@
       "deep": 0
     },
     "src/known-main-autofile.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-test-policy.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4743,7 +4719,7 @@
     },
     "<-kernel": {
       "imports": [],
-      "deepImporters": 38
+      "deepImporters": 36
     },
     "apps/lib": {
       "imports": [

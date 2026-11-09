@@ -21,7 +21,7 @@ import { sep } from 'node:path';
 import { join } from 'node:path';
 import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/src/shell/gui-session.js';
-import { parseProcessCensus } from '../../../kernel/index.js';
+import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
 import { liveJobSet } from './runner-orphan-holders.js';
 import { sortHolders } from './runner-orphan-holders.js';
 import { stopOrphanWorkers } from './runner-orphan-holders.js';
