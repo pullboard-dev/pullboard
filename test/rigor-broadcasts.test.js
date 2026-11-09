@@ -8,7 +8,7 @@ import * as store from '../packages/store/index.js';
 import * as rigor from '../packages/rigor/index.js';
 import * as state from '../packages/state/index.js';
 import { shout as shoutMove } from '../packages/moves/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Give each test a real durable board, controlled clock and independent sender identities. */
