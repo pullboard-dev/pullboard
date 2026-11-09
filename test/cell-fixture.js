@@ -11,6 +11,15 @@ import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { addItem } from '../packages/store/index.js';
+import { agentById } from '../packages/store/index.js';
+import { claim } from '../packages/store/index.js';
+import { getItem } from '../packages/store/index.js';
+import { register } from '../packages/store/index.js';
+import { criterionFreezer } from '../packages/moves/index.js';
+import { loadConfig } from '../packages/config/index.js';
+import { headCommit } from '../packages/git/index.js';
+import { repoInfo } from '../packages/git/index.js';
 
 /** The two-lane policy the e2e project uses, so a converted test keeps the project it asserted against. */
 export const CELL_CONFIG = Object.freeze({
@@ -108,4 +117,44 @@ export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_S
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   return { dir: scratch.root, repo: repo.root, boardFile: repo.boardFile, env, git, tryGit };
+}
+
+/**
+ * Register a seat the way `pullboard join` does: the same store register move with the same fields.
+ *
+ * @param {object} board - A cellBoard.
+ * @param {{ lane: string, path: string, route?: string, family?: string, model?: string }} seat
+ * @returns {object} The agent row, with `id` and `lane` for cellClaim.
+ */
+export function cellSeat(board, { lane, path, route = 'strong', family, model = FIXTURE_MODEL }) {
+  const id = register(board, { lane, path, route, family, model });
+  return { ...agentById(board, id), id, lane };
+}
+
+/**
+ * File an item the way `pullboard add` does: the same store addItem move with the same fields.
+ *
+ * @param {object} board - A cellBoard.
+ * @param {{ lane: string, title: string, by?: string, criterion?: string, specIds?: string[], route?: string, check?: string, brief?: string, after?: number[] }} item
+ * @returns {object} The item row.
+ */
+export function cellItem(board, { by = 'coordinator', ...item }) {
+  const id = addItem(board, { by, ...item });
+  return getItem(board, id);
+}
+
+/**
+ * Claim an item for a seat the way `pullboard claim` does: the same store claim move with the seat, its lane, the lease,
+ * the checkout's HEAD and the claim move's one criterion freezer, so the frozen text and digest match the command's.
+ *
+ * @param {object} board - A cellBoard.
+ * @param {number} id - The item id.
+ * @param {{ id: string, lane: string }} seat - A cellSeat.
+ * @param {{ root: string, leaseMs?: number }} options - root is the checkout the claim is made from, as the command's cwd.
+ * @returns {object} The claim result.
+ */
+export function cellClaim(board, id, seat, { root, leaseMs = 2 * 60 * 60 * 1000, ...options }) {
+  const info = repoInfo(root);
+  const freeze = criterionFreezer({ root: info.root, isMain: info.isMain, config: loadConfig(info.root) }, { board });
+  return claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs, freeze, head: headCommit(info.root), ...options });
 }
