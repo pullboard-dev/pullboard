@@ -68,7 +68,7 @@ const SOURCE_FILES = new Set([
   'apps/cli/src/shell/commands/submit.js', 'apps/cli/src/shell/commands/verify.js', 'apps/cli/src/shell/commands/gate.js',
   'apps/cli/src/shell/commands/flakes.js', 'apps/cli/src/core/runner-loss-health.js',
   // Kernel replay, explicit authentication boundaries and source-bound receipt/landing checks.
-  'src/machine.js', 'src/engine.js', 'src/move-registry.js', 'src/registry-guards.js',
+  'src/machine.js', 'src/engine.js', 'src/registry-guards.js',
   'src/refused.js', 'src/discovery.js', 'src/js-lex.js', 'src/literal-shell-words.js',
   'src/person.js', 'src/person-presence.js', 'src/person-signing.js', 'src/person-request.js', 'src/person-attested.js',
   'src/seal.js', 'packages/kernel/src/core/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'packages/spec/src/shell/signature.js', 'src/agent-grant.js', 'src/coordinator-hold.js',

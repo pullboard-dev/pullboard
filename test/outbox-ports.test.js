@@ -41,7 +41,7 @@ test('the lower sender refuses to start without its explicit board service [H21,
 
 test('outside intake protects both actual sender authority homes and its historical path [H16,B26]', t => {
   const box = intakeFixture(t);
-  const paths = ['src/relay-sender.js', 'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js'];
+  const paths = ['src/relay-sender.js', 'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js', 'packages/store/src/shell/board-engine-ports.js'];
   for (const path of paths) advanceOutsideFixture(box, path, 'export const authorityFixture = true;\n');
   advanceOutsideFixture(box, 'lib/ordinary.js', 'export const ordinaryFixture = true;\n');
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url,
