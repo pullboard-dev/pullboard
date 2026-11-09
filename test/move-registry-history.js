@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { HISTORICAL_DUPLICATE_ENGINES } from './move-registry-invariants.js';
 
 const HISTORY = 'src/move-history';
 
@@ -50,7 +51,7 @@ function engineIdentityProblems(record, leaves, boundary) {
   for (const entry of record.engines) {
     if (!entry || typeof entry.file !== 'string' || typeof entry.name !== 'string'
         || !Number.isSafeInteger(entry.number) || entry.number < 1 || entry.number > boundary
-        || names.has(entry.name) || numbers.has(entry.number) || files.has(entry.file)) {
+        || names.has(entry.name) || numbers.has(entry.number) && !sharesNamedNumber(entry, record.engines) || files.has(entry.file)) {
       problems.push('invalid frozen engine identities');
       continue;
     }
@@ -59,4 +60,10 @@ function engineIdentityProblems(record, leaves, boundary) {
     if (!live || live.name !== entry.name || live.number !== entry.number) problems.push(`historical engine identity changed: ${entry.file}`);
   }
   return problems;
+}
+
+/** Say whether a repeated engine number is the named historical pair, so only that pair may share it [C7,V4]. */
+function sharesNamedNumber(entry, engines) {
+  const exception = HISTORICAL_DUPLICATE_ENGINES[entry.number];
+  return Boolean(exception?.engines.includes(entry.name)) && engines.filter(other => other.number === entry.number).every(other => exception.engines.includes(other.name));
 }

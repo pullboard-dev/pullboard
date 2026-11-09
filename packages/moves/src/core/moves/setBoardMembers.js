@@ -1,5 +1,5 @@
 /** Native signed membership routing [E17,H16]. */
-import { BOARD_MEMBERS_ENGINE } from "../../../../../src/board-members-engine.js";
+import { BOARD_MEMBERS_ENGINE } from "../../../../state/core.js";
 export default Object.freeze({ operation: 'setBoardMembers', engine: 1, itemIdFirstArgument: false,
   minimumEngine: () => BOARD_MEMBERS_ENGINE, actor: move => move.args[0]?.agentId ?? null,
   nextSteps: Object.freeze({

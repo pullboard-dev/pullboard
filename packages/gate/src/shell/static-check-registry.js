@@ -12,7 +12,10 @@ import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
 import { syncSpawnProblems } from '../../../../bin/checks/sync-spawn-in-leases.js';
+import { assumptionProblems } from '../../../../bin/checks/no-runtime-assumptions.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
+import { EXPORT_ONLY_CEILINGS } from '../core/export-only-files.js';
+import { exportOnlyProblems } from '../core/export-only-files.js';
 import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
 import { loadBearingFailures } from '../core/load-bearing.js';
 import { loadBearingJudged } from '../core/load-bearing.js';
@@ -72,10 +75,19 @@ export const STATIC_CHECKS = Object.freeze([
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (bin/checks/sync-spawn-in-leases.js).
   { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // Core code names no test runner or operating system; those literals live in adapters (bin/checks/no-runtime-assumptions.js).
+  { name: 'no-runtime-assumptions', run: ({ root, text }) => assumptionProblems(root, { read: text })
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
   { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
+  // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/core/export-only-files.js).
+  { name: 'export-only', run: ({ sources, text }) => {
+    let allowed;
+    try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
+    return exportOnlyProblems(sources, allowed).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
   { name: 'empty-catch', run: growthCheck(emptyCatchProblems) },
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   { name: 'test-inputs', run: growthCheck(testInputProblems) },

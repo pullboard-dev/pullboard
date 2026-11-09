@@ -5,14 +5,14 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { itemPatchDigest } from '../packages/items/index.js';
-import { PATCH_REVIEW_CUSTODY_ENGINE } from '../src/patch-review-custody-engine.js';
+import { PATCH_REVIEW_CUSTODY_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 

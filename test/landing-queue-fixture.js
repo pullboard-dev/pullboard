@@ -17,11 +17,11 @@ import {
   readGateReceipt,
   receiptStore,
 } from '../packages/gate/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { invalidateGitFacts } from '../src/git.js';
+import { invalidateGitFacts } from '../packages/git/index.js';
 import { runLandingBatch } from '../packages/landing/index.js';
-import { assertLandingLease } from '../src/board-landing-lease.js';
+import { assertLandingLease } from '../packages/store/index.js';
 import { LANDING_LEASE_MS } from '../packages/store/index.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */

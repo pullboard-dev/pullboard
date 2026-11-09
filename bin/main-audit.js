@@ -19,6 +19,7 @@ import { produceAcceptedCells } from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { isAbsolute } from 'node:path';
 import { cellsBacklogCollector } from './cells-audit-backlog.js';
+import { boardCommandBudgetCheck } from './board-command-budget.js';
 
 const [root, token, ...args] = process.argv.slice(2);
 const scheduled = args[0] === '--scheduled';
@@ -34,5 +35,5 @@ if (cellsOnly) {
   try { await produceAcceptedCells(root, token, args[1]); }
   catch (error) { try { recordAcceptedCellsFailure(root, args[1], error); } catch { /* Preserve the producer failure. */ } throw error; }
 } else if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root) });
+  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root), commandBudget: boardCommandBudgetCheck() });
 }

@@ -6,7 +6,7 @@ import cp from 'node:child_process';
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { familyName } from '../packages/verify/index.js';
-import { seatFamily } from '../src/family-declaration.js';
+import { seatFamily } from '../packages/items/index.js';
 import { assertCommandHoldBudget } from './lock-hold-budget-command.fixture.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -16,10 +16,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { atomic } from '../packages/store/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 
 /** Commit real accepted-source aliases without changing any production assertion. */
 function declare(box, alias) {

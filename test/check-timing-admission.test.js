@@ -77,9 +77,9 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { frozenCriterion } from '../packages/spec/index.js';
 import { parseSpec } from '../packages/spec/index.js';
-import { parseCheckTiming } from '../src/check-timing.js';
-import { frozenCheckTiming } from '../src/check-timing.js';
-import { CHECK_TIMING_ENGINE } from '../src/check-timing-engine.js';
+import { parseCheckTiming } from '../packages/items/index.js';
+import { frozenCheckTiming } from '../packages/items/index.js';
+import { CHECK_TIMING_ENGINE } from '../packages/state/core.js';
 import { exportBoard } from '../packages/store/index.js';
 
 /** Freeze actual production fields against a deliberately row-free domain criterion fixture. */

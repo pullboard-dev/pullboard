@@ -1,20 +1,20 @@
 /** @pullboard-test-input source-tree */
-import { VENDOR_FAMILY_ENGINE } from '../src/vendor-family-engine.js';
+import { VENDOR_FAMILY_ENGINE } from '../packages/state/core.js';
 import { canonicalFamily } from '../packages/verify/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
-import * as queueStore from '../src/board.js';
-import { roadmap } from '../src/board-milestones.js';
+import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
+import * as queueStore from '../packages/store/index.js';
+import { roadmap } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 /** Private board-state fixtures exercise independence; synthetic commits and events are not gate proof [V4,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { REVIEW_ROUTING_ENGINE } from '../src/review-routing-engine.js';
+import { REVIEW_ROUTING_ENGINE } from '../packages/state/core.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
 import { workQueue } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
@@ -24,9 +24,9 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { familyIndex } from '../packages/verify/index.js';
-import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
-import { seatFamily } from '../src/family-declaration.js';
+import { FAMILY_ALIAS_ENGINE } from '../packages/state/core.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
+import { seatFamily } from '../packages/items/index.js';
 import { parentSessionDigest as parentSessionDigestOf } from '../packages/items/index.js';
 import { familyName } from '../packages/verify/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
@@ -434,7 +434,7 @@ function joinSeat(board, id, family, parent) {
   store.register(board, { id, lane: 'core', path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
 }
 
-test('a companion patch author of another spelling blocks that vendor from reviewing a strict item [V4,B26,H16]', t => {
+test('a companion patch author of another spelling blocks only itself; the head builder alone sets the judged family [V4,B26,H16]', t => {
   const f = fixture(t), id = f.add({ sensitive: true });
   joinSeat(f.board, 'core-6', 'OpenAI', '6');
   joinSeat(f.board, 'core-7', 'gemini', '7');
@@ -442,14 +442,15 @@ test('a companion patch author of another spelling blocks that vendor from revie
   const author = { agentId: 'core-1', parentSession: null, session: null };
   f.board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
     JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author }] }));
-  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), false, 'the built-in vendor table excludes the codex companion vendor without project configuration');
+  // Strict review judges the submitted head builder's family only (a9f6ac5f19, #2868): a companion's vendor excludes no one else.
+  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), true, 'the built-in vendor table does not extend the companion author vendor to other seats');
   f.board.familyAliases = familyIndex({ openai: ['codex'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
-  assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
-  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'SAME_FAMILY'));
+  assert.ok(projected.eligible.includes('core-6'), 'the alias list adds no exclusion for the companion author vendor');
+  assert.ok(!projected.ineligible.some(row => row.agent === 'core-6'));
   assert.ok(projected.ineligible.some(row => row.agent === 'core-1'), 'the companion author is itself excluded');
   assert.ok(projected.eligible.includes('core-7'), 'a third vendor remains eligible');
-  assert.throws(() => f.reserve(id, 'core-6'), { code: 'SAME_FAMILY' });
+  assert.doesNotThrow(() => f.reserve(id, 'core-6'));
 });
 
 test('the real withOpenedBoard installs the alias list from accepted main and the projection keeps it [V4,B26]', t => {
@@ -957,7 +958,7 @@ for (const [builderFamily, reviewerFamily] of [['openai', 'OpenAI'], ['codex', '
   }
 }
 
-import { SAME_FAMILY_REFUSAL_ENGINE } from '../src/same-family-refusal-engine.js';
+import { SAME_FAMILY_REFUSAL_ENGINE } from '../packages/state/core.js';
 
 test('same-vendor refusal keeps its historical code before the new engine [V4,B26,H16]', t => {
   const f = fixture(t);

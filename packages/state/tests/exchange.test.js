@@ -1,4 +1,4 @@
-import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../src/core/engines/agent-grant-engine.js';
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */
@@ -70,6 +70,16 @@ function populatedBoard(directory) {
 }
 
 /**
+ * Open a new empty board file inside a fixture directory.
+ * @param {string} directory
+ * @param {string} name
+ * @returns {any}
+ */
+function emptyBoard(directory, name) {
+  return openBoard(join(directory, name));
+}
+
+/**
  * Create a disposable directory removed after a test finishes.
  * @returns {string}
  */
@@ -88,7 +98,7 @@ function gitRepo(root) {
 test('round trips every board row, state, history and AUTOINCREMENT counter [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
-  const target = openBoard(join(directory, 'target.sqlite'));
+  const target = emptyBoard(directory, 'target.sqlite');
   try {
     const document = exportBoard(source);
     const result = importBoard(target, document);
@@ -109,10 +119,36 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
   }
 });
 
+test('clause 1: import reports exactly the tables an export carried, with job and job_step only while they hold rows [C7]', () => {
+  const directory = tempDirectory();
+  const source = populatedBoard(directory);
+  const empty = emptyBoard(directory, 'empty.sqlite');
+  const full = emptyBoard(directory, 'full.sqlite');
+  try {
+    const bare = exportBoard(source);
+    assert.ok(!Object.hasOwn(bare.tables, 'job') && !Object.hasOwn(bare.tables, 'job_step'), 'a board with no jobs exports neither table');
+    assert.ok(!bare.tables.sqlite_sequence.some(({ name }) => name === 'job' || name === 'job_step'));
+    assert.deepEqual(importBoard(empty, bare).tables, Object.keys(bare.tables));
+    assert.deepEqual(exportBoard(empty), bare);
+
+    source.db.prepare('INSERT INTO job (job_id, job_kind, job_created, job_updated) VALUES (?, ?, ?, ?)').run('job-1', 'gate', 1, 1);
+    const withJob = exportBoard(source);
+    assert.ok(withJob.tables.job.some((row) => row.job_id === 'job-1'), 'a board with a job row exports the job table');
+    assert.deepEqual(importBoard(full, withJob).tables, Object.keys(withJob.tables));
+    assert.ok(exportBoard(full).tables.job.some((row) => row.job_id === 'job-1'));
+    assert.deepEqual(exportBoard(full), withJob);
+  } finally {
+    store.closeBoard(source);
+    store.closeBoard(empty);
+    store.closeBoard(full);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
-  const target = openBoard(join(directory, 'target.sqlite'));
+  const target = emptyBoard(directory, 'target.sqlite');
   try {
     const before = exportBoard(target);
     const future = structuredClone(exportBoard(source));
@@ -197,7 +233,7 @@ function writeAcceptedItem(board) {
 test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
-  const target = openBoard(join(directory, 'target.sqlite'));
+  const target = emptyBoard(directory, 'target.sqlite');
   try {
     store.register(target, { lane: 'coordinator', path: '/target' });
     store.addItem(target, { by: 'coordinator', lane: 'web', title: 'real work makes this board nonempty' });
@@ -214,7 +250,7 @@ test('import refuses a board with rows and leaves it unchanged [A7]', () => {
 test('import refuses an export from another version before writing [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
-  const target = openBoard(join(directory, 'target.sqlite'));
+  const target = emptyBoard(directory, 'target.sqlite');
   try {
     const document = exportBoard(source);
     const before = exportBoard(target);

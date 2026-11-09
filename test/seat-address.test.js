@@ -4,10 +4,7 @@ import { readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  UNREAD_SHOUT_SQL,
-  unreadShoutBindings,
-} from '../src/board-shout-audience.js';
+import { UNREAD_SHOUT_SQL, unreadShoutBindings } from '../packages/store/index.js';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -22,7 +19,8 @@ function document(result) {
 async function seat(box, root, environment, name, cli) {
   const path = join(root, '..', name);
   runFixtureGit(['worktree', 'add', '--detach', path, 'main'], { cwd: root, env: environment });
-  const joined = document(await cli(path, 'join', box.lane, '--model', 'fixture-agent'));
+  // The fixture's open item is unrouted, so strong; its seats join strong to claim it.
+  const joined = document(await cli(path, 'join', box.lane, '--model', 'fixture-agent', '--route', 'strong'));
   return { path, id: joined.agent };
 }
 

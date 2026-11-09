@@ -1,4 +1,4 @@
-/** @pullboard-module-loads bin/checks/*.js */
+/** @pullboard-module-loads bin/checks/scan.js bin/checks/empty-catch.js bin/checks/file-size.js bin/checks/sync-spawn-in-leases.js bin/checks/test-inputs.js bin/checks/test-names.js */
 /**
  * The fast doctrine path for submit [C7]. A rule whose command is `node bin/checks/<name>.js`, with
  * a script marked `@file-local`, reads only the files it walks, so submit imports that check and
@@ -26,7 +26,16 @@ function cleanEnv() {
 const SCRIPT = /^node\s+(bin\/checks\/[\w.-]+\.js)$/u;
 
 /**
- * The checkout-relative script a rule command runs when that script can be narrowed to files, else null.
+ * The only checks this path may import, matching the header's load declaration [C7]. A glob over bin/checks
+ * put every check script, the static tree registry and through it the CLI into the selection closure of every
+ * test that reaches doctrine, so a check script outside this list runs on the runner path instead.
+ */
+export const FAST_CHECK_SCRIPTS = Object.freeze(['bin/checks/empty-catch.js', 'bin/checks/file-size.js',
+  'bin/checks/sync-spawn-in-leases.js', 'bin/checks/test-inputs.js', 'bin/checks/test-names.js']);
+
+/**
+ * The checkout-relative script a rule command runs when that script is a declared fast check marked
+ * `@file-local`, else null.
  *
  * @param {string} root - A checkout holding the candidate.
  * @param {string} command
@@ -34,7 +43,7 @@ const SCRIPT = /^node\s+(bin\/checks\/[\w.-]+\.js)$/u;
  */
 export function fastCheckScript(root, command) {
   const script = SCRIPT.exec(command.trim())?.[1];
-  if (!script) return null;
+  if (!script || !FAST_CHECK_SCRIPTS.includes(script)) return null;
   try { return /@file-local\b/u.test(readFileSync(join(root, script), 'utf8')) ? script : null; } catch { return null; } // no script, no fast path
 }
 

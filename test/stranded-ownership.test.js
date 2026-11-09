@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
 import { runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { closeBoard, getItem, ownershipWaiting, submitHandoff, deferOwnership } from '../packages/store/index.js';
 
 const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');

@@ -1,15 +1,15 @@
 /** Select testing tiers from immutable source; caller hints never hide a changed package [C7,CS4,V4]. */
 import { gitSpawnSync } from '../../../git/index.js';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { posix } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
+import { checkCommandDefinition } from '../../../git/index.js';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { testOutcomeFields } from './test-outcomes.js';
 import { Refused } from '../../../kernel/index.js';
 import { literalShellWords } from '../../../kernel/index.js';
-import { generateTestTiers } from './test-tiers.js';
+import { generateTestTiersFrom } from './test-tiers.js';
+import { commitSourceSnapshot } from './commit-source-snapshot.js';
 import { ownerOf } from './test-tiers.js';
 import { TEST_TIERS_FILE } from './test-tiers.js';
 import { unsealedPackages } from './seals.js';
@@ -17,14 +17,17 @@ import { sealOf } from './seals.js';
 import { sealStoreFile } from './seals.js';
 import { sealsExist } from './seals.js';
 import { checkSkippedSeals } from './seals.js';
+import { refusalFloor } from './refusal-floor.js';
+import { readTierSnapshot } from './test-tier-snapshot-cache.js';
+import { writeTierSnapshot } from './test-tier-snapshot-cache.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
 
 /** Read exact Git objects or construct an isolated read view without executing project hooks. */
-function sourceGit(root, args, optional = false) {
+function sourceGit(root, args, optional = false, { input, binary = false } = {}) {
   const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
-    cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' }, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024,
+    cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' }, ...(binary ? {} : { encoding: 'utf8' }), ...(input === undefined ? {} : { input }), maxBuffer: 1024 * 1024 * 1024,
   });
   if (result.status === 0) return result.stdout;
   if (optional) return null;
@@ -43,37 +46,74 @@ export function hasTestTiers(root, commit = 'HEAD') {
   return sourceGit(root, ['cat-file', '-e', `${commit}:${TEST_TIERS_FILE}`], true) !== null;
 }
 
+/**
+ * The testing tiers recomputed from a commit's Git objects alone, equal to generating them in a checkout of it.
+ * Why: a clone and checkout per commit cost a coordinator machine a full working tree for each of 317 review comparisons a
+ * day; the sealed in-memory source is read with one ls-tree and one cat-file --batch [C7,V4].
+ *
+ * @param {string} root any checkout of the repository
+ * @param {string} commit the exact commit id
+ * @param {{ onInventory?: Function, onReach?: Function }} [hooks] the same observers generateTestTiers takes
+ * @returns {{ version: number, files: object[] }}
+ */
+export function generateTestTiersAt(root, commit, hooks) {
+  const snapshot = commitSourceSnapshot(commit, {
+    tree: sourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', commit]),
+    blobs: shas => sourceGit(root, ['cat-file', '--batch'], false, { input: shas.map(sha => `${sha}\n`).join(''), binary: true }),
+  });
+  if (!snapshot) throw new Refused('TEST_SELECTION_SOURCE', 'a committed blob is unavailable; restore Git history and retry');
+  return generateTestTiersFrom(snapshot, hooks);
+}
+
+/** The modules whose code, with everything they import, decides a commit's tiers. */
+const TIER_CODE = ['./test-tiers.js', './test-tier-selection.js', './commit-source-snapshot.js'].map(path => fileURLToPath(new URL(path, import.meta.url)));
+let tierCode;
+
+/** The digest of the tier code's bytes by path inside this tool and of the Node version, or null when unreadable (#3927). */
+function tierCodeDigest() {
+  if (tierCode !== undefined) return tierCode;
+  try {
+    const files = checkCommandDefinition(fileURLToPath(new URL('../../../../', import.meta.url)), [], TIER_CODE).map(file => [file.path, file.mode, file.digest]);
+    tierCode = createHash('sha256').update(JSON.stringify({ node: process.version, files })).digest('hex');
+  } catch { tierCode = null; }
+  return tierCode;
+}
+
 /** Recompute classifications and ownership from the exact source, including stale or edited manifest rows. */
 function snapshotAt(root, commit) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const key = `${common}:${commit}`;
   if (snapshots.has(key)) return snapshots.get(key);
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-test-tiers-'));
-  const checkout = join(directory, 'source');
-  try {
-    sourceGit(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', common, checkout]);
-    sourceGit(checkout, ['checkout', '--quiet', '--detach', commit]);
-    let owners, packageFiles;
-    const helpers = new Map();
-    const manifest = generateTestTiers(checkout, {
-      onInventory: inventory => {
-        owners = inventory.owners;
-        packageFiles = new Set([...inventory.files.keys()].filter(file => file === 'package.json' || file.endsWith('/package.json')));
-      },
-      onReach: row => {
-        if (row.tier !== 'T1') return;
-        for (const path of row.reached) if (TEST_HELPER.test(path)) {
-          const packages = helpers.get(path) ?? new Set();
-          for (const name of row.packages) packages.add(name);
-          helpers.set(path, packages);
-        }
-      },
-    });
-    const result = { manifest, owners, packageFiles, helpers, rows: new Map(manifest.files.map(row => [row.file, row])) };
+  // Another process on this machine may have built this commit's tiers with the same code (#3927).
+  const cached = readTierSnapshot(commit, tierCodeDigest());
+  if (cached) {
+    const result = { ...cached, rows: new Map(cached.manifest.files.map(row => [row.file, row])) };
     snapshots.set(key, result);
     if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
     return result;
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  }
+  // Read from the commit's Git objects: a sealed in-memory source, no clone or checkout on this machine [C7,V4].
+  let owners, packageFiles;
+  const helpers = new Map();
+  const manifest = generateTestTiersAt(root, commit, {
+    onInventory: inventory => {
+      owners = inventory.owners;
+      packageFiles = new Set([...inventory.files.keys()].filter(file => file === 'package.json' || file.endsWith('/package.json')));
+    },
+    onReach: row => {
+      if (row.tier !== 'T1') return;
+      for (const path of row.reached) if (TEST_HELPER.test(path)) {
+        const packages = helpers.get(path) ?? new Set();
+        for (const name of row.packages) packages.add(name);
+        helpers.set(path, packages);
+      }
+    },
+  });
+  const result = { manifest, owners, packageFiles, helpers, rows: new Map(manifest.files.map(row => [row.file, row])) };
+  writeTierSnapshot(commit, tierCodeDigest(), result);
+  snapshots.set(key, result);
+  if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
+  return result;
 }
 
 /**
@@ -135,9 +175,23 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // A test file the change itself adds or edits runs at submit whatever its tier, so a builder's own new test is
   // proved in minutes rather than first at review or landing (4 Nov: 2 of 2 audited rejects were such tests).
   const authored = new Set((actual ?? []).filter(file => after.rows.has(file)));
+  // A floor invariant runs at submit when the change reaches its inputs: refusal codes reach the declaration audit through
+  // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
+  for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
+    read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
+  // Cells the test-cell check records as sealed (bin/checks/test-cells.json): their tests conform, so the plan names them [C7].
+  const sealedCells = sealedTestCells(root, commit);
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/** The cells the committed test-cell listing at `commit` records as sealed; none when it is absent or unreadable. */
+function sealedTestCells(root, commit) {
+  try {
+    const listing = JSON.parse(sourceGit(root, ['show', `${commit}:bin/checks/test-cells.json`]));
+    return Array.isArray(listing.sealed) ? listing.sealed.filter(name => typeof name === 'string').sort() : [];
+  } catch { return []; }
 }
 
 /**
@@ -236,7 +290,8 @@ export function testTierReport(plan, { names = true } = {}) {
   const units = names ? `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}` : `T1 unit tests: ${plan.units.length} ran; the failing cases follow, the rest are in the full log`;
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}`;
+  const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}`;
 }
 
 /** A green exit with no observed test account cannot prove a selected unit or journey. */

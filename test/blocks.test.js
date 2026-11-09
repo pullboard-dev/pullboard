@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import { personNeedsState } from '../apps/view/index.js';
 import {
   BLOCK_AUDIENCE,
@@ -269,4 +269,29 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
   assert.ok(parsed < 5_000, `only the tail was parsed, not ${parsed} lines`);
   assert.ok(best < 20, `a 20 MB ledger read in ${best.toFixed(1)} ms`);
   assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');
+});
+
+test('clause 1: a ledger that names none of a completed move\'s keys is never parsed, and one that names a key reads as before [C7]', t => {
+  const commonDir = privateFixtureFiles('pullboard-blocks-mention-').root;
+  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  fs.mkdirSync(join(commonDir, 'pullboard'));
+  const lines = [];
+  for (let i = 0; i < 20_000; i++) lines.push(JSON.stringify({ at: '2026-11-09T00:00:00.000Z', code: 'B1', id: `b${i}`, moveKey: `${'a'.repeat(63)}${i % 10}` }));
+  fs.writeFileSync(join(commonDir, 'pullboard', 'blocks.jsonl'), lines.join('\n') + '\n');
+  const parse = JSON.parse; let parsed = 0;
+  JSON.parse = function(...args) { parsed++; return parse.apply(this, args); };
+  let absent;
+  try { absent = readBlocks(commonDir, { mentioning: ['f'.repeat(64)] }); } finally { JSON.parse = parse; }
+  assert.deepEqual(absent, []);
+  assert.equal(parsed, 0, 'no ledger line was parsed for a key it does not hold');
+  const key = `${'a'.repeat(63)}3`;
+  // A clear of one named block must still remove it, so clears are read too.
+  fs.appendFileSync(join(commonDir, 'pullboard', 'blocks.jsonl'), JSON.stringify({ kind: 'clear', at: '2026-11-09T00:00:01.000Z', ids: ['b3'] }) + '\n');
+  parsed = 0;
+  JSON.parse = function(...args) { parsed++; return parse.apply(this, args); };
+  let named;
+  try { named = readBlocks(commonDir, { mentioning: [key] }); } finally { JSON.parse = parse; }
+  assert.deepEqual(named, readBlocks(commonDir).filter(block => block.moveKey === key), 'the blocks naming the key, as an unfiltered read gives them');
+  assert.ok(!named.some(block => block.id === 'b3'), 'the cleared block stays cleared');
+  assert.equal(parsed, 2_001, 'only the lines naming the key and the clear were parsed');
 });

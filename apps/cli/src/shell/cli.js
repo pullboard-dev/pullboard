@@ -11,6 +11,7 @@ export { agentDisplayName } from './cli-context.js';
 export { cdTo } from './cli-context.js';
 export { CHECKOUT_LEASES } from './cli-main.js';
 export { context } from './cli-context.js';
+export { refusal } from './cli-context.js';
 export { firstLineOf } from './cli-context.js';
 export { HELP } from './cli-help.js';
 export { idArg } from './cli-context.js';

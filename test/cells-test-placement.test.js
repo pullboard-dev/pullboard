@@ -184,3 +184,97 @@ test('clause 3: a second --move-tests run is a no-op [C7,CD64]', async t => {
   assert.equal(named.stdout, 'already home: test/helper.js\nalready home: test/one.test.js\nnothing to move for kernel\n');
   assert.equal(state(), moved, 'naming the moved paths again changed nothing');
 });
+
+test('clause 1: --move-tests moves a test that reads its location only through literal new URL and import.meta.dirname paths, and the moved test still runs [C7,CD64]', async t => {
+  const { readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root, git, cli } = await moverFixture(t);
+  git(root, 'rm', '-q', '-f', 'test/one.test.js', 'test/helper.js', 'test/journey.test.js');
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  mkdirSync(join(root, 'test/data'), { recursive: true });
+  writeFileSync(join(root, 'test/data/value.txt'), 'seven\n');
+  const where = [
+    "import assert from 'node:assert/strict';",
+    "import { readFileSync } from 'node:fs';",
+    "import { join, resolve } from 'node:path';",
+    "import { fileURLToPath } from 'node:url';",
+    "import { a } from '../packages/kernel/a.js';",
+    "const kernel = fileURLToPath(new URL('../packages/kernel/a.js', import.meta.url));",
+    "const data = readFileSync(join(import.meta.dirname, 'data', 'value.txt'), 'utf8');",
+    "const root = resolve(import.meta.dirname, '..');",
+    "const name = 'value';",
+    "const templated = readFileSync(resolve(import.meta.dirname, `data/${name}.txt`), 'utf8');",
+    "assert.equal(a, 1);",
+    "assert.match(readFileSync(kernel, 'utf8'), /export const a/u);",
+    "assert.equal(data, 'seven\\n');",
+    "assert.equal(templated, data);",
+    "assert.equal(readFileSync(join(root, 'packages/kernel/a.js'), 'utf8'), readFileSync(kernel, 'utf8'));",
+    '',
+  ].join('\n');
+  writeFileSync(join(root, 'test/where.test.js'), where);
+  git(root, 'add', '-A');
+  const moved = cli('--move-tests', 'kernel');
+  assert.equal(moved.failure, null, moved.context);
+  assert.match(moved.stdout, /^moved test\/where\.test\.js -> packages\/kernel\/tests\/where\.test\.js$/mu);
+  const text = readFileSync(join(root, 'packages/kernel/tests/where.test.js'), 'utf8');
+  assert.equal(text, where.replace("'../packages/kernel/a.js'", "'../a.js'").replace("new URL('../packages/kernel/a.js'", "new URL('../a.js'")
+    .replace("import.meta.dirname, 'data'", "import.meta.dirname, '../../../test/data'").replace("import.meta.dirname, '..'", "import.meta.dirname, '../../..'")
+    .replace('`data/${name}.txt`', '`../../../test/data/${name}.txt`'), 'only path literals changed, each naming the same file');
+  const ran = runFixtureChild(process.execPath, ['packages/kernel/tests/where.test.js'], { cwd: root, encoding: 'utf8' });
+  assert.equal(ran.failure, null, `the moved test still runs\n${ran.context}`);
+});
+
+test('clause 1: a bare own-location read is still refused [C7,CD64]', async t => {
+  const { cli, state } = await moverFixture(t, { located: true });
+  const before = state();
+  const refused = cli('--move-tests', 'kernel', 'test/located.test.js');
+  assert.equal(refused.status, 1, refused.context);
+  assert.match(refused.stderr, /unsafe path test\/located\.test\.js \(reads paths relative to its own location/u);
+  assert.equal(state(), before, 'nothing moved');
+});
+
+test('clause 2: a move rewrites exact quoted moved paths in the declared test path tables and nothing else [C7,CD64]', async t => {
+  const { readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { TEST_PATH_TABLES_FILE } = await import('../bin/cells-test-placement.js');
+  const { root, git, cli } = await moverFixture(t);
+  const table = 'packages/verify/src/shell/review-tier.js';
+  mkdirSync(join(root, 'bin/checks'), { recursive: true });
+  writeFileSync(join(root, TEST_PATH_TABLES_FILE), JSON.stringify([table]));
+  mkdirSync(join(root, 'packages/verify/src/shell'), { recursive: true });
+  const tableText = "export const HEAVY = ['test/one.test.js', \"test/journey.test.js\"];\n// test/one.test.js stays in this comment\nexport const NOTE = 'see test/one.test.js';\n";
+  writeFileSync(join(root, table), tableText);
+  writeFileSync(join(root, 'bin/checks-notes.json'), '{ "test/one.test.js": 1 }\n');
+  git(root, 'add', '-A');
+  const moved = cli('--move-tests', 'kernel');
+  assert.equal(moved.failure, null, moved.context);
+  assert.equal(readFileSync(join(root, table), 'utf8'), tableText.replace("'test/one.test.js'", "'packages/kernel/tests/one.test.js'"),
+    'only the exact quoted moved path changed');
+  assert.equal(readFileSync(join(root, 'bin/checks-notes.json'), 'utf8'), '{ "test/one.test.js": 1 }\n', 'an undeclared file is untouched');
+  assert.equal(git(root, 'diff', '--name-only'), '', 'the table rewrite is staged');
+});
+
+test('clause 1: --place-tests --batches plans cell and component moves in plan order, keeps helpers with outside importers; clause 2: its dry run applies them [C7,CD64]', async t => {
+  const { writeFileSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root, cli } = await moverFixture(t);
+  const planned = cli('--place-tests', '--batches', '--max', '80');
+  assert.equal(planned.failure, null, planned.context);
+  const plan = JSON.parse(planned.stdout);
+  assert.deepEqual(plan.batches.map(batch => [batch.cell, batch.files]), [
+    ['kernel', ['test/one.test.js']],
+    ['store', ['test/journey.test.js']],
+    ['app:cli', ['test/cli.test.js']],
+  ], 'one cell per batch in plan order; the two-cell test goes to the last of its cells');
+  assert.equal(plan.batches[1].tiers.component, 1);
+  assert.deepEqual(plan.stays, [{ file: 'test/helper.js', reason: 'helper with an importer that does not move to its cell' }]);
+  writeFileSync(join(root, 'batches.json'), planned.stdout);
+  const dry = cli('--place-tests', '--batches', '--dry-run', '--plan', 'batches.json');
+  assert.equal(dry.failure, null, dry.context);
+  assert.deepEqual(JSON.parse(dry.stdout).dryRun.map(row => [row.cell, row.moved, row.planned]), [['kernel', 1, 1], ['store', 1, 1], ['app:cli', 1, 1]]);
+  for (const file of ['packages/kernel/tests/one.test.js', 'packages/store/tests/journey.test.js', 'apps/cli/tests/cli.test.js']) {
+    assert.ok(existsSync(join(root, file)), `${file} is home`);
+    const ran = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
+    assert.equal(ran.failure, null, `${file} still runs after its batch\n${ran.context}`);
+  }
+});

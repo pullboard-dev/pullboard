@@ -1,6 +1,6 @@
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by signBar, discovered without a shared registry edit [C7,V4,H16]. */
-import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
+import { BAR_READY_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {

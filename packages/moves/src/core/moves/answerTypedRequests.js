@@ -1,5 +1,5 @@
 /** Routing owned by answerTypedRequests; queue data never executes coordinator operations [N26,B3,H16]. */
-import { TYPED_REQUESTS_ENGINE } from "../../../../../src/typed-requests-engine.js";
+import { TYPED_REQUESTS_ENGINE } from "../../../../state/core.js";
 /** The new payload has no historical interpretation. */
 function minimumEngine() { return TYPED_REQUESTS_ENGINE; }
 /** Credential selection uses the exact native requester/coordinator argument. */

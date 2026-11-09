@@ -11,7 +11,7 @@ import {
   automaticSourceFromText,
   readAutomaticRigorSource,
 } from '../../../../src/board-rigor-auto-source.js';
-import { RIGOR_AUTO_ENGINE } from '../../../../src/rigor-auto-engine.js';
+import { RIGOR_AUTO_ENGINE } from '../../../state/core.js';
 import {
   readRigorSource,
   RIGOR_NOTICE_ENGINE,

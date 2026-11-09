@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { rigorReport } from '../src/board-rigor.js';
+import { rigorReport } from '../packages/store/index.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 

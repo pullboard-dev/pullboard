@@ -1,6 +1,6 @@
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
-import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js";
+import { seatFamily } from "../../../verify/index.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
+import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
@@ -54,12 +54,14 @@ export function register(board, who) {
           `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
         );
       }
+      // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
+      const priorFamily = seatFamily(board, existing.agent_id);
       const locked = saveJoinedSession(board, existing.agent_id, who);
       const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
       // The stored column is compared, not the derived value: a seat whose session already derived this family still
       // gets the column written, so a join that names it is never a silent no-op (#2889).
-      if (family !== undefined && !locked && family !== reviewRouting.seatFamily(board, existing.agent_id)) {
+      if (family !== undefined && !locked && family !== priorFamily) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       } else if (locked && storedBlank && typeof family === 'string' && family.trim() !== '' && engine >= FAMILY_DECLARE_ENGINE) {

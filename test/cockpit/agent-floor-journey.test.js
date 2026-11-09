@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { before } from 'node:test';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { agentFloorHtml } from '../../apps/view/index.js';
 import { agentFloorModel } from '../../apps/view/index.js';
 import { dashboardHtml } from '../../apps/view/index.js';

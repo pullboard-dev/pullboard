@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../src/no-eligible-reviewer-engine.js';
+import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../packages/state/core.js';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +10,7 @@ import { exportBoard } from '../packages/store/index.js';
 /** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
@@ -18,8 +18,8 @@ import { compositionOwner } from '../packages/verify/index.js';
 import { refuseUnreviewable } from '../packages/verify/index.js';
 import { submitPreflight } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
-import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../src/review-head-builder-family-engine.js';
+import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../packages/state/core.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-composition-bar' });

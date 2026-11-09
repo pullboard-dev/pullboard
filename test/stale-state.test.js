@@ -2,23 +2,23 @@
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
 import { staleStateSnapshot } from '../packages/health/src/shell/stale-state-snapshot.js';
-import { planStaleState } from '../src/board-stale-state-maintenance.js';
+import { planStaleState } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { run as statusRun } from '../apps/cli/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
+import { STALE_STATE_ENGINE } from '../packages/state/core.js';
 
 const MINUTE = 60_000;
 
@@ -497,8 +497,8 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
 
 test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
   const { applyEngineMove } = await import('../src/engine.js');
-  const { STALE_STATE_ENGINE } = await import('../src/stale-state-engine.js');
-  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
+  const { STALE_STATE_ENGINE } = await import('../packages/state/core.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../packages/state/core.js');
   for (const mode of ['native', 'ordered', 'historical']) {
     const f = fixture(t);
     store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });

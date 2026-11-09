@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from "../../../store/index.js";
 import { readBoardSnapshot } from "../../../store/index.js";
 import { healthReport } from "../../../health/index.js";
+import { unaccountedRedFindings } from "../../../health/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { loadMachineSettings } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
@@ -13,7 +14,7 @@ import { agentCpuFindings } from "./sentinel-cpu.js";
 import {
   healthFindingIdentity,
   normalizedHealthFindings,
-} from "../../../../src/board-health-receipts.js";
+} from "../../../store/index.js";
 
 /**
  * A missing board or an explicitly disabled sentinel has no observation to publish. `gateDrives(db, now)` adds the
@@ -31,6 +32,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     report.stuck.push(...tooling(now, last ? JSON.parse(last.event_detail).active : []));
     report.stuck.push(...gateDrives(db, now));
+    report.stuck.push(...unaccountedRedFindings(db, now));
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();

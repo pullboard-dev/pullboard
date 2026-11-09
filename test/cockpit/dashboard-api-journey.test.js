@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { accept, boardId, build, earlier, fetchLive, machine, project, startView } from './fixture.js';
 
 /** Read the exact summary shape used by the browser and its ordered event history from the same project API. */

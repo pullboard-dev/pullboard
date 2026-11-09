@@ -1,7 +1,7 @@
 /** Explicit lane coordination never grants coordinator or person authority [B21,B26]. */
 import { Refused } from '../../../kernel/core.js';
-import { LANE_LEAD_ENGINE } from '../../../../src/lane-lead-engine.js';
-import { COORDINATOR_SHOUT_KINDS_ENGINE } from '../../../../src/coordinator-shout-kinds-engine.js';
+import { LANE_LEAD_ENGINE } from '../../../state/core.js';
+import { COORDINATOR_SHOUT_KINDS_ENGINE } from '../../../state/core.js';
 
 /** Read only valid current lane seats; stale policy never grants a different lane authority. */
 export function laneLeads(board) {

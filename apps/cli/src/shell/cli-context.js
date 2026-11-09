@@ -131,6 +131,11 @@ function agentRefusalText(message, code, name) {
   return patterns[code] ? message.replace(patterns[code], (_, before, id, after) => `${before}${name(id)}${after}`) : message;
 }
 
+/** Build the Refused a command throws, so a command file needs no kernel import of its own [C7]. */
+export function refusal(code, message) {
+  return new Refused(code, message);
+}
+
 /** Only refusals with actor positions need the invocation's native board for display names. */
 export function refusalNeedsBoard(error) {
   return ['ALREADY_JOINED', 'HELD', 'ITEM_HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT', 'NOT_YOUR_CHECKOUT', 'FACT_JUDGEMENT', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH', 'SELF_SHOUT', 'NO_READER'].includes(error.code);

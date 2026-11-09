@@ -6,6 +6,7 @@ import { jobView } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
+import { finishJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { bundleFor } from '../../../pin/index.js';
 import { listTreeObjects } from '../../../pin/index.js';
@@ -37,12 +38,12 @@ const GATE_RENEW_MS = 5_000;
  * @typedef {{ name: string, seq: number, payload: any, at: number }} JobStep
  * @typedef {ReturnType<typeof jobView>} JobView
  * @typedef {{ type: 'step', job: string, name: string, seq: number, payload: any, at: number }} StepRow
- * @typedef {{ type: 'ticket', job: string, action: 'take' | 'renew' | 'release', owner: string, at: number }} TicketRow
+ * @typedef {{ type: 'ticket', job: string, action: 'take' | 'renew' | 'release' | 'finish', owner: string, at: number }} TicketRow
  * @typedef {{ type: 'verdict', job: string, name: string, payload: any, owner: string, at: number,
  *   flakes: { tree: string, failures: { file: string, case: string }[] } | null }} VerdictRow
  * @typedef {StepRow | TicketRow | VerdictRow} JobRow
  * @typedef {{ rows: true, view: (job: string) => JobView | null, step: (job: string, name: string, payload: any, options: { seq?: number, now: number }) => { written: boolean, payload: any },
- *   ticket: (job: string, action: 'take' | 'renew' | 'release', owner: string, now: number) => boolean,
+ *   ticket: (job: string, action: 'take' | 'renew' | 'release' | 'finish', owner: string, now: number) => boolean,
  *   verdict: (job: string, step: { name: string, payload: any }, owner: string, now: number, flakes: VerdictRow['flakes']) => void }} JobRows
  */
 
@@ -70,6 +71,7 @@ export function recordJobRow(db, row) {
   if (row.type === 'ticket') {
     if (row.action === 'take') return takeJob(db, row.job, row.owner, { now: row.at }).taken;
     if (row.action === 'renew') return renewLease(db, row.job, row.owner, { now: row.at });
+    if (row.action === 'finish') return finishJob(db, row.job, row.owner, { now: row.at });
     return releaseLease(db, row.job, row.owner, { now: row.at });
   }
   if (row.type === 'verdict') {
@@ -91,6 +93,13 @@ export function recordJobRow(db, row) {
  * last step (7 Nov) and nothing ended it.
  */
 export const GATE_STALL_MS = 20 * 60_000;
+
+/**
+ * The least time between two progress steps a gate writes: a gate reports each runner-wait poll and a beat a minute
+ * while tests run, and this keeps the step log to about two rows a minute while a report still lands well inside
+ * every 2 minutes.
+ */
+const GATE_PROGRESS_STEP_MS = 30_000;
 
 /** Reruns of the same candidate after a stalled run; the next stall ends the gate as infrastructure. */
 export const GATE_STALL_RETRIES = 1;
@@ -156,7 +165,8 @@ export function rowSink(start, sink) {
     },
     ticket: (job, action, owner, now) => {
       const held = sink({ type: 'ticket', job, action, owner, at: now }) === true;
-      if (action === 'release' && held) copy.leaseOwner = null;
+      if ((action === 'release' || action === 'finish') && held) copy.leaseOwner = null;
+      if (action === 'finish' && held) copy.step = 'done';
       else if (held) copy.leaseOwner = owner;
       return held;
     },
@@ -194,12 +204,14 @@ function holdLease(rows, view, owner, now) {
  * @param {string} repo
  * @param {number} now
  */
-function capture(rows, view, repo, now) {
+function capture(rows, view, repo, now, ran = null) {
   if (!repo) throw new Refused('DRIVE_REPO', 'driveOnce needs the repository to capture a job: pass { repo }.');
   if (!view.candidate) throw new Refused('DRIVE_CANDIDATE', `Job ${view.id} names no candidate commit: create it with { candidate }.`);
   const pin = toolingFor(repo, view.candidate);
   const base = view.base ? treeOf(repo, view.base) : null;
-  rows.step(view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base }, { now });
+  // The commit of the gate machinery this driver runs beside the source it proves, so a retry on current tooling shows both.
+  const machinery = ran?.toolsCommit ? { toolsCommit: ran.toolsCommit, source: view.candidate } : {};
+  rows.step(view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base, ...machinery }, { now });
 }
 
 /**
@@ -328,8 +340,10 @@ function observeStages(rows, job, seen, now, ended = null) {
 }
 
 /**
- * One run of a whole gate, renewing the lease while it runs and watching the job's steps: the run ends with the gate's
- * result, or as stalled once no step was written for `stallMs`. A stalled run's stages get its signal and it records
+ * One run of a whole gate, renewing the lease while it runs (retaking it when a late tick finds it lapsed and still
+ * this driver's) and watching the job's steps: the run ends with the gate's result, or as stalled once no step was
+ * written for `stallMs`. The gate's `run.progress` reports write `gate.progress` steps, so a gate that waits for a
+ * runner or runs tests a long while is not stalled. A stalled run's stages get its signal and it records
  * nothing more, so a stage that never settles cannot hold the gate.
  *
  * @param {JobRows} rows
@@ -337,30 +351,80 @@ function observeStages(rows, job, seen, now, ended = null) {
  * @param {{ gate: Function, owner: string, now: () => number, seen: object, stallMs: number, checkMs: number }} options
  * @returns {Promise<{ result: object } | { stalled: { idleMs: number, lastStep: string | null } }>}
  */
-async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs }) {
+async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs, serving }) {
   const ended = new AbortController();
   const startedAt = now();
+  let servedAt = startedAt;
   let watch;
   // Not unref'd: a gate whose stage holds no handle of its own must still reach its stall.
   const stalled = new Promise(resolvePromise => {
     watch = setInterval(() => {
       const at = now();
-      rows.ticket(view.id, 'renew', owner, at);
-      const steps = rows.view(view.id).steps;
+      const current = rows.view(view.id);
+      // A tick that came late (a blocked event loop) finds its lease lapsed; while no other driver took the job, it
+      // retakes the lease, so a live driver never reads as gone (#3836).
+      if (!rows.ticket(view.id, 'renew', owner, at) && current.leaseOwner === owner) rows.ticket(view.id, 'take', owner, at);
+      const steps = current.steps;
       const last = steps.reduce((latest, step) => (step.at > latest.at ? step : latest), { at: startedAt, name: null });
+      // The gate's item moved on (withdrawn, reopened, replaced): the gate stops at this tick (#4072, SM1).
+      if (serving && at - servedAt >= SERVING_CHECK_MS) {
+        servedAt = at;
+        if (servingNow(serving) === false) { resolvePromise({ stale: { lastStep: last.name } }); return; }
+      }
       if (at - last.at >= stallMs) resolvePromise({ stalled: { idleMs: at - last.at, lastStep: last.name } });
     }, checkMs);
   });
-  const run = Promise.resolve().then(() => gate(observeStages(rows, view.id, seen, now, ended.signal), { signal: ended.signal }))
+  // A gate waiting for a runner or running tests reports progress; each report past the bound is a step (#3829).
+  let reported = -Infinity;
+  const progress = (detail = {}) => {
+    const at = now();
+    if (ended.signal.aborted || at - reported < GATE_PROGRESS_STEP_MS) return;
+    reported = at;
+    rows.step(view.id, 'gate.progress', { waiting: detail.waiting === true, running: detail.running === true }, { seq: seen.progress, now: at });
+    seen.progress += 1;
+  };
+  const run = Promise.resolve().then(() => gate(observeStages(rows, view.id, seen, now, ended.signal), { signal: ended.signal, progress }))
     .then(result => ({ result }));
   try {
     const outcome = await Promise.race([run, stalled]);
+    if (outcome.stale) {
+      ended.abort(new Refused('GATE_STALE', `gate job ${view.id} no longer serves its item`));
+      run.catch(() => {});
+      return outcome;
+    }
     if (outcome.stalled) {
       ended.abort(new Refused('GATE_STALLED', `gate job ${view.id} recorded no step for ${Math.round(outcome.stalled.idleMs / 60_000)} min`));
       run.catch(() => {});
     }
     return outcome;
   } finally { clearInterval(watch); }
+}
+
+/** How often a running gate asks whether it still serves its item: one board read per gate every 30 s. */
+const SERVING_CHECK_MS = 30_000;
+
+/** The marker runGate returns for a gate it ended because its item moved on. */
+const STALE = Symbol('stale');
+
+/** Ask the caller's serving port; one that throws never ends a gate. */
+function servingNow(serving) {
+  try { return serving(); } catch { return null; }
+}
+
+/**
+ * End a gate that no longer serves its item: an `ended` step saying so, then the job marked done with its lease freed.
+ *
+ * @param {JobRows} rows
+ * @param {{ id: string }} view
+ * @param {string} owner
+ * @param {number} at
+ * @param {string | null} lastStep
+ * @returns {typeof STALE}
+ */
+function endStale(rows, view, owner, at, lastStep) {
+  rows.step(view.id, 'ended', { stale: true, reason: 'its hand-off ended or its item left its serving state', lastStep: lastStep ?? null }, { now: at });
+  rows.ticket(view.id, 'finish', owner, at);
+  return STALE;
 }
 
 /**
@@ -376,17 +440,19 @@ async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkM
  *
  * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
- * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal }) => Promise<object>, owner: string, now: () => number,
+ * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal, progress: (detail?: { waiting?: boolean, running?: boolean }) => void }) => Promise<object>, owner: string, now: () => number,
  *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object }} options
  * @returns {Promise<number>} Always 0: a gate owes nothing once its result is written.
  */
-async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal }) {
+async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal, serving }) {
   if (typeof gate !== 'function') throw new Refused('DRIVE_GATE', `Job ${view.id} runs a whole gate: pass { gate } to driveOnce.`);
-  const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length };
+  const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length,
+    progress: view.steps.filter(step => step.name === 'gate.progress').length };
   let stalls = view.steps.filter(step => step.name === 'gate.stalled').length;
   let result;
   for (;;) {
-    const outcome = await attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs: stallCheckMs });
+    const outcome = await attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkMs: stallCheckMs, serving });
+    if (outcome.stale) return endStale(rows, view, owner, now(), outcome.stale.lastStep);
     if (!outcome.stalled) { result = outcome.result; break; }
     const retry = stalls < GATE_STALL_RETRIES;
     rows.step(view.id, 'gate.stalled', { attempt: stalls + 1, idleMs: outcome.stalled.idleMs, lastStep: outcome.stalled.lastStep, retry }, { seq: stalls, now: now() });
@@ -458,11 +524,13 @@ function flakeTargets(step, captured, collected, failures) {
  *   gate?: (observe: (stages: object[]) => object[]) => Promise<object>,
  *   transport?: { connect: Function }, sections?: (collected: object) => object,
  *   failures?: (collected: object) => { file: string, case: string }[], tooling?: boolean, source?: boolean, bundles?: string,
- *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, now?: () => number }} options - A whole gate that
- *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error).
+ *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, ran?: { toolsCommit?: string | null }, serving?: () => boolean | null, now?: () => number }} options - A whole gate that
+ *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error). `ran.toolsCommit`, the
+ *   commit of the tools this driver runs, is recorded on `captured` with the source commit it proves. `serving`, when
+ *   given, is asked at the start and every 30 s while a gate runs; false ends the gate stale (GATE_STALE).
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, serving, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
   const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (db));
   const view = rows.view(job);
@@ -471,14 +539,20 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
   if (before === 'verdict') return { transition: null, phase: before, job: view };
   const at = now();
   if (!holdLease(rows, view, owner, at)) return { transition: null, phase: before, job: rows.view(job), code: 'JOB_LEASED' };
+  // A gate whose item moved on is ended before any transition, so a resumed driver never runs it (#4072, SM1).
+  if (serving && servingNow(serving) === false) {
+    endStale(rows, view, owner, at, view.steps.at(-1)?.name ?? null);
+    return { transition: null, phase: before, job: rows.view(job), code: 'GATE_STALE' };
+  }
   const channels = transport ?? sharedTransport();
   let owed;
-  if (before === 'queued') capture(rows, view, repo, at);
+  if (before === 'queued') capture(rows, view, repo, at, ran);
   else if (before === 'captured') await send(rows, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
-  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(rows, view, { gate, owner, now, stallMs, stallCheckMs, stalled });
+  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(rows, view, { gate, owner, now, stallMs, stallCheckMs, stalled, serving });
   else if (before === 'running') owed = await collect(rows, view, { transport: channels, owner, now: at });
   else decide(rows, view, { sections, failures, owner, now: at });
   const after = rows.view(job);
+  if (owed === STALE) return { transition: null, phase: phaseOf(after), job: after, code: 'GATE_STALE' };
   const phase = phaseOf(after);
   const result = { transition: phase === before ? null : phase, phase, job: after };
   return owed === undefined ? result : { ...result, owed };

@@ -4,6 +4,8 @@ import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -14,13 +16,29 @@ import { gunzipSync } from 'node:zlib';
 
 /** Install a complete immutable module capsule without reading the job's stdin stream. */
 export function installRunnerPackage(payload, expected, configuredRoot) {
-  const bytes = gunzipSync(Buffer.from(payload, 'base64'), { maxOutputLength: 1_048_576 });
-  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw new Error('invalid capsule identity');
-  const files = JSON.parse(bytes);
   const home = process.env.HOME;
   if (!configuredRoot && (!home || !isAbsolute(home))) throw new Error('runner home must be absolute');
   const root = configuredRoot || join(home, '.pullboard-runner');
   const directory = join(root, 'runtime', expected);
+  // A reuse capsule carries no bytes: the runtime installed under this digest must still hash to it exactly (#4140).
+  if (payload === 'REUSE') {
+    const installed = {};
+    const walk = folder => {
+      for (const name of readdirSync(join(directory, folder))) {
+        const path = folder ? `${folder}/${name}` : name;
+        if (statSync(join(directory, path)).isDirectory()) walk(path);
+        else installed[path] = readFileSync(join(directory, path), 'utf8');
+      }
+    };
+    try { walk(''); } catch { throw new Error('PULLBOARD_RUNNER_RUNTIME_MISSING'); }
+    const ordered = Object.fromEntries(Object.entries(installed).sort(([a], [b]) => a.localeCompare(b)));
+    if (createHash('sha256').update(JSON.stringify(ordered)).digest('hex') !== expected) throw new Error('PULLBOARD_RUNNER_RUNTIME_MISSING');
+    return;
+  }
+  // 8 MiB of sources under the 4 MiB stdin capsule bound; the worker code passed 1 MiB on 9 Nov (#3884).
+  const bytes = gunzipSync(Buffer.from(payload, 'base64'), { maxOutputLength: 8 * 1_048_576 });
+  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw new Error('invalid capsule identity');
+  const files = JSON.parse(bytes);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   chmodSync(root, 0o700);
   mkdirSync(dirname(directory), { recursive: true, mode: 0o700 });

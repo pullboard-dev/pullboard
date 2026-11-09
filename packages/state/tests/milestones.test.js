@@ -1,4 +1,4 @@
-import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../src/milestone-queue-order-engine.js';
+import { MILESTONE_QUEUE_ORDER_ENGINE } from '../src/core/engines/milestone-queue-order-engine.js';
 import { orderMilestoneItems } from '../../store/index.js';
 /** The roadmap counts what landed on main, and shipping a milestone carries the rest forward [N26]. */
 import assert from 'node:assert/strict';

@@ -2,15 +2,13 @@
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { styleSources } from '../../packages/codemap/index.js';
 import { importStyleViolations } from '../../packages/gate/index.js';
 import { engineFolderProblems } from '../../packages/state/index.js';
-import { declaredProseCommands } from '../../apps/cli/index.js';
 import { doctrineReport } from '../../packages/doctrine/index.js';
 import { loadConfig } from '../../packages/config/index.js';
-import { HELP } from '../../apps/cli/index.js';
-import { PULLBOARD_COMMANDS } from '../../apps/cli/index.js';
 import { viewPureGate } from './view-pure.js';
 import { testWaitReport } from './test-waits.js';
 import { testWaitGrowth } from './test-waits.js';
@@ -18,7 +16,25 @@ import { boardWriteIoProblems } from './board-write-io.js';
 import { relayBoundaryProblems } from './relay-boundary.js';
 import { fixtureProblems } from './test-fixtures.js';
 import { cellsEdgeProblems } from './cells-edges.js';
+import { testCellsProblems } from './test-cells.js';
 import { STATIC_CHECKS } from '../../packages/gate/index.js';
+
+/**
+ * Read the declared prose commands and the CLI catalog from the tree being checked, in a child process started in that tree.
+ * The gate runs this file from a copy of main, so importing the catalog here would judge main's catalog, never the item's:
+ * a catalog fix could not pass the check it fixes (#3827).
+ *
+ * @param {string} root - Checkout root whose apps/cli/index.js is read.
+ * @returns {{declared: string[], actual: string[]}} Both lists, sorted.
+ */
+function proseCommandSets(root) {
+  const entry = pathToFileURL(join(root, 'apps/cli/index.js')).href;
+  const program = `const { HELP, declaredProseCommands, PULLBOARD_COMMANDS } = await import(${JSON.stringify(entry)});
+process.stdout.write(JSON.stringify({ declared: [...declaredProseCommands(HELP)].sort(), actual: [...PULLBOARD_COMMANDS].sort() }));`;
+  const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
+  if (child.status !== 0) throw new Error(`prose-commands could not read the catalog of ${root}: ${child.stderr.trim()}`);
+  return JSON.parse(child.stdout);
+}
 
 /**
  * Every whole-tree static check class, in the order submit reports them. `run(root, sources)` returns one message per
@@ -35,14 +51,23 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     return relayBoundaryProblems([...sources, ...relay]).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'test-cells', run: root => testCellsProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: (root, sources) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   { name: 'engine-folder', run: root => engineFolderProblems(root).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'view-pure', run: root => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', run: (root, sources) => boardWriteIoProblems(sources)
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
+  { name: 'worker-bundle', run: root => {
+    // The runner worker bundle's raw size may only fall; growth fails here, never silently at a runner (#4140).
+    const recorded = JSON.parse(readFileSync(join(root, 'bin/checks/worker-bundle.json'), 'utf8')).bytes;
+    const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)})));`;
+    const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
+    if (child.status !== 0) return [`bin/checks/worker-bundle.json:1: the runner worker bundle could not be measured: ${child.stderr.trim().split('\n').at(-1)}`];
+    const bytes = Number(child.stdout);
+    return bytes > recorded ? [`bin/checks/worker-bundle.json:1: the runner worker bundle is ${bytes} raw bytes, over its recorded ${recorded}; cut what the worker imports, or record a lower size when it falls`] : [];
+  } },
   { name: 'prose-commands', run: root => {
-    const declared = [...declaredProseCommands(HELP)].sort();
-    const actual = [...PULLBOARD_COMMANDS].sort();
+    const { declared, actual } = proseCommandSets(root);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
     const line = readFileSync(join(root, 'src/cockpit.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
     return [`src/cockpit.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];

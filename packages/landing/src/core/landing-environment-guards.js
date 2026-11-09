@@ -1,7 +1,7 @@
 /** Board-only replay guards stay outside both the oversized board and the trusted runner runtime [E28,E29]. */
 import { carriesLandingEnvironment } from '../../../sandbox/index.js';
 import { environmentProblem } from '../../../config/index.js';
-import { LANDING_ENVIRONMENT_ENGINE } from '../../../../src/landing-environment-engine.js';
+import { LANDING_ENVIRONMENT_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { Refused } from '../../../kernel/index.js';
 

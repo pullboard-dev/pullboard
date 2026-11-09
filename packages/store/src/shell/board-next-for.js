@@ -1,6 +1,6 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
-import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../../../state/core.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { liveClaimCollisions } from '../../../items/index.js';
 import {
@@ -10,7 +10,10 @@ import {
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { submitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { builderFamilyOf } from "../../../verify/index.js";
+import { familiesDiffer } from "../../../verify/index.js";
+import { prioritizeReviews } from "../../../verify/index.js";
+import { seatFamily } from "../../../verify/index.js";
 import { idleReason } from "../../../seats/index.js";
 import { liveRouteProblem } from "../../../seats/index.js";
 import { withLocalSeatPresence } from "./seat-presence.js";
@@ -51,9 +54,9 @@ import { reviewReleaseCooldown } from "./board.js";
 import { parkedClaims } from "./next-release-cooldown.js";
 import { reviewerChecks } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../state/core.js';
 import { buildOrder } from "./board-build-order.js";
-import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+import { CLAIM_IDLE_ENGINE } from "../../../state/core.js";
 import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
@@ -169,8 +172,8 @@ export function nextFor(board, options) {
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = reviewRouting.seatFamily(board, agentId);
-    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
+    const family = seatFamily(board, agentId);
+    const hasDifferentFamily = (entry) => familiesDiffer(board, family, builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
@@ -216,7 +219,7 @@ export function nextFor(board, options) {
     const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
-    reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
+    prioritizeReviews(board, candidates, priority, focusCompare);
     if (reviewOrder) candidates.sort((a, b) => {
       const first = reviewOrder.get(a.entry.item_id), second = reviewOrder.get(b.entry.item_id);
       return (first?.at ?? Infinity) - (second?.at ?? Infinity)
@@ -387,7 +390,8 @@ export function greenReviewFor(board, who) {
 /**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
- * machine; a red gate returns the item to its builder, so it stays offered.
+ * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
+ * which no build can fix and next never hands out (#3796).
  *
  * Only a job for the item's current head counts: a job left from an older head proves nothing about new work.
  *
@@ -402,6 +406,7 @@ export function gateAtHead(board, entry) {
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+    : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
 }

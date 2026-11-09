@@ -7,11 +7,15 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { writeTestTiers } from '../packages/gate/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
+import { selectTestTiers } from '../packages/gate/index.js';
+import { rmSync } from 'node:fs';
+import { runFixtureGit } from './fixture-child.js';
 import { loadConfig } from '../packages/config/index.js';
 import { executionServices } from './gate-execution-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 /** Demand a real successful private CLI document. */
 function json(box, root, ...args) {
@@ -76,7 +80,7 @@ function build(box, name, value, { second = false } = {}) {
   if (second) {
     root = join(box.dir, `builder-${name}`);
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/${name}`, root, 'main');
-    json(box, root, 'join', 'web');
+    joinFixtureSeat(box, root, 'web', { route: 'strong' });
   }
   const id = json(box, box.repo, 'add', 'web', `Change ${name}`, '--specs', 'G1', '--criterion', `The ${name} package remains present and its unit contract holds.`, '--check', `node check.cjs ${name}`, '--route', 'strong').item.item_id;
   json(box, root, 'claim', String(id));
@@ -89,7 +93,7 @@ function build(box, name, value, { second = false } = {}) {
 function accept(box, entry) {
   const root = join(box.dir, `review-${entry.id}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, entry.head);
-  json(box, root, 'join', 'api');
+  joinFixtureSeat(box, root, 'api', { route: 'strong' });
   const result = box.run(root, 'verify', String(entry.id), 'accept', '--note', 'The private frozen check and changed package units passed.');
   assert.equal(result.code, 0, result.out + result.err);
   assert.match(result.out, /T1 unit tests/u);
@@ -101,7 +105,8 @@ test('submit and review run only the changed package units and frozen check [C7,
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // Deliberate inherited context must not skip the selected units.
   const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
   assert.deepEqual(submitted.gate.files, ['test/alpha.test.js']);
-  assert.deepEqual(submitted.gate.testTiers.packages, ['packages/alpha']);
+  // RFC 0006 A3: the repository root imports alpha's front door, so its hash changes and it runs beside alpha.
+  assert.deepEqual(submitted.gate.testTiers.packages, ['.', 'packages/alpha']);
   assert.deepEqual(submitted.gate.testTiers.journeys, ['test/journey.test.js']);
   assert.equal(submitted.gate.check.checked, true);
   assert.deepEqual(submitted.gate.phasePlan.map(phase => phase.role), ['criterion', 'proof']);
@@ -109,7 +114,7 @@ test('submit and review run only the changed package units and frozen check [C7,
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
   accept(box, entry);
-  assert.deepEqual(calls(box, 'alpha'), ['alpha:2', 'alpha:2'], 'review also executes the package unit');
+  assert.deepEqual(calls(box, 'alpha'), ['alpha:2'], 'review reuses the submit proof of the package unit instead of running it again');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
 });
@@ -182,13 +187,16 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
-  const landed = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(landed.landed, [good.id], JSON.stringify(landed));
+  const landing = box.run(box.repo, 'land', '--max', '2', '--json');
+  assert.equal(landing.code, 0, landing.out + landing.err);
+  const landed = JSON.parse(landing.out);
+  const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
+  assert.deepEqual(landed.landed, [good.id], `${landing.err}\n${gateLogs}\n${JSON.stringify(landed)}`);
   assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
   assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
   const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
   assert.ok(logs.length > 1, 'the original batch and split trees have actual gate results');
-  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')));
+  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')), logs.join('\n--- next gate log ---\n'));
   assert.ok(json(box, box.repo, 'show', String(good.id)).item_merged_commit);
   assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
 });
@@ -228,4 +236,80 @@ test('a runner that ignores selected units cannot report a false green [C7,V4]',
   assert.equal(JSON.parse(result.out).error.code, 'TEST_SELECTION_UNVERIFIED');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
+});
+
+/** A real repository whose machine audit reads source text for refusal codes, as test/machine.test.js does, and imports nothing from the sources. */
+function auditFixture(t) {
+  const root = privateFixtureFiles('pullboard-refusal-floor-').root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => String(runFixtureGit(args, { cwd: root, encoding: 'utf8' })).trim();
+  const commitAll = message => { git('add', '-A'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message); return git('rev-parse', 'HEAD'); };
+  git('-c', 'init.defaultBranch=main', 'init', '-q');
+  writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
+  for (const name of ['alpha', 'beta']) {
+    mkdirSync(join(root, `packages/${name}/src`), { recursive: true });
+    writeFileSync(join(root, `packages/${name}/index.js`), `export * from './src/${name}.js';\n`);
+    writeFileSync(join(root, `packages/${name}/src/${name}.js`), `export const ${name} = 1;\nexport function fail() { throw new Refused('KNOWN_${name.toUpperCase()}', 'x'); }\n`);
+  }
+  mkdirSync(join(root, 'test'), { recursive: true });
+  for (const name of ['alpha', 'beta']) writeFileSync(join(root, `test/${name}.test.js`), `import { test } from 'node:test';\nimport '../packages/${name}/index.js';\ntest('${name} loads', () => {});\n`);
+  writeFileSync(join(root, 'test/machine.test.js'), `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import '../packages/alpha/index.js';
+import '../packages/beta/index.js';
+const declared = new Set(['KNOWN_ALPHA', 'KNOWN_BETA']);
+test('every refusal a move raises today is declared on that move [M1]', () => {
+  const raised = ['alpha', 'beta'].flatMap(name => [...readFileSync(new URL('../packages/' + name + '/src/' + name + '.js', import.meta.url), 'utf8').matchAll(/new Refused\\('([A-Z_]+)'/g)].map(match => match[1]));
+  assert.deepEqual(raised.filter(code => !declared.has(code)), []);
+});
+`);
+  const manifest = writeTestTiers(root).manifest;
+  assert.equal(manifest.files.find(row => row.file === 'test/machine.test.js').tier, 'T3', 'the audit imports two packages, so it is a journey that waits for landing');
+  const base = commitAll('test: base with the declaration audit [M1]');
+  return { root, git, commitAll, base };
+}
+
+test('clause 1: a submit whose diff adds a refusal code runs test/machine.test.js though no import path reaches it [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/alpha/src/alpha.js'), `export const alpha = 1;\nexport function fail() { throw new Refused('KNOWN_ALPHA', 'x'); }\nexport function more() { throw new Refused('BRAND_NEW_CODE', 'y'); }\n`);
+  const head = f.commitAll('feat(alpha): raise a new refusal [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
+  assert.ok(!plan.journeys.includes('test/machine.test.js'), 'the audit no longer waits for landing');
+});
+
+test('clause 2: a change that raises an undeclared refusal code is refused at submit with the machine.test.js case named [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/beta/src/beta.js'), `export const beta = 1;\nexport function fail() { throw new Refused('KNOWN_BETA', 'x'); }\nexport function more() { throw new Refused('UNDECLARED_CODE', 'y'); }\n`);
+  const head = f.commitAll('feat(beta): raise an undeclared refusal [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(plan.units.includes('test/machine.test.js'));
+  const run = runFixtureChild(process.execPath, ['--test', ...plan.units.filter(file => file === 'test/machine.test.js')], { cwd: f.root, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
+  assert.notEqual(run.status, 0, `the selected audit fails the submit run`);
+  assert.match(`${run.stdout}${run.stderr}`, /every refusal a move raises today is declared on that move/u, 'the failing case is named');
+});
+
+test('clause 3: a diff that touches no refusal code does not add machine.test.js to its submit check [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/alpha/src/alpha.js'), `export const alpha = 2;\nexport function fail() { throw new Refused('KNOWN_ALPHA', 'changed message'); }\n`);
+  const head = f.commitAll('feat(alpha): change a value and a message [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(!plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
+  assert.ok(plan.journeys.includes('test/machine.test.js'), 'it stays a landing journey');
+});
+
+test('clause 3: a change confined to a sealed cell selects only that cell\'s own units, and the plan names the sealed cells [C7]', t => {
+  const box = fixture(t);
+  // The listing is the coordinator's file, so main records it and the builder's lane only changes its own cell.
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/checks/test-cells.json'), JSON.stringify({ version: 1, sealed: ['alpha', 'beta'] }) + '\n');
+  commit(box, box.repo, 'chore: record the sealed test cells [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const entry = build(box, 'alpha', 2);
+  const plan = selectTestTiers(entry.root, { base: box.base, commit: entry.head });
+  assert.deepEqual(plan.sealedCells, ['alpha', 'beta'], 'the plan reads the committed sealed-cell listing');
+  assert.deepEqual(plan.units, ['test/alpha.test.js'], 'beta is sealed and unchanged, so none of its tests are selected');
+  assert.deepEqual(plan.packages, ['.', 'packages/alpha'], 'only the changed cell and the root importer of its front door');
+  assert.deepEqual(plan.journeys, ['test/journey.test.js'], 'the cross-cell journey is deferred to the landing batch');
 });

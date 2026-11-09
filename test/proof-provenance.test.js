@@ -4,8 +4,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../packages/gate/index.js';
 import { proofCounts } from '../packages/verify/index.js';

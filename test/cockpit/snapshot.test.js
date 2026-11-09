@@ -2,7 +2,7 @@
 /** @pullboard-test-gui */
 /** Cockpit snapshot checks, using the shared real-board fixtures [N26]. */
 import { main as nativeTestMain } from '../native-cli-fixture.js';
-import { events as readStatsEvents } from '../../src/board.js';
+import { events as readStatsEvents } from '../../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -11,13 +11,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fetchLocal } from '../../packages/sync/index.js';
-import { closeBoard } from '../../src/board.js';
-import { events } from '../../src/board.js';
+import { closeBoard } from '../../packages/store/index.js';
+import { events } from '../../packages/store/index.js';
 import { openBoardForRead } from '../../packages/store/index.js';
 import { proofStats } from '../../packages/stats/index.js';
 import { compareFlowWindows } from '../../packages/stats/index.js';
 import { portableSnapshot } from '../../apps/view/index.js';
-import { viewProofSummary } from '../../src/view-state-summary.js';
+import { viewProofSummary } from '../../apps/view/index.js';
 import { exportView } from '../../apps/cli/src/shell/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 

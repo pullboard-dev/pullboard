@@ -28,10 +28,10 @@ import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { HELP } from '../apps/cli/index.js';
@@ -62,7 +62,7 @@ const ENTRY_POINTS = [
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
+  { verbs: ['escalate'], at: ['../packages/store/src/core/board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },

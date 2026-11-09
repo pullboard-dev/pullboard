@@ -1,11 +1,11 @@
 /** Native reservations and verdicts preserve the family-relaxation witness [V1,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../src/review-family-relax-engine.js';
-import { REVIEW_FAMILY_SEAT_ENGINE } from '../src/review-family-seat-engine.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../packages/state/core.js';
+import { REVIEW_FAMILY_SEAT_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';

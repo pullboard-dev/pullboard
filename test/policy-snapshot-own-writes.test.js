@@ -6,10 +6,10 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { atomic } from '../packages/store/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 
 /** Commit one accepted-source alias, the same foreign write the budget test uses. */
 function declare(box, alias) {

@@ -22,6 +22,9 @@ import { join } from 'node:path';
 import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
+import { liveJobSet } from './runner-orphan-holders.js';
+import { sortHolders } from './runner-orphan-holders.js';
+import { stopOrphanWorkers } from './runner-orphan-holders.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
 function environment() {
@@ -274,7 +277,7 @@ export function runnerWorkerMatcher(root, { exactEntrypoint = false } = {}) {
 }
 
 /** Observe live owners and job working directories; restart may exclude only exact census-bound worker identities from the worker-presence check. */
-export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = {}) {
+export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [], liveOwners = new Set() } = {}) {
   const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C', TZ: 'UTC' } };
   const commands = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,args='], options);
@@ -294,9 +297,10 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
     if (!row) return false;
     const actual = census.get(Number(row[1]));
     if (!actual || actual.pid === process.pid || actual.state.startsWith('Z')) continue;
-    if (isWorker(row[2]) && !ignored.has(actual.pid)) { diagnostic.pid = actual.pid; return false; }
+    if (isWorker(row[2]) && !ignored.has(actual.pid) && !liveOwners.has(actual.pid)) { diagnostic.pid = actual.pid; return false; }
   }
   const jobs = join(canonicalRoot, 'jobs');
+  const liveFolders = new Set();
   let directories;
   try { directories = readdirSync(jobs, { withFileTypes: true }); }
   catch (error) { if (error.code !== 'ENOENT') return false; directories = []; }
@@ -312,13 +316,17 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
         try { process.kill(owner.pid, 0); return false; }
         catch (error) { if (error.code !== 'ESRCH') return false; }
       }
-      if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) { diagnostic.pid = actual.pid; return false; }
+      if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) {
+        // A live controller job's own folder is its slot, not a leak; its processes are spared below too.
+        if (liveOwners.has(actual.pid)) { liveFolders.add(entry.name); continue; }
+        diagnostic.pid = actual.pid; return false;
+      }
     } catch (error) { if (error.code !== 'ENOENT') return false; }
   }
   /** Compare directory components so jobs-old never counts as a running job. */
   const inJobs = path => {
     const part = relative(jobs, path);
-    return part === '' || part !== '..' && !part.startsWith('..' + sep) && !isAbsolute(part);
+    return part === '' || part !== '..' && !part.startsWith('..' + sep) && !isAbsolute(part) && !liveFolders.has(part.split(sep)[0]);
   };
   if (process.platform === 'linux') {
     for (const pid of pids) {
@@ -356,7 +364,7 @@ export function holderProcessAlive(pid) {
 }
 
 /** Attest an idle pinned worker and writable root without guessing a missing job's identity. */
-export function runnerIdleReply(root, request, processCensus) {
+export function runnerIdleReply(root, request, processCensus, orphanObserver = null) {
   const base = { version: 1, nonce: request?.nonce, worker: true, idle: false, writable: false };
   try {
     if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !statSync(root).isDirectory())
@@ -382,16 +390,25 @@ export function runnerIdleReply(root, request, processCensus) {
     let resourceFile;
     try { resourceFile = lstatSync(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const liveOwners = new Set();
     if (resourceFile) {
       if (!resourceFile.isFile()) return { ...base, reason: 'runner resource location is not a file' };
       const db = openPoolReadOnly(file, 1_000);
+      let holders;
       try {
         // A holder whose process is gone is a leak the machine reclaims on its next write; it must not keep the
         // runner "busy" forever, which idled the largest runner for a day on three dead pids [C7].
         // Every column, since an older or minimal holder table may lack pid; a holder without one still counts as active.
-        const holders = db.prepare("SELECT * FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
-        if (holders.some(holder => holderProcessAlive(holder.pid))) return { ...base, reason: 'runner resource lease is active' };
+        holders = db.prepare("SELECT * FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
       } finally { db.close(); }
+      // The controller's live jobs cost only their own slots; a worker it no longer owns is stopped (runner-orphan-holders.js).
+      const sorted = sortHolders(holders, liveJobSet(request), { alive: holderProcessAlive, ...(orphanObserver ? { clientOf: orphanObserver.clientOf } : {}) });
+      if (sorted.orphans.length) {
+        const stopped = stopOrphanWorkers(sorted.orphans, runnerWorkerMatcher(root), orphanObserver);
+        return { ...base, reason: `orphaned runner worker stopped: pid ${stopped.join(', ') || 'none signalled'}; idle is proven on the next probe`, orphansStopped: stopped };
+      }
+      if (sorted.blocking.length) return { ...base, reason: 'runner resource lease is active' };
+      for (const holder of sorted.liveSlots) liveOwners.add(holder.pid);
     }
     const marker = join(root, `.idle-probe-${request.nonce}`);
     writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
@@ -399,10 +416,11 @@ export function runnerIdleReply(root, request, processCensus) {
     try { jobDirectory = lstatSync(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; jobDirectory = null; }
     const diagnostic = {};
-    if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root, diagnostic))
+    if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root, diagnostic, { liveOwners }))
       return { ...base, reason: Number.isSafeInteger(diagnostic.pid)
         ? `runner process or job working directory remains: pid ${diagnostic.pid}`
         : 'runner process or job working directory appeared or could not be verified' };
-    return { ...base, idle: true, writable: true, reason: 'no live runner process, job working directory or resource lease and runner root writable' };
+    return { ...base, idle: true, writable: true, reason: liveOwners.size ? `free slots idle beside ${liveOwners.size} live controller job(s) and runner root writable`
+      : 'no live runner process, job working directory or resource lease and runner root writable' };
   } catch { return { ...base, reason: 'runner idle or writable state could not be verified' }; }
 }

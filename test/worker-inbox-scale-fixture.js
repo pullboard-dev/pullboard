@@ -1,7 +1,7 @@
 /** Private, live-shaped read workload: nineteen aliases, forty thousand shouts and 1,500 items [B7,C7]. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
 let cleanup;

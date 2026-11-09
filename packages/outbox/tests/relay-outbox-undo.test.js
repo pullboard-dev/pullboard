@@ -6,7 +6,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { undoQueued } from '../src/shell/relay-outbox-undo.js';
 import { recordSchemaStamp } from '../../store/index.js';
