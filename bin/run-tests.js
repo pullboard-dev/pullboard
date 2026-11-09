@@ -1417,7 +1417,7 @@ async function main(args) {
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // No test run starts on the coordinator unless a runner job started it (#3899).
-  (await import('../packages/gate/index.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
+  (await import('../packages/gate/src/shell/coordinator-test-guard.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;

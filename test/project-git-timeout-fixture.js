@@ -36,7 +36,7 @@ export function projectGitTimeoutFixture(t, { review = false } = {}) {
     json(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
     reviewer = join(box.dir, 'api-reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD').trim());
-    json(fixtureJoin(box.run, reviewer, 'api', '--model', 'Fixture reviewer', '--family', 'fixture-review-vendor', '--json'));
+    json(fixtureJoin(box.run, reviewer, 'api', '--model', 'Fixture reviewer', '--route', 'strong', '--family', 'fixture-review-vendor', '--json'));
   }
   const bad = join(box.dir, 'unreachable-repository');
   mkdirSync(bad);
