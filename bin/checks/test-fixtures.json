@@ -96,7 +96,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "packages/commits/tests/merge-hooks.test.js": {
+  "packages/doctrine/tests/merge-hooks.test.js": {
     "tempdir": 4,
     "hand-policy": 9
   },
