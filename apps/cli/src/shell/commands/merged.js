@@ -5,8 +5,8 @@ import { warnMainMoved } from '../../../../../packages/merge/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
-import { runCommitCliSmoke } from '../../../../../packages/landing/index.js';
-import { requireLandingPlanCheck } from '../../../../../packages/landing/index.js';
+import { smokeCommit } from '../../../../../packages/landing/index.js';
+import { landingPlanCheck } from '../../../../../packages/landing/index.js';
 import { placeLandingNewFiles } from '../../../../../packages/landing/index.js';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
@@ -170,9 +170,9 @@ export async function run(io, { first, second, values }) {
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
     placeUncoveredOnTrunk(ctx.info.root, commit, io);
-    requireLandingPlanCheck(ctx.info.root, commit);
+    await landingPlanCheck(ctx.info.root, commit);
     // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
-    runCommitCliSmoke(ctx.info.root, commit);
+    await smokeCommit(ctx.info.root, commit);
     if (train) {
       if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the primary coordinator records a train envelope');
       if (!ids.includes(id)) throw new Refused('USAGE', '--items must include the first named item');
