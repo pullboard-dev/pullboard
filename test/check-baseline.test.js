@@ -396,7 +396,7 @@ function snapshotFile(file) {
 /** Apply a captured move in a separate Node process so each replica has its own cwd and env. */
 function applyInReplica(file, replicaDir, moveFile, env, at = '2026-10-07T12:00:00.000Z') {
   const boardUrl = new URL('../src/board.js', import.meta.url).href;
-  const engineUrl = new URL('../src/engine.js', import.meta.url).href;
+  const engineUrl = new URL('../packages/state/index.js', import.meta.url).href;
   const source = [
     `import { closeBoard } from ${JSON.stringify(boardUrl)};`,
     `import { openBoard } from ${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)};`,
