@@ -310,7 +310,9 @@ const LIBRARY_STORE_NAMES = [
   'unverifiedSubmissions', 'validateItemAddition', 'validateItemEdit', 'verdictReviewProblem', 'verdictsFor', 'verify', 'withVerifierStanding',
   'withdraw', 'writeRefused',
 ];
-for (const name of LIBRARY_STORE_NAMES) libraryExport(name, () => store[name]);
+/** The library names the store's write variants, which the door exports under a board_ prefix. */
+const LIBRARY_WRITE_NAMES = { ensureCoordinator: 'board_ensureCoordinator', recordNextIdle: 'board_recordNextIdle' };
+for (const name of LIBRARY_STORE_NAMES) libraryExport(name, () => store[LIBRARY_WRITE_NAMES[name] ?? name]);
 for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
 for (const [name, read] of Object.entries(MILESTONE_READS)) libraryExport(name, read);
 export const board = Object.freeze(libraryBoard);
