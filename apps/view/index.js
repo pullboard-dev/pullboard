@@ -54,7 +54,6 @@ export { timelineHtml } from "./src/core/view/timeline-render.js";
 export { verdictHtml, visibleVerdictNote } from "./src/core/view/verdict-render.js";
 export { BACKGROUND_ENV, backgroundViewLine, backgroundViewLog, keepViewRunning, launchBackgroundView, reportView, stopCommand } from "./src/shell/background-view.js";
 export { badgeCounts, badgeDocuments, writeBadges } from "./src/shell/badge.js";
-export { setupHelp } from "./src/shell/help/setup.js";
 export { personNeedsState } from "./src/shell/needs-state.js";
 export { HOSTED_ORIGIN, LOOPBACK, exportView, lastPort, portableSnapshot, projectState, serveView } from "./src/shell/serve.js";
 export { viewApiPorts } from "./src/shell/view-api-ports.js";
