@@ -13,11 +13,12 @@ import { landingStallDescription } from './landing-progress.js';
  * dropped that stop, so a hung child could hold landing forever (#3477).
  *
  * @param {{ now?: () => number }} [options]
- * @returns {{ moved: () => void, record: (batch: any) => void, lastProgressAt: () => number, stall: () => void,
+ * @returns {{ moved: () => void, said: (line: string) => void, record: (batch: any) => void, lastProgressAt: () => number, stall: () => void,
  *   stalled: Promise<{ batch: any, step: string }> }}
  */
-export function landingProgress({ now = Date.now } = {}) {
+export function landingProgress({ now = Date.now, gateCeilingMs = LANDING_GATE_CEILING_MS } = {}) {
   let lastAt = now();
+  let gateSince = null;
   let batch = null;
   let step = 'batch startup';
   let bytes = 0;
@@ -25,6 +26,13 @@ export function landingProgress({ now = Date.now } = {}) {
   const stalled = new Promise(resolve => { stall = resolve; });
   return {
     moved() { lastAt = now(); },
+    /** Read a said line: a gate's "selected; running" opens a running gate and its "run finished" closes it. */
+    said(line) {
+      const text = String(line ?? '');
+      if (GATE_RUNNING.test(text)) gateSince = now();
+      else if (GATE_FINISHED.test(text)) gateSince = null;
+      lastAt = now();
+    },
     record(next) {
       if (!next?.id) return;
       batch = next;
@@ -34,12 +42,22 @@ export function landingProgress({ now = Date.now } = {}) {
     lastProgressAt() {
       const size = activeLogBytes(batch);
       if (size > bytes) { bytes = size; lastAt = now(); }
+      // A gate still running on a runner is progress until its ceiling: the runner says nothing until the run ends,
+      // and #3489's runners-only gate was stopped at 10 minutes while it ran (9 Nov) [C7].
+      if (gateSince !== null && now() - gateSince < gateCeilingMs) lastAt = now();
       return lastAt;
     },
     stall() { stall({ batch, step }); },
     stalled,
   };
 }
+
+/** How long one running landing gate counts as progress; past it the no-progress stop applies again. */
+export const LANDING_GATE_CEILING_MS = 60 * 60 * 1000;
+
+/** The line a landing gate says when its run starts, and the one it says when the run ends (landing-step-gate.js). */
+const GATE_RUNNING = /^gate [^:]+: .+ selected; running$/u;
+const GATE_FINISHED = /^gate [^:]+: run finished /u;
 
 /** Bytes in the batch's active gate log, or 0 when it has none yet. */
 function activeLogBytes(batch) {
@@ -108,7 +126,7 @@ export function inProcessLandingBatch({ checkAtCommit, candidateWorkerFile, prog
     };
     const fence = () => assertWorkerFence(board, options.fence, options.root);
     const batch = withLandingEnv(() => engine({ ...options, board, checkAtCommit, candidateWorkerFile, landingPorts,
-      say: line => { watch.moved(); return say(line); },
+      say: line => { watch.said(line); return say(line); },
       write: async (operation, args) => {
         live();
         if (!BATCH_WRITES.has(operation)) throw new Refused('LAND_WORKER', 'the landing batch requested an unsupported operation; stop it and inspect pullboard resume');
