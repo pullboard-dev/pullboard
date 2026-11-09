@@ -51,7 +51,7 @@ test('clause 1: shards of one run merge into one result and receipt identical in
   const split = await run(2);
   assert.ok(split.shards.length > 1, 'the files ran as several shards');
   assert.equal(single.isGreen, true);
-  assert.deepEqual([split.isGreen, split.exitCode, split.failingFiles], [single.isGreen, single.exitCode, single.failingFiles]);
+  assert.deepEqual([split.isGreen, split.exitCode, split.failingFiles], [single.isGreen, single.exitCode, single.failingFiles ?? []]);
   assert.deepEqual(split.shards.flatMap(shard => shard.files).sort(), FILES, 'the one receipt names every file once');
 });
 
