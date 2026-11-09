@@ -1954,7 +1954,7 @@
   "test/land-parallel-fixture.js": {
     "hand-policy": 2
   },
-  "test/land-why.test.js": {
+  "packages/store/tests/land-why.test.js": {
     "raw-board": 4
   },
   "test/land.test.js": {
@@ -2028,7 +2028,7 @@
   "test/landing-known-main.test.js": {
     "model": 1
   },
-  "test/landing-lease.test.js": {
+  "packages/state/tests/landing-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -2083,7 +2083,7 @@
     "raw-board": 2,
     "tempdir": 1
   },
-  "test/landing-runner-source-hold.test.js": {
+  "packages/items/tests/landing-runner-source-hold.test.js": {
     "raw-board": 2,
     "tempdir": 2
   },
@@ -2712,7 +2712,7 @@
     "tempdir": 5,
     "repo-read": 1
   },
-  "test/relay-device-http.test.js": {
+  "packages/kernel/tests/relay-device-http.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-http.test.js": {
@@ -2757,10 +2757,10 @@
   "test/relay-page-client.test.js": {
     "tempdir": 1
   },
-  "test/relay-page-store.test.js": {
+  "packages/kernel/tests/relay-page-store.test.js": {
     "tempdir": 1
   },
-  "test/relay-pages-http.test.js": {
+  "packages/kernel/tests/relay-pages-http.test.js": {
     "tempdir": 1
   },
   "test/relay-parity-clock.test.js": {
@@ -3026,7 +3026,7 @@
     "model": 1,
     "repo-read": 2
   },
-  "test/rework-same-family.test.js": {
+  "packages/kernel/tests/rework-same-family.test.js": {
     "raw-board": 6
   },
   "test/rigor-auto.test.js": {
@@ -3060,7 +3060,7 @@
     "model": 7,
     "raw-board": 21
   },
-  "test/roadmap-queue-order.test.js": {
+  "packages/roadmap/tests/roadmap-queue-order.test.js": {
     "raw-board": 4
   },
   "test/roadmap.test.js": {
@@ -3087,7 +3087,7 @@
   "test/row-decision-guidance.test.js": {
     "hand-policy": 2
   },
-  "test/row-decisions-replay.test.js": {
+  "packages/kernel/tests/row-decisions-replay.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
@@ -3188,7 +3188,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/runner-disk-sweep.test.js": {
+  "packages/resources/tests/runner-disk-sweep.test.js": {
     "tempdir": 1
   },
   "test/runner-drain-fixture.js": {
@@ -3319,7 +3319,7 @@
     "hand-policy": 3,
     "env-spread": 1
   },
-  "test/runner-worker-capacity-sync.test.js": {
+  "packages/resources/tests/runner-worker-capacity-sync.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },

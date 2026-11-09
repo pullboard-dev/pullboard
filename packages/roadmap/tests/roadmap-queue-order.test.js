@@ -1,12 +1,16 @@
 /** The roadmap lists a milestone's open items in pullboard queue order, with queue positions [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { addMilestone, orderMilestoneItems, roadmap } from '../packages/store/index.js';
-import { eligibilityProblem } from '../packages/verify/index.js';
-import { milestoneRoadmap } from '../packages/roadmap/index.js';
-import { workQueue } from '../packages/items/index.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import {
+  addMilestone,
+  orderMilestoneItems,
+  roadmap,
+} from '../../store/index.js';
+import { eligibilityProblem } from '../../verify/index.js';
+import { milestoneRoadmap } from '../index.js';
+import { workQueue } from '../../items/index.js';
 
 test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
   const board = openBoard(':memory:');

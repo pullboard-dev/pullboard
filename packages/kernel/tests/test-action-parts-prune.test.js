@@ -1,12 +1,25 @@
 /** Test-action parts reference shared file lists and are pruned to a size cap, oldest unnamed first [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, existsSync, readdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  existsSync,
+  readdirSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { packTestResults } from '../packages/gate/src/shell/test-result-store.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { firstChangedInput, recordInputParts } from '../packages/gate/src/shell/test-cache-account.js';
-import { maintainPartsStore, prunePartsStore } from '../packages/gate/src/shell/test-action-parts-prune.js';
+import { packTestResults } from '../../gate/index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import {
+  firstChangedInput,
+  recordInputParts,
+} from '../../gate/index.js';
+import {
+  maintainPartsStore,
+  prunePartsStore,
+} from '../../gate/index.js';
 
 const DAY = 86_400_000;
 const hash = (character) => character.repeat(64);

@@ -1,16 +1,29 @@
 /** Real SQLite admission, expiry, release and replay controls for landing leases [Q1,Q2,Q3,H16]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../packages/store/index.js';
-import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
-import { landingRelayCallbacks } from '../packages/link/src/core/landing-relay.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import {
+  assertLandingLease,
+  guardLandingWrite,
+  LANDING_LEASE_MS,
+} from '../../store/index.js';
+import {
+  applyEngineMove,
+  prepareEngineMove,
+} from '../index.js';
+import {
+  exportBoard,
+  importBoard,
+} from '../../store/index.js';
+import { landingRelayCallbacks } from '../../link/index.js';
 
 /** Create isolated physical databases sharing an initial board and a controllable receipt clock. */
 function fixture(t) {
