@@ -1,13 +1,17 @@
 /** A board scale test measures writer load and command latency at 1,000 simulated seats [C7,#3008]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { cpus, loadavg, tmpdir } from 'node:os';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
-import { requireFixtureReviewFamilies } from './review-family-fixture.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { repositoryBoardFile } from '../../../test/board-submit-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { requireFixtureReviewFamilies } from '../../../test/review-family-fixture.js';
 
 const COMMIT = 'a'.repeat(40);
 const LANES = ['core', 'coordinator'];
