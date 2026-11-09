@@ -106,7 +106,7 @@ test('the settings API reports every setting with its scope, value, default and 
 /** Board-owned settings keep native move evidence, independent of machine-wide admission settings [R1,R2,H16]. */
 test('a line setting change is a recorded move with its reason and its range [R1,R2,H16]', async t => {
   const { createE2eHelpers } = await import('../../../test/e2e-helpers.js');
-  const store = await import('../../../src/board.js');
+  const store = await import('../../store/index.js');
   const nativeBoard = await import('../../../apps/lib/index.js');
   const { exportBoard, importBoard } = await import('../../store/index.js');
   const { prepareEngineMove, applyRelayMove, appliedSequence } = await import('../src/shell/engine.js');

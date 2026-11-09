@@ -15,7 +15,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   exportBoard,
   importBoard,

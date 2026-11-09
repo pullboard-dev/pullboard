@@ -1,6 +1,6 @@
 /** A bounded ordinary sealed-move round trip on a person-linked canary board [H2,H15,C7]. */
 import { randomUUID } from 'node:crypto';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { engineReceipt } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';

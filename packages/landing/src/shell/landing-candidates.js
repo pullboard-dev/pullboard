@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import {
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   invalidateGitFacts,
   mainCheckout,

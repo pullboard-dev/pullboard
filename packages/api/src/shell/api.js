@@ -45,7 +45,7 @@ import {
 import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
   COORDINATOR,
@@ -828,7 +828,7 @@ function afterEvents(root, after, isMain, boardOpeners) {
 function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
-    if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
+    if (name === COORDINATOR && !relayLinked(root)) store.board_ensureCoordinator(board, root);
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
     // A clone shares the coordinator identity, but resolves its main checkout locally.
