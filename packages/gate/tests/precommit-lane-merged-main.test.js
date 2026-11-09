@@ -1,12 +1,17 @@
 /** The pre-commit lane guard recognizes accepted-main changes staged without MERGE_HEAD [L3,C7]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../../..', 'bin', 'pullboard.js');
 
 /** Create isolated main and core worktrees with Pullboard's real installed commit hooks. */
 function fixture(t) {

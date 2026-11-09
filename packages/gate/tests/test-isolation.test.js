@@ -1,32 +1,39 @@
 /** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js packages/config/src/shell/settings.js packages/resources/index.js packages/config/src/shell/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
-import { awaitNestedRun } from '../packages/gate/index.js';
+import { awaitNestedRun } from '../index.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChildAsync } from './fixture-child.js';
-import { childJournalPreloadSource } from '../packages/gate/index.js';
-import { foreignNodeOptions } from '../packages/gate/index.js';
-import { gateMachineHome } from '../packages/gate/index.js';
-import { gateRuntimeCaptureSource } from '../packages/gate/index.js';
-import { runtimeCaptureSource } from '../packages/sandbox/index.js';
-import { machineHome } from '../packages/resources/index.js';
-import { takeResource } from '../packages/resources/index.js';
-import { DEFAULT_VIEW_PORT } from '../packages/config/index.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { childJournalPreloadSource } from '../index.js';
+import { foreignNodeOptions } from '../index.js';
+import { gateMachineHome } from '../index.js';
+import { gateRuntimeCaptureSource } from '../index.js';
+import { runtimeCaptureSource } from '../../sandbox/index.js';
+import { machineHome } from '../../resources/index.js';
+import { takeResource } from '../../resources/index.js';
+import { DEFAULT_VIEW_PORT } from '../../config/index.js';
+import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
+import { GATE_SLOT_POOL_ENV } from '../../resources/index.js';
+import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
 
-const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
+const RUNNER = resolve(import.meta.dirname, '../../../bin/run-tests.js');
 const HOSTILE_LEASE = 'isolation-hostile-machine';
 const PROBES = ['probe machine settings are the defaults', 'probe the resource pool is private',
   'probe no host marker reaches the test', 'probe the default view port is never chosen'];
 
 /** Build a probe suite outside the repository that reads every kind of machine state a test could reach. */
 function probeSuite(dir) {
-  const module = (path) => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '..', path)).href);
+  const module = (path) => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../..', path)).href);
   const root = join(dir, 'probe');
   mkdirSync(join(root, 'test'), { recursive: true });
   writeFileSync(join(root, 'test', 'probe.test.js'), `import assert from 'node:assert/strict';

@@ -10,12 +10,17 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { bindingReadsForModules, cellLintReport, withCellLintParser } from '../packages/codemap/index.js';
-import { commonJsIn, importsIn } from '../packages/gate/index.js';
-import { fixture } from './cells-plan-fixture.js';
-import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { bindingReadsForModules } from '../../codemap/index.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { withCellLintParser } from '../../codemap/index.js';
+import { commonJsIn } from '../index.js';
+import { importsIn } from '../index.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
 test('one owned parser controller serves import and multiple binding batches, then exits [C7,P3]', async t => {
   const sources = ["import value from './leaf.js'; export default value;", "import('./dynamic.js');",
@@ -91,7 +96,7 @@ for (const name of ['spawn','spawnSync']) {
 syncBuiltinESMExports();
 `);
   const expected = JSON.stringify({ ...cellLintReport(box.root, { importsIn, commonJsIn }), growth: null }, null, 2) + '\n';
-  const executable = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
+  const executable = fileURLToPath(new URL('../../../bin/cell-lints.js', import.meta.url));
   for (let run = 1; run <= 2; run++) {
     const result = runFixtureChild(process.execPath, [executable, '--report'], { cwd: box.root, encoding: 'utf8',
       env: { ...process.env, NODE_OPTIONS: `--import=${pathToFileURL(join(files.root, 'count.mjs')).href}` } });
@@ -116,7 +121,7 @@ test('parser drains unhinted atomic requests after startup [C7,P3]', async t => 
   const files = privateFixtureFiles('pullboard-parser-lost-hint-');
   const protocol = join(files.root, 'protocol');
   mkdirSync(protocol);
-  const entry = fileURLToPath(new URL('../packages/codemap/src/shell/cell-parser-worker.js', import.meta.url));
+  const entry = fileURLToPath(new URL('../../codemap/src/shell/cell-parser-worker.js', import.meta.url));
   files.write('worker.mjs', `import fs from 'node:fs';
 import {syncBuiltinESMExports} from 'node:module';
 const watch=fs.watch; fs.watch=(dir, listener)=>watch(dir,()=>{}); syncBuiltinESMExports();

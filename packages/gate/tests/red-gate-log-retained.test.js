@@ -2,13 +2,19 @@
 /** @pullboard-world-pin reads the shipped show command source to prove it prints the retained assertion lines. */
 /** A red gate keeps its full log until its item lands or is withdrawn, and show prints the failing assertion from it [C7,#3381]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { HANDOFF_FOLDER_KEEP_MS, pruneFinishedHandoffs } from '../packages/resources/index.js';
-import { failedAssertionLines, retainedGateAssertions } from '../packages/gate/index.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { HANDOFF_FOLDER_KEEP_MS } from '../../resources/index.js';
+import { pruneFinishedHandoffs } from '../../resources/index.js';
+import { failedAssertionLines } from '../index.js';
+import { retainedGateAssertions } from '../index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const LOG = [
   'TAP version 13',
@@ -84,7 +90,7 @@ test('clause 2: the failing assertion lines of a retained gate log give file:lin
 
 test('clause 2: show prints each retained failing assertion with the gate red prefix [C7,#3381]', async () => {
   const { readFileSync } = await import('node:fs');
-  const source = readFileSync(new URL('../apps/cli/src/shell/commands/show.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../apps/cli/src/shell/commands/show.js', import.meta.url), 'utf8');
   assert.match(source, /retainedGateAssertions\(ctx\.info\.commonDir, queuedJobId\)/u);
   assert.match(source, /gate red: \$\{line\}/u);
 });
