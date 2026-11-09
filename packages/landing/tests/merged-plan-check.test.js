@@ -11,8 +11,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { cleanGitEnvironment } from '../index.js';
-import { requireLandingPlanCheck } from '../../landing/index.js';
+import { cleanGitEnvironment } from '../../git/index.js';
+import { requireLandingPlanCheck } from '../index.js';
 
 const roots = [];
 after(() => { for (const root of roots) rmSync(root, { recursive: true, force: true }); });

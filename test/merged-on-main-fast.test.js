@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runFixtureChild } from './fixture-child.js';
-import { BIN, machine, project } from './cockpit/fixture.js';
+import { BIN, machine, project } from './cockpit/machine-fixture.js';
 import { fileFixtureItem } from './testkit-fixture.js';
 import { fixtureMachineSettings } from './testkit-fixture.js';
 import { waitForCondition } from './runner-fixture-state.js';
