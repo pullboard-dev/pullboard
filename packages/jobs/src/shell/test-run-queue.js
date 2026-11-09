@@ -1,0 +1,203 @@
+/**
+ * Board-held `pullboard test` runs for agent seats: the seat queues a run and moves on, a detached worker runs it under
+ * a job lease, and `pullboard next` hands the result back [C7].
+ *
+ * Why: since gate.runnersOnly a test run queues on runners for minutes, and seats sat 16-54 min in sleep-and-pgrep
+ * loops. Corey, 9 Nov: "waiting is an error". The board holds the run; the seat takes other work.
+ */
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { closeSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { openSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/index.js';
+import { LEASE_MS } from '../core/lease-rules.js';
+import { finishJob } from './job-lease.js';
+import { renewLease } from './job-lease.js';
+import { takeJob } from './job-lease.js';
+import { createJob } from './job-store.js';
+import { jobView } from './job-store.js';
+import { writeStep } from './job-store.js';
+
+/** The job kind of a queued test run; the drive cell's gate reclaim never touches it. */
+export const TEST_RUN_KIND = 'test-run';
+
+/** The step `next` writes once it handed a finished run to its seat, so it is told once. */
+const DELIVERED = 'delivered';
+
+/** How often a worker renews its lease: well inside the 2-minute liveness window. */
+const RENEW_MS = 30_000;
+
+/** The CLI entry a worker runs, the same build that queued it. */
+const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../bin/pullboard.js');
+
+/**
+ * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
+ * (not the main checkout) inside an agent shell, with no `--wait`, and not itself a queued run's worker.
+ *
+ * Why the agent-shell check: a person or a script in a seat worktree keeps the blocking answer it always had, and
+ * PULLBOARD_TEST_WAIT lets any wrapper (an item check that runs pullboard test) keep it too.
+ *
+ * @param {any} ctx
+ * @param {string|undefined} agent - The seat's agent id, or undefined when the checkout has no seat.
+ * @param {Record<string, any>} values - The parsed switches.
+ * @param {NodeJS.ProcessEnv} [environment]
+ * @returns {boolean}
+ */
+export function queuesTestRun(ctx, agent, values, environment = process.env) {
+  if (values.wait === true || values['test-run'] !== undefined || environment.PULLBOARD_TEST_WAIT === '1') return false;
+  return !ctx.info.isMain && agent !== undefined && AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]));
+}
+
+/** Where a run's worker writes its own stdout and stderr. */
+function workerLog(ctx, id) {
+  return join(ctx.info.commonDir, 'pullboard', 'test-runs', `${id}.log`);
+}
+
+/**
+ * Record a queued run on the board and start its detached worker. Returns at once with the run id.
+ *
+ * @param {any} ctx
+ * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
+ * @param {{ agent: string, item?: number, files: string[], affected?: boolean, compareMain?: boolean }} run
+ * @param {{ launch?: typeof spawn, now?: number }} [options]
+ * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
+ */
+export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now() } = {}) {
+  const id = randomUUID();
+  const log = workerLog(ctx, id);
+  withBoard(board => {
+    createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
+    writeStep(board.db, id, 'queued', { agent: run.agent, files: run.files, affected: run.affected === true,
+      compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
+  });
+  mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
+  const out = openSync(log, 'a', 0o600);
+  try {
+    const args = [BIN, 'test', '--test-run', id, ...run.files,
+      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
+    const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
+      // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
+      env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
+    child.unref();
+  } finally { closeSync(out); }
+  return { id, status: 'queued', log, files: run.files };
+}
+
+/**
+ * Run a queued run's work as its worker: hold the job lease with a heartbeat, record the result, finish the job.
+ * A worker that dies stops renewing, and `next` reports the run lost 2 minutes later, never silently.
+ *
+ * @param {(work: (board: any) => any) => any} withBoard
+ * @param {string} id
+ * @param {() => Promise<object>} work - The blocking run; resolves to the result payload.
+ * @param {{ renewMs?: number }} [options]
+ * @returns {Promise<object>} The recorded result.
+ */
+export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS } = {}) {
+  const owner = `test-run:${process.pid}`;
+  const taken = withBoard(board => takeJob(board.db, id, owner, { leaseMs: LEASE_MS }));
+  if (!taken.taken) throw new Refused('TEST_RUN_TAKEN', `test run ${id} already has a live worker; read it with pullboard test --status ${id}`);
+  withBoard(board => writeStep(board.db, id, 'running', { pid: process.pid }));
+  const beat = setInterval(() => { try { withBoard(board => renewLease(board.db, id, owner)); } catch { /* the next beat retries */ } }, renewMs);
+  let result;
+  try { result = await work(); }
+  catch (error) { result = { green: false, error: { code: error?.code ?? 'TEST_RUN_FAILED', message: String(error?.message ?? error) } }; }
+  finally { clearInterval(beat); }
+  withBoard(board => { writeStep(board.db, id, 'result', result); finishJob(board.db, id, owner); });
+  return result;
+}
+
+/**
+ * One run's state as a plain record: queued, running, green, red or lost, with its files, result and log.
+ *
+ * @param {ReturnType<typeof jobView>} view
+ * @param {number} [now]
+ * @returns {{ id: string, status: string, agent: string|null, files: string[], log: string|null, result: any, delivered: boolean } | null}
+ */
+export function testRunState(view, now = Date.now()) {
+  if (!view || view.kind !== TEST_RUN_KIND) return null;
+  const step = name => view.steps.find(row => row.name === name)?.payload;
+  const queued = step('queued') ?? {};
+  const result = step('result') ?? null;
+  const delivered = view.steps.some(row => row.name === DELIVERED);
+  let status;
+  if (result) status = result.green ? 'green' : 'red';
+  else if (view.leaseOwner ? view.leaseUntil < now : view.created + LEASE_MS < now) status = 'lost';
+  else status = view.leaseOwner ? 'running' : 'queued';
+  return { id: view.id, status, agent: queued.agent ?? null, item: view.item, files: queued.files ?? [],
+    log: result?.logPath ?? queued.log ?? null, result, delivered };
+}
+
+/**
+ * Read one run by its id, or a unique prefix of it.
+ *
+ * @param {any} board
+ * @param {string} id
+ * @returns {ReturnType<typeof testRunState>}
+ */
+export function readTestRun(board, id) {
+  const rows = board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
+  if (rows.length !== 1) throw new Refused('NO_TEST_RUN', `${rows.length ? 'more than one' : 'no'} test run matches ${id}; pass the full run id that pullboard test printed`);
+  return testRunState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+}
+
+/**
+ * Every run of this seat that `next` has not handed back yet, oldest first.
+ *
+ * @param {any} board
+ * @param {string} agent
+ * @param {number} [now]
+ * @returns {NonNullable<ReturnType<typeof testRunState>>[]}
+ */
+export function ownTestRuns(board, agent, now = Date.now()) {
+  return board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
+    .map(row => testRunState(jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
+}
+
+/** Mark a run handed back, so `next` tells its seat once. */
+export function deliverTestRun(board, id) {
+  writeStep(board.db, id, DELIVERED, {});
+}
+
+/**
+ * Hand this seat every finished or lost run `next` has not told it of yet, first, the way a red gate comes back,
+ * and mark each delivered. Read first: a seat with nothing finished opens no write handle.
+ *
+ * @param {any} io
+ * @param {any} ctx
+ * @param {{ withBoard: Function, withBoardRead: Function, whoAmI: Function }} services
+ * @returns {{ delivered: number, pending: string[] }} How many runs came back, and the ids still queued or running.
+ */
+export function deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI }) {
+  const now = () => ctx.clock?.now?.().getTime?.() ?? Date.now();
+  const runs = withBoardRead(ctx, board => ownTestRuns(board, whoAmI(ctx, board).id, now()));
+  const finished = runs.filter(run => !['queued', 'running'].includes(run.status));
+  if (finished.length) withBoard(ctx, board => { for (const run of finished) deliverTestRun(board, run.id); });
+  for (const run of finished) for (const line of testRunLines(run)) io.say(line);
+  return { delivered: finished.length, pending: runs.filter(run => ['queued', 'running'].includes(run.status)).map(run => run.id) };
+}
+
+/**
+ * The lines `next` prints for one finished or lost run: the outcome, each failing test, the log.
+ *
+ * @param {NonNullable<ReturnType<typeof testRunState>>} run
+ * @returns {string[]}
+ */
+export function testRunLines(run) {
+  const files = run.files.length ? run.files.join(' ') : '--affected';
+  if (run.status === 'lost') return [`test run ${run.id} lost: its worker stopped before a result; run pullboard test ${files} again`,
+    ...(run.log ? [`  log: ${run.log}`] : [])];
+  const result = run.result ?? {};
+  const where = result.runner ? ` on ${result.runner}${Number.isFinite(result.seconds) ? ` in ${result.seconds}s` : ''}` : '';
+  return [`test run ${run.id} ${run.status}${where}: ${files}`,
+    ...(result.error ? [`  refused: [${result.error.code}] ${result.error.message}`] : []),
+    ...(result.failures ?? []).map(row => `  failing: ${row.file ?? '(file unavailable)'}: ${row.name}: ${row.error}`),
+    ...(result.notices ?? []).map(line => `  ${line}`),
+    ...(run.log ? [`  log: ${run.log}`] : [])];
+}
