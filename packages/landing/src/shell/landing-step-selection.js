@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { tryGit } from '../../../../src/git.js';
-import { landingLeaseState } from '../../../../src/board-landing-lease.js';
+import { landingLeaseState } from '../../../store/index.js';
 import { sameEnvironment } from '../../../verify/core.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
