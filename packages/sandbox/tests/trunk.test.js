@@ -204,7 +204,7 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture', '--model', FIXTURE_MODEL).code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture', '--model', FIXTURE_MODEL, '--route', 'strong').code, 0);
   return review;
 }
 
@@ -255,7 +255,7 @@ test('[B34,V6] accept rechecks the moved trunk and refuses with indexes and chec
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge main into your branch.*run the command again/);
+  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
   assert.deepEqual([box.repo, box.web, review].map(cwd => checkoutState(box, cwd)), before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', 'conflict cannot produce an accept receipt');
