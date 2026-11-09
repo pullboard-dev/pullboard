@@ -219,6 +219,26 @@ function releaseExited(running, releaseSlot) {
   }
 }
 
+/**
+ * Whether any worker this dispatcher started has exited without writing a result since it started; each exit is
+ * counted once. Why: the dispatcher sees its own worker's exit at once, so it need not wait for a timed sweep to learn
+ * of a death; on 8 Nov dead gates waited 22 min (p50) for their retry [C7].
+ *
+ * @param {Map<unknown, { exited: boolean, directory: string, startedAt: number, resultAt: number | null, deathSeen?: boolean }>} running
+ * @returns {boolean}
+ */
+export function exitedWithoutResult(running) {
+  let found = false;
+  for (const entry of running.values()) {
+    if (!entry.exited || entry.deathSeen) continue;
+    entry.deathSeen = true;
+    let at = entry.resultAt;
+    try { at ??= resultWrittenAt(entry.directory, entry.startedAt); } catch { at = null; }
+    if (at === null) found = true;
+  }
+  return found;
+}
+
 /** The name mark of a ticket whose item is urgent. */
 const URGENT_MARK = '.urgent';
 
@@ -312,8 +332,11 @@ async function sweepGoneHandoffs(sweep) {
   }
 }
 
-/** How often a dispatcher that stays busy sweeps again for hand-offs whose worker is gone [C7,#3450]. */
-const HANDOFF_SWEEP_EVERY_MS = 60_000;
+/**
+ * How often a dispatcher that stays busy sweeps again for hand-offs whose worker is gone [C7,#3450]. A worker this
+ * dispatcher started is swept the moment it exits; this bound covers workers an earlier dispatcher started.
+ */
+export const HANDOFF_SWEEP_EVERY_MS = 15_000;
 
 /**
  * A sweep that runs once at the start of a drain and again, in the background, at most every `everyMs` while it lasts.
@@ -322,17 +345,28 @@ const HANDOFF_SWEEP_EVERY_MS = 60_000;
  *
  * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
  * @param {number} everyMs - The least time between the starts of two sweeps.
- * @returns {{ now: () => Promise<void>, due: () => void, settled: () => Promise<void> }} Run now, start one if due, and wait for one in flight.
+ * `soon` starts a sweep at once or, while one runs, one more right after it, so a worker that just exited is swept
+ * within seconds rather than at the next `everyMs`.
+ *
+ * @returns {{ now: () => Promise<void>, due: () => void, soon: () => void, settled: () => Promise<void> }} Run now, start
+ *   one if due, start one as soon as none runs, and wait for the ones in flight.
  */
-function repeatingSweep(sweep, everyMs) {
+export function repeatingSweep(sweep, everyMs) {
   let startedAt = 0;
   let running = null;
-  /** Start one sweep and remember it until it ends. */
-  const start = () => { startedAt = Date.now(); running = sweepGoneHandoffs(sweep).finally(() => { running = null; }); return running; };
+  let again = false;
+  /** Start one sweep and remember it until it ends; a sweep asked for while it ran starts right after it. */
+  const start = () => {
+    startedAt = Date.now();
+    again = false;
+    running = sweepGoneHandoffs(sweep).finally(() => { running = null; if (again) start(); });
+    return running;
+  };
   return {
     now: () => start(),
     due() { if (sweep && !running && Date.now() - startedAt >= everyMs) start(); },
-    settled: () => running ?? Promise.resolve(),
+    soon() { if (!sweep) return; if (running) again = true; else start(); },
+    async settled() { while (running) await running; },
   };
 }
 
@@ -437,7 +471,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
     // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
     await sweeps.now();
-    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps.due, admission, onPass, running); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps, admission, onPass, running); }
     finally { await sweeps.settled(); lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -519,7 +553,7 @@ function passCapacity(capacity) {
  * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
  * next submit starts a fresh dispatcher [C7,#2990].
  */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweepIfDue = () => {}, admission = NO_ADMISSION, onPass = () => {}, running = new Map()) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweeps = { due() {}, soon() {} }, admission = NO_ADMISSION, onPass = () => {}, running = new Map()) {
   let wake = () => {};
   let lastLaunchAt = Date.now();
   let lastError = 'none';
@@ -537,7 +571,9 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
     try { onPass(); } catch (error) { logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
     if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
-    sweepIfDue();
+    // A worker that exited with no result is a dead gate: sweep now, so its gate ends and its retry starts in seconds.
+    if (exitedWithoutResult(running)) sweeps.soon();
+    sweeps.due();
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = passCapacity(capacity);
