@@ -1,15 +1,19 @@
 /** @pullboard-test-input source-tree */
 /** Item checks retry one infrastructure-only gate failure, retain it in the receipt, and leave test reds alone [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
-import { executionServicesSource } from './gate-execution-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
-import { deadlineRetrySource, lateTransportRetrySource } from './infra-retry-source.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+import { deadlineRetrySource } from '../../../test/infra-retry-source.js';
+import { lateTransportRetrySource } from '../../../test/infra-retry-source.js';
 
 /** Build a private runner pool with no configured host or relay connection. */
 function fixture(t) {
@@ -38,8 +42,8 @@ function child(box, source) {
 
 test('one runner deadline requeues the same item ticket once and records both attempts [C7]', t => {
   const box = fixture(t);
-  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
-  const resources = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../../../packages/gate/index.js')).href;
+  const resources = pathToFileURL(join(import.meta.dirname, '../../../packages/resources/index.js')).href;
   const command = deadlineRetrySource(gate, resources, box.runner,
     `node -e 'console.log("INFRA_RETRY_OK")'`, executionServicesSource(gate));
   const result = child(box, command);
@@ -58,7 +62,7 @@ test('one runner deadline requeues the same item ticket once and records both at
 
 test('a late transport failure receives one fresh bounded runner admission window [C7]', t => {
   const box = fixture(t);
-  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../../../packages/gate/index.js')).href;
   const source = lateTransportRetrySource(gate, box.runner, executionServicesSource(gate));
   const result = child(box, source);
   assert.equal(result.green, true);
@@ -76,7 +80,7 @@ test('a real command failure on an admitted slot is returned on its first attemp
   const box = fixture(t);
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   writeFileSync(settings, JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false }, runners: [] }));
-  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../../../packages/gate/index.js')).href;
   const command = `import { withGateSlot, runProfiledShellAsync } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 let calls=0;const receipts=[];
