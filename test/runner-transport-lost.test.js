@@ -12,7 +12,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { cellProject } from './cell-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { toolSourcePath } from '../packages/runners/index.js';
@@ -28,7 +27,8 @@ const RECOVERY_BOUND_MS = 5_000;
 
 /** Build a real private project and a private SSH executable; no configured machine host is contacted. */
 function fixture(t, { dropFirst = true } = {}) {
-  const box = cellProject(t, { gate: 'true' });
+  const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+  const box = e2e.project('true');
   const bin = join(box.dir, 'transport-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'worker-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
