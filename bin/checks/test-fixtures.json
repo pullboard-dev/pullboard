@@ -157,11 +157,11 @@
   "packages/gate/tests/land-affected.test.js": {
     "model": 1
   },
-  "packages/gate/tests/landing-no-nested-shards.test.js": {
+  "packages/landing/tests/landing-no-nested-shards.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
-  "packages/gate/tests/landing-stage-composition.test.js": {
+  "packages/landing/tests/landing-stage-composition.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/resources.test.js": {
