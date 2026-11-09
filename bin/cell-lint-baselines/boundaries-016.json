@@ -245,7 +245,6 @@
     "test/relay-person-outbox.test.js->test/relay-browser-fixture.js": 1,
     "test/relay-person-outbox.test.js->test/relay-client-fixture.js": 1,
     "test/relay-person-page.test.js->relay/browser-page.js": 1,
-    "test/relay-person-page.test.js->src/cockpit.js": 1,
     "test/relay-person-page.test.js->src/machine.js": 1,
     "test/relay-person-page.test.js->test/fixture-child.js": 1,
     "test/relay-person-page.test.js->test/relay-browser-fixture.js": 1,

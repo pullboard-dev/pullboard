@@ -20,7 +20,6 @@
     "src/board.js": 1689,
     "src/browser-admission.js": 158,
     "src/cli.js": 1247,
-    "src/cockpit.js": 599,
     "src/code-map.js": 227,
     "src/commands/spec.js": 77,
     "src/gate-execution.js": 103,
