@@ -100,7 +100,7 @@ function gitSpy(box) {
   return { env: { ...box.env, PATH: `${directory}:${box.env.PATH}` }, log };
 }
 
-test('verify --compare sends both commit ids to the runner and makes no clone, checkout or worktree here [V4,C7]', async t => {
+test('clause 1: verify --compare sends both commit ids to the runner and makes no clone, checkout or worktree here [V4,C7]', async t => {
   const box = fixture(t);
   writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:false,fixed:true,known:false,skip:true};\n');
   const head = submit(box);
