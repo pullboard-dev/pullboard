@@ -15,7 +15,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
-import { addMilestone } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';
 import { budgetState } from '../packages/stats/index.js';

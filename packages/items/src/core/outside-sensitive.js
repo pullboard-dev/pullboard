@@ -8,7 +8,7 @@ export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'src/seal.js', 'packages/kernel/src/core/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/relay-key.js', 'src/relay-device-keys.js',
   'src/person.js', 'src/person-request.js', 'src/relay-requests.js', 'src/relay-request-execution.js',
   'packages/link/src/shell/relay-requests.js', 'packages/link/src/shell/relay-request-execution.js', 'src/relay-sender.js',
-  'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js',
+  'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js', 'packages/store/src/shell/board-engine-ports.js',
   'src/row-decisions.js', 'src/row-decision-state.js', 'src/spec-approval.js', 'src/spec-approval-baseline.js',
   'src/hooks.js', 'packages/commits/src/shell/hooks.js', 'apps/cli/src/shell/commands/hook.js', 'apps/cli/src/shell/commands/hooks.js', 'pullboard.json',
 ]);

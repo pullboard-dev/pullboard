@@ -71,8 +71,8 @@ import {
   MOVE_OPERATIONS,
   minimumMoveEngine,
   declaredMoveActor,
-} from '../../../../src/move-registry.js';
-import { withMoveNextSteps } from '../../../../packages/moves/index.js';
+  withMoveNextSteps,
+} from '../../../../packages/moves/index.js';
 import {
   activeViewAgents,
   viewProofSummary,
@@ -169,10 +169,10 @@ import {
   removeMilestone,
   roadmap,
   shipMilestone,
-} from '../../../../src/board-milestones.js';
+} from '../../../../packages/store/index.js';
 import { beginCommandPhase } from '../../../../packages/link/index.js';
 
-import { boardEnginePorts } from '../../../../src/board-engine-ports.js';
+import { boardEnginePorts } from '../../../../packages/store/index.js';
 import {
   openBoardStore,
   requireRuntimePorts,
@@ -271,17 +271,20 @@ import {
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
 import * as self from './native-board.js';
-import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
-const MILESTONE_NAMES = ['addMilestone', 'editMilestone', 'editMilestoneItems', 'orderMilestoneItems', 'moveMilestone', 'removeMilestone', 'roadmap', 'shipMilestone'];
+/** The milestone operations, each read through its live binding at call time (the same cyclic-load rule). */
+const MILESTONE_READS = {
+  addMilestone: () => addMilestone, editMilestone: () => editMilestone, editMilestoneItems: () => editMilestoneItems, orderMilestoneItems: () => orderMilestoneItems,
+  moveMilestone: () => moveMilestone, removeMilestone: () => removeMilestone, roadmap: () => roadmap, shipMilestone: () => shipMilestone,
+};
 const libraryBoard = {};
 /** Properties read through live bindings, so a cyclic first load never reads a store export before it exists. */
 function libraryExport(name, read) { Object.defineProperty(libraryBoard, name, { enumerable: true, get: read }); }
 for (const name of Reflect.ownKeys(store)) if (typeof name === 'string') libraryExport(name, () => store[name]);
 for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
-for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
+for (const [name, read] of Object.entries(MILESTONE_READS)) libraryExport(name, read);
 export const board = Object.freeze(libraryBoard);
 export { closeBoard } from '../../../../packages/store/index.js';
 

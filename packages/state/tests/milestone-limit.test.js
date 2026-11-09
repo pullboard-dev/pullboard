@@ -22,10 +22,8 @@ import {
 } from 'node:test';
 import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
-import {
-  editMilestoneItems,
-  editMilestone,
-} from '../../../src/board-milestones.js';
+import { editMilestoneItems } from '../../store/index.js';
+import { editMilestone } from '../../store/index.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
 
