@@ -269,7 +269,7 @@ function recordedCapacity(name) {
   if (!existsSync(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    db.exec('PRAGMA busy_timeout = 10000');
+    db.exec('PRAGMA busy_timeout = 2000'); // a WAL read waits only on recovery; never stall an admission for it [C7]
     const capacity = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name)?.capacity;
     return Number.isSafeInteger(capacity) && capacity > 0 ? capacity : null;
   } catch { return null; } finally { db.close(); }
