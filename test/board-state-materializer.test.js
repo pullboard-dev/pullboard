@@ -83,10 +83,10 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
 });
 
 /** Serve the fixture with the state worker, and read its state over HTTP. */
-async function materializedApi(t, box, builds) {
+async function materializedApi(t, box, builds, statePorts = STATE_PORTS) {
   const records = [];
   const waiting = new Set();
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, statePorts: STATE_PORTS,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, statePorts,
     onStateBuild: (build) => builds.push(build), projects: () => [{ root: box.root, name: 'Materializer fixture' }],
     onStateRecord: (record) => { records.push(record); for (const waiter of waiting) waiter(record); } });
   /** Resolve once a built (not restored) record at or past `sequence` has landed. */
@@ -114,7 +114,7 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   const builds = [];
   const { api, read, landed } = await materializedApi(t, box, builds);
   const first = await read();
-  assert.equal(first.status, 200);
+  assert.equal(first.status, 200, JSON.stringify(first.document));
   const sequence = first.document.state.sequence;
   assert.deepEqual(builds.map((build) => build.full), [true], 'only the first read waits, on the one full build');
   appendLater(file, ids, 1, 70_000);
@@ -132,7 +132,7 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   assert.ok(delta.document.delta, 'a delta from a sequence the server sent is answered, not reset');
   await api.close();
   const cache = join(box.root, '.git', 'pullboard', 'state-cache');
-  assert.ok(existsSync(cache) && readdirSync(cache).some((name) => name.endsWith('.snapshot')), 'closing saves the board state to disk');
+  assert.ok(existsSync(cache) && readdirSync(cache).some((name) => name.endsWith('.result')), 'closing saves the board state to disk');
 
   const restarted = [];
   const again = await materializedApi(t, box, restarted);
@@ -140,4 +140,14 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   assert.ok(resumed.document.state.sequence >= sequence + 1, 'a restarted server serves the saved build at once');
   await again.landed(sequence + 1);
   assert.ok(restarted.every((build) => build.full === false), 'a restarted server extends the saved build instead of rebuilding every item');
+});
+
+test('[A2,C7] a state worker that cannot start never fails a read: the server builds on the request thread', async (t) => {
+  const box = apiHttpFixture(t);
+  const { read } = await materializedApi(t, box, [], 'data:text/javascript,throw new Error("no state ports here")');
+  const first = await read();
+  assert.equal(first.status, 200, JSON.stringify(first.document));
+  assert.ok(Number.isSafeInteger(first.document.state.sequence));
+  const second = await read();
+  assert.equal(second.status, 200, JSON.stringify(second.document));
 });
