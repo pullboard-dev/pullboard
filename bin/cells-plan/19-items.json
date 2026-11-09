@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/items",
  "frontDoor": "packages/items/index.js",
+ "pureDoor": "packages/items/pure.js",
  "paths": [
   ["src/blocks.js","packages/items/src/shell/blocks.js","seed"],
   ["src/brief.js","packages/items/src/core/brief.js","seed"],

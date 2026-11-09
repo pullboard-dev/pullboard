@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles } from './fixture-child.js';
 import {
+  cellTestReading,
   classifyTests,
   readListing,
   testCellsProblems,
@@ -194,4 +195,13 @@ test('clause 1: a declared split counts as its one source and its targets carry 
   assert.ok(texts.includes('split test/slow.test.js target test/missing.test.js does not exist'), texts.join('\n'));
   assert.ok(texts.includes('split test/other.test.js target packages/a/tests/good.test.js is not a root test file'), texts.join('\n'));
   assert.ok(texts.includes('split target test/slow-a.test.js sits in two splits, test/slow.test.js and test/other.test.js'), texts.join('\n'));
+});
+
+test('clause 1: a test in a later app cell importing an earlier app\'s core.js is a component test, not a deep import [C7]', () => {
+  const order = new Map([['apps/view', 1], ['apps/relay', 2]]);
+  const reading = target => cellTestReading('apps/relay/tests/page.test.js', `import { x } from '${target}';\nexport { x };\n`, { order });
+  const door = reading('../../view/core.js');
+  assert.deepEqual(door.problems, []);
+  assert.equal(door.tier, 'component');
+  assert.equal(reading('../../view/src/core/view.js').problems.length, 1, 'a deep import past the door stays refused');
 });

@@ -34,7 +34,7 @@ const MUTANTS = [
   ['S5', 'a sign-off counts whatever the row says now', [['src/spec.js', '    if (textOf.get(signoff.id) === signoff.text) standing.met.push(signoff);', '    if (true) standing.met.push(signoff);']], SIGNOFF, 'red'],
   ['S5', 'a sign-off records no text', [['src/spec.js', 'JSON.stringify({ id, by, on, text: byId.get(id).text })', 'JSON.stringify({ id, by, on })']], SIGNOFF, 'red'],
   ['S5', 'a row that is not approved can be signed', [['src/spec.js', "    return row.status === 'approved' ? [] : [`${id} is ${row.status}; only approved rows are signed`];", '    return [];']], SIGNOFF, 'red'],
-  ['S6', 'spec check lints SPEC.md only', [['src/cli.js', 'const files = [[ctx.config.spec, spec], ...(practice.exists ? [[ctx.config.practice, practice]] : [])];', 'const files = [[ctx.config.spec, spec]];']], BOTH_FILES, 'red'],
+  ['S6', 'spec check lints SPEC.md only', [['apps/cli/src/shell/commands/spec.js', 'const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];', 'const files = [[ctx.config.spec, spec]];']], BOTH_FILES, 'red'],
   ['S7', 'the page leaves out its practice tab', [['apps/view/src/core/view.js', '<label for="t-practice">Practice</label>', '']], ONE_PAGE, 'red'],
   ['S8', 'a committed id may leave the spec', [['src/spec.js', "    .filter(([id]) => !present.has(id))\n    .map(([id, commit]) => ({", "    .filter(() => false)\n    .map(([id, commit]) => ({"]], PERMANENT, 'red'],
   ['S8', 'an id cited but never committed passes', [['src/spec.js', '    if (!present.has(id) && !committed.has(id)) {', '    if (false) {']], PERMANENT, 'red'],
