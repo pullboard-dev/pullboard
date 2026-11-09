@@ -2432,7 +2432,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-canary-history.test.js",
+      "file": "test/relay-canary-history.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2490,7 +2490,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-device-confirmation.test.js",
+      "file": "test/relay-device-confirmation.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2605,7 +2605,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-machine-storage.test.js",
+      "file": "test/relay-machine-storage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2705,7 +2705,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-setup-once.test.js",
+      "file": "test/relay-setup-once.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2763,7 +2763,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-stall-phases.test.js",
+      "file": "test/relay-stall-phases.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2821,7 +2821,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-sync.test.js",
+      "file": "test/relay-sync.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20721,7 +20721,7 @@
       ]
     },
     {
-      "file": "test/family-bulk-read.test.js",
+      "file": "packages/items/tests/family-bulk-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -44355,7 +44355,7 @@
       ]
     },
     {
-      "file": "test/runner-worker-state.test.js",
+      "file": "packages/verify/tests/runner-worker-state.test.js",
       "tier": "T3",
       "packages": [
         ".",

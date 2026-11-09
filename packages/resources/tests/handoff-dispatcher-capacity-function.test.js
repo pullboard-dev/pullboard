@@ -1,21 +1,26 @@
 /** The dispatcher joins existing capacity with a capacity function, and says why it died [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryDirectory } from './board-fixture.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { HANDOFF_WORKER_RESOURCE } from '../packages/resources/index.js';
-import { drainHandoffQueue } from '../packages/resources/index.js';
-import { handoffDispatcherLog } from '../packages/resources/index.js';
-import { handoffQueueDirectory } from '../packages/resources/index.js';
-import { listResources } from '../packages/resources/index.js';
-import { queueHandoffLaunch } from '../packages/resources/index.js';
-import { reserveHandoffTicket } from '../packages/resources/index.js';
-import { takeResource } from '../packages/resources/index.js';
+import { HANDOFF_WORKER_RESOURCE } from '../index.js';
+import { drainHandoffQueue } from '../index.js';
+import { handoffDispatcherLog } from '../index.js';
+import { handoffQueueDirectory } from '../index.js';
+import { listResources } from '../index.js';
+import { queueHandoffLaunch } from '../index.js';
+import { reserveHandoffTicket } from '../index.js';
+import { takeResource } from '../index.js';
 
-const DISPATCHER = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
+const DISPATCHER = fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url));
 
 /** A worker that records its own result at once, so the drain ends without a timed hold. */
 const WORKER = `const { writeFileSync } = require('node:fs');

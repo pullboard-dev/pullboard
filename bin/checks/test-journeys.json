@@ -3249,30 +3249,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/dispatcher-kill-eperm.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/dispatcher-kill-eperm.test.js)"
-      ]
-    },
-    "test/dispatcher-slot-locked.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/dispatcher-slot-locked.test.js)"
-      ]
-    },
     "test/doctor.test.js": {
       "cells": [
         "commits",
@@ -4007,30 +3983,6 @@
       ],
       "reasons": [
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/handoff-dispatcher-capacity-function.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/handoff-dispatcher-capacity-function.test.js)"
-      ]
-    },
-    "test/handoff-dispatcher-connections.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources"
-      ],
-      "reasons": [
-        "spawns a child process (test/handoff-dispatcher-connections.test.js)"
       ]
     },
     "test/handoff-dispatcher-liveness.test.js": {
