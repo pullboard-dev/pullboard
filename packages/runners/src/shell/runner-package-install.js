@@ -14,7 +14,8 @@ import { gunzipSync } from 'node:zlib';
 
 /** Install a complete immutable module capsule without reading the job's stdin stream. */
 export function installRunnerPackage(payload, expected, configuredRoot) {
-  const bytes = gunzipSync(Buffer.from(payload, 'base64'), { maxOutputLength: 1_048_576 });
+  // 8 MiB of sources under the 4 MiB stdin capsule bound; the worker code passed 1 MiB on 9 Nov (#3884).
+  const bytes = gunzipSync(Buffer.from(payload, 'base64'), { maxOutputLength: 8 * 1_048_576 });
   if (createHash('sha256').update(bytes).digest('hex') !== expected) throw new Error('invalid capsule identity');
   const files = JSON.parse(bytes);
   const home = process.env.HOME;

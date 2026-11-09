@@ -145,7 +145,7 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound stays 1 MiB. */
+/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound is 8 MiB. */
 export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
 
 /**
