@@ -35,6 +35,7 @@ import * as store from '../../../../packages/store/index.js';
 import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
+import { withGateProgress } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
 import { rowSink } from '../../../../packages/drive/index.js';
 import { recordJobRow } from '../../../../packages/drive/index.js';
@@ -218,20 +219,21 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
  * more is written to the drive job, which stays resumable at its last saved step. The drive cell's `run.signal` ends
  * one run the same way when it stalls, so that run starts no new stage and no rerun while the cell reruns the same
- * candidate (#3661).
+ * candidate (#3661). The cell's `run.progress` is what the gate's runner waits and test runs report to, so a long
+ * healthy tests section is never read as a stall (#3829).
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
  * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
  *   healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
- * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal }) => Promise<object>}
+ * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal, progress?: (detail: object) => void }) => Promise<object>}
  */
 export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
-  return async (observe, { signal: ended } = {}) => {
+  return async (observe, { signal: ended, progress } = {}) => {
     const halt = stop && ended ? AbortSignal.any([stop, ended]) : stop ?? ended;
     const runStages = (stages, settings) => runGateStages(observe(halt ? stoppableStages(stages, halt, inflight) : stages), settings);
     ctx.runGateStages = runStages;
-    try { return await handoffGate(ctx, request, options); }
+    try { return await withGateProgress(progress, () => handoffGate(ctx, request, options)); }
     catch (error) {
       if (halt?.aborted) return new Promise(() => {});
       return handoffRefusedResult(error);

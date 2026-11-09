@@ -76,6 +76,7 @@ export { testRunPhaseClock } from './src/shell/test-run-phases.js';
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 
 export { runGateStages } from "./src/core/gate-stages.js";
+export { GATE_PROGRESS_MS, withGateProgress, reportGateProgress, progressingWait, whileGateRuns } from "./src/shell/gate-progress.js";
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
 
 export { privateCheckAdmission } from './src/shell/private-check-admission.js';
