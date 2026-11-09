@@ -31,6 +31,17 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   assert.equal(await box.git(box.repo, 'status', '--porcelain=v1'), before.status);
   assert.deepEqual(existsSync(hook) ? readFileSync(hook) : null, hookBefore, 'the additive command never activates or replaces the existing hook');
   coveredRoots.add('push-receipts');
+  // The read-only gate health report is one document with its gate and landing halves.
+  const health = await uncataloguedRootJSON(box, box.repo, 'gate-health');
+  assert.deepEqual([typeof health.report, typeof health.landing], ['object', 'object']);
+  // shadow-batch composes only accepted items, so a name no item answers to is refused by name and changes nothing.
+  const shadow = await withCatalogChild(() => runFixtureChildAsync(process.execPath,
+    [fileURLToPath(new URL('../bin/pullboard.js', import.meta.url)), 'shadow-batch', '99999', '--json'],
+    { cwd: box.repo, env: box.env, input: '', encoding: 'utf8' }));
+  assert.equal(shadow.status, 1, shadow.stdout + shadow.stderr);
+  assert.equal(JSON.parse(shadow.stdout).error.code, 'NO_SUCH_ITEM');
+  assert.equal(await box.git(box.repo, 'rev-parse', 'HEAD'), before.head);
+  coveredRoots.add('shadow-batch');
 }
 
 /** Exercise immutable patches through actual submitted source and ordinary coordinator CLI authority. */
