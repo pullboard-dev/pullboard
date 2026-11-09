@@ -21,6 +21,8 @@ export * from "./src/shell/landing-host.js";
 export * from "./src/core/landing-main-notices.js";
 export * from "./src/core/landing-message.js";
 export * from "./src/shell/landing-replay.js";
+export { landingHealthReport } from "./src/shell/landing-health.js";
+export { landingHealthSummary, landingHealthLines } from "./src/core/landing-health.js";
 export * from "./src/shell/landing-resource.js";
 export { takeLandingResource } from "./src/shell/landing-resource.js";
 export * from "./src/shell/landing-shards.js";
@@ -64,3 +66,5 @@ export { finishLanding, LANDING_FINISH_STEPS } from './src/shell/landing-finish.
 export { landWhy, landWhyLines, landingLine } from './src/core/land-why.js';
 export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, runnerSourceHold } from './src/core/runner-source-hold.js';
 export { landingReceiptReuse } from './src/shell/landing-receipt-reuse.js';
+export { refreshMainRedComparisons } from './src/shell/main-red.js';
+export { holdRefreshFlight } from './src/shell/main-red-refresh-flight.js';

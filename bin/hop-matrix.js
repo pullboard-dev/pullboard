@@ -77,6 +77,8 @@ export const HOPS = Object.freeze([
     invariant: `Board commands answer in under ${COMMAND_TARGET_MS} ms.`,
     live: (report, extra) => extra.statusMs === undefined ? null
       : { seen: `pullboard status ${Math.round(extra.statusMs)} ms`, agrees: extra.statusMs < COMMAND_TARGET_MS } },
+  { id: 'board-write', stage: 'All', hop: 'board write never queues', harness: 'board-write', fix: '58f204a4af',
+    invariant: 'A write in a busy checkout answers, and holds the board lock under 1 s, past a slow same-session command, a long reader, a gate worker and dead holders.' },
 ]);
 
 /**

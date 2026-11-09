@@ -19,6 +19,7 @@ import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';
 import { compareMainFailures } from './main-red.js';
 import { cachedFailureSignatures } from './main-failure-matches.js';
+import { landingRunnersOnly } from './landing-host.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -80,11 +81,21 @@ export function heldTestDefects(root, board, trunk, landingPorts, { defects = st
     if (defect.branch !== trunk.branch) return [];
     if (!defectStillHolds(board, defect, getItem)) return [];
     const status = defectItemStatus(board, defect, getItem);
-    const blob = testBlob(root, trunk.commit, defect.test);
-    const holds = !(blob && blob !== defect.blob && blob !== defect.trunkBlob) && !defect.names.every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts))
-      && !defectPassedAtTrunk(root, trunk, defect, comparison);
+    const holds = !defectReleasedWithoutRun(root, board, trunk, defect, landingPorts) && !defectPassedAtTrunk(root, trunk, defect, comparison);
     return holds ? [{ ...defect, status: status ?? undefined }] : [];
   });
+}
+
+/**
+ * True when a test defect no longer holds whatever a run would say: its committed test changed since the defect was
+ * recorded, or a live waiver covers every recorded case. Without `landingPorts` no waiver is read.
+ * Why: closing a defect ran its test on a runner before every landing even when the test had changed and the defect
+ * held nothing; #3296's moved test cost each wake 3 to 5 minutes before the landing lease on 9 Nov [C7].
+ */
+export function defectReleasedWithoutRun(root, board, trunk, defect, landingPorts) {
+  const blob = testBlob(root, trunk.commit, defect.test);
+  if (blob && blob !== defect.blob && blob !== defect.trunkBlob) return true;
+  return Boolean(landingPorts) && (defect.names ?? []).every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts));
 }
 
 /** The LAND_TEST_DEFECT refusal text for the defects holding a trunk, naming each repair item and its live status [C7]. */
@@ -98,13 +109,15 @@ export function testDefectHoldMessage(held) {
  * Why: heldTestDefects releases on a run at the current tip only, and every landing moves the tip, so the automatic
  * lander refused #3304 LAND_TEST_DEFECT again one landing after its test was recorded green (#3694).
  */
-export async function closePassedTestDefects({ root, board, trunk, write, say = () => {}, onWait }, { defects = store.landingTestDefects, comparison = cachedMainComparison, measure = compareMainFailures } = {}) {
+export async function closePassedTestDefects({ root, board, trunk, write, say = () => {}, onWait, landingPorts }, { defects = store.landingTestDefects, comparison = cachedMainComparison, measure = compareMainFailures } = {}) {
   const closed = [];
   for (const defect of defects(board)) {
     if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item)) continue;
     // A defect whose repair item was withdrawn or landed holds nothing, so its test is not run for it (#3761).
     if (!defectStillHolds(board, defect)) continue;
     if (!defectPassedAtTrunk(root, trunk, defect, comparison)) {
+      // A changed or waived test holds nothing, so no runner run stands between the accept and its landing [C7].
+      if (defectReleasedWithoutRun(root, board, trunk, defect, landingPorts)) continue;
       await measureHeldTest(root, trunk, defect, onWait, measure);
       if (!defectPassedAtTrunk(root, trunk, defect, comparison)) continue;
     }
@@ -167,13 +180,15 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
   const order = new Map();
-  for (const event of store.events(board)) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
+  // Only accept rows set the order; reading every event (380,000 on 9 Nov) cost each selection about 2 s [C7].
+  const accepts = board.db ? board.db.prepare("SELECT item_id, event_id, event_kind FROM event WHERE event_kind = 'accept' ORDER BY event_id").all() : store.events(board);
+  for (const event of accepts) if (event.event_kind === 'accept') order.set(event.item_id, event.event_id);
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).
-  const failed = roundFailures(batches);
+  const failed = landingTurns(batches, roundFailures(batches), pending);
   pending.sort((left, right) => {
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
@@ -202,7 +217,10 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // Unverified submissions not already on base, read once: a pending item stacks on one when that submission's commit
   // is among the item's own commits past base. Why: two merge-base walks per pending item per submission (850 Git
   // processes for 85 waiting items) cost 4 minutes of every selection and left the lander idle between batches.
-  const unverified = store.unverifiedSubmissions(board).filter((other) => tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+  // A submission already on base can never be among an item's own commits past base (rev-list item ^base below), so
+  // no ancestry test is needed. Why: one merge-base process per historical submission (thousands) cost 33 s of every
+  // selection, and a landing selects twice: before its lease and again in its batch, on 9 Nov [C7].
+  const unverified = pending.length ? store.unverifiedSubmissions(board) : [];
   let staleProbes = 0;
   for (const original of pending) {
     // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
@@ -267,6 +285,31 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
 }
 
 /**
+ * Each item's place behind untried work: its failure turn, or, for an item whose latest batch ended blocked for a
+ * reason that names no test (LAND_DIAGNOSTIC), one turn after every failure. Ordering only; batch sizing still reads
+ * roundFailures alone. Why: such a block counted as no outcome, so #3478 and #3687 kept their accept-order place and
+ * were retried four times while #3862 and #3852, accepted later and never tried, waited 10 to 12 minutes on 9 Nov [C7].
+ *
+ * @param {object[]} batches - The board's landing batches, oldest first.
+ * @param {Map<number, number>} failed - roundFailures(batches).
+ * @param {{ item_id: number, item_commit: string }[]} pending - The verified items; a block of an older commit is not theirs.
+ * @returns {Map<number, number>}
+ */
+export function landingTurns(batches, failed, pending) {
+  const commits = new Map(pending.map(item => [item.item_id, item.item_commit]));
+  const turns = new Map(failed);
+  let clock = Math.max(0, ...failed.values());
+  const latest = new Map();
+  for (const batch of batches) if (batch?.id) latest.set(batch.id, batch);
+  for (const batch of latest.values()) {
+    if (batch.state !== 'blocked' || batch.dropped || batch.supersededByMain) continue;
+    clock += 1;
+    for (const entry of batch.items ?? batch.candidates ?? []) if (!failed.has(entry.id) && commits.get(entry.id) === entry.commit) turns.set(entry.id, clock);
+  }
+  return turns;
+}
+
+/**
  * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
  * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
  */
@@ -282,10 +325,12 @@ export function perItemMaximum(config, maximum = Infinity) {
 /**
  * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
  * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ * still holds. A hand landing with no setting keeps taking every waiting item. A runners-only machine takes one [C7,H24].
  */
-export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
-  if (landsPerItem(config)) return 1;
+export function landingMaximum(board, config, maximum = Infinity, automatic = false, { runnersOnly = landingRunnersOnly() } = {}) {
+  // A runners-only machine runs a landing gate on one runner with no fan-out, so a batch's union rerun can outgrow what
+  // one runner finishes; one item a batch lands each on its own submit proof plus a small rerun [C7].
+  if (landsPerItem(config) || runnersOnly) return 1;
   const override = store.lineSettings(board).landingBatchSize;
   if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
   return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));

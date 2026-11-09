@@ -13,4 +13,5 @@ export { HANDOFF_DISPATCHER_OWNER_ENV, HANDOFF_WORKER_LIFELINE_ENV, onDispatcher
 export { claimHandoffRecoveryTurn, handoffDispatcherMayBeDead, recoverHandoffDispatcher } from './src/shell/handoff-dispatcher-recovery.js';
 export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHandoffRoot } from './src/shell/handoff-folder-prune.js';
 export { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from './src/shell/gate-spans.js';
+export { closeLandingSpans, landingSpan, landingSpanFolder, openLandingSpans, readLandingSpans, recordLandingSpan } from './src/shell/landing-spans.js';
 export { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from './src/shell/handoff-queue-owner.js';

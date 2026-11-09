@@ -16,9 +16,12 @@ import { runFixtureGit } from '../../../test/fixture-child.js';
 /** Files enough that `rev-list --objects` prints more than 8 MiB of object lines. */
 const FILES = 36_000;
 
-/** A long, distinct path for file `index`, so each object line is about 250 bytes. */
+/**
+ * A long, distinct path for file `index`, so each object line is about 280 bytes, spread over 200 folders so that no
+ * single tree object nears the 8 MiB per-object scan limit.
+ */
 function longPath(index) {
-  return `history/${'p'.repeat(200)}-${String(index).padStart(6, '0')}.txt`;
+  return `history/${'d'.repeat(100)}-${String(index % 200).padStart(3, '0')}/${'p'.repeat(120)}-${String(index).padStart(6, '0')}.txt`;
 }
 
 /** A repository whose one commit holds FILES distinct blobs at long paths, written by one fast-import, plus `extra` files. */
