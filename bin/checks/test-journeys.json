@@ -9991,20 +9991,6 @@
         "imports past moves front door (packages/moves/src/core/moves/verify.js)"
       ]
     },
-    "test/sentinel-machine-stall.test.js": {
-      "cells": [
-        "app:lib",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "imports past health front door (packages/health/src/core/machine-stall.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/sentinel-rank.test.js": {
       "cells": [
         "app:cli",
