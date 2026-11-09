@@ -227,7 +227,12 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   const accepted = box.run(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], after);
+  assert.deepEqual(checkoutState(box, box.web), after[1], 'accept leaves the builder checkout and index as submitted');
+  // Accept lands the verified source on trunk, so the primary checkout advances cleanly to contain it.
+  const landed = checkoutState(box, box.repo);
+  assert.equal(box.git(box.repo, 'merge-base', after[1].head, landed.head), after[1].head, 'the primary head contains the verified builder head');
+  assert.deepEqual({ status: landed.status, staged: landed.staged, work: landed.work, result: landed.result },
+    { status: '', staged: '', work: '', result: after[1].result }, 'the primary checkout is clean and carries the landed content');
 });
 
 test('[B34,V6] conflicting submit names files and refuses without changing any checkout or index', () => {
