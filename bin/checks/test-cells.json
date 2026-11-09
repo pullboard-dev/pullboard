@@ -1106,6 +1106,7 @@
     "activity",
     "api",
     "apps/relay",
+    "apps/view",
     "blueprints",
     "codemap",
     "commits",
