@@ -94,7 +94,7 @@ function submittedItem({ uncovered, reasoning = false, check = true }) {
   commit(box, box.repo, 'chore: seed accept fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web');
+  ok(box, builder, 'join', 'web', '--route', 'strong');
   const criterion = reasoning
     ? '1. The page shows a greeting [test]; 2. The greeting names the visitor by first name [test]; 3. Old browsers fall back to plain text, shown by the greeting using no markup [reasoning]'
     : uncovered
