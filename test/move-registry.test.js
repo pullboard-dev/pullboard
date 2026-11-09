@@ -187,7 +187,7 @@ if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();
   try {
-    const forbidden=new Set(['packages/store/src/shell/board.js','packages/state/src/shell/engine.js','packages/store/src/shell/board-engine-ports.js','apps/cli/src/core/next-step-words.js','packages/moves/src/shell/move-registry.js','packages/git/src/shell/git.js']);
+    const forbidden=new Set(['src/board.js','src/engine.js','src/board-engine-ports.js','src/next-step-words.js','src/move-registry.js','src/git.js']);
     const seen=new Set();
     let pending=['packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
     while(pending.length) {
