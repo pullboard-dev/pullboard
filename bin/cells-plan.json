@@ -1749,6 +1749,10 @@
       "path": "bin/cut-shims.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "codemap"
+    },
+    {
+      "path": "src/move-history/249.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -2157,6 +2161,22 @@
       "row": [
         "src/browser-source-files.js",
         "packages/gate/src/shell/browser-source-files.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-origin.js",
+        "apps/cli/src/shell/submit-handoff-origin.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-seal.js",
+        "apps/cli/src/shell/submit-handoff-seal.js",
         "rule"
       ]
     }
@@ -3515,6 +3535,7 @@
     "gate->store",
     "github->store",
     "items->git",
+    "items->kernel",
     "items->store",
     "keys->store",
     "landing->git",

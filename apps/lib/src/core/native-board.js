@@ -44,8 +44,8 @@ import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/i
 import { renewReview } from '../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
 import { releaseReview } from '../../../../packages/jobs/index.js';
-import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
-import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
+import { submitHandoffBoardRoot } from '../../../../packages/sandbox/index.js';
+import { sealSubmitHandoffQueue } from '../../../../packages/sandbox/index.js';
 import {
   validateQuarantineProofIds,
   quarantineVerdictSnapshot,

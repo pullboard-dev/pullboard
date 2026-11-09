@@ -29,6 +29,7 @@ import {
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { removeGitRepositorySelectors } from '../core/git-child-selectors.js';
+import { localEnvVars } from './git-local-env.js';
 
 // gc.auto=0: a landing's own commits never start a background repack in its worktree (minutes under the batch) [C7].
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0'];
@@ -651,12 +652,7 @@ export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
   removeGitRepositorySelectors(env, report);
   const discoveryEnv = { ...env };
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR']) delete discoveryEnv[name];
-  const result = gitSpawnSync(['rev-parse', '--local-env-vars'], {
-    cwd: root,
-    env: discoveryEnv,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
+  const result = localEnvVars(root, discoveryEnv);
   if (result.status === 0) for (const name of result.stdout.split('\n')) delete env[name];
   else for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_PREFIX']) delete env[name];
   env.GIT_NO_REPLACE_OBJECTS = '1'; // Exact-tree receipts never resolve replacement refs.
