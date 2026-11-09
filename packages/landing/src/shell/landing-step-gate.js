@@ -45,7 +45,7 @@ import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
-import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { smokeCandidate } from './landing-cli-smoke.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
@@ -249,10 +249,11 @@ export function landingRunObserver(state, config, commit) {
  * Why here: every automatic landing (inline, local trunk, parallel candidate, and their bisections) gates its final
  * tree through gateGroup before publication, so this one boundary covers them all with no skip list.
  */
-function smokeTree(state, tree) {
+async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
-  runLandingCliSmoke(state.batch.root, { record: true });
+  // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
+  await smokeCandidate(state.batch.root, { record: true });
   state.smoked.add(tree);
 }
 
@@ -304,7 +305,7 @@ function closurePort(state, commit, full, files) {
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
-  smokeTree(state, tree);
+  await smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
   let { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);

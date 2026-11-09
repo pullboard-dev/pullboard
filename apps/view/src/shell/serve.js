@@ -516,7 +516,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
  * A cheap marker of everything derivedState reads: the board's id, the newest event, shout and verdict, the holds, the item count and
  * newest id, each named file's size and times, and the caller's own parts (HEAD, row-age heads, the minute, config).
  * Why these: every board move records an event in the same transaction, so a read that sees the same newest event saw
- * the same items, settings, milestones and batches; shouts, verdicts and holds have their own tables.
+ * the same items, settings, milestones and batches; shouts, verdicts and holds have their own tables, a hold's row is
+ * replaced in place, and total_changes() catches any write made on the reading connection itself, raw or not.
  *
  * @param {any} board
  * @param {string} root
@@ -526,7 +527,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
  */
 function derivedMarker(board, root, files, parts) {
   const row = board.db.prepare(`SELECT (SELECT meta_value FROM board_meta WHERE meta_key = 'board_id') AS board, (SELECT MAX(event_id) FROM event) AS event, (SELECT MAX(shout_id) FROM shout) AS shout,
-    (SELECT COUNT(*) || ':' || MAX(rowid) FROM verdict) AS verdict, (SELECT COUNT(*) || ':' || MAX(rowid) FROM hold) AS hold,
+    (SELECT COUNT(*) || ':' || MAX(rowid) FROM verdict) AS verdict,
+    (SELECT group_concat(hold_lane || char(31) || hold_reason || char(31) || hold_by || char(31) || hold_at, char(30)) FROM hold) AS hold, total_changes() AS written,
     (SELECT COUNT(*) || ':' || MAX(item_id) FROM item) AS item`).get();
   const stats = files.map(file => {
     try { const stat = statSync(resolve(root, file)); return [stat.size, stat.mtimeMs, stat.ctimeMs, stat.ino]; } catch { return null; }
@@ -605,11 +607,12 @@ function requestCookie(header, name) {
 const credentialMatches = (given, expected) => given.length === expected.length && timingSafeEqual(given, expected);
 
 /**
- * Serve the view until stopped, optionally giving its API access to only one registered project.
+ * Serve the view until stopped, optionally giving its API access to only one registered project. With `statePorts`,
+ * the URL of a module exporting boardStatePorts(), a worker keeps each board's state built and a read only serves it.
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, statePorts } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
@@ -630,7 +633,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {

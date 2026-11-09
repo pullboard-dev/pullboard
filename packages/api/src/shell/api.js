@@ -978,6 +978,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // Keep projection, global fields, event history and sequence in one SQLite read transaction.
     const built = withBoard(board.root, (currentBoard) => buildLocalBoardState(board.root, board.id, currentBoard, codeIsMain, {
       previous: fullItemRebuild ? null : cached,
+      previousHistory: cached?.comparisonHistory ?? null,
       fullItemRebuild,
       refreshVerdicts: !fullItemRebuild && JSON.stringify(cached.inputs.trunk) !== JSON.stringify(before.inputs.trunk),
       afterSequence: cached?.sequence ?? 0,
@@ -1112,7 +1113,16 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
-  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused }) : null;
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused,
+    onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads now build on the request thread\n`) }) : null;
+  /**
+   * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
+   * that were waiting on it: a failed worker never fails a read. A refusal from a running worker's build stands.
+   */
+  function materialized(fromWorker, direct) {
+    if (!materializer?.alive) return direct();
+    return fromWorker().catch((error) => { if (materializer.alive) throw error; return direct(); });
+  }
   // Each board's item details by item id, and each board's spec-approval view (#1040).
   const detailCache = new Map();
   const approvalCache = new Map();
@@ -1299,16 +1309,16 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
-    stateJson: (board, who, seen, options) => materializer?.alive ? materializer.stateJson(board, seen, { ...options, stateDetail }) : projectRead(board, () => {
+    stateJson: (board, who, seen, options) => materialized(() => materializer.stateJson(board, seen, { ...options, stateDetail }), () => projectRead(board, () => {
       const sent = localState(board, seen, options);
       return { json: sent.json, validator: sent.validator, reportValidator: sent.reportValidator };
-    }),
+    })),
     watchRevision: (board) => {
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
       return materializer?.alive ? materializer.watch(board, watched) : watched;
     },
-    delta: (board, who, seen, options) => materializer?.alive ? materializer.delta(board, seen, options, refusalDocument) : projectRead(board, () => localDelta(board, seen, options)),
+    delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
@@ -1318,7 +1328,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return proof;
     }, codeIsMain, boardOpeners)),
     item: (board, id) => projectRead(board, () => localItem(board, id)),
-    search: (board, text) => materializer?.alive ? materializer.search(board, text) : projectRead(board, () => localSearch(board, text)),
+    search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),

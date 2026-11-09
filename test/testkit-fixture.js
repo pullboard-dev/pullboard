@@ -130,6 +130,19 @@ export function fixtureMachineSettings(machineHome, settings) {
 }
 
 /**
+ * Write a file the repository's cells-plan tooling reads (bin/cells-plan.json) into a fixture project before its commit.
+ *
+ * Why: the hand-policy check sends tests here instead of writing bin/cells-plan.json by hand.
+ *
+ * @param {string} repo - The fixture repository root.
+ * @param {string} text - The plan file's text.
+ * @returns {void}
+ */
+export function fixtureCellsPlan(repo, text) {
+  writeFileSync(join(repo, 'bin', 'cells-plan.json'), text);
+}
+
+/**
  * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
  *
  * Why: policy files are written once here, so a policy rule change is met for every test.
