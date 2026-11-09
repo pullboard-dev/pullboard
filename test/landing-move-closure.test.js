@@ -10,7 +10,7 @@ import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles, packageFiles, runnerExecutionServices } from '../packages/runners/index.js';
 import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions, warmAcceptedCells } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
-import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
