@@ -2,10 +2,12 @@
 /** Real native eligibility and dispatch keep strict reviews from starving [C7,N2,V1,A6]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixture, cli } from './next-take-fixture.js';
-import * as store from '../packages/store/index.js';
-import { healthReport } from '../packages/health/index.js';
-import { defaults, configProblems } from '../packages/config/index.js';
+import { fixture } from './next-fixture.js';
+import { next } from './next-fixture.js';
+import * as store from '../../store/index.js';
+import { healthReport } from '../../health/index.js';
+import { defaults } from '../../config/index.js';
+import { configProblems } from '../../config/index.js';
 
 /** Observe actual health against the fixture's immutable source and injected native clock. */
 function health(box, config = box.config) {
@@ -14,7 +16,7 @@ function health(box, config = box.config) {
 }
 
 test('an eligible idle agent gets an eleven-minute strict review before a build while its builder gets the build [C7,N2,V1]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const waiting = box.add('Strict review waiting eleven minutes', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
   const build = box.add('Separate available build', { brief: 'Files: web/other.js\nTest: a genuinely independent build remains open.' });
@@ -25,18 +27,18 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   assert.equal(finding.detail.ageMs, 11 * 60_000);
   assert.ok(finding.detail.eligible.includes(box.seats.outside.id));
   assert.deepEqual(store.events(box.board), before, 'health never writes board state');
-  const offered = await cli(box, box.seats.outside.path, ['next']);
-  assert.equal(offered.code, 0, offered.out + offered.err);
-  assert.equal(offered.document.item.item_id, waiting);
-  assert.equal(offered.document.review, true);
+  box.as('outside');
+  const offered = await next(box);
+  assert.equal(offered.item.item_id, waiting);
+  assert.equal(offered.review, true);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
-  const builder = await cli(box, box.seats.builder.path, ['next']);
-  assert.equal(builder.code, 0, builder.out + builder.err);
-  assert.equal(builder.document.item.item_id, build, 'canonical self-review exclusion is preserved');
+  box.as('builder');
+  const builder = await next(box);
+  assert.equal(builder.item.item_id, build, 'canonical self-review exclusion is preserved');
 });
 
 test('clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const oldest = box.add('Oldest review waiting two minutes');
   box.submit(oldest);
   box.advance(60_000);
@@ -44,15 +46,15 @@ test('clause 1: a free seat takes the oldest eligible review after two minutes r
   box.submit(newer);
   const build = box.add('Open build while reviews wait', { brief: 'Files: web/other.js\nTest: the unrelated build remains open.' });
   box.advance(60_000);
-  const offered = await cli(box, box.seats.outside.path, ['next']);
-  assert.equal(offered.code, 0, offered.out + offered.err);
-  assert.equal(offered.document.item.item_id, oldest);
-  assert.equal(offered.document.review, true);
+  box.as('outside');
+  const offered = await next(box);
+  assert.equal(offered.item.item_id, oldest);
+  assert.equal(offered.review, true);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
-test('health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', async t => {
-  const box = await fixture(t);
+test('health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', t => {
+  const box = fixture(t, { reviewers: true });
   const waiting = box.add('Strict review with policy blocking its outside seats', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
   box.advance(11 * 60_000);
@@ -65,8 +67,8 @@ test('health names the exact native check when every joined seat is excluded fro
   assert.match(finding.why, /COORDINATOR_VERIFIES/u, 'the report names the failing native check rather than inventing a reviewer');
 });
 
-test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', async t => {
-  const box = await fixture(t);
+test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', t => {
+  const box = fixture(t, { reviewers: true });
   const oldest = box.add('Oldest strict review', { reviewFamily: 'Family Beta' });
   box.submit(oldest);
   store.reserveReview(box.board, oldest, { agentId: box.seats.outside.id, leaseMs: 1_000, policy: 'any' });
