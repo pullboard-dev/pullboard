@@ -3695,7 +3695,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/lsof-lookups.test.js",
+      "file": "packages/runners/tests/lsof-lookups.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3752,7 +3752,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/runner-wait-deadline.test.js",
+      "file": "test/runner-wait-deadline.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3809,7 +3809,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/submit-lease.test.js",
+      "file": "test/submit-lease.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42815,7 +42815,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/runner-disk-sweep.test.js",
+      "file": "apps/runner/tests/runner-disk-sweep.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -43152,7 +43152,7 @@
       ]
     },
     {
-      "file": "test/runner-least-loaded.test.js",
+      "file": "packages/runners/tests/runner-least-loaded.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -44225,7 +44225,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/runner-worker-capacity-sync.test.js",
+      "file": "apps/runner/tests/runner-worker-capacity-sync.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -48040,7 +48040,7 @@
       ]
     },
     {
-      "file": "test/strict-review-all-families.test.js",
+      "file": "packages/health/tests/strict-review-all-families.test.js",
       "tier": "T3",
       "packages": [
         ".",

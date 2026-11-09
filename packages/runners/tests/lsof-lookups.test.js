@@ -1,20 +1,16 @@
 /** Nonblocking process diagnostics preserve their target and safe failure information [C7,N26]. */
 import assert from 'node:assert/strict';
-import {
-  chmodSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import {
-  readMachineMemory,
-  memoryVerdict,
-} from '../src/shell/memory-admission.js';
-import { toolSourcePath } from '../../runners/index.js';
+import { readMachineMemory } from '../../resources/index.js';
+import { memoryVerdict } from '../../resources/index.js';
+import { toolSourcePath } from '../index.js';
 import { cleanupFailureReport } from '../../../test/cleanup-diagnostics.js';
 
 /** Inject only the documented OS-tool boundary; all production parsing and failure rendering still run. */
@@ -72,7 +68,7 @@ test('cleanup ownership probes request nonblocking lsof and retain scoped holder
 
 test('literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
   const sources = [['packages/resources/src/shell/resources.js', readFileSync(toolSourcePath(join(import.meta.dirname, '../../..'), 'packages/resources/src/shell/resources.js'), 'utf8')]];
-  for (const path of ['cleanup-diagnostics.js', 'view-port.test.js']) sources.push(['./' + path, readFileSync(new URL('../../../test/' + path, import.meta.url), 'utf8')]);
+  for (const path of ['cleanup-diagnostics.js', 'view-port.test.js']) sources.push(['../../resources/tests' + path, readFileSync(new URL('../../../test' + path, import.meta.url), 'utf8')]);
   let calls = 0;
   for (const [path, source] of sources) {
     const probes = source.matchAll(/(?:spawnSync|run|runFixtureProcessTool)\(\s*(['"])(?:\/usr\/(?:sbin|bin)\/)?lsof\1\s*,\s*\[([^\]]*)\]/gu);

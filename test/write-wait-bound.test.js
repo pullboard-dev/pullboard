@@ -2,12 +2,12 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChildAsync } from './fixture-child.js';
 
 const HOLDERS = 30;
 const RENEWS = 10;
-const index = JSON.stringify(new URL('../index.js', import.meta.url).href);
+const index = JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href);
 
 /** One holder process: take a lease, renew it, and report its longest wait and its longest write transaction. */
 const holder = `import { DatabaseSync } from 'node:sqlite';
