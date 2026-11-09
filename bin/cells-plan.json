@@ -3495,7 +3495,6 @@
   ],
   "allowedEdges": [
     "apps/cli->kernel",
-    "api->pin",
     "gate->jobs",
     "resources->jobs",
     "codemap->git",

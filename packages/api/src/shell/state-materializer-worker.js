@@ -4,8 +4,9 @@
  *
  * It saves each board's latest build to disk, keyed by the board, the code that built it and its last event id,
  * so a restarted server serves the saved record at once and its first build extends the saved one rather than
- * starting over. The pin cell keeps them, as results keyed by the board, in the board's state-cache folder or
- * PULLBOARD_STATE_CACHE_DIR; a snapshot from other code fails its key and is rebuilt.
+ * starting over. The serve command hands it the store that keeps them (the pin cell's keyed results), in the board's
+ * state-cache folder or PULLBOARD_STATE_CACHE_DIR; a snapshot from other code fails its key and is rebuilt. Without
+ * a store, nothing is saved.
  */
 import { createHash } from 'node:crypto';
 import { readdirSync } from 'node:fs';
@@ -25,7 +26,6 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 const { createStateSnapshots } = await import('./api.js');
-const { loadKeyedResult, saveKeyedResult, savedKeyedResults } = await import('../../../pin/index.js');
 
 /** How often, at most, a board's snapshot is saved while it keeps changing. */
 const SAVE_EVERY_MS = 60_000;
@@ -57,6 +57,7 @@ function codeStamp(formats) {
 
 const { boardStatePorts } = await import(workerData.portsModule);
 const ports = await boardStatePorts();
+const store = ports.snapshotStore ?? null;
 let projects = workerData.projects ?? [];
 const snapshots = createStateSnapshots({
   projects: () => projects, scope: workerData.scope, isMain: workerData.isMain,
@@ -89,7 +90,7 @@ function restoreSaved(message) {
   if (restored.has(message.key)) return;
   try {
     const { cacheId, folder } = snapshotFile(message.board);
-    const bytes = loadKeyedResult(folder, cacheId);
+    const bytes = store?.load(folder, cacheId);
     if (bytes) restoreValue(deserialize(bytes), message.board);
   } catch { /* No usable snapshot: the first build starts from the board itself. */ }
   restored.add(message.key);
@@ -100,9 +101,9 @@ function save(board, record, { force = false } = {}) {
   const { cacheId, key, folder } = snapshotFile(board);
   if (!force && Date.now() - (saved.get(cacheId)?.at ?? 0) < SAVE_EVERY_MS) return;
   const carry = snapshots.carry(cacheId);
-  if (!carry) return;
+  if (!carry || !store) return;
   try {
-    saveKeyedResult(folder, cacheId, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
+    store.save(folder, cacheId, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
     saved.set(cacheId, { at: Date.now(), board, record, sequence: record.sequence });
   } catch { /* A snapshot only speeds the next start; failing to save one never fails a build. */ }
 }
@@ -122,7 +123,7 @@ function prewarm() {
     try { folders.add(process.env.PULLBOARD_STATE_CACHE_DIR || snapshots.snapshotPlace({ id: '', root: project.root }).folder); } catch { /* An unreadable project has no snapshot. */ }
   }
   for (const folder of folders) {
-    for (const bytes of savedKeyedResults(folder)) {
+    for (const bytes of store?.saved(folder) ?? []) {
       try {
         const value = deserialize(bytes);
         restoreValue(value, value?.board);
