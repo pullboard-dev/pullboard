@@ -1,12 +1,12 @@
 /** A runner that refuses a run at setup is an infrastructure stop, and the gate and landing share one rerun list [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { INFRASTRUCTURE_CODES } from '../apps/lib/index.js';
-import { submitUntilSettled } from '../apps/lib/index.js';
-import { RERUNNABLE_RUNNER_REFUSALS } from '../packages/store/index.js';
-import { runnerFailureClass } from '../packages/landing/index.js';
-import { RunnerDropped } from '../packages/gate/src/core/gate-policy-load.js';
-import { Refused } from '../packages/kernel/index.js';
+import { INFRASTRUCTURE_CODES } from '../index.js';
+import { submitUntilSettled } from '../index.js';
+import { RERUNNABLE_RUNNER_REFUSALS } from '../../../packages/store/index.js';
+import { runnerFailureClass } from '../../../packages/landing/index.js';
+import { RunnerDropped } from '../../../packages/gate/index.js';
+import { Refused } from '../../../packages/kernel/index.js';
 
 const HOST = 'runner-9.example';
 const refusal = code => Object.assign(new Refused(code, `runner ${HOST} refused this run before it started`), { lease: { runner: { host: HOST } } });

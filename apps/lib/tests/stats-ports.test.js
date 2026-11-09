@@ -1,16 +1,16 @@
 /** Explicit statistics ports preserve native snapshot and fallback behavior [R1,R2,CD64,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendFact } from '../packages/store/index.js';
-import { addItem } from '../packages/store/index.js';
-import { closeBoard } from '../packages/store/index.js';
-import { events } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { register } from '../packages/store/index.js';
-import { counterProofStats } from '../packages/verify/index.js';
-import { eventCounts } from '../packages/stats/index.js';
-import { proofStats } from '../packages/stats/index.js';
-import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';
+import { appendFact } from '../../../packages/store/index.js';
+import { addItem } from '../../../packages/store/index.js';
+import { closeBoard } from '../../../packages/store/index.js';
+import { events } from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { register } from '../../../packages/store/index.js';
+import { counterProofStats } from '../../../packages/verify/index.js';
+import { eventCounts } from '../../../packages/stats/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
+import { proofStats as legacyProofStats } from '../../../test/fixtures/proof-stats-legacy.js';
 
 /** Create a real private SQLite board populated through native writer operations. */
 function fixture(t) {

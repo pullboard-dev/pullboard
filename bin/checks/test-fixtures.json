@@ -2903,7 +2903,7 @@
     "model": 1,
     "hand-policy": 2
   },
-  "test/released-twice-ignores-board-releases.test.js": {
+  "apps/lib/tests/released-twice-ignores-board-releases.test.js": {
     "tempdir": 2,
     "raw-board": 1,
     "model": 3
@@ -3376,7 +3376,7 @@
     "model": 1,
     "hand-policy": 1
   },
-  "test/seat-gone-worktree-activity.test.js": {
+  "apps/lib/tests/seat-gone-worktree-activity.test.js": {
     "tempdir": 2,
     "raw-board": 5
   },
@@ -3395,7 +3395,7 @@
   "packages/kernel/tests/selector-gap-verdict.test.js": {
     "raw-board": 4
   },
-  "test/sentinel-cpu.test.js": {
+  "apps/lib/tests/sentinel-cpu.test.js": {
     "tempdir": 2,
     "raw-board": 5
   },
@@ -3523,7 +3523,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/stats-counts.test.js": {
+  "apps/lib/tests/stats-counts.test.js": {
     "raw-board": 4,
     "tempdir": 1
   },
@@ -3540,7 +3540,7 @@
     "hand-policy": 1,
     "raw-board": 4
   },
-  "test/stats-ports.test.js": {
+  "apps/lib/tests/stats-ports.test.js": {
     "raw-board": 1
   },
   "test/stranded-dependency.test.js": {
