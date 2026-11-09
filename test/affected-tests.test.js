@@ -4,7 +4,7 @@ import { mappedWorkingSource } from '../bin/checks/scan.js';
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -475,35 +475,35 @@ test('the repository test-tree guards list only source scanners and launch no br
   const root = join(import.meta.dirname, '..');
   const expected = [
     'test/board-file-guard.test.js',
-    'test/cell-lint-guard.test.js',
-    'test/gui-marker-guard.test.js',
+    'packages/gate/tests/cell-lint-guard.test.js',
+    'packages/gate/tests/gui-marker-guard.test.js',
     'test/privacy-scan-guard.test.js',
-    'test/shared-wait-guard.test.js',
+    'packages/gate/tests/shared-wait-guard.test.js',
     'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
-    'test/wall-clock-budgets.test.js',
+    'packages/gate/tests/wall-clock-budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards), [], 'no guard file declares a browser');
-  const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
-    './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
+  const forbiddenImports = new Set(['src/board.js', 'apps/view/index.js', 'src/gate.js', 'test/board-fixture.js',
+    'test/e2e-helpers.js', 'test/cockpit/fixture.js', 'test/chrome-fixture.js']);
   const scanFiles = [
     'packages/gate/tests/gui-marker-guard.test.js',
     'test/board-file-guard.test.js',
-    'test/cell-lint-guard.test.js',
+    'packages/gate/tests/cell-lint-guard.test.js',
     'test/privacy-scan-guard.test.js',
-    'test/shared-wait-guard.test.js',
+    'packages/gate/tests/shared-wait-guard.test.js',
     'test/view-test-policy.test.js',
-    'test/wall-clock-budgets.test.js',
+    'packages/gate/tests/wall-clock-budgets.test.js',
   ];
   assert.equal(guards.length, 7, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');
     const imports = importsIn([source])[0];
-    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${guardScanFile} imports no board, server or browser fixture`);
+    assert.deepEqual(imports.filter(path => forbiddenImports.has(relative(root, resolve(root, dirname(guardScanFile), path)))), [], `${guardScanFile} imports no board, server or browser fixture`);
     const code = lex(source).code;
     assert.doesNotMatch(code, /\b(?:openBoard|startView|serveView|createServer|launchChromeProcess|startChrome|runFixtureChild|runProfiledShell|withGateSlot)\s*\(/u,
       `${guardScanFile} only scans source text`);
