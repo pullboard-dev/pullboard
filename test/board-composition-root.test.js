@@ -436,3 +436,39 @@ test('sandbox policy capabilities refuse before any SQLite path is created [C7,B
     assert.equal(existsSync(join(directory, 'never-created')), false);
   }
 });
+
+/** The library's public board keeps exactly the 224 names it exposed before the shim repoint, so a store door widening never widens it [C7,B1,B2]. */
+test('the library public board exposes exactly its explicit name list [C7,B1,B2]', () => {
+  const expected = [
+    'ACCEPT_REASON', 'BOARD_BUSY_TIMEOUT_MS', 'EVENT_LOG_VERSION', 'EVIDENCE_KINDS', 'FACT_KINDS', 'PERSON', 'REJECT_REASONS', 'ROUTES',
+    'SCHEMA_VERSION', 'SIGNED_EVENT_LOG_VERSION', 'acceptCheck', 'acceptedVerdict', 'actOnActivity', 'activityDeliveryState', 'addItem',
+    'addMilestone', 'advanceItemSource', 'agentActivity', 'agentAt', 'agentById', 'agentCreator', 'allShouts', 'answerDecision', 'answerTypedRequests',
+    'appendFact', 'applyRehomeItem', 'applyRowDecisions', 'approveOutside', 'atomic', 'attachItemPatch', 'beginSentinelRun', 'boardBusyError',
+    'boardId', 'buildOrder', 'canTake', 'canonicalFamily', 'canonicalMilestoneTarget', 'checkedLandingCommit', 'claim', 'closeBoard',
+    'completeCheckBaseline', 'completeSubmitHandoff', 'coordinatorCheck', 'coordinatorHolder', 'coordinatorOnly', 'createItemSlice', 'decideSentinel',
+    'decideSpecRevisions', 'decisionAndEvidenceShouts', 'decisionAnswers', 'declareJob', 'draftSpecRow', 'editItem', 'editMilestone',
+    'editMilestoneItems', 'ensureCoordinator', 'escalate', 'events', 'eventsOfKinds', 'factReference', 'fileTypedRequest', 'finishLandingBatch',
+    'finishSentinelRun', 'flakeLedger', 'flakeQuarantines', 'followItemPatches', 'foreignBlockers', 'foreignDependencyStates', 'gateRuns', 'getItem',
+    'getShout', 'holdItem', 'holdLane', 'inbox', 'intakeOutside', 'itemById', 'itemCheckAuthor', 'itemFiles', 'itemHold', 'itemPatchDigest',
+    'itemPatches', 'itemRedirect', 'itemThread', 'itemsInStatus', 'landingBatches', 'landingFlakes', 'landingLeaseMove', 'landingLeaseState',
+    'landingTestDefects', 'landingWaiverCovers', 'landingWaiverFor', 'landingWaiverKind', 'landingWaivers', 'laneHold', 'laneHolds', 'laneLeads',
+    'lastMoves', 'lineSettings', 'linkPublishRepair', 'listAgents', 'listItems', 'logEvent', 'maintainStaleState', 'merged', 'milestonePriorities',
+    'milestones', 'moveItem', 'moveMilestone', 'nextFor', 'nextSeatId', 'onlyCoordinator', 'openBoard', 'openBoardForRead', 'openBoardReadOnly',
+    'openDecisions', 'openHandoff', 'openRequests', 'orderMilestoneItems', 'passDecision', 'peekShouts', 'pendingRefreeze', 'pendingRefreezeProblem',
+    'personProposals', 'personSigning', 'planCompanion', 'postRigorNotices', 'prepareClaim', 'prepareMergeOnlySubmit', 'prepareQueueSubmitHandoff',
+    'projectItemThreads', 'proofReceipts', 'proposePersonMove', 'proposeSentinel', 'queueSubmitHandoff', 'readBoardMembers', 'readBoardSnapshot',
+    'readEventLogVersion', 'recentEvents', 'recentShouts', 'recordActivityDelivery', 'recordAttempt', 'recordExitProgress', 'recordFlakeObservation',
+    'recordGateRun', 'recordHealthFindings', 'recordJobRun', 'recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect',
+    'recordLandingWaiver', 'recordNextIdle', 'recordProofRun', 'recordPublishFinding', 'recordRelayRefusal', 'recordRowDecisions',
+    'recordRowVerification', 'recordSharedUsage', 'recordSpecApprovalBaseline', 'recordTrainLanding', 'recordUsage', 'recordUsageBatch', 'refreeze',
+    'register', 'rehomeDestinationItemId', 'rehomeImport', 'rehomeItem', 'relatedItems', 'release', 'releaseItemHold', 'releaseLane',
+    'removeItemPatch', 'removeMilestone', 'reopen', 'requestCompanion', 'requireExitActive', 'reserveNextReview', 'reserveRehomeItemId',
+    'reserveReview', 'reviewHolder', 'reviewOffer', 'reviewQueue', 'reviewQueueBreakdown', 'reviewReleaseCooldown', 'reviewReleaseNoteProblem',
+    'reviewerChecks', 'roadmap', 'rowDecisions', 'rowDrafts', 'rowVerifications', 'schemaMissing', 'seatEnrolled', 'seatFamily', 'seatLineage',
+    'setBarReady', 'setBoardMembers', 'setItem', 'setLaneLead', 'setLineSetting', 'setPersonSigning', 'shipMilestone', 'shout', 'shoutDetails',
+    'signBar', 'specApprovalBaseline', 'specApprovalBaselineExists', 'startSubmitHandoff', 'stats', 'submit', 'submitInvariantEvents', 'systemClock',
+    'takeCoordinator', 'takeHandoff', 'typedRequests', 'unreadCount', 'unverifiedSubmissions', 'validateItemAddition', 'validateItemEdit',
+    'verdictReviewProblem', 'verdictsFor', 'verify', 'waivedLandingProof', 'withVerifierStanding', 'withdraw', 'writeRefused',
+  ];
+  assert.deepEqual(Object.keys(library).sort(), expected);
+});
