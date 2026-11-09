@@ -254,7 +254,7 @@ test('clause 2: a move rewrites exact quoted moved paths in the declared test pa
   assert.equal(git(root, 'diff', '--name-only'), '', 'the table rewrite is staged');
 });
 
-test('--place-tests --batches plans cell and component moves in plan order, keeps helpers with outside importers, and its dry run applies them [C7,CD64]', async t => {
+test('clause 1: --place-tests --batches plans cell and component moves in plan order, keeps helpers with outside importers; clause 2: its dry run applies them [C7,CD64]', async t => {
   const { writeFileSync, existsSync } = await import('node:fs');
   const { join } = await import('node:path');
   const { root, cli } = await moverFixture(t);
