@@ -151,6 +151,8 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
 /** The infrastructure stop after the retries are spent: the coordinator's to resolve, never the builder's red. */
 function exhausted(attempts, cause) {
   const last = attempts.at(-1);
-  return Object.assign(new Refused('GATE_INFRA_EXHAUSTED', `the gate stopped on infrastructure ${attempts.length} times (last ${last.code}${last.hosts.length ? ` on ${last.hosts.join(', ')}` : ''}); nothing is wrong with the candidate`,
+  // The last stop's own first line stays in the refusal, so a policy change or a runner fault is never reduced to its code [C7].
+  const detail = String(last.message ?? '').split('\n')[0].trim();
+  return Object.assign(new Refused('GATE_INFRA_EXHAUSTED', `the gate stopped on infrastructure ${attempts.length} times (last ${last.code}${last.hosts.length ? ` on ${last.hosts.join(', ')}` : ''}${detail ? `: ${detail}` : ''}); nothing is wrong with the candidate`,
     'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'), { attempts, cause, ...(cause?.lockWaits ? { lockWaits: cause.lockWaits } : {}) });
 }
