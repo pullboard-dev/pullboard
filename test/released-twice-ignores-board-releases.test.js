@@ -24,7 +24,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';
 import { runFixtureGit } from './fixture-child.js';
-import { RELEASE_QUALITY_HOLD_ENGINE } from '../src/release-quality-hold-engine.js';
+import { RELEASE_QUALITY_HOLD_ENGINE } from '../packages/state/core.js';
 
 /** Real Git worktrees and a private clock make the board's own idle sweep observable. */
 function fixture(t) {

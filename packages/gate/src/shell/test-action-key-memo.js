@@ -110,11 +110,12 @@ function removeOldMemos(keys, now) {
  * @param {string} identity committed tree, key algorithm, material options and execution context
  * @param {string[] | undefined} files undefined requests every known test, otherwise only these files
  * @param {() => Promise<Map<string, object>>} build
+ * @param {{ prune?: boolean }} [options] - false leaves the memo age sweep to a caller off the gate's path.
  * @returns {Promise<Map<string, object>>}
  */
-export async function memoizedActionKeys(store, identity, files, build) {
+export async function memoizedActionKeys(store, identity, files, build, { prune = true } = {}) {
   const directory = join(store, 'keys', identity);
-  pruneKeyMemos(store);
+  if (prune) pruneKeyMemos(store);
   try {
     const index = JSON.parse(readFileSync(join(directory, 'index.json'), 'utf8'));
     if (index.identity !== identity) throw new Error('invalid key memo');

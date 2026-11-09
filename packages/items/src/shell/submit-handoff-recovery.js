@@ -172,7 +172,7 @@ export function assertToolTreeRoom({ temp = tmpdir(), commonDirs = [], minFree =
 }
 
 /** Validate source custody before copying any tools or offering a new native queue identity. */
-export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0 } = {}) {
+export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0, refresh = null } = {}) {
   if (retries >= limit) return null;
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   if (request.job !== job.id || request.item !== item || request.commit !== job.commit || !sameCommonDir(request.commonDir, commonDir)
@@ -182,16 +182,39 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
     throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'retain the stopped job: its captured tools or source identity cannot be proved');
   }
   const id = randomUUID();
-  const shared = sharedHandoffTools(request.tools);
-  if (shared) touchToolTree(request.tools); else assertToolTreeRoom({ commonDirs: [commonDir] });
-  const tools = shared ? request.tools : mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${id}-`));
+  // The retry runs current tooling: a gate stopped by an infrastructure fault must not rerun the machinery that had it (8 Nov stale tools).
+  const fresh = freshRetryTools(refresh, id, request);
+  const shared = sharedHandoffTools(fresh?.tools ?? request.tools);
+  if (fresh) { if (shared) touchToolTree(fresh.tools); }
+  else if (shared) touchToolTree(request.tools); else assertToolTreeRoom({ commonDirs: [commonDir] });
+  const tools = fresh?.tools ?? (shared ? request.tools : mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${id}-`)));
   const target = join(dirname(directory), id);
   try {
-    if (!shared) cpSync(request.tools, tools, { recursive: true, mode: constants.COPYFILE_FICLONE });
+    if (!fresh && !shared) cpSync(request.tools, tools, { recursive: true, mode: constants.COPYFILE_FICLONE });
     mkdirSync(target, { recursive: true, mode: 0o700 });
-    writeFileSync(join(target, 'request.json'), JSON.stringify({ ...request, job: id, tools }) + '\n', { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(target, 'request.json'), JSON.stringify({ ...request, job: id, tools, ...(fresh ? { toolsCommit: fresh.toolsCommit } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
     /** Remove only this unqueued preparation if the captured native claim changed concurrently. */
     const discard = () => { if (!shared) rmSync(tools, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); };
     return { id, tools, directory: target, discard };
   } catch (error) { if (!shared) rmSync(tools, { recursive: true, force: true }); throw error; }
+}
+
+/**
+ * The current tools a retry runs, from the caller's refresh, or null to keep the captured tools: no refresh, a refresh
+ * that fails, or a folder that is neither this retry's own copy nor a shared snapshot in the OS temp dir.
+ *
+ * Why: the captured tools are the tooling of the submit; a retry that reuses them reruns machinery main has already
+ * fixed (8 Nov: gates submitted before PROOF_MAX_SHARDS kept opening 18 runner controllers for hours) (8 Nov stale tools).
+ *
+ * @param {((id: string, request: object) => { tools: string, toolsCommit: string } | null) | null} refresh
+ * @param {string} id - The retry's job id.
+ * @param {object} request - The stopped job's captured request.
+ * @returns {{ tools: string, toolsCommit: string } | null}
+ */
+function freshRetryTools(refresh, id, request) {
+  if (typeof refresh !== 'function') return null;
+  let fresh;
+  try { fresh = refresh(id, request); } catch { return null; }
+  if (!fresh || typeof fresh.tools !== 'string' || !/^[0-9a-f]{40}$/u.test(fresh.toolsCommit ?? '') || !handoffToolsAllowed(fresh.tools, id)) return null;
+  try { return dirname(realpathSync(fresh.tools)) === realpathSync(tmpdir()) ? fresh : null; } catch { return null; }
 }

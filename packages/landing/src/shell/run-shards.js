@@ -19,3 +19,18 @@ export function planRunShards(files, freeSlots, times = {}, root = null) {
   if (slots === 1 || files.length < 2) return [{ files: [...files], weight: files.length }];
   return planLandingShards(files, Math.min(slots, files.length), times, root);
 }
+
+/**
+ * Decide how an ordinary (build, submit or review) test run splits across the runner slots free right now.
+ * Why: a landing keeps its own fan-out and goes first in the queue, a shard of a run and a run already inside a runner
+ * slot never split again, and `freeSlots` is read after the landings' holders and waiters, so a run takes only the
+ * slots free once landings have theirs. Any of those cases, or one free slot, gives today's single pass.
+ *
+ * @param {{ files: string[], freeSlots: number, times?: Record<string, number>, root?: string|null,
+ *   landing?: boolean, shard?: boolean, insideRunnerSlot?: boolean }} run
+ * @returns {{ files: string[], weight: number }[]} One entry per shard; a single entry means no split.
+ */
+export function ordinaryRunShards({ files, freeSlots, times = {}, root = null, landing = false, shard = false, insideRunnerSlot = false }) {
+  if (landing || shard || insideRunnerSlot) return [{ files: [...files], weight: files.length }];
+  return planRunShards(files, freeSlots, times, root);
+}

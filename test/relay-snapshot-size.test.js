@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { SEALED_SNAPSHOT_BYTES as RELAY_LIMIT, SNAPSHOT_BODY_BYTES as BODY_LIMIT } from '../packages/link/index.js';
@@ -20,7 +20,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { readSealedDescriptor } from '../packages/pages/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
-import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
+import { PROOF_RUN_ENGINE } from '../packages/state/core.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;

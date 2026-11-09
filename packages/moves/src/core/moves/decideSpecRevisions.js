@@ -1,8 +1,8 @@
 /** A new person-only revision disposition cannot be replayed by an older reader [P6,H16]. */
-import { SPEC_REVISION_ENGINE } from "../../../../../src/spec-revision-engine.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { SPEC_REVISION_ENGINE } from "../../../../state/core.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 
 /** Retain every applicable surrounding operation floor, including overlapping payload features. */
 function minimumEngine(args) {

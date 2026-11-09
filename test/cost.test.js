@@ -18,11 +18,18 @@ import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';
+import { budgetState } from '../packages/stats/index.js';
+import { capacityLines } from '../packages/stats/index.js';
+import { readCapacity } from '../packages/stats/index.js';
+import { personBlockWords } from '../packages/items/index.js';
+import { tmpdir } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
 import { replayHistory } from '../packages/stats/index.js';
-import { projectAgentActivity } from '../src/board-activity-feed.js';
-import { activityInterests } from '../src/board-activity-feed.js';
+import { projectAgentActivity } from '../packages/store/index.js';
+import { activityInterests } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { assertUsagePresentation } from './cockpit/usage-history-control.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
@@ -459,4 +466,91 @@ test('usage totals use existing stats and show surfaces without a separate cost 
   for (const values of Object.values(document.usage)) assert.deepEqual(values, [], 'a fresh board invents no usage');
   const separate = box.run(box.repo, 'cost', '--json');
   assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
+});
+
+test('clause 1: a budget setting is optional, off by default and validated [N2]', () => {
+  const fixture = privateFixtureFiles('pullboard-budget-setting-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = fixture.root;
+  try {
+    assert.equal(loadMachineSettings().budget, undefined, 'no budget unless one is set');
+    fixture.write('settings.json', JSON.stringify({ budget: { dailyUsd: 5, totalUsd: 50 } }));
+    assert.deepEqual(loadMachineSettings().budget, { dailyUsd: 5, totalUsd: 50 });
+    for (const [budget, field] of [[{ dailyUsd: 0 }, 'budget.dailyUsd'], [{ totalUsd: -1 }, 'budget.totalUsd'], [{ dailyUsd: '5' }, 'budget.dailyUsd'], [{ weekUsd: 5 }, 'budget']]) {
+      fixture.write('settings.json', JSON.stringify({ budget }));
+      assert.throws(() => loadMachineSettings(), error => error.code === 'BAD_MACHINE_SETTINGS' && error.message.includes(field), `refuses ${JSON.stringify(budget)} naming ${field}`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+  }
+});
+
+const model = 'm';
+
+test('clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  const now = Date.parse('2026-11-08T12:00:00Z');
+  const put = (key, observedAt, outputTokens) => db.prepare('INSERT INTO board_meta VALUES(?,?)').run(key,
+    JSON.stringify({ observedAt, shared: false, records: [{ model, inputTokens: 0, outputTokens }] }));
+  // One dollar per output token, so spend reads straight off the token counts.
+  const prices = { [model]: { output: 1_000_000 } };
+  const board = { db };
+  const board_ = (budget) => budgetState(board, prices, budget, now);
+  put('cost:1:a', now - 86_400_000 * 2, 50);
+  put('cost:2:a', now - 1000, 7);
+  assert.deepEqual(board_({ dailyUsd: 10 }), { state: 'ok', spend: 7, limit: 10, which: 'dailyUsd' }, 'old days stay out of the daily spend');
+  assert.equal(board_({ dailyUsd: 8 }).state, 'warn', '7 of 8 is above 80 percent');
+  assert.equal(board_({ dailyUsd: 7 }).state, 'stop', 'spend at the limit stops');
+  assert.deepEqual(board_({ dailyUsd: 100, totalUsd: 60 }), { state: 'warn', spend: 57, limit: 60, which: 'totalUsd' }, 'the total counts every day');
+  assert.equal(board_({ dailyUsd: 7, totalUsd: 1000 }).state, 'stop', 'either limit stops');
+});
+
+test('clause 2: with no budget set budgetState returns ok with no limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: 0, records: [{ model, inputTokens: 0, outputTokens: 5 }] }));
+  assert.deepEqual(budgetState({ db }, { [model]: { output: 1_000_000 } }, undefined, Date.now()), { state: 'ok', spend: 5, limit: null, which: null });
+  assert.equal(budgetState({ db }, { [model]: { output: 1_000_000 } }, {}, Date.now()).limit, null);
+});
+
+test('clause 1: a budget at 80 percent shows in the capacity report, with spend and limit, and no budget shows no line [N2]', () => {
+  const fixture = privateFixtureFiles('pullboard-budget-report-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = fixture.root;
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  const now = Date.parse('2026-11-08T12:00:00Z');
+  db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: now - 1000, records: [{ model, inputTokens: 0, outputTokens: 7 }] }));
+  // No proof counters: the report is the unavailable snapshot every reader still renders through capacityLines.
+  const report = () => capacityLines(readCapacity({ db }, now, { currentProofCounters: () => null, proofCounter: () => null }));
+  const budgetLine = lines => lines.filter(line => line.startsWith('Budget'));
+  try {
+    assert.deepEqual(budgetLine(report()), [], 'with no budget set the report has no budget line');
+    const prices = { [model]: { output: 1_000_000 } };
+    fixture.write('settings.json', JSON.stringify({ budget: { dailyUsd: 8 }, costPrices: prices }));
+    assert.deepEqual(budgetLine(report()), ['Budget at 80 percent: $7.00 of the $8.00 daily limit.']);
+    fixture.write('settings.json', JSON.stringify({ budget: { totalUsd: 7 }, costPrices: prices }));
+    assert.deepEqual(budgetLine(report()), ['Budget reached: $7.00 of the $7.00 total limit.']);
+    fixture.write('settings.json', JSON.stringify({ budget: { dailyUsd: 100 }, costPrices: prices }));
+    assert.deepEqual(budgetLine(report()), [], 'below 80 percent the report has no budget line');
+  } finally {
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+  }
+});
+
+test('clause 1: a budget at 80 percent warns in Needs you [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  const now = new Date('2026-11-08T12:00:00Z');
+  db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: now.getTime() - 1000, shared: false, records: [{ model, inputTokens: 0, outputTokens: 8 }] }));
+  const prices = { [model]: { output: 1_000_000 } };
+  const lines = budget => personBlockWords(join(tmpdir(), 'no-such-pullboard-common-dir'), now, budgetState({ db }, prices, budget, now.getTime()));
+  const warn = lines({ dailyUsd: 10 });
+  assert.equal(warn.length, 1, 'one budget line at 80 percent');
+  assert.equal(warn[0].code, 'BUDGET_WARN');
+  assert.match(warn[0].reason, /\$8\.00 of the \$10\.00 daily budget/u, 'names spend and limit');
+  assert.equal(lines({ dailyUsd: 8 })[0].code, 'BUDGET_STOP', 'at the limit it reads stop');
+  assert.deepEqual(lines({ dailyUsd: 100 }), [], 'below 80 percent shows none');
+  assert.deepEqual(lines(undefined), [], 'with no budget set it shows none');
 });

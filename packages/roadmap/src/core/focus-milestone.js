@@ -1,7 +1,7 @@
 /** Named milestone preference reads only recorded board policy and preserves each group's existing order [N2,B16,H16]. */
 import { engineAtLeast } from "../../../state/core.js";
-import { FOCUS_MILESTONE_ENGINE } from "../../../../src/focus-milestone-engine.js";
-import { MAIN_RED_FOCUS_ENGINE } from "../../../../src/main-red-focus-engine.js";
+import { FOCUS_MILESTONE_ENGINE } from "../../../state/core.js";
+import { MAIN_RED_FOCUS_ENGINE } from "../../../state/core.js";
 import { lineSettings } from "../../../state/src/core/line-settings-read.js";
 
 /**

@@ -1,5 +1,5 @@
 /** Releases the machine caused, which the release-twice hold must not count [C7,H16]. */
-import { INFRA_RELEASE_ENGINE } from '../../../../src/infra-release-engine.js';
+import { INFRA_RELEASE_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 
 /**

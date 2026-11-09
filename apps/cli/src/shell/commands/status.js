@@ -23,7 +23,7 @@ import { stalledGates } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import { fallbackReclaim } from '../fallback-reclaim.js';
 import { diskLines } from '../disk-use.js';
-import { diskUse } from '../disk-use.js';
+import { cachedDiskUse } from '../disk-use.js';
 import { refusingBadPolicy } from '../disk-use.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { join } from 'node:path';
@@ -115,7 +115,7 @@ export async function run(io, { values }) {
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
   summary.longestHolds = longestRecentHolds();
-  summary.disk = refusingBadPolicy(() => diskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
+  summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
     io.result(summary);
     return 0;

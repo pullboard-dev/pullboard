@@ -104,11 +104,13 @@ test('clause 1: a different tree, or a red shard, reuses nothing and runs those 
   const failing = { ...red, takeSlot: lane => lane(files => Promise.resolve({ isGreen: false, exitCode: 1, output: `not ok ${files[0]}` })) };
   const first = await proveBatches('/controller', failing.execution, { files: FILES, filesCommand, takeSlot: failing.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, passes: store });
   assert.equal(first.isGreen, false);
-  assert.equal(store.read().length, 1, 'only the green shard is recorded');
+  // The gate's own lane runs green and the capped slot lanes red, so the gate lane may pull more than one shard.
+  const green = store.read().length;
+  assert.ok(green >= 1 && green <= FILES.length - 2, `only the green shards are recorded (${green})`);
   const again = attempt({ calls });
   const rerun = await proveBatches('/controller', again.execution, { files: FILES, filesCommand, takeSlot: again.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, passes: store });
   assert.equal(rerun.isGreen, true);
-  assert.equal(calls.filter(call => call.timingRunId === again.timingRunId).length, FILES.length - 1, 'the red shards run again; only the green one is reused');
+  assert.equal(calls.filter(call => call.timingRunId === again.timingRunId).length, FILES.length - green, 'the red shards run again; only the green ones are reused');
 
   const other = attempt({ calls, tree: 'e'.repeat(40) });
   await proveBatches('/controller', other.execution, { files: FILES, filesCommand, takeSlot: other.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1 });

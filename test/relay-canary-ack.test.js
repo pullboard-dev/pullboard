@@ -15,6 +15,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
+const OPENERS = new URL('./board-fixture.js', import.meta.url).href;
 
 /** Commit the actual absent-setting default before real device sign-in; no environment-token shortcut is used. */
 async function linkedBoard(t) {
@@ -27,7 +28,7 @@ async function linkedBoard(t) {
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): exercise default canary policy'], { cwd: box.root, env: box.env });
+  runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'chore(config): exercise default canary policy'], { cwd: box.root, env: box.env });
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(state.baselineAccepted, true);
@@ -42,8 +43,9 @@ function move(box, text, relayCanary) {
   const source = `
     const { relayOperation } = await import(${JSON.stringify(RELAY)});
     const { relayOutboxSetting } = await import(${JSON.stringify(POLICY)});
+    const { apiBoardOpeners } = await import(${JSON.stringify(OPENERS)});
     const root = process.cwd();
-    const io = { err() {}, relayCanary: ${JSON.stringify(relayCanary)}, relayOutbox: () => relayOutboxSetting(root) };
+    const io = { ...apiBoardOpeners, err() {}, relayCanary: ${JSON.stringify(relayCanary)}, relayOutbox: () => relayOutboxSetting(root) };
     try {
       const result = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text: ${JSON.stringify(text)} }], io);
       process.stdout.write(JSON.stringify({ ok: true, result }));

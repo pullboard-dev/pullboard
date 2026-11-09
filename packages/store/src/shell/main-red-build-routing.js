@@ -1,4 +1,4 @@
-import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { pendingSubmitHandoff } from './submit-handoff-read.js';

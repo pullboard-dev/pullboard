@@ -1,10 +1,10 @@
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../../src/automatic-dispatch-engine.js";
-import { SPEC_DRAFT_REFREEZE_ENGINE } from "../../../../../src/spec-draft-refreeze-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/core.js";
+import { SPEC_DRAFT_REFREEZE_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by applyRowDecisions, discovered without a shared registry edit [C7,V4,H16]. */
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
-import { SPEC_REVISION_ENGINE } from "../../../../../src/spec-revision-engine.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { SPEC_REVISION_ENGINE } from "../../../../state/core.js";
 import { rowDecisions } from "../../../../spec/src/core/row-decisions-query.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

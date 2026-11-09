@@ -1,6 +1,6 @@
 /** Same-item recorded-event hold conditions, evaluated inside the native write transaction [B4,H16]. */
 import { Refused } from "../../../kernel/core.js";
-import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
+import { STALE_STATE_ENGINE } from "../../../state/core.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { staleInstant } from "./board-stale-state-policy.js";
 

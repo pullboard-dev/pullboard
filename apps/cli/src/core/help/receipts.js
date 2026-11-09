@@ -39,10 +39,15 @@ export const receiptsHelp = `Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard ledger --since 2h [--item <id>]
+                                        pipeline ledger: time per hop (p50, p90, sum, share), runner and coordinator
+                                        compute, agent minutes and tokens per role and model, per landing; --json
   pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
+  pullboard gate-health [--since 2h]    queued gates in the window: count, total p50/p90, time per phase,
+                                        top failure causes with hosts, and the 10 slowest with their dominant phase; --json
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default

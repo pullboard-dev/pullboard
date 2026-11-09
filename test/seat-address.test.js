@@ -4,10 +4,7 @@ import { readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  UNREAD_SHOUT_SQL,
-  unreadShoutBindings,
-} from '../src/board-shout-audience.js';
+import { UNREAD_SHOUT_SQL, unreadShoutBindings } from '../packages/store/index.js';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';

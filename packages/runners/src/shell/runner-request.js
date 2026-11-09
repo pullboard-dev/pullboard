@@ -30,6 +30,13 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 
 /**
+ * Name the runtime by digest and file names; its bytes already travel gzipped in the stdin capsule.
+ * Why: inlining the sources too put the spec past its 1 MiB frame once the worker code reached 1 MB (#3884).
+ */
+export function runtimeReference(runtime) {
+  return { entry: runtime.entry, sha256: runtime.sha256, names: Object.keys(runtime.files) };
+}
+/**
  * The exact commit and tree a pinned source names, read from the repository's object store in place; null unless that
  * commit holds exactly that tree. Why: a main comparison cloned main into a temporary repository whose cache id was new
  * every time, so each one shipped the whole history to a cold runner cache (584 s median, #3323) [C7].
@@ -40,12 +47,28 @@ function pinnedSource(root, source) {
   catch { return null; }
 }
 
+/**
+ * The commit and tree a queued run executes: its captured source when it names one, read from the object store if the
+ * checkout's HEAD moved since it queued, else the clean checkout's HEAD; null when neither can be proved.
+ * Why: runs queued from the main checkout were refused RUNNER_SOURCE_CHANGED whenever main landed under them; a queued
+ * run is tied to the commit it captured, not to whatever the checkout holds later (#3928).
+ *
+ * @param {string} root
+ * @param {{ commit?: string, tree?: string, pinned?: boolean } | undefined} source
+ * @returns {{ commit: string, tree: string } | null}
+ */
+export function queuedSource(root, source) {
+  const current = source?.pinned === true ? pinnedSource(root, source) : runnerSource(root);
+  if (!source || current && current.commit === source.commit && current.tree === source.tree) return current;
+  return pinnedSource(root, source) ?? current;
+}
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
   // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
   // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
-  const current = source?.pinned === true ? pinnedSource(root, source) : runnerSource(root);
+  const current = queuedSource(root, source);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
     throw new Refused('RUNNER_SOURCE_CHANGED', 'the queued source changed; restore the committed tree and retry the run');
   }
@@ -92,7 +115,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : landing ? 'land' : 'focused';
     const id = randomUUID();
-    const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+    const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime: runtimeReference(runtime), tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
       ...(runner.publicKey ? { runnerPublicKey: runner.publicKey } : {}),
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),

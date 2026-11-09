@@ -1324,21 +1324,21 @@ async function main(args) {
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
-    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
+    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1'; const ordinaryShards = process.env[LANDING_RUN_ENV] !== '1' && process.env.PULLBOARD_RUN_SHARDS !== '0';
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
-    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
-      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
-      const count = landingShardCount(process.cwd());
+    if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
+      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments, freeRunnerSlots } = await import('../packages/gate/index.js');
+      let count = ordinaryShards ? freeRunnerSlots() : landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
-      if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
+      shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
         const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
           : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
-        if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
-        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
-        const { runLandingShards } = await import('../src/landing-shards.js');
+        if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
+        if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
+        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null; const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
         // One read of each planned file's first-line declaration, shared by every shard [C7].
@@ -1416,6 +1416,8 @@ async function main(args) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
+  // No test run starts on the coordinator unless a runner job started it (#3899).
+  (await import('../packages/gate/index.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;

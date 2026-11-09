@@ -13,8 +13,8 @@ import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** Coordinator allocation, 18 Oct: all new board-watch moves begin here [H16]. */
-import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
-export { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../state/core.js";
+export { BOARD_SENTINEL_ENGINE } from "../../../state/core.js";
 const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const INTERVALS = Object.freeze({ '10m': 600_000, hourly: 3_600_000, daily: 86_400_000 });
 

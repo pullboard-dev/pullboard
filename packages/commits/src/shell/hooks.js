@@ -46,6 +46,7 @@ import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../../../../src/import-only-change.js";
 import { movedImportTargets } from "../../../../src/import-only-change.js";
 import { planRowChange } from "../../../../src/plan-row-change.js";
+import { baselineRowChange } from "../../../../src/tier-row-change.js";
 import { tierRowChange } from "../../../../src/tier-row-change.js";
 import {
   citedIds,
@@ -531,15 +532,20 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
   if (config.protect.secrets) {
-    let diff;
+    let added;
+    const resolution = isMain ? null : trunkMergeResolution(root, preMergeHook);
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      if (resolution) added = resolution();
+      else {
+        const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+        if (readCache) readCache.diff = diff;
+        added = addedLines(diff);
+      }
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
     }
-    if (readCache) readCache.diff = diff;
-    problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
+    problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
   problems.push(...deletedGateProblems(root, config));
@@ -603,6 +609,10 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
   })]));
+  const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
+    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+  })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
     path => Boolean(importFileEntry(root, ':index', path)));
@@ -615,13 +625,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   ) }));
   const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves)
     || mergeMoves.some(({ parent, moves: parentMoves }) => stagedImportOnlyChange(root, path, parentMoves, parent))
-    || planChanges.get(path).allowed || tierChanges.get(path).allowed);
-  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+    || planChanges.get(path).allowed || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
+      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
     }));
   return problems;
 }
@@ -839,6 +849,44 @@ function mainMergeHeads(root, preMergeHook) {
   return merges.every((merge) => tryGit(root, ['merge-base', '--is-ancestor', merge, main]).status === 0)
     ? merges
     : null;
+}
+
+/**
+ * For a merge whose only other parent is the trunk, a reader of the resolution: the staged lines found in
+ * neither parent's version of a path both parents changed. Trunk content was scanned when it landed on main and
+ * branch content when it was committed, so the secret scan reads only these lines, whatever either side added
+ * to the same file. Null for any other commit, which is scanned in full. Why: a long-lived branch merging main
+ * would otherwise exceed the scan limit on trunk content alone (#3762).
+ *
+ * @param {string} root
+ * @param {boolean} preMergeHook
+ * @returns {(() => { path: string, line: number, text: string }[]) | null}
+ */
+function trunkMergeResolution(root, preMergeHook) {
+  const heads = mainMergeHeads(root, preMergeHook);
+  if (!heads || heads.length !== 1) return null;
+  const names = (base) => git(root, ['diff', '--cached', '--name-only', '-z', '--no-renames', base, '--'], { maxBuffer: MAX_SECRET_DIFF_BYTES })
+    .split('\0').filter(Boolean);
+  return () => {
+    const fromTrunk = new Set(names(heads[0]));
+    const blob = (spec) => {
+      try { return git(root, ['cat-file', 'blob', spec], { maxBuffer: 32 * MAX_SECRET_DIFF_BYTES }); }
+      catch (error) { if (error.code === 'ENOBUFS') throw error; return ''; } // no such blob: the path is new on that side
+    };
+    let bytes = 0;
+    return names('HEAD').filter((path) => fromTrunk.has(path)).flatMap((path) => {
+      const known = new Set([...blob('HEAD:' + path).split('\n'), ...blob(heads[0] + ':' + path).split('\n')]);
+      return blob(':' + path).split('\n')
+        .map((text, index) => ({ path, line: index + 1, text }))
+        .filter((entry) => !known.has(entry.text))
+        .map((entry) => {
+          bytes += entry.text.length + 1;
+          // The resolution is bounded like any other scanned diff.
+          if (bytes > MAX_SECRET_DIFF_BYTES) throw Object.assign(new Error('resolution exceeds the scan limit'), { code: 'ENOBUFS' });
+          return entry;
+        });
+    });
+  };
 }
 
 /** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */

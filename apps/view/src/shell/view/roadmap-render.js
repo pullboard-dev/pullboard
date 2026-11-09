@@ -13,8 +13,11 @@ export function milestoneRowHtml(row, presentation = {}) {
   const icons = { building: '<path d="m3 13 5-5 3 3-5 5H3zm7-7 2-2 6 6-2 2M5 16l-2 2v2h2l2-2"/>',
     review: '<path d="M2 10s3.5-5 8-5 8 5 8 5-3.5 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2"/>',
     back: '<path d="m7 5-4 4 4 4M3 9h8a5 5 0 0 1 0 10h-2"/>',
-    accepted: '<path d="m3 10 5 5L17 5"/>', landed: '<path d="m3 10 5 5L17 5"/>', ready: '<circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>' };
-  const icon = '<span class="roadmap-state ' + stage + '" aria-hidden="true"><span class="dot ' + esc(row.state) + '"></span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + icons[stage] + '</svg></span>';
+    accepted: '<path d="m3 10 5 5L17 5"/>', landed: '<path d="m3 10 5 5L17 5"/>', ready: '<circle cx="10" cy="10" r="3.5" fill="currentColor" stroke="none"/>',
+    gated: '<circle cx="10" cy="10" r="7"/><path d="M10 6.5V10l2.5 2"/>', held: '<path d="M7.5 5v10M12.5 5v10"/>' };
+  // The row icon shows the stage, never the Sent back mark beside it; open work that waits or is held is Gated [N26].
+  const shown = stage === 'back' || stage === 'ready' ? (row.held ? 'held' : row.block?.dot || row.after?.length ? 'gated' : 'ready') : stage;
+  const icon = '<span class="roadmap-state ' + shown + '" aria-hidden="true"><span class="dot ' + esc(row.state) + '"></span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + icons[shown] + '</svg></span>';
   const label = '<span class="id">' + esc(row.label) + '</span>' + title;
   const text = '<span class="milestone-title">' + label + '</span>' + (presentation.afterHtml || '') + (row.block?.dot && !row.after?.length ? row.block.dot : '');
   const key = 'i:' + row.label;

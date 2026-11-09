@@ -316,10 +316,37 @@ function contribute(g, path) {
   }
   // A child process is not an import edge, but tests and helpers that name the CLI entry depend on
   // every module it imports. Keep this literal path edge narrow and build it for each committed tree.
-  if (modules.get(path).includes('bin/pullboard.js')) {
-    if (!reverse.has('bin/pullboard.js')) reverse.set('bin/pullboard.js', new Set());
-    reverse.get('bin/pullboard.js').add(path);
+  // A product module that only names the path as text launches nothing here: its edge moves onto the tests that import it
+  // and name the repo root, where this tree's CLI is launched (#3812).
+  if (modules.get(path).includes('bin/pullboard.js') && isTestCode(path)) addCliEdge(reverse, path);
+  if (isTestCode(path) && NAMES_REPO_ROOT.test(modules.get(path))) {
+    for (const dependency of importedPaths(g, path)) {
+      if (!isTestCode(dependency) && modules.get(dependency)?.includes('bin/pullboard.js')) addCliEdge(reverse, path);
+    }
   }
+}
+
+/** Whether a path is test code: a test file, or anything under a test folder, such as a shared fixture. */
+function isTestCode(path) { return TEST.test(path) || /(?:^|\/)tests?\//u.test(path); }
+
+/** A test that hands the repository root to code it imports launches this tree's CLI through that code. */
+const NAMES_REPO_ROOT = /\b(?:ROOT|repoRoot|REPO_ROOT)\b|import\.meta\.dirname|process\.cwd\(\)|new URL\(\s*['"]\.\.\/?['"]/u;
+
+/** Make the CLI entry depend on nothing but record that this path exercises it as a subprocess. */
+function addCliEdge(reverse, path) {
+  if (!reverse.has('bin/pullboard.js')) reverse.set('bin/pullboard.js', new Set());
+  reverse.get('bin/pullboard.js').add(path);
+}
+
+/** The repository modules a module imports by literal specifier. */
+function importedPaths(g, path) {
+  const out = [];
+  for (const target of g.imports.get(path) ?? []) {
+    if (!target.startsWith('.') && !target.startsWith('#')) continue;
+    const dependency = repositoryImport(path, target, g.importMap);
+    if (dependency) out.push(dependency);
+  }
+  return out;
 }
 
 /** Compile the given modules once and add their edges; the only place a module is parsed for the graph. */
@@ -355,10 +382,10 @@ function buildGraph(root, commit, prior, probe) {
     addModules(g, g.paths, probe);
   }
   // Discovery is not an import: the command registry loads each apps/cli/src/shell/commands module, and machine.js reads each
-  // src/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
+  // packages/state/src/core/engines/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
   for (const module of g.paths) {
     const reader = module.startsWith('apps/cli/src/shell/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/shell/commands/'.length)) ? COMMAND_REGISTRY
-      : module.startsWith('src/') && ENGINE_CANDIDATE.test(module.slice('src/'.length)) ? 'src/machine.js' : null;
+      : module.startsWith('packages/state/src/core/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/core/engines/'.length)) ? 'src/machine.js' : null;
     if (!reader) continue;
     if (!g.reverse.has(module)) g.reverse.set(module, new Set());
     g.reverse.get(module).add(reader);

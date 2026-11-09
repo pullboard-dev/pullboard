@@ -14,7 +14,6 @@ import {
   resolve,
 } from 'node:path';
 import * as store from '../../../../src/board.js';
-import { checkBaseline } from './check-baseline.js';
 import { runnerBaseline } from './check-baseline.js';
 import { runnerBaselineCommand } from './check-baseline.js';
 import { withGateSlot } from './gate-slot.js';
@@ -114,23 +113,20 @@ function mainSource(root, commit) {
 }
 
 /**
- * Measure the captured main's check. With a registered runner it runs there like any gate run, at main's exact commit
- * from the object store, and waits in the gate queue while none is free; only a machine with no runner runs it here, in
- * a temporary clone. Why: on 2 Nov ten baselines from one evening's edits ran on the coordinator Mac at load 107 [C7,#2520].
+ * Measure the captured main's check on a registered runner, like any gate run, at main's exact commit from the object
+ * store; the run waits in the gate queue while none is free. With no runner it returns null and the baseline stays
+ * pending: nothing test-like runs on the coordinator. Why: on 2 Nov ten baselines from one evening's edits ran on the
+ * coordinator Mac at load 107, and on 8 Nov about twenty more did at load 40-58 [C7,#2520,#3851].
  *
  * @param {string} root
  * @param {number} id
  * @param {{ command: string, main: string }} expected
  * @param {{ gateExecutionServices?: () => Promise<{ runners: object, landing: object }> }} services
+ * @returns {Promise<object|null>} The observation, or null when no runner can take it.
  */
-async function measureBaseline(root, id, expected, services) {
+export async function measureBaseline(root, id, expected, services) {
   const executionServices = await services.gateExecutionServices?.();
-  if (!executionServices) return checkBaseline(root, expected.command, { main: expected.main });
-  if (!runnersRegistered(executionServices)) {
-    // No runner exists: queue in this machine's gate queue (memory and slot admission) like any gate run, never start it unqueued.
-    return withGateSlot(root, () => checkBaseline(root, expected.command, { main: expected.main }), { executionServices, remote: false,
-      agent: 'coordinator', item: String(id), kind: 'check-baseline' });
-  }
+  if (!executionServices || !runnersRegistered(executionServices)) return null;
   const source = mainSource(root, expected.main);
   if (!source) return { command: expected.command, main: expected.main, result: 'unavailable', reason: 'the captured main commit could not be read for a runner' };
   return withGateSlot(root, async lease => {
@@ -150,6 +146,8 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   let baseline;
   try { baseline = await measureBaseline(root, id, expected, services); }
   catch { baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: 'background check could not run; set --check again from the coordinator' }; }
+  // No runner took it: the baseline stays pending on the item; it is never run on this machine.
+  if (baseline === null) return;
   const receipt = { id, expected, baseline };
   const file = saveReceipt(root, receipt);
   const io = {

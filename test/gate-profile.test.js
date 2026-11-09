@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { joinFixtureSeat } from './testkit-fixture.js';

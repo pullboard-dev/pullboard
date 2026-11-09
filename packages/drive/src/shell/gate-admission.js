@@ -60,6 +60,10 @@ export function createGateAdmission(opener) {
    */
   admit(launch, { owner, relaunches }) {
     onBoard(opener, launch.commonDir, board => {
+      // A launch whose item moved on (withdrawn, reopened, replaced) is never admitted; it ends unstarted (#4072).
+      if (typeof opener.serving === 'function' && opener.serving(board, launch) === false) {
+        throw Object.assign(new Error(`gate ${launch.job} no longer serves its item; it is not started`), { code: 'GATE_STALE' });
+      }
       const previous = readGateDrive(board.db, launch.job);
       if (previous?.owner && processGone(previous.pid)) releaseLease(board.db, gateDriveJobId(launch.job), previous.owner);
       admitGateDrive(board.db, launch.job, { owner, relaunches });
@@ -82,15 +86,23 @@ export function createGateAdmission(opener) {
  * @param {{ openBoard: Function, closeBoard: Function }} opener - The native board opener.
  * @param {string} commonDir - The launching repository's common directory, the dispatcher's working directory.
  * @param {string | undefined} owner - The lease owner the launching submit took the row for.
- * @returns {{ renew: () => void, release: () => void, withDb: <T>(work: (db: import('node:sqlite').DatabaseSync) => T) => T, retake: () => boolean }}
+ * @returns {{ renew: () => boolean | undefined, release: () => void, withDb: <T>(work: (db: import('node:sqlite').DatabaseSync) => T) => T, retake: () => boolean }}
  */
 export function gateDispatcherRow(opener, commonDir, owner) {
   let renewedAt = 0;
   return {
+    /**
+     * Renew the row; false only when another dispatcher holds it, so this one must stop launching (DJ16). A lapsed row
+     * nobody took is retaken, as a late renewal finds it after a blocked loop.
+     */
     renew() {
-      if (!owner || Date.now() - renewedAt < ROW_RENEW_MS) return;
+      if (!owner || Date.now() - renewedAt < ROW_RENEW_MS) return undefined;
       renewedAt = Date.now();
-      onBoard(opener, commonDir, board => renewDispatcher(board.db, owner));
+      return onBoard(opener, commonDir, board => {
+        if (renewDispatcher(board.db, owner)) return true;
+        const taken = takeJob(board.db, DISPATCHER_JOB, owner);
+        return taken.taken || taken.job.leaseOwner === owner || !taken.job.leaseOwner;
+      });
     },
     release() {
       if (owner) onBoard(opener, commonDir, board => releaseLease(board.db, DISPATCHER_JOB, owner));

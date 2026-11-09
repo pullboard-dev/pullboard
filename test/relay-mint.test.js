@@ -6,7 +6,7 @@ import { chmodSync, copyFileSync, existsSync, mkdtempSync, readdirSync, readFile
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { appliedSequence, applyRelayMove } from '../packages/state/index.js';

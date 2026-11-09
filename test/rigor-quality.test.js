@@ -23,7 +23,7 @@ import {
   after,
   test,
 } from 'node:test';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { doctrineReport } from '../packages/doctrine/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import {
