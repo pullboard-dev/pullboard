@@ -1,9 +1,9 @@
 /** Keep the coordinator's handoff brief short, ordered, and derived from real Git and board state [N19,B3]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../test/fixture-child.js';
-import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
+import { runFixtureExecFile as execFileSync } from './fixture-child.js';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -17,10 +17,10 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
 const SPEC = `# Resume fixture\n\n## G · Goals\n- G1 [approved, must] The first feature works. | gate: test\n- G2 [approved, must] The second feature works. | gate: test\n`;
 const HOUR = 60 * 60 * 1000;

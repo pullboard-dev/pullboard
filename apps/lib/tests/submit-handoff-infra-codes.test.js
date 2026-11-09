@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import {
   INFRASTRUCTURE_CODES,
   submitUntilSettled,
-} from '../../../apps/lib/index.js';
-import { INFRASTRUCTURE_CODES as board } from '../../store/index.js';
-import { Refused } from '../index.js';
+} from '../index.js';
+import { INFRASTRUCTURE_CODES as board } from '../../../packages/store/index.js';
+import { Refused } from '../../../packages/kernel/index.js';
 
 const HOST = 'runner-7.example';
 const CASES = {

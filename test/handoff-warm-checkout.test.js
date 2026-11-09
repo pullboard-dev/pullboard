@@ -9,16 +9,16 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
-import { admitGateDrive } from '../../../packages/drive/index.js';
-import { getItem } from '../../../packages/store/index.js';
-import { submitHandoff } from '../../../packages/store/index.js';
-import { writeBoardCommand } from '../../../packages/store/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChildAsync } from '../../../test/fixture-child.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
-import { fixtureOpenBoard } from '../../../test/testkit-fixture.js';
-import { fixtureHandoffPolicy } from '../../../test/testkit-fixture.js';
+import { gateDriveWorkerEntry } from '../bin/gate-drive-worker.js';
+import { admitGateDrive } from '../packages/drive/index.js';
+import { getItem } from '../packages/store/index.js';
+import { submitHandoff } from '../packages/store/index.js';
+import { writeBoardCommand } from '../packages/store/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChildAsync } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
+import { fixtureHandoffPolicy } from './testkit-fixture.js';
 
 /** Demand a genuine CLI success before reading its native document. */
 function document(result) {

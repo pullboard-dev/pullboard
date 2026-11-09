@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
+import * as store from '../index.js';
 import {
   applyEngineMove,
   prepareEngineMove,

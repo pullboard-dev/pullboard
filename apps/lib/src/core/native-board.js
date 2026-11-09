@@ -76,7 +76,7 @@ import {
 import {
   activeViewAgents,
   viewProofSummary,
-} from '../../../../src/view-state-summary.js';
+} from '../../../../apps/view/index.js';
 import { personSigningPresentation } from '../../../../packages/person/index.js';
 import {
   personRequestStatuses,

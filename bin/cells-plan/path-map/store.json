@@ -41,7 +41,6 @@
   "src/memory-held.js": "packages/store/src/shell/memory-held.js",
   "src/native-board-state.js": "packages/store/src/shell/native-board-state.js",
   "src/native-state-clock.js": "packages/store/src/core/native-state-clock.js",
-  "src/native-user-directory.js": "packages/store/src/shell/native-user-directory.js",
   "src/outside-store.js": "packages/store/src/shell/outside-store.js",
   "src/proof-receipts.js": "packages/store/src/shell/proof-receipts.js",
   "src/seat-presence.js": "packages/store/src/shell/seat-presence.js",

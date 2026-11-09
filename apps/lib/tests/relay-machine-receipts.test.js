@@ -1,14 +1,20 @@
 /** Machine execution can fulfil only an earlier phone's literal intent on every replica [H12,H16,B26]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
-import { preparePersonRequest } from '../packages/person/core.js';
-import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../packages/link/index.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { appliedSequence } from '../../../packages/state/index.js';
+import { applyRelayMove } from '../../../packages/state/index.js';
+import { prepareEngineMove } from '../../../packages/state/index.js';
+import { preparePersonRequest } from '../../../packages/person/core.js';
+import { personRequestRecords } from '../../../packages/link/index.js';
+import { receivePersonRequest } from '../../../packages/link/index.js';
+import { requestIntentDigest } from '../../../packages/link/index.js';
+import { requestStageText } from '../../../packages/link/index.js';
 
 const at = '2026-10-09T21:00:00.000Z';
 const phone = { kind: 'person', userId: 'private-person' };
