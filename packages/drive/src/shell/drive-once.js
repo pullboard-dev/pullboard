@@ -335,9 +335,10 @@ function observeStages(rows, job, seen, now, ended = null) {
 }
 
 /**
- * One run of a whole gate, renewing the lease while it runs and watching the job's steps: the run ends with the gate's
- * result, or as stalled once no step was written for `stallMs`. The gate's `run.progress` reports write
- * `gate.progress` steps, so a gate that waits for a runner or runs tests a long while is not stalled. A stalled run's stages get its signal and it records
+ * One run of a whole gate, renewing the lease while it runs (retaking it when a late tick finds it lapsed and still
+ * this driver's) and watching the job's steps: the run ends with the gate's result, or as stalled once no step was
+ * written for `stallMs`. The gate's `run.progress` reports write `gate.progress` steps, so a gate that waits for a
+ * runner or runs tests a long while is not stalled. A stalled run's stages get its signal and it records
  * nothing more, so a stage that never settles cannot hold the gate.
  *
  * @param {JobRows} rows
@@ -353,8 +354,11 @@ async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkM
   const stalled = new Promise(resolvePromise => {
     watch = setInterval(() => {
       const at = now();
-      rows.ticket(view.id, 'renew', owner, at);
-      const steps = rows.view(view.id).steps;
+      const current = rows.view(view.id);
+      // A tick that came late (a blocked event loop) finds its lease lapsed; while no other driver took the job, it
+      // retakes the lease, so a live driver never reads as gone (#3836).
+      if (!rows.ticket(view.id, 'renew', owner, at) && current.leaseOwner === owner) rows.ticket(view.id, 'take', owner, at);
+      const steps = current.steps;
       const last = steps.reduce((latest, step) => (step.at > latest.at ? step : latest), { at: startedAt, name: null });
       if (at - last.at >= stallMs) resolvePromise({ stalled: { idleMs: at - last.at, lastStep: last.name } });
     }, checkMs);
