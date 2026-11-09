@@ -5512,7 +5512,7 @@
     "packages/drive/core.js": 9,
     "packages/verify/core.js": 17,
     "packages/store/core.js": 34,
-    "packages/doctrine/core.js": 79,
+    "packages/doctrine/core.js": 50,
     "packages/gate/core.js": 10
   }
 }
