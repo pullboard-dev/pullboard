@@ -62,7 +62,7 @@ import {prepareEngineMove,applyEngineMove,appliedSequence} from './packages/stat
 import {QUARANTINE_CORE_ENGINE} from './packages/state/src/core/engines/quarantine-core-engine.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
 import {proofCounts} from './packages/verify/index.js';
-import * as store from './src/board.js';
+import * as store from './packages/store/index.js';
 import * as nativeBoard from './apps/lib/index.js';
 import {gateRuns,flakeQuarantines} from './apps/lib/index.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8')),reports=[];
