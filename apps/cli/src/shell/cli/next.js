@@ -165,6 +165,10 @@ export async function nextOnce(ctx, values) {
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      // An item frozen under an older submit policy is passed over and named, so one stale item never stops the seat; claim by id still refuses (#3770).
+      if (error instanceof Refused && error.code === 'NO_POLICY' && /accepted submit policy changed|no longer contains the frozen policy/u.test(error.message)) {
+        return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      }
       throw error;
     }
     const itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: item.renewed });
