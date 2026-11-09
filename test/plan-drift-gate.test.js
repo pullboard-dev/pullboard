@@ -24,7 +24,7 @@ import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { requirePlannedSource } from '../packages/items/index.js';
-import { warmAcceptedCells } from '../packages/gate/index.js';
+import { readAcceptedCells, warmAcceptedCells } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -75,6 +75,8 @@ async function publishAcceptedInventory(box) {
     const main = String(box.git(box.repo, 'rev-parse', 'main')).trim();
     const artifact = await warmAcceptedCells(box.repo, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: 'main' });
     assert.equal(artifact.available, true, 'the producer published the fixture main inventory');
+    const read = readAcceptedCells(box.web, main);
+    assert.equal(read.available, true, `a submit from the seat worktree reads it: ${JSON.stringify(read)}`);
   } finally { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; }
 }
 
