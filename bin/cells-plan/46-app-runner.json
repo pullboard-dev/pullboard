@@ -4,6 +4,7 @@
  "kind": "app",
  "root": "apps/runner",
  "frontDoor": "apps/runner/index.js",
+ "lightFrontDoor": "apps/runner/core.js",
  "paths": [
   ["src/chrome-clone-cleanup.js","apps/runner/src/shell/chrome-clone-cleanup.js","rule"],
   ["src/private-check-worker.js","apps/runner/src/shell/private-check-worker.js","seed"],
