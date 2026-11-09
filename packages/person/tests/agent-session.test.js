@@ -91,7 +91,7 @@ function project() {
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const web = join(box.dir, 'web-agent');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/session');
-  const joined = box.run(web, ['join', 'web', '--family', 'Fixture-Builder'], { agent: false });
+  const joined = box.run(web, ['join', 'web', '--family', 'Fixture-Builder', '--route', 'strong'], { agent: false });
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
   return { ...box, repo, web, boardFile: resolve(repo, box.git(repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'board.sqlite') };
 }
