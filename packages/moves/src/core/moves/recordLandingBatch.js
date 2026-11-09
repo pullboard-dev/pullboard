@@ -13,7 +13,7 @@ import { LOCAL_LANDING_ENGINE } from "../../../../state/core.js";
 import { latestLandingBatch } from "../../../../git/core.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
-import { landingTestDefects } from "../../../../../src/board-landing-test-defect-history.js";
+import { landingTestDefects } from "../../../../store/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../../src/move-engine-constants.js";
 

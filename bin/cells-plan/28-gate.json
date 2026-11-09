@@ -98,12 +98,10 @@
   "src/gate-run-receipt.js",
   "src/gui-admission.js",
   "src/module-imports.js",
-  "src/perf-budgets.js",
   "src/test-action-cache.js",
   "src/test-concurrency.js",
   "src/test-file-dispatch.js",
   "src/test-file-pool.js",
-  "src/test-isolation.js",
   "src/test-selection.js",
   "src/test-value-timing.js"
  ],
