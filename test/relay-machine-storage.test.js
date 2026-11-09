@@ -6,10 +6,10 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 
-const APPROVAL_MODULE = new URL('../src/core/relay-approval.js', import.meta.url).href;
-const MACHINE_MODULE = new URL('../src/shell/relay-machine.js', import.meta.url).href;
+const APPROVAL_MODULE = new URL('../packages/link/src/core/relay-approval.js', import.meta.url).href;
+const MACHINE_MODULE = new URL('../packages/link/src/shell/relay-machine.js', import.meta.url).href;
 
 test('legacy machine and board sessions are scrubbed before an agent read or fresh sign-in [H15,H16,B26]', async t => {
   const box = await relayClientFixture(t);

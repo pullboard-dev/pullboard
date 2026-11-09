@@ -220,7 +220,7 @@
   "packages/link/tests/relay-lock.test.js": {
     "tempdir": 3
   },
-  "packages/link/tests/relay-stall-phases.test.js": {
+  "test/relay-stall-phases.test.js": {
     "tempdir": 1
   },
   "packages/outbox/tests/relay-checkpoint.test.js": {
@@ -3321,7 +3321,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "test/runner-worker-state.test.js": {
+  "packages/verify/tests/runner-worker-state.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
