@@ -1,10 +1,10 @@
 /** Slot-pool reads and lease writes wait out a held SQLite lock instead of failing the gate that holds them [C7]. */
 import { DatabaseSync } from 'node:sqlite';
 
-/** How long one read or write attempt lets SQLite wait for a held lock. */
-export const POOL_BUSY_TIMEOUT_MS = 10_000;
-/** How long a lease write keeps retrying after SQLite's own wait, before the lock counts as stuck. */
-const POOL_WRITE_RETRY_MS = 120_000;
+/** How long one read or write attempt lets SQLite wait for a held lock; every pool write takes milliseconds [C7]. */
+export const POOL_BUSY_TIMEOUT_MS = 2_000;
+/** How long a lease write keeps retrying after SQLite's own wait, before the lock counts as stuck; it blocks the thread. */
+const POOL_WRITE_RETRY_MS = 5_000;
 
 /** Recognize SQLite's busy or locked failure, which a later attempt can pass. */
 export function poolLocked(error) {

@@ -69,7 +69,8 @@ export async function prepareTestResultExchange(root, command, commit) {
   try {
     const inputs = new Set();
     for (const selected of invocations(root, command)) {
-      const keys = await testActionKeys(root, { commit, ...selected });
+      // Store upkeep scans every memo and record, minutes at load, so a dispatch's request never runs it (9 Nov) [C7].
+      const keys = await testActionKeys(root, { commit, ...selected, maintain: false });
       for (const value of keys.values()) if (value.inputKey) inputs.add(value.inputKey);
     }
     if (!inputs.size) return null;
