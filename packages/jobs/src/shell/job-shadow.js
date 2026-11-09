@@ -1,7 +1,7 @@
 /** The submit hand-off record, owned by the gate job's rows: every save is a step carrying the whole record [C7]. */
 import { createJob } from "./job-store.js";
 import { writeStep } from "./job-store.js";
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/core.js";
 
 /**
  * Write one submit-handoff state change as a step of its gate job, creating the job row on first sight: submit's

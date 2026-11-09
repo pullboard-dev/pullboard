@@ -27,7 +27,7 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { removeGitRepositorySelectors } from '../core/git-child-selectors.js';
 import { localEnvVars } from './git-local-env.js';
 

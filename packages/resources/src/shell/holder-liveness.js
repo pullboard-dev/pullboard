@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Set in the environment of a re-dispatched request so its own holder is never requeued a second time. */
 export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
