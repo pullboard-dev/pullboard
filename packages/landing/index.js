@@ -68,3 +68,4 @@ export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, rep
 export { landingReceiptReuse } from './src/shell/landing-receipt-reuse.js';
 export { refreshMainRedComparisons } from './src/shell/main-red.js';
 export { holdRefreshFlight } from './src/shell/main-red-refresh-flight.js';
+export { placeUncoveredOnTrunk, runMergedFollowup } from './src/shell/merged-followup.js';
