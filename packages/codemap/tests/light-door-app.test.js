@@ -13,7 +13,7 @@ import { cellLintReport } from '../index.js';
 
 const BIN = fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url));
 const DOOR = 'apps/cli/core.js';
-const BODY = 'apps/cli/src/shell/cli.js';
+const BODY = 'apps/cli/src/core/cli.js';
 
 /** Run the real cells plan CLI in the fixture; the moved check's problems come back one per line. */
 function plan(root, ...args) {
@@ -30,8 +30,8 @@ function declare(root, cell, key, value) {
   writeFileSync(file, JSON.stringify(shard, null, 1) + '\n');
 }
 
-/** Move the fixture's app:cli behind index.js and a declared light core.js that re-exports a shell file. */
-function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/shell/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
+/** Move the fixture's app:cli behind index.js and a declared light core.js that re-exports its body. */
+function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/core/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
   const project = fixture(t), { root, put } = project;
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   put(BODY, body);
