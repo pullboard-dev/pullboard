@@ -109,6 +109,11 @@ test('lane and item messages follow worker aliases without granting a helper the
   assert.deepEqual(store.inbox(f.board, f.primary, { markRead: false }).map(row => row.shout_id), [lane, item]);
   assert.deepEqual(store.inbox(f.board, f.child, { markRead: false }), []);
   assert.deepEqual(store.inbox(f.board, f.outsider, { markRead: false }).map(row => row.shout_id), [lane]);
+  // A single seat counts only the item shouts naming an item it holds; the coordinator holds every item [C7].
+  assert.equal(store.unreadCount(f.board, f.outsider), 1, 'the outsider counts the lane message, never the item shout');
+  const reply = store.shout(f.board, { from: f.sibling, to: 'api', item: id, text: 'Item reply', lanes: ['coordinator', 'web', 'api'] });
+  assert.equal(store.unreadCount(f.board, 'coordinator'), store.inbox(f.board, 'coordinator', { markRead: false }).length);
+  assert.ok(store.inbox(f.board, 'coordinator', { markRead: false }).some(row => row.shout_id === reply), 'the coordinator reads an item shout');
 });
 
 /** Run one actual CLI command in a private fixture session, never the operational session. */
