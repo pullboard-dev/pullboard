@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
+/** @pullboard-test-loads src/board.js src/engine.js packages/state/src/shell/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 import { REJECT_CLAUSE_ENGINE } from '../packages/state/core.js';

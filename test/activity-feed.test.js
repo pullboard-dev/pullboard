@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js packages/state/src/shell/machine.js */
 /** Lifecycle activity retains its evidence without turning routine status into messages [B3,R2,N26,H16]. */
 import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 import assert from 'node:assert/strict';

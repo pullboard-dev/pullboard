@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/brief.js src/board.js src/engine.js src/machine.js src/board-engine-ports.js */
+/** @pullboard-test-loads src/brief.js src/board.js src/engine.js packages/state/src/shell/machine.js src/board-engine-ports.js */
 /** External references stay distinct from the board's requirement and dependency links [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/engine.js src/machine.js */
+/** @pullboard-test-loads src/engine.js packages/state/src/shell/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -690,7 +690,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   });
   const next=Math.max(0,...declarations.map(row=>row.number??0))+1;
   for (const row of declarations) assert.equal(ENGINE_REGISTRY[row.file.slice(0,-'-engine.js'.length)],row.number??next,'unlanded branches read one above the highest assigned engine');
-  assert.doesNotMatch(readFileSync(new URL('../packages/state/src/shell/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'src/machine.js lists no engine by name');
+  assert.doesNotMatch(readFileSync(new URL('../packages/state/src/shell/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/shell/machine.js lists no engine by name');
 });
 
 test('a feature engine or command file name outside letters, digits, underscore and hyphen is refused by discovery [C7,V4]', () => {

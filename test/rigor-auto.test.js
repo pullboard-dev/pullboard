@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
+/** @pullboard-test-loads src/board.js src/engine.js packages/state/src/shell/machine.js */
 import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
