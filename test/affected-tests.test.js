@@ -164,15 +164,15 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
   box.put('src/cli.js', "import './serve.js';\n");
-  box.put('src/serve.js', "import './cockpit.js';\n");
-  box.put('src/cockpit.js', 'export const version = 1;\n');
+  box.put('src/serve.js', "import '../apps/cli/src/shell/cockpit.js';\n");
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
   box.put('test/cockpit/fixture.js', "const BIN = '../../bin/pullboard.js';\n");
   box.put('test/cockpit/items.test.js', "import './fixture.js';\n");
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\n");
   const base = box.commit();
 
-  box.put('src/cockpit.js', 'export const version = 2;\n');
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 2;\n');
   const commit = box.commit();
   const changedCockpit = selectAffectedTests(box.root, { base, commit });
   assert.equal(changedCockpit.full, false, 'the imported CLI dependency keeps focused selection');

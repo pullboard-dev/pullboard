@@ -7,7 +7,7 @@ import { withFixtureBoard } from './testkit-fixture.js';
 import { createJob, jobView } from '../packages/jobs/index.js';
 import { runGateStages } from '../packages/gate/index.js';
 import { createGateAdmission, drainLoop, driveOnce, gateDriveJobId, GATE_DRIVE_KIND, recordJobRow, rowSink } from '../packages/drive/index.js';
-import { drivenHandoffGate, handoffRefusedResult } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { drivenHandoffGate, handoffRefusedResult } from '../apps/cli/src/shell/submit-handoff-worker.js';
 
 const STAGES = ['preflight', 'selection', 'cells', 'doctrine', 'static', 'tests'];
 

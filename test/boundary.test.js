@@ -51,8 +51,7 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (['apps/view/src/shell/serve.js', 'src/serve.js'].includes(file) && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (['apps/view/src/shell/view-session.js'].includes(file) && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
-    (['apps/view/src/core/view/cockpit-live.js', 'src/view/cockpit-live.js'].includes(file) && /^\s*const res = await fetch\(path, /.test(line)) ||
-    (file === 'src/cockpit.js' && line.trim() === "try { reply = await fetch(base + '/local/protocol', { signal: AbortSignal.timeout(3000), credentials: 'omit', redirect: 'error' }); }");
+    (['apps/view/src/core/view/cockpit-live.js', 'src/view/cockpit-live.js'].includes(file) && /^\s*const res = await fetch\(path, /.test(line));
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
