@@ -68,7 +68,7 @@ export const HOPS = Object.freeze([
     invariant: 'A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red.',
     live: report => phase(report, 'requeue', 20_000) },
   { id: 'foreign-sweep', stage: 'Gate', hop: 'another machine queue\'s sweep', harness: 'foreign-sweep', fix: '044d6c6c18',
-    invariant: 'A dispatcher sweeping from another machine home leaves this home\'s queued and running gates alone.' },
+    invariant: 'A dispatcher from another machine home never recovers this home\'s gates; this home retries its own dead gate.' },
   { id: 'green-review', stage: 'Review', hop: 'green → review', harness: 'e2e',
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',

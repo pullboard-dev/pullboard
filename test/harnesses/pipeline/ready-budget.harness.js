@@ -45,7 +45,8 @@ ${executionServicesSource(gate)}
     const attempts = [];
     const started = performance.now();
     let admittedMs = null, dispatchMs = null;
-    const run = await withGateSlot(process.cwd(), lease => {
+    let run = null, refused = null;
+    try { run = await withGateSlot(process.cwd(), lease => {
       admittedMs ??= performance.now() - started;
       attempts.push(lease.runner.host);
       // The lease's queue deadline already passed, as after a gate's 177 s doctrine phase on that lease (#3563).
@@ -53,11 +54,12 @@ ${executionServicesSource(gate)}
       const dispatched = performance.now();
       return runProfiledShellAsync(process.cwd(), 'node -e "console.log(\\'HOP_READY_EXECUTED\\')"', { gateLease: lease })
         .finally(() => { dispatchMs = performance.now() - dispatched; });
-    }, { executionServices, remote: true, runnerOnly: true, onWait() {} });
+    }, { executionServices, remote: true, runnerOnly: true, onWait() {} }); }
+    catch (error) { refused = error.code ?? error.name; }
     const db = new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME + '/resources.sqlite', { readOnly: true });
     const held = db.prepare('SELECT host, detail FROM runner_unavailable').all();
     db.close();
-    console.log(JSON.stringify({ green: run.isGreen, executed: /HOP_READY_EXECUTED/u.test(run.output), attempts, held, admittedMs, dispatchMs }));`;
+    console.log(JSON.stringify({ green: run?.isGreen === true, executed: /HOP_READY_EXECUTED/u.test(run?.output ?? ''), refused, attempts, held, admittedMs, dispatchMs }));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 150_000 });
   t.after(e2e.cleanup);
   if (result.status !== 0) throw new Error(`gate child exited ${result.status}: ${String(result.stderr || result.failure).slice(0, 800)}`);
@@ -69,7 +71,7 @@ ${executionServicesSource(gate)}
     return measured;
   }));
   await t.test('ready-budget', () => hopCheck('ready-budget', async () => {
-    const measured = { ms: seen.dispatchMs, measured: `${seen.attempts.length} dispatch(es), ${seen.green ? 'green' : 'not green'}, ${seen.held.length} runner(s) held after a passed queue deadline` };
+    const measured = { ms: seen.dispatchMs, measured: `${seen.attempts.length} dispatch(es), ${seen.refused ? `refused ${seen.refused}` : seen.green ? 'green' : 'not green'}, ${seen.held.length} runner(s) held after a passed queue deadline` };
     within(seen.green && seen.executed && seen.attempts.length === 1 && seen.held.length === 0,
       'a dispatch after its queue deadline reaches READY on its first attempt and holds no healthy runner', measured);
     return measured;
