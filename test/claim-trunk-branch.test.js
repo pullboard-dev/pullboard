@@ -34,20 +34,17 @@ function claimOn(trunk) {
   return { box, root, claimed };
 }
 
-for (const trunk of ['master', 'trunk']) {
-  test(`clause 1: claim succeeds and builds the item folder on a project whose trunk is ${trunk} [C7,#3759]`, () => {
-    const { box, root, claimed } = claimOn(trunk);
-    assert.equal(claimed.code, 0, claimed.err || claimed.out);
-    const folder = JSON.parse(claimed.out).itemFolder;
-    assert.ok(folder && existsSync(folder), `claim opened an item folder: ${claimed.out}`);
-    box.git(folder, 'merge-base', '--is-ancestor', box.git(root, 'rev-parse', trunk).trim(), 'HEAD');
-  });
-}
-
-test('clause 2: a project whose trunk is main still builds its item folder from main [C7,#3759]', () => {
-  const { box, root, claimed } = claimOn('main');
+/** Claim on a project with this trunk, then check the item folder exists and contains the trunk's tip. */
+function assertFolderOnTrunk(trunk) {
+  const { box, root, claimed } = claimOn(trunk);
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const folder = JSON.parse(claimed.out).itemFolder;
   assert.ok(folder && existsSync(folder), `claim opened an item folder: ${claimed.out}`);
-  box.git(folder, 'merge-base', '--is-ancestor', box.git(root, 'rev-parse', 'main').trim(), 'HEAD');
-});
+  box.git(folder, 'merge-base', '--is-ancestor', box.git(root, 'rev-parse', trunk).trim(), 'HEAD');
+}
+
+test('clause 1: claim succeeds and builds the item folder on a project whose trunk is master [C7,#3759]', () => assertFolderOnTrunk('master'));
+
+test('clause 1: claim succeeds and builds the item folder on a project whose trunk is trunk [C7,#3759]', () => assertFolderOnTrunk('trunk'));
+
+test('clause 2: a project whose trunk is main still builds its item folder from main [C7,#3759]', () => assertFolderOnTrunk('main'));
