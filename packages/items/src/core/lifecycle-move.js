@@ -4,7 +4,8 @@
  */
 export function lifecycleMove(machine, state, event) {
   if (event.kind === 'renew' && event.submitRenewal === true) return undefined;
-  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport', 'outside-intake': 'intake' };
+  // An owning lane's objection to an automatic companion reopens the item through its declared move (#3815).
+  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport', 'outside-intake': 'intake', item_patch_object: 'patch-objected' };
   const verb = ['item_patch_attach', 'item_patch_remove'].includes(event.kind)
     ? state === 'claimed' ? 'patch-claimed' : 'patch' : aliases[event.kind] ?? event.kind;
   return machine.moves.find(move => move.verb === verb && move.from.includes(state)
