@@ -1,5 +1,5 @@
 import { RERUNNABLE_RUNNER_REFUSALS } from '../../../store/index.js';
-import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
 import { RELEASE_EXECUTORS_ENV } from '../../../gate/src/shell/gate-run-receipt.js';
@@ -44,7 +44,7 @@ import {
 import { testsNeedGui } from '../../../gate/src/shell/gui-admission.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
-import { localRunnerDescriptor } from '../../../runners/src/shell/runner-load.js';
+import { localRunnerDescriptor } from '../../../runners/index.js';
 import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { headTree } from '../../../../src/git.js';
 import { cpuRunnerRequired } from '../../../gate/src/shell/cpu-load-admission.js';
