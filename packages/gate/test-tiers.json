@@ -12369,7 +12369,7 @@
       ]
     },
     {
-      "file": "test/ci.test.js",
+      "file": "packages/gate/tests/ci.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [

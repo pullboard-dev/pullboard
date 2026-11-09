@@ -1,9 +1,11 @@
 /** Deterministic allowance changes, never a gate on machine load or live diagnostic counts [C7]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { git } from './git.js';
+import { git } from '../../../git/index.js';
 
-export const BOARD_HOLD_BASELINE = 'src/board-hold-baseline.json';
+export const BOARD_HOLD_BASELINE = 'packages/store/src/shell/board-hold-baseline.json';
+/** Where the committed allowance lived before it moved into the store cell; its history still counts. */
+const LEGACY_BOARD_HOLD_BASELINE = 'src/board-hold-baseline.json';
 
 /** Read the committed source allowance separately from private machine observations. */
 export function readBoardHoldBaseline(root) {
@@ -30,12 +32,14 @@ export function boardHoldBaselineProblems(current, previous) {
 /** Preserve the lowest reachable allowance, so an unrelated child cannot hide an earlier increase. */
 export function committedBoardHoldBaselineProblems(root) {
   const current = readBoardHoldBaseline(root);
-  const refs = git(root, ['log', '--full-history', '--format=%H', 'HEAD', '--', BOARD_HOLD_BASELINE]).split('\n').filter(Boolean);
   const previous = [];
-  for (const ref of refs) {
-    try { previous.push(JSON.parse(git(root, ['show', `${ref}:${BOARD_HOLD_BASELINE}`]))); }
-    catch (error) {
-      if (git(root, ['ls-tree', ref, '--', BOARD_HOLD_BASELINE])) throw error;
+  for (const path of [BOARD_HOLD_BASELINE, LEGACY_BOARD_HOLD_BASELINE]) {
+    const refs = git(root, ['log', '--full-history', '--format=%H', 'HEAD', '--', path]).split('\n').filter(Boolean);
+    for (const ref of refs) {
+      try { previous.push(JSON.parse(git(root, ['show', `${ref}:${path}`]))); }
+      catch (error) {
+        if (git(root, ['ls-tree', ref, '--', path])) throw error;
+      }
     }
   }
   if (!previous.some(value => value.allowancePerDay === null)) previous.push(undefined);
