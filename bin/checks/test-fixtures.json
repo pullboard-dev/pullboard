@@ -524,9 +524,6 @@
   "packages/sync/tests/local-fetch.test.js": {
     "tempdir": 1
   },
-  "packages/transport/tests/tooling-pin-reuse.test.js": {
-    "raw-board": 1
-  },
   "packages/verify/tests/evidence.test.js": {
     "tempdir": 1
   },
