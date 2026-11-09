@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import * as store from "../../../../src/board.js";
+import * as store from "../../../store/index.js";
 import {
   exportBoard,
   importBoard,
@@ -37,7 +37,7 @@ import {
 import {
   GIT_BOARD_REF,
   validateGitBoardCommit,
-} from "../../../commits/src/core/board-format.js";
+} from "../../../commits/index.js";
 
 const PREFIX = 'local:git-sync:';
 const CACHE = 'refs/pullboard/cache';

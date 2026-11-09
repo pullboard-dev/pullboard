@@ -1,3 +1,4 @@
+import { RERUNNABLE_RUNNER_REFUSALS } from '../../../store/index.js';
 import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
@@ -406,7 +407,7 @@ export function landingSource(root) {
 }
 
 /** Runner refusals that mean the host could not run the shard right now, so a local rerun is sound. */
-const RERUN_REFUSALS = new Set(['RUNNER_SETUP_REFUSED', 'RESOURCE_LEASE_LOST', 'RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED']);
+const RERUN_REFUSALS = new Set(RERUNNABLE_RUNNER_REFUSALS);
 
 /**
  * How a sharded landing answers a runner that gave no test result. A lost host or transport, or a
@@ -624,7 +625,16 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       if (entry.claimed || entry.done) return;
       // A host quarantined in this landing gets no more shards; queue again for a local slot.
       if (lease.runner && quarantined.has(lease.runner.host)) {
-        if (runnerOnly) throw new Refused('RUNNER_SOURCE', `runner-only landing refuses quarantined runner ${lease.runner.host}; no local fallback`);
+        if (runnerOnly) {
+          // No local fallback and the pool offers only a quarantined runner: the shard ends as a typed infrastructure result, never a throw out of the run [C7].
+          write(`landing shard ${entry.label}: runner-only landing refuses quarantined runner ${lease.runner.host}; there is no local fallback\n`);
+          entry.done = true;
+          entry.status = 'infrastructure';
+          firstFailure ??= entry.label;
+          stopper.abort();
+          signalChange();
+          return;
+        }
         return 'divert';
       }
       entry.claimed = true;

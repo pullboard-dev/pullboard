@@ -16,7 +16,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { usageDueDirectory } from '../packages/stats/index.js';
@@ -113,7 +113,7 @@ function checkpointMs(box, id) {
   const module = (path) => JSON.stringify(new URL(path, import.meta.url).href);
   const code = `import {context,withBoard} from ${module('../src/cli-context.js')};
     import {whoAmI} from ${module('../apps/cli/index.js')};
-    import {ordered} from ${module('../src/cli/claim.js')};
+    import {ordered} from ${module('../apps/cli/index.js')};
     import {checkpointAfterMove} from ${module('../packages/stats/index.js')};
     import {usageCheckpointWorkerEntrypoint} from ${module('../apps/cli/index.js')};
     const nativeBoard=await import(${module('../apps/lib/src/core/native-board.js')});

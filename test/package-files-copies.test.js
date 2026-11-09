@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
+import { workerBundleBytes } from '../packages/runners/src/shell/runner-package.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
@@ -17,7 +18,7 @@ import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js
 import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
 import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
 import { runFixtureChild } from './fixture-child.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -239,7 +240,7 @@ test('a computed runner copy follows a new packages import without a hand-kept l
   assert.equal(result.stdout.trim(), '42', 'the installed worker really loads the newly reached package');
 });
 
-test('runner closure refuses the named unshipped import and the unchanged transfer bound [C7,P3]', t => {
+test('runner closure refuses the named unshipped import, and a closure past 1 MiB raw is returned whole for the capsule bound and the raw ratchet to judge (#4140) [C7,P3]', t => {
   const f = fixture(t, ['src']);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES'
@@ -256,8 +257,7 @@ test('runner closure refuses the named unshipped import and the unchanged transf
       && error.message.includes('src/runner-worker.js') && error.message.includes('CommonJS'));
   }
   f.write('src/runner-worker.js', `export const large = ${JSON.stringify('x'.repeat(1_048_576))};\n`);
-  assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES'
-    && error.message.includes('src/runner-worker.js') && error.message.includes('1 MiB'));
+  assert.ok(Buffer.byteLength(JSON.stringify(runnerPackage(f.root).files)) > 1_048_576, 'the raw size is measured, not refused, here');
 });
 
 test('runner installation rejects a correctly hashed escaping path without writing outside its capsule [C7,P3]', t => {
@@ -414,9 +414,7 @@ test('controller provider freshness follows its real package composition, not un
 });
 
 test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
-  const helper = createE2eHelpers();
-  t.after(helper.cleanup);
-  const box = helper.sandbox();
+  const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   mkdirSync(project);
@@ -431,6 +429,8 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
     box.git(root, 'commit', '-q', '-m', 'test: private committed tooling bytes');
   }
   const marker = join(box.dir, 'ssh-attempt');
+  mkdirSync(join(box.dir, 'bin'));
+  box.env.PATH = `${join(box.dir, 'bin')}:${box.env.PATH}`;
   writeFileSync(join(box.dir, 'bin/ssh'), `#!/usr/bin/env node\nimport {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'called'); process.exit(255);\n`, { mode: 0o700 });
   // Each attempt reports why a transport refused, so a non-SSH failure cannot satisfy this control.
   let transportAttempt = 0;
@@ -519,7 +519,7 @@ test('runner closure byte accounting preserves escaped bytes without growing-obj
   assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('leaves package.json files'),'existing line-separator path refusal is preserved');
 });
 
-test('runner closure preserves the exact JSON byte transfer boundary for ASCII and Unicode [C7,P3]', t => {
+test('the worker bundle size the raw ratchet records is the exact JSON byte count for ASCII and Unicode (#4140) [C7,P3]', t => {
   for(const unicode of [false,true]) {
     const f=fixture(t,['src']);
     f.write('src/entry.js',"import './payload.txt';\n");
@@ -528,9 +528,9 @@ test('runner closure preserves the exact JSON byte transfer boundary for ASCII a
     const exact=prefix+'x'.repeat(1_048_576-bytes(prefix));
     assert.equal(bytes(exact),1_048_576);
     f.write('src/payload.txt',exact);
-    assert.equal(Buffer.byteLength(JSON.stringify(runnerPackage(f.root,'src/entry.js').files)),1_048_576);
+    assert.equal(workerBundleBytes(f.root,'src/entry.js'),1_048_576);
     f.write('src/payload.txt',exact+'x');
-    assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('1 MiB'));
+    assert.equal(workerBundleBytes(f.root,'src/entry.js'),1_048_577,'one more byte is measured as one more byte');
   }
 });
 

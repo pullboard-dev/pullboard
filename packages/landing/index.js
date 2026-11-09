@@ -29,7 +29,6 @@ export * from "./src/shell/landing-shards.js";
 export * from "./src/shell/run-shards.js";
 export * from "./src/shell/landing-test-policy.js";
 export * from "./src/core/landing-waivers.js";
-export * from "./src/core/landing-worker-identity.js";
 export * from "./src/shell/landing-worker.js";
 export { inProcessLandingBatch, landingProgress } from "./src/shell/landing-in-process.js";
 export * from "./src/shell/landing-worktree-prune.js";
@@ -68,3 +67,4 @@ export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, rep
 export { landingReceiptReuse } from './src/shell/landing-receipt-reuse.js';
 export { refreshMainRedComparisons } from './src/shell/main-red.js';
 export { holdRefreshFlight } from './src/shell/main-red-refresh-flight.js';
+export { placeUncoveredOnTrunk, runMergedFollowup, mergedChecksLog } from './src/shell/merged-followup.js';

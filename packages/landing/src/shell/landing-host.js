@@ -7,8 +7,8 @@ import { loadMachineSettings } from '../../../config/index.js';
 import {
   environmentLabel,
   executionEnvironment,
-  sameEnvironment,
 } from '../../../sandbox/src/shell/execution-environment.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Check one machine's own choice; a board policy never opts another machine in. */
@@ -28,14 +28,4 @@ export function constrainedLandingHost(root) {
   const database = new DatabaseSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), { readOnly: true });
   try { return requireLandingHost(database.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value, config); }
   finally { database.close(); }
-}
-
-/**
- * Whether this machine's settings say gate.runnersOnly: its landing gates run on a runner with no local fan-out.
- * Unreadable settings say no.
- *
- * @returns {boolean}
- */
-export function landingRunnersOnly() {
-  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
 }

@@ -40,198 +40,228 @@
     },
     {
       "order": 5,
-      "name": "resources",
-      "file": "bin/cells-plan/05-resources.json"
+      "name": "jobs",
+      "file": "bin/cells-plan/05-jobs.json"
     },
     {
       "order": 6,
-      "name": "config",
-      "file": "bin/cells-plan/06-config.json"
+      "name": "pin",
+      "file": "bin/cells-plan/06-pin.json"
     },
     {
       "order": 7,
-      "name": "mcp",
-      "file": "bin/cells-plan/07-mcp.json"
+      "name": "receipt",
+      "file": "bin/cells-plan/07-receipt.json"
     },
     {
       "order": 8,
-      "name": "state",
-      "file": "bin/cells-plan/08-state.json"
+      "name": "transport",
+      "file": "bin/cells-plan/08-transport.json"
     },
     {
       "order": 9,
-      "name": "seats",
-      "file": "bin/cells-plan/09-seats.json"
+      "name": "drive",
+      "file": "bin/cells-plan/09-drive.json"
     },
     {
       "order": 10,
-      "name": "roadmap",
-      "file": "bin/cells-plan/10-roadmap.json"
+      "name": "land",
+      "file": "bin/cells-plan/10-land.json"
     },
     {
       "order": 11,
-      "name": "spec",
-      "file": "bin/cells-plan/11-spec.json"
+      "name": "resources",
+      "file": "bin/cells-plan/11-resources.json"
     },
     {
       "order": 12,
-      "name": "commits",
-      "file": "bin/cells-plan/12-commits.json"
+      "name": "config",
+      "file": "bin/cells-plan/12-config.json"
     },
     {
       "order": 13,
-      "name": "items",
-      "file": "bin/cells-plan/13-items.json"
+      "name": "mcp",
+      "file": "bin/cells-plan/13-mcp.json"
     },
     {
       "order": 14,
-      "name": "stats",
-      "file": "bin/cells-plan/14-stats.json"
+      "name": "state",
+      "file": "bin/cells-plan/14-state.json"
     },
     {
       "order": 15,
-      "name": "merge",
-      "file": "bin/cells-plan/15-merge.json"
+      "name": "seats",
+      "file": "bin/cells-plan/15-seats.json"
     },
     {
       "order": 16,
-      "name": "verify",
-      "file": "bin/cells-plan/16-verify.json"
+      "name": "roadmap",
+      "file": "bin/cells-plan/16-roadmap.json"
     },
     {
       "order": 17,
-      "name": "store",
-      "file": "bin/cells-plan/17-store.json"
+      "name": "spec",
+      "file": "bin/cells-plan/17-spec.json"
     },
     {
       "order": 18,
-      "name": "sandbox",
-      "file": "bin/cells-plan/18-sandbox.json"
+      "name": "commits",
+      "file": "bin/cells-plan/18-commits.json"
     },
     {
       "order": 19,
-      "name": "doctrine",
-      "file": "bin/cells-plan/19-doctrine.json"
+      "name": "items",
+      "file": "bin/cells-plan/19-items.json"
     },
     {
       "order": 20,
-      "name": "person",
-      "file": "bin/cells-plan/20-person.json"
+      "name": "stats",
+      "file": "bin/cells-plan/20-stats.json"
     },
     {
       "order": 21,
-      "name": "activity",
-      "file": "bin/cells-plan/21-activity.json"
+      "name": "merge",
+      "file": "bin/cells-plan/21-merge.json"
     },
     {
       "order": 22,
-      "name": "pages",
-      "file": "bin/cells-plan/22-pages.json"
+      "name": "verify",
+      "file": "bin/cells-plan/22-verify.json"
     },
     {
       "order": 23,
-      "name": "keys",
-      "file": "bin/cells-plan/23-keys.json"
+      "name": "store",
+      "file": "bin/cells-plan/23-store.json"
     },
     {
       "order": 24,
-      "name": "blueprints",
-      "file": "bin/cells-plan/24-blueprints.json"
+      "name": "sandbox",
+      "file": "bin/cells-plan/24-sandbox.json"
     },
     {
       "order": 25,
-      "name": "link",
-      "file": "bin/cells-plan/25-link.json"
+      "name": "doctrine",
+      "file": "bin/cells-plan/25-doctrine.json"
     },
     {
       "order": 26,
-      "name": "api",
-      "file": "bin/cells-plan/26-api.json"
+      "name": "person",
+      "file": "bin/cells-plan/26-person.json"
     },
     {
       "order": 27,
-      "name": "outbox",
-      "file": "bin/cells-plan/27-outbox.json"
+      "name": "activity",
+      "file": "bin/cells-plan/27-activity.json"
     },
     {
       "order": 28,
-      "name": "gate",
-      "file": "bin/cells-plan/28-gate.json"
+      "name": "pages",
+      "file": "bin/cells-plan/28-pages.json"
     },
     {
       "order": 29,
-      "name": "runners",
-      "file": "bin/cells-plan/29-runners.json"
+      "name": "keys",
+      "file": "bin/cells-plan/29-keys.json"
     },
     {
       "order": 30,
-      "name": "landing",
-      "file": "bin/cells-plan/30-landing.json"
+      "name": "blueprints",
+      "file": "bin/cells-plan/30-blueprints.json"
     },
     {
       "order": 31,
-      "name": "sync",
-      "file": "bin/cells-plan/31-sync.json"
+      "name": "link",
+      "file": "bin/cells-plan/31-link.json"
     },
     {
       "order": 32,
-      "name": "shouts",
-      "file": "bin/cells-plan/32-shouts.json"
+      "name": "api",
+      "file": "bin/cells-plan/32-api.json"
     },
     {
       "order": 33,
-      "name": "health",
-      "file": "bin/cells-plan/33-health.json"
+      "name": "outbox",
+      "file": "bin/cells-plan/33-outbox.json"
     },
     {
       "order": 34,
-      "name": "moves",
-      "file": "bin/cells-plan/34-moves.json"
+      "name": "gate",
+      "file": "bin/cells-plan/34-gate.json"
     },
     {
       "order": 35,
-      "name": "sentinels",
-      "file": "bin/cells-plan/35-sentinels.json"
+      "name": "runners",
+      "file": "bin/cells-plan/35-runners.json"
     },
     {
       "order": 36,
-      "name": "rigor",
-      "file": "bin/cells-plan/36-rigor.json"
+      "name": "landing",
+      "file": "bin/cells-plan/36-landing.json"
     },
     {
       "order": 37,
-      "name": "github",
-      "file": "bin/cells-plan/37-github.json"
+      "name": "sync",
+      "file": "bin/cells-plan/37-sync.json"
     },
     {
       "order": 38,
-      "name": "flakes",
-      "file": "bin/cells-plan/38-flakes.json"
+      "name": "shouts",
+      "file": "bin/cells-plan/38-shouts.json"
     },
     {
       "order": 39,
-      "name": "app:view",
-      "file": "bin/cells-plan/39-app-view.json"
+      "name": "health",
+      "file": "bin/cells-plan/39-health.json"
     },
     {
       "order": 40,
-      "name": "app:runner",
-      "file": "bin/cells-plan/40-app-runner.json"
+      "name": "moves",
+      "file": "bin/cells-plan/40-moves.json"
     },
     {
       "order": 41,
-      "name": "app:cli",
-      "file": "bin/cells-plan/41-app-cli.json"
+      "name": "sentinels",
+      "file": "bin/cells-plan/41-sentinels.json"
     },
     {
       "order": 42,
-      "name": "app:lib",
-      "file": "bin/cells-plan/42-app-lib.json"
+      "name": "rigor",
+      "file": "bin/cells-plan/42-rigor.json"
     },
     {
       "order": 43,
+      "name": "github",
+      "file": "bin/cells-plan/43-github.json"
+    },
+    {
+      "order": 44,
+      "name": "flakes",
+      "file": "bin/cells-plan/44-flakes.json"
+    },
+    {
+      "order": 45,
+      "name": "app:view",
+      "file": "bin/cells-plan/45-app-view.json"
+    },
+    {
+      "order": 46,
+      "name": "app:runner",
+      "file": "bin/cells-plan/46-app-runner.json"
+    },
+    {
+      "order": 47,
+      "name": "app:cli",
+      "file": "bin/cells-plan/47-app-cli.json"
+    },
+    {
+      "order": 48,
+      "name": "app:lib",
+      "file": "bin/cells-plan/48-app-lib.json"
+    },
+    {
+      "order": 49,
       "name": "app:relay",
-      "file": "bin/cells-plan/43-app-relay.json"
+      "file": "bin/cells-plan/49-app-relay.json"
     }
   ],
   "stays": [
@@ -599,10 +629,6 @@
     },
     {
       "path": "src/move-history/187.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "bin/cells-move-closure.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1034,6 +1060,24 @@
     },
     {
       "path": "bin/hop-matrix.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/board-command-budget.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "gate"
+    },
+    {
+      "path": "bin/merged-followup.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "landing"
+    },
+    {
+      "path": "src/move-history/250.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/test-cells.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -1477,6 +1521,78 @@
         "apps/cli/src/core/next-step-defaults.js",
         "seed"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/landing-stage-composition.test.js",
+        "packages/gate/tests/landing-stage-composition.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -1864,15 +1980,22 @@
     }
   ],
   "allowedEdges": [
+    "(root)->gate",
     "apps/cli->kernel",
     "gate->jobs",
+    "drive->jobs",
+    "drive->kernel",
     "resources->jobs",
     "codemap->git",
     "runners->config",
+    "runners->verify",
+    "landing->verify",
     "runners->kernel",
     "runners->resources",
     "runners->transport",
     "activity->store",
+    "(root)->apps/cli",
+    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->items",
@@ -1880,13 +2003,19 @@
     "apps/cli->apps/runner",
     "apps/cli->apps/lib",
     "apps/cli->pin",
+    "apps/cli->drive",
     "api->git",
     "api->store",
     "apps/lib->store",
+    "apps/lib->apps/cli",
+    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
     "gate->store",
+    "gate->kernel",
+    "gate->git",
+    "gate->resources",
     "github->store",
     "items->git",
     "items->kernel",
@@ -1905,14 +2034,47 @@
     "sandbox->store",
     "seats->git",
     "sentinels->store",
+    "sentinels->kernel",
+    "apps/cli->sentinels",
+    "apps/cli->config",
+    "apps/cli->resources",
     "state->store",
     "stats->store",
+    "stats->jobs",
+    "stats->resources",
+    "apps/cli->stats",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
     "health->state",
     "moves->state",
+    "moves->doctrine",
+    "moves->gate",
+    "moves->git",
+    "moves->kernel",
+    "moves->person",
+    "moves->sandbox",
+    "moves->spec",
+    "moves->store",
+    "moves->verify",
+    "moves->health",
+    "moves->activity",
+    "moves->items",
+    "moves->seats",
+    "moves->landing",
+    "moves->roadmap",
+    "moves->config",
+    "moves->link",
     "rigor->state",
-    "sandbox->state"
+    "sandbox->state",
+    "commits->kernel",
+    "rigor->store",
+    "(root)->store",
+    "spec->kernel",
+    "gate->spec",
+    "(root)->doctrine",
+    "(root)->landing",
+    "person->doctrine",
+    "blueprints->doctrine"
   ]
 }

@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/brief.js src/board.js src/engine.js src/machine.js src/board-engine-ports.js */
+/** @pullboard-test-loads src/brief.js packages/store/src/shell/board.js packages/state/src/shell/engine.js packages/state/src/shell/machine.js src/board-engine-ports.js */
 /** External references stay distinct from the board's requirement and dependency links [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { briefSections } from '../packages/spec/index.js';
 import * as store from '../packages/store/index.js';
-import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { REFERENCE_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';

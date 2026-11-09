@@ -31,7 +31,7 @@ import { tryGit } from './cells-snapshot-git.js';
 import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { runnerWorkerFiles } from './cells-move-closure.js';
+import { runnerWorkerFiles } from '../packages/codemap/index.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -49,7 +49,7 @@ import {
   staleDataReads,
 } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
-import { moveDeclarationFiles } from './cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
 import { createFixtureMemo } from '../packages/codemap/index.js';
 import { checkCommandDefinition } from '../packages/git/index.js';
@@ -612,11 +612,11 @@ function main(argv) {
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   if (mode === '--place-tests') {
-    if (rest.length) throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests (no arguments)');
+    if (rest.length && rest[0] !== '--batches') throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests [--batches [--max <n>] [--dry-run --plan <file>]]');
     const listed = tryGit(root, ['ls-files', '-z']);
     if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --place-tests');
     const tracked = listed.stdout.split('\0').filter(Boolean);
-    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root)).join('\n'));
+    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root), rest.length ? { args: rest, root, lex, git: args => tryGit(root, args), reread: () => cellInventory(root, { importsIn, commonJsIn }) } : null).join('\n'));
     return 0;
   }
   if (mode === '--move-tests') {

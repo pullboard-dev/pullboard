@@ -1,5 +1,5 @@
 /** Opt-in coordinator maintenance uses ordinary ordered releases, never a second liveness rule. */
-import { agentById } from "../../../../src/board.js";
+import { agentById } from "../../../store/index.js";
 
 /** Release only observed gone holders of still-live build claims; reviews and holds remain intact. */
 export async function releaseGoneClaims(ctx, board, me, ordered) {

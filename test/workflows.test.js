@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/dco.yml .github/workflows/cla.yml */
+/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/cla.yml .github/workflows/stale.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
@@ -7,13 +7,15 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each sandbox's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Return the named workflow job's block so assertions apply to each job independently. */
 function job(name) {
@@ -63,135 +65,11 @@ function workflowText(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : '';
 }
 
-/** Check that the independently named DCO check runs for every pull request. */
-function contributorWorkflows() {
-  const dco = workflowText(resolve(ROOT, '.github/workflows/dco.yml'));
-  assert.match(dco, /^name: DCO\n/u, 'the DCO check has a stable required-check name');
-  assert.match(dco, /\n {2}pull_request:\n/u, 'the DCO workflow runs on pull requests');
-  assert.match(dco, /\n  dco:\n {4}name: DCO\n/u, 'the pull-request check is named DCO');
-  assert.match(dco, /\n {10}fetch-depth: 0\n/u, 'the checker receives the full pull-request history');
-  assert.equal([...dco.matchAll(/uses: actions\/checkout@v4/gu)].length, 2,
-    'contribution history and trusted implementation use separate checkouts');
-  assert.match(dco, /path: contribution\n {10}persist-credentials: false\n/u);
-  assert.match(dco, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.before != '0{40}' && github\.event\.before \|\| github\.sha \}\}\n {10}path: trusted-dco\n {10}persist-credentials: false\n/u,
-    'PRs use the exact base SHA, pushes use before, and only an initial push falls back to HEAD');
-  assert.match(dco, /working-directory: contribution\n {8}run: node "\$GITHUB_WORKSPACE\/trusted-dco\/bin\/check-signoffs\.js"\n/u,
-    'the trusted entry point checks history from the contribution working directory');
-  assert.match(dco, /permissions:\n {2}contents: read\n/u);
-  assert.doesNotMatch(dco, /pull_request_target/u, 'PR work never gains a privileged event context');
-}
-
-test('the named DCO check runs for pull requests [I1]', contributorWorkflows);
-
-test('a pull request with an unsigned commit fails DCO and a signed replacement passes [I1]', (t) => {
-  const box = e2e.sandbox();
-  const repo = join(box.dir, 'dco-workflow');
-  mkdirSync(repo);
-  box.git(repo, 'init', '-q', '-b', 'main');
-  box.env.GIT_AUTHOR_NAME = 'Maintainer';
-  box.env.GIT_AUTHOR_EMAIL = 'maintainer@example.test';
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ maintainers: ['maintainer@example.test'] }));
-  box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: add trusted contribution policy');
-  const base = box.git(repo, 'rev-parse', 'HEAD').trim();
-
-  box.env.GIT_AUTHOR_NAME = 'Outside Contributor';
-  box.env.GIT_AUTHOR_EMAIL = 'outside@example.test';
-  writeFileSync(join(repo, 'README.md'), 'An unsigned contribution.\n');
-  box.git(repo, 'add', 'README.md');
-  box.git(repo, 'commit', '-q', '-m', 'feat: add an unsigned contribution');
-  const unsigned = box.git(repo, 'rev-parse', 'HEAD').trim();
-  const event = join(box.dir, 'pull-request.json');
-  /** Run the public CI entry point against a real pull-request event and Git history. */
-  function check() {
-    writeFileSync(event, JSON.stringify({ pull_request: {
-      base: { sha: base }, head: { sha: box.git(repo, 'rev-parse', 'HEAD').trim() },
-    } }));
-    return runFixtureChild(process.execPath, [resolve(ROOT, 'bin/check-signoffs.js')], {
-      cwd: repo, encoding: 'utf8',
-      env: { ...box.env, GITHUB_EVENT_NAME: 'pull_request', GITHUB_EVENT_PATH: event },
-    });
-  }
-  const rejected = check();
-  assert.equal(rejected.status, 1, rejected.failure || rejected.stderr);
-  assert.ok(rejected.stderr.includes(unsigned.slice(0, 12)), 'the failure names the unsigned commit');
-
-  box.git(repo, 'reset', '--soft', base);
-  box.git(repo, 'commit', '-q', '-m', 'feat: sign the contribution',
-    '-m', 'Signed-off-by: Outside Contributor <outside@example.test>');
-  const accepted = check();
-  assert.equal(accepted.status, 0, accepted.failure || accepted.stderr);
-});
-
-/** Execute the checked-in DCO command with the checkout layout it actually declares. */
-function dcoWorkflowFixture(box) {
-  const text = workflowText(resolve(ROOT, '.github/workflows/dco.yml'));
-  const steps = [...text.matchAll(/ {6}- uses: actions\/checkout@v4\n([\s\S]*?)(?= {6}- |$)/gu)];
-  assert.ok(steps.length, 'DCO checks out contribution history');
-  const checkoutPath = step => step[1].match(/ {10}path: ([^\n]+)\n/u)?.[1] ?? '.';
-  const workspace = join(box.dir, 'dco-tamper-workspace');
-  const repo = join(workspace, checkoutPath(steps[0]));
-  mkdirSync(repo, { recursive: true });
-  copyPackageFiles(ROOT, repo);
-  box.git(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ maintainers: ['maintainer@example.test'] }));
-  box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: establish trusted DCO implementation');
-  const base = box.git(repo, 'rev-parse', 'HEAD').trim();
-  for (const step of steps.slice(1)) {
-    const trusted = join(workspace, checkoutPath(step));
-    box.git(workspace, 'clone', '-q', '--no-hardlinks', repo, trusted);
-    box.git(trusted, 'checkout', '-q', '--detach', base);
-  }
-  const command = text.match(/ {8}run: ([^\n]+)\n/u)?.[1];
-  assert.ok(command, 'execute the actual workflow command');
-  const cwd = join(workspace, text.match(/ {8}working-directory: ([^\n]+)\n/u)?.[1] ?? '.');
-  const event = join(box.dir, 'dco-tamper-event.json');
-  /** Model structured GitHub PR and push events while executing the real shell entry point. */
-  function check(eventName) {
-    const head = box.git(repo, 'rev-parse', 'HEAD').trim();
-    writeFileSync(event, JSON.stringify(eventName === 'pull_request'
-      ? { pull_request: { base: { sha: base }, head: { sha: head } } }
-      : { before: base, after: head }));
-    return runFixtureChild('/bin/sh', ['-eu', '-c', command], {
-      cwd, encoding: 'utf8', env: { ...box.env, GITHUB_WORKSPACE: workspace,
-        GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: event },
-    });
-  }
-  return { repo, base, check };
-}
-
-test('DCO rejects unsigned PR and push commits even when the contribution replaces its checker [I1]', () => {
-  const box = e2e.sandbox();
-  box.env.GIT_AUTHOR_NAME = 'Maintainer';
-  box.env.GIT_AUTHOR_EMAIL = 'maintainer@example.test';
-  const { repo, base, check } = dcoWorkflowFixture(box);
-  const originalChecker = readFileSync(join(repo, 'bin/check-signoffs.js'), 'utf8');
-  box.env.GIT_AUTHOR_NAME = 'Outside Contributor';
-  box.env.GIT_AUTHOR_EMAIL = 'outside@example.test';
-  for (const change of ['entry point', 'imported policy module']) {
-    box.git(repo, 'reset', '--hard', base);
-    writeFileSync(join(repo, 'bin/check-signoffs.js'), change === 'entry point'
-      ? "process.stdout.write('replacement checker says success\\n');\n" : originalChecker);
-    writeFileSync(join(repo, 'packages/commits/src/shell/commit-signoff.js'),
-      'export function contributionSignoffProblem() { return { checked: 1 }; }\n');
-    writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ maintainers: ['outside@example.test'] }));
-    box.git(repo, 'add', 'bin/check-signoffs.js', 'packages/commits/src/shell/commit-signoff.js', 'pullboard.json');
-    box.git(repo, 'commit', '-q', '-m', 'test: replace ' + change);
-    const unsigned = box.git(repo, 'rev-parse', 'HEAD').trim();
-    for (const eventName of ['pull_request', 'push']) {
-      const rejected = check(eventName);
-      assert.equal(rejected.status, 1, eventName + ' must reject unsigned ' + change + ': ' + rejected.stdout);
-      assert.ok(rejected.stderr.includes(unsigned.slice(0, 12)), 'the trusted checker names the unsigned commit');
-    }
-    box.git(repo, 'reset', '--soft', base);
-    box.git(repo, 'commit', '-q', '-m', 'test: sign replacement ' + change,
-      '-m', 'Signed-off-by: Outside Contributor <outside@example.test>');
-    for (const eventName of ['pull_request', 'push']) {
-      const accepted = check(eventName);
-      assert.equal(accepted.status, 0, accepted.failure || accepted.stderr);
-      assert.match(accepted.stdout, /Contributor sign-offs checked: 1 non-merge commits/u);
-    }
+/** The DCO is dropped (Corey, 8 Nov; RFC 0009): no workflow runs a sign-off check or asks for Signed-off-by. */
+test('no workflow requires a DCO sign-off [I1]', () => {
+  assert.equal(workflowText(resolve(ROOT, '.github/workflows/dco.yml')), '', 'the DCO workflow is removed');
+  for (const name of ['gate.yml', 'cla.yml', 'stale.yml']) {
+    assert.doesNotMatch(workflowText(resolve(ROOT, '.github/workflows', name)), /check-signoffs|Signed-off-by/u, name + ' requires no sign-off');
   }
 });
 

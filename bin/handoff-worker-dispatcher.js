@@ -4,7 +4,7 @@ import { exactStart } from '../packages/gate/index.js';
 import { finishAwaitingVerdicts } from '../packages/gate/index.js';
 import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, ensureHandoffDispatcher, finishRunningWorkers, handoffDispatcherLog, handoffQueueDirectory, handoffTicketsWaiting, handoffWorkerCapacityDetail, handoffDispatcherMayBeDead, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
 import { createGateAdmission, gateDispatcherRow, mainOwnedVerdictPorts } from '../packages/drive/index.js';
-import { closeBoard, openBoard } from '../apps/lib/index.js';
+import { closeBoard, launchServes, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
 import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
@@ -78,7 +78,7 @@ export function reportDispatcherFailure(error, capacity = currentCapacity) {
  * its board before its driver starts, the started process is recorded on the gate's drive job, and a driver that
  * cannot start is recorded there as unstarted. Nothing is written beside the hand-off [C7].
  */
-export const gateAdmission = createGateAdmission({ openBoard, closeBoard, entry: fileURLToPath(new URL('./gate-drive-worker.js', import.meta.url)) });
+export const gateAdmission = createGateAdmission({ openBoard, closeBoard, serving: launchServes, entry: fileURLToPath(new URL('./gate-drive-worker.js', import.meta.url)) });
 
 /**
  * The dispatcher's job row on the board that launched it: renewed at most every 5 seconds, freed on exit.

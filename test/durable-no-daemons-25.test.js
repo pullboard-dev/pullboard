@@ -9,13 +9,15 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { LOAD_BEARING_CEILINGS } from '../packages/gate/index.js';
 import { loadBearingFailures } from '../packages/gate/index.js';
 import { loadBearingSites } from '../packages/gate/index.js';
 
-const helpers = createE2eHelpers();
-after(() => helpers.cleanup());
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 const REAL = join(import.meta.dirname, '..', 'bin', 'checks');
 
@@ -46,7 +48,7 @@ function kinds(source, path) {
 
 /** A real project whose staged checker is the repository's own changed-file list, with a ceilings file on main. */
 function ceilingProject(ceilings) {
-  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
   copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
@@ -111,6 +113,6 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
 test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'),
-    LOAD_BEARING_CEILINGS, 'apps/lib/src/shell/submit-handoff-worker.js', 'packages/resources/src/shell/handoff-worker-cap.js', 'packages/gate/src/core/load-bearing.js'], { cwd: root, encoding: 'utf8' });
+    LOAD_BEARING_CEILINGS, 'apps/cli/src/shell/submit-handoff-worker.js', 'packages/resources/src/shell/handoff-worker-cap.js', 'packages/gate/src/core/load-bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
 });

@@ -1,7 +1,7 @@
 /** The blueprint fit verbs: blueprint fit, spec fit, spec fit edit and spec fit approve [S1,E3]. */
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/core.js';
 import { readFileSync } from 'node:fs';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   approveFit,
   editFit,

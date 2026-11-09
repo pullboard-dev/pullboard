@@ -4,7 +4,7 @@ import { after, test } from 'node:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { closeBoard, openBoard } from '../apps/lib/index.js';
+import { closeBoard, openBoard } from '../apps/lib/src/core/native-board.js';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
@@ -131,7 +131,7 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const writer = startFixtureChild(process.execPath, [writerScript,
     join(box.repo, '.git', 'pullboard', 'board.sqlite'), box.repo, stopPath, countPath,
     pathToFileURL(join(import.meta.dirname, '../packages/store/index.js')).href,
-    pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href], { cwd: box.repo, env: box.env });
+    pathToFileURL(join(import.meta.dirname, '../apps/lib/src/core/native-board.js')).href], { cwd: box.repo, env: box.env });
   children.push(writer);
   const writerClosed = new Promise(resolve => writer.once('close', resolve));
   let writerOutput = '';

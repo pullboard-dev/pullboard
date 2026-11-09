@@ -849,13 +849,13 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const projects = [{ root: refused.repo, name: 'Refused board', project: '', added: '2026-01-01' },
     { root: normal.repo, name: 'Normal board', project: '', added: '2026-01-01' },
     { root: missing.repo, name: 'Missing board', project: '', added: '2026-01-01' }];
-  const { serveApi } = await import(pathToFileURL(join(linked, 'src/api.js')).href);
+  const { serveApi } = await import(pathToFileURL(join(linked, 'packages/api/index.js')).href);
   const { openBoard, openBoardForRead } = await import(pathToFileURL(join(linked, 'apps/lib/index.js')).href);
   const { refusalDocument } = await import(pathToFileURL(join(linked, 'apps/cli/index.js')).href);
   const { cli$main: cliMain } = await import(pathToFileURL(join(linked, 'apps/cli/index.js')).href);
   /** Compose the linked command with its own actual native engine. */
   const main = (argv, streams) => cliMain(argv, { ...streams,
-    hookWorker: join(linked, 'apps/lib/src/shell/cli-hook-work.js'), submitHandoffWorker: join(linked, 'apps/lib/src/shell/submit-handoff-worker.js'),
+    hookWorker: join(linked, 'apps/lib/src/shell/cli-hook-work.js'), submitHandoffWorker: join(linked, 'apps/cli/src/shell/submit-handoff-worker.js'),
     launchRelaySender: (root, env) => { void import(pathToFileURL(join(linked, 'apps/lib/index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); },
     loadNativeBoard: () => import(pathToFileURL(join(linked, 'apps/lib/index.js')).href) });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead }, refusalDocument, port: 0, projects: () => projects, runCommand: main });

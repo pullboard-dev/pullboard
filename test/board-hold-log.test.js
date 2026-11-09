@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import { boardHoldBaselineProblems } from '../src/board-hold-ratchet.js';
 import { committedBoardHoldBaselineProblems } from '../src/board-hold-ratchet.js';
 import { boardHoldLines } from '../src/board-hold-log.js';
+import { cellProject } from './cell-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -22,7 +23,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'hold-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import assert from 'node:assert/strict';
     import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
@@ -95,8 +96,8 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.match(shown.out, /fixture-hold: 1 holds; total \d+ ms; p50 \d+ ms; max \d+ ms/u);
 });
 
-test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', () => {
-  const box = helpers.project('true');
+test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', t => {
+  const box = cellProject(t);
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'post-release-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
@@ -104,7 +105,7 @@ test('a hold log append observes the actual SQLite writer already released after
     import fs from 'node:fs';
     import { syncBuiltinESMExports } from 'node:module';
     import { DatabaseSync } from 'node:sqlite';
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { boardHoldLog } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
     // @pullboard-board-file locking: a separate real connection probes the same writer at the actual append.
@@ -181,9 +182,9 @@ test('the daily allowance is unmeasured until its first full-day fact, and a mea
   assert.match(boardHoldLines(live, measured).join(), /WARNING: 13.*exceed the daily allowance 12/u);
 });
 
-test('the gate checks committed allowance changes without consulting live machine counts [C7]', () => {
+test('the gate checks committed allowance changes without consulting live machine counts [C7]', t => {
   assert.deepEqual(committedBoardHoldBaselineProblems(join(import.meta.dirname, '..')), []);
-  const box = helpers.project('true'), file = join(box.repo, 'src', 'board-hold-baseline.json');
+  const box = cellProject(t), file = join(box.repo, 'src', 'board-hold-baseline.json');
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   const baseline = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   writeFileSync(file, JSON.stringify(baseline));

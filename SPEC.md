@@ -60,7 +60,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - B31 [approved, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
-- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
+- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: test/trunk.test.js | serves: P2
 - B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
 - B37 [draft, must] When lanes are on, every item is built in its own lane; the coordinator claims only coordinator-lane items. (Proposed change to B12, Corey approved 3 Nov.) | gate: review
 - B38 [draft, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and files; with no brief, its check file is the test and its cells are the files. (Proposed replacement for B14, Corey approved 3 Nov.) | gate: review
@@ -95,8 +95,8 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V20 [draft, must] Gates check only the change: a gate runs the item's own tests and checks. Anything that measures the whole system (speed budgets, end-to-end runs, the full suite, stability) runs in a scheduled sentinel on main, never in a gate or a landing. | gate: test/gate.test.js | serves: P1
 - V21 [draft, must] A failing sentinel files an item carrying what it measured, its limit and the commits since it last passed, so the fix goes through the loop. | gate: test/e2e.test.js | serves: V20
 - V22 [draft, must] Every test file has a runtime budget that only ratchets down: the default is 120 s, a file over it gets a recorded budget at its measured runner time, and a new or changed file over budget fails its gate naming the split. | gate: review
-- V23 [draft, must] Test files run under tier budgets: a cell test (under packages/<cell>/tests) 30 s, a component test (in the last cell it spans, no CLI) 60 s, and a journey (root test/, listed with a reason in bin/checks/test-journeys.json) 120 s. | gate: review
-- V24 [draft, must] A conformance scanner classifies every test file into a tier; its finding count and the root test/ count only go down, and a new unlisted root test/ file is refused at commit. | gate: review
+- V23 [draft, must] Test files run under tier budgets: a cell test (under its cell's tests folder, importing only that cell, audited pure helpers and node: builtins) 30 s; a component test (importing other cells only through their front doors, placed in the highest cell it imports, no CLI) 60 s; a journey (root test/, the only tier that may drive the CLI, hooks or init, listed with a reason in bin/checks/test-cells.json) 120 s. | gate: review
+- V24 [draft, must] A conformance scanner classifies every test file into a tier and names each finding's broken rule; a pure helper qualifies only after an audit shows it spawns no CLI and installs no hooks; findings follow renames; the finding count and the root test/ count only go down, so a move to root is paid for by moves into cells in the same commit; a new unlisted root test/ file is refused at commit. | gate: review
 - V25 [draft, must] A sealed cell's submit selects only its own tests plus the contract tests at changed front doors. | gate: review
 - V26 [draft, must] Only the person grants item size overrides: --force-size is refused for every agent and the coordinator, and every other oversized item is split to 30 minutes or less. | gate: review
 
@@ -136,11 +136,11 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - S14 [approved, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
 - S15 [approved, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
 - S16 [approved, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
-- S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: packages/spec/tests/signoff.test.js | serves: S5
-- S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: packages/spec/tests/signoff.test.js | serves: S17
-- S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: packages/spec/tests/signoff.test.js | serves: S17
-- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: packages/spec/tests/signoff.test.js | serves: S17
-- S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: packages/spec/tests/signoff.test.js | serves: S17
+- S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: test/signoff.test.js | serves: S5
+- S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
+- S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: test/signoff.test.js | serves: S17
+- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: test/signoff.test.js | serves: S17
+- S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
 
 ## D · Doctrine
 - D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
@@ -198,7 +198,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N12 [wont, aim] `pullboard mcp` serves the commands as MCP tools; A9 covers it.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 - N14 [approved, must] `pullboard run` builds routed items unattended: a command per tier, verified dependencies merged, check, retry, submit or escalate. | gate: test/e2e.test.js | serves: N8
-- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: test/sweep.test.js, test/e2e.test.js
+- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: apps/cli/tests/sweep.test.js, test/e2e.test.js
 - N16 [retired] Merged into N14.
 - N17 [retired] Merged into N15.
 - N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.

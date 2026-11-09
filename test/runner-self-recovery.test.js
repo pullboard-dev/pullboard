@@ -5,16 +5,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Run the pinned health command against one private SSH stand-in and machine home. */
 function remoteFixture(t, body) {
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'health-bin');
   const worker = join(box.dir, 'worker');
   const home = join(box.dir, 'remote-home');
@@ -67,7 +65,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
 });
 
-test('a live job stays unavailable and its next idle probe waits five minutes [C7]', t => {
+test('a live job stays unavailable and its next idle probe waits thirty seconds [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, ({ root }) => `
@@ -110,7 +108,7 @@ test('a live job stays unavailable and its next idle probe waits five minutes [C
   assert.equal(actual.first, false);
   assert.equal(actual.early, false);
   assert.equal(actual.held, 1);
-  assert.equal(actual.delay, 300_000); // budget: declared five-minute recovery probe cadence in #1809 [C7].
+  assert.equal(actual.delay, 30_000); // budget: declared thirty-second quarantine re-probe cadence (RECOVERY_RETRY_MAX_MS) [C7].
   assert.match(actual.reason, /runner process or job working directory/u);
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable']);
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
@@ -205,9 +203,7 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const health = pathToFileURL(join(import.meta.dirname, '../packages/health/index.js')).href;
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });

@@ -4,18 +4,18 @@ import {
   eventCauses,
   isMergeConflict,
   rigorReport,
-} from '../../../../src/board-rigor.js';
+} from '../../../store/index.js';
 import { parseSpec } from '../../../spec/index.js';
 import {
   automaticRigorNeeds,
   automaticSourceFromText,
   readAutomaticRigorSource,
-} from '../../../../src/board-rigor-auto-source.js';
+} from '../../../store/index.js';
 import { RIGOR_AUTO_ENGINE } from '../../../state/core.js';
 import {
   readRigorSource,
   RIGOR_NOTICE_ENGINE,
-} from '../../../../src/board-rigor-source.js';
+} from '../../../store/index.js';
 
 /** Cause keys carried by this move, including the person's immediate never-again fact. */
 export function rigorTriggerCauses(event, person) {

@@ -90,7 +90,7 @@ test('a builder editing the accepted main row itself still fails public submit b
 
 /** Probe row authority only; these synthetic blobs are not native claim or execution evidence. */
 function insertedRows(change = () => {}) {
-  const path = 'bin/cells-plan/39-app-view.json';
+  const path = 'bin/cells-plan/45-app-view.json';
   const rows = ['first', 'last'].map(name => [`src/view/${name}.css`, `apps/view/src/shell/view/${name}.css`, 'seed']);
   const before = { 'bin/cells-plan.json': { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] },
     [path]: { name: 'app:view', order: 39, root: 'apps/view', paths: rows } };

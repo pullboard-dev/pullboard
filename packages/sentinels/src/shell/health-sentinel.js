@@ -14,7 +14,7 @@ import { agentCpuFindings } from "./sentinel-cpu.js";
 import {
   healthFindingIdentity,
   normalizedHealthFindings,
-} from "../../../../src/board-health-receipts.js";
+} from "../../../store/index.js";
 
 /**
  * A missing board or an explicitly disabled sentinel has no observation to publish. `gateDrives(db, now)` adds the

@@ -181,15 +181,15 @@ function roadmapCards(p, titles) {
   const targetLabels = new Map(), addresses = new Map(), headers = new Map(), headings = new Map(), rows = new Map(), notes = new Map(), targets = new Map();
   const observedAt = Date.parse(p.observedAt), now = Number.isFinite(observedAt) ? observedAt : Date.now();
   const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
-  const header = roadmapHeaders({ targetLabels, addresses, root: view.root, held: view.roadmapHeld, now, locale, timeZone });
+  const header = roadmapHeaders({ targetLabels, addresses, headings, root: view.root, held: view.roadmapHeld, now, locale, timeZone });
   for (const read of reads) {
     if (read.milestone.target) { const label = when(read.milestone.target); targetLabels.set(read, label); targets.set(read, label); }
     for (const row of read.rows) {
       if (row.open) addresses.set(row, itemAddress(row.open.id, row.open.root));
       rows.set(row, milestonePresentation(row, titles));
     }
+    headings.set(read, linked(read.milestone.name, titles)); // before the header, whose title keeps the name's inline references
     headers.set(read, header(read));
-    headings.set(read, linked(read.milestone.name, titles));
     if (read.milestone.note) notes.set(read, rich(read.milestone.note, titles));
   }
   return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }) };

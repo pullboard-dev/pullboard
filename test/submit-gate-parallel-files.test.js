@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROOF_BATCH_FILES, PROOF_MAX_SHARDS, PROOF_MIN_SHARD_MS, freeRunnerSlots, mergeShardRuns, proofShardCount, runProofShards } from '../packages/gate/src/shell/proof-shards.js';
+import { PROOF_BATCH_FILES, PROOF_MAX_SHARDS, PROOF_MIN_SHARD_MS, SHARD_ADMIT_MS, SHARD_STARTUP_MS, freeRunnerSlots, mergeShardRuns, proofShardCount, runProofShards, shardStartupMs } from '../packages/gate/src/shell/proof-shards.js';
+import { startupDeadline } from '../packages/runners/src/shell/runner-dispatch.js';
 import { proofFields } from '../packages/verify/index.js';
 import { privateFixtureFiles } from './fixture-child.js';
 
@@ -186,4 +187,15 @@ test('clause 1: prove fans proof files across free slots into one receipt: free 
     assert.equal(freeRunnerSlots(file), 7, '10 runner slots, 2 held, 1 waiting');
     assert.equal(freeRunnerSlots(join(inputs.root, 'missing.sqlite')), 0, 'no pool counts as no free slot');
   } finally { rmSync(inputs.root, { recursive: true, force: true }); }
+});
+
+test('clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s admission window, so a slow transfer is not a missed READY [C7]', () => {
+  // 9 Nov: shard transfers ran 31 s at p50; with a 30 s budget a healthy runner missed READY and the shard reran.
+  assert.equal(SHARD_ADMIT_MS, 30_000);
+  assert.equal(shardStartupMs(SHARD_ADMIT_MS), SHARD_STARTUP_MS, 'the admission window no longer sets the startup budget');
+  assert.equal(shardStartupMs(undefined), SHARD_STARTUP_MS);
+  assert.equal(shardStartupMs(30 * 60_000), 30 * 60_000, 'a longer lease budget stands');
+  const connect = 1_000_000;
+  assert.equal(startupDeadline({ runnerWaitDeadline: connect - 5_000, runnerStartupMs: shardStartupMs(SHARD_ADMIT_MS) }, connect), connect + 90_000,
+    'a shard connecting after its admission window still has 90 s to reach READY');
 });

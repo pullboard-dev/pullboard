@@ -138,12 +138,12 @@ function writerTurn(record, persist) {
   return { release, updateAgent: persist };
 }
 
-/** Wait until no other live process writes in this checkout; a takeover holds the lease and its intent meanwhile. */
+/** Wait until no live writer record remains in this checkout; a takeover holds the lease and its intent meanwhile. */
 function drainCheckoutWriters(info) {
   return new Promise((done, fail) => {
     /** Look once, and again after a short pause while another writer still runs. */
     const look = () => liveCheckoutWriters(info).then((writers) => {
-      if (writers.some((writer) => writer.pid !== process.pid)) setTimeout(look, 50);
+      if (writers.length) setTimeout(look, 50);
       else done();
     }, fail);
     look();

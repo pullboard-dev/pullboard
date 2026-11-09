@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads apps/cli/src/shell/cli.js src/board.js src/board-hot.js src/board-migrate.js apps/cli/src/shell/cli-context.js apps/cli/src/shell/commands/status.js apps/cli/src/shell/commands/show.js apps/cli/src/shell/commands/list.js apps/cli/src/shell/commands/version.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js src/board.js packages/store/src/shell/board-hot.js src/board-migrate.js apps/cli/src/shell/cli-context.js apps/cli/src/shell/commands/status.js apps/cli/src/shell/commands/show.js apps/cli/src/shell/commands/list.js apps/cli/src/shell/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { withBoard } from '../apps/cli/index.js';
@@ -61,7 +61,7 @@ function released(box) {
  * took. Why in process: a fresh node's startup varies by hundreds of ms on a loaded machine.
  */
 async function timed(box, cwd, ...argv) {
-  const { main } = await import(pathToFileURL(join(box.release, 'src', 'cli.js')).href);
+  const { cli$main: main } = await import(pathToFileURL(join(box.release, 'apps', 'cli', 'index.js')).href);
   const saved = HOMES.map((name) => process.env[name]);
   for (const name of HOMES) process.env[name] = box.env[name];
   let out = '';
@@ -69,7 +69,7 @@ async function timed(box, cwd, ...argv) {
   const startedAt = performance.now();
   try {
     const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href),
-      hookWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'),
+      hookWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js'),
       /** Launch only the released sender actually requested by this command. */
       launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };
@@ -105,7 +105,7 @@ function seed(file) {
   } finally { db.close(); }
 }
 
-/** #1044's hot-path indexes (src/board-hot.js), which reach an existing board with schema version 3. */
+/** #1044's hot-path indexes (packages/store/src/shell/board-hot.js), which reach an existing board with schema version 3. */
 const HOT_INDEXES = ['shout_answers', 'shout_open_decision', 'shout_open_request', 'shout_evidence_item', 'shout_from_at', 'event_by_at', 'event_kind_id'];
 
 const READS = [['version'], ['show', '1'], ['status'], ['list']];
@@ -130,7 +130,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   const board = openBoard(file);
   try {
     assert.equal(store.events(board).filter(event => event.event_kind === 'join').length, 1);
-    store.ensureCoordinator(board, '/previous/coordinator-location');
+    store.board_ensureCoordinator(board, '/previous/coordinator-location');
   } finally { store.closeBoard(board); }
   const moved = cli();
   assert.equal(moved.status, 0, moved.failure ?? moved.stderr);

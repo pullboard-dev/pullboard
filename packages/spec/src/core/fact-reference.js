@@ -2,7 +2,7 @@
  * A fact's code reference, path:line[-line]@full-sha, checked without reading source [B32,H7].
  *
  * Why its own module: replicas that hold only board data validate the same binding, and
- * src/board.js keeps under its next 100-line block.
+ * packages/store/src/shell/board.js keeps under its next 100-line block.
  */
 import { Refused } from '../../../kernel/core.js';
 

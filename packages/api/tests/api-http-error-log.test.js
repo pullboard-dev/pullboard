@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { createApiHandler } from '../index.js';
-import { refusalDocument } from '../../../apps/cli/index.js';
 import { fetchFresh } from '../../../test/http-fixture.js';
+
+/** The renderer the API takes as a port: a refusal becomes its public error body. */
+function refusalDocument(error) {
+  return { error: { code: error.code ?? 'INTERNAL', message: String(error.message) } };
+}
 
 test('clause 1: a thrown TypeError behind the real HTTP service is logged with its stack while the body stays the generic SERVICE_ERROR [A2,C7]', async (t) => {
   const logged = [];

@@ -42,7 +42,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(rightNotice, /#2 overlaps #1 \(one\) on shared\.js/);
   assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
   const { openBoard } = await import('../apps/lib/index.js');
-  const store = await import('../src/board.js');
+  const store = await import('../packages/store/index.js');
   const { heartbeatCommand } = await import('../apps/cli/index.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
@@ -71,7 +71,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
 
 test('next names a file being edited as an overlap note and still offers the item [N2,C7]', async t => {
   const { openBoard } = await import('../apps/lib/index.js');
-  const store = await import('../src/board.js');
+  const store = await import('../packages/store/index.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   const holder = store.register(board, { lane: 'core', path: '/tmp/overlap-holder', route: 'strong' });
@@ -122,7 +122,7 @@ test('a merged main change is not attributed to the claimed worktree [N2]', t =>
 test('the real next command routes around a live worktree edit [N2]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { openBoard } = await import('../apps/lib/index.js');
-  const store = await import('../src/board.js');
+  const store = await import('../packages/store/index.js');
   const { mkdirSync } = await import('node:fs');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);

@@ -80,9 +80,6 @@
     "detached": 1,
     "unref": 1
   },
-  "apps/lib/src/shell/submit-handoff-worker.js": {
-    "state-file": 5
-  },
   "apps/relay/src/shell/service.js": {
     "daemon-loop": 1,
     "unref": 1
@@ -494,12 +491,6 @@
   "packages/verify/src/shell/comparison-worker.js": {
     "detached": 1,
     "state-file": 5,
-    "unref": 1
-  },
-  "packages/verify/src/shell/file-watchdog-worker.js": {
-    "daemon-loop": 1
-  },
-  "packages/verify/src/shell/file-watchdog.js": {
     "unref": 1
   },
   "packages/verify/src/shell/review-packet.js": {

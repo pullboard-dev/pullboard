@@ -4,7 +4,7 @@ import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../fl
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyEngineMove,
@@ -43,20 +43,22 @@ function observation(box, id) {
 /** Exercise the public observation operation with the same lane and registered actor as an actual adapter. */
 function record(box, value) { return nativeRecordFlakeObservation(box.board, { agentId: box.builder, observation: value, lane: 'app' }); }
 
-test('one observation is immutable and idempotent; a second drafts ordinary repair work [D1,H16]', t => {
+test('one observation is immutable and idempotent; the first files one ordinary repair item and a second joins it [D1,H16]', t => {
   const box = ledgerFixture(t), first = observation(box, 'synthetic-one');
   record(box, first);
   const count = store.events(box.board).length;
   assert.equal(record(box, first).duplicate, true);
   assert.equal(store.events(box.board).length, count);
   assert.equal(nativeFlakeLedger(box.board)[0].count, 1);
-  assert.equal(nativeFlakeLedger(box.board)[0].item, null);
+  const repairId = nativeFlakeLedger(box.board)[0].item, drafted = store.getItem(box.board, repairId);
+  assert.equal(drafted.item_status, 'open'); assert.equal(drafted.item_route, 'strong');
+  assert.match(drafted.item_brief, /synthetic-one/u);
   assert.throws(() => record(box, { ...first, reason: 'different evidence under an existing identity' }), error => error.code === 'FLAKE_OBSERVATION_CHANGED');
   box.advance(); record(box, observation(box, 'synthetic-two'));
-  const row = nativeFlakeLedger(box.board)[0], repair = store.getItem(box.board, row.item);
+  const row = nativeFlakeLedger(box.board)[0];
   assert.equal(row.count, 2); assert.equal(row.observations.length, 2);
-  assert.equal(repair.item_status, 'open'); assert.equal(repair.item_route, 'strong');
-  assert.match(repair.item_brief, /synthetic-one[^]*synthetic-two/u);
+  assert.equal(row.item, repairId, 'the second sighting joins the open repair item');
+  assert.equal(store.listItems(box.board).filter(item => /^Flaky test:/u.test(item.item_title)).length, 1);
   assert.ok(!store.events(box.board).some(event => /row_decision|doctrine/u.test(event.event_kind)), 'drafting never approves governing rows');
 });
 

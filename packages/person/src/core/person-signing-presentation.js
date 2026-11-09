@@ -2,9 +2,9 @@ import { personProposals as nativePersonProposals } from "../shell/person-signin
 import { personSigning as nativePersonSigning } from "../shell/person-signing.js";
 import { itemCheckBaseline } from "../../../store/core.js";
 /** Preserve the signing item's device-facing fields in the shared native/relay projection [E22,H16]. */
-import * as store from "../../../../src/board.js";
+import * as store from "../../../store/index.js";
 import { loadSpec } from "../../../spec/index.js";
-import { loadDoctrine } from "../../../../src/doctrine.js";
+import { loadDoctrine } from "../../../doctrine/core.js";
 import { shownDecisionRows } from "../../../spec/index.js";
 import { personRequestRecords } from "./person-request.js";
 import {

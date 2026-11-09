@@ -40,7 +40,7 @@ import {
 import {
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   codeIsFromMain,
@@ -366,6 +366,24 @@ async function audit(root, directory, job, write, options, testValueServices, ex
     }
   }
 }
+/**
+ * Run the audit's board-command budget check, when the composition root supplies one, for the newest audited tip. A
+ * breach is filed to the lane owning the CLI entry, or the newest landed item's lane when the coordinator owns it.
+ * Why it never throws: a measurement that fails must not leave an audit obligation incomplete.
+ */
+async function checkCommandBudget(root, { directory, job, write, openBoardForRead }, check) {
+  if (typeof check !== 'function') return;
+  try {
+    const config = policyAt(root, job.tip).config;
+    const owner = laneOf(config, 'bin/pullboard.js');
+    const lane = owner && owner !== 'coordinator' ? owner : job.items?.[0]?.lane ?? Object.keys(config.lanes)[0];
+    await check({ directory, job, lane, write, read: action => readBoard(repoInfo(root), action, openBoardForRead) });
+  } catch (error) {
+    try { saveMainAudit(join(directory, 'board-command-budget-error.json'), { at: new Date().toISOString(), tip: job.tip, error: String(error.message) }); }
+    catch { /* The next drain measures again. */ }
+  }
+}
+
 /** Drain finite snapshots until all wakes observed by this owner have been serviced. */
 export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}, services) {
   const info = repoInfo(root);
@@ -418,6 +436,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
           // A refused notice or malformed job must not prevent remaining obligations.
         }
       }
+      if (jobs.length) await checkCommandBudget(root, { directory, job: jobs.at(-1), write, openBoardForRead }, services.commandBudget);
       const next = await withFileLock(lock, () => {
         const owner = readMainAudit(ownerFile);
         if (owner?.pid !== process.pid || owner.token !== token) throw new Error('main audit ownership changed');

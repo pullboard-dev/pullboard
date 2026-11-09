@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js */
-import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+/** @pullboard-test-loads packages/store/src/shell/board.js */
+import { assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
 import { NOT_MOVES } from './machine-not-moves.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
@@ -31,7 +31,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { HELP } from '../apps/cli/index.js';
@@ -57,15 +57,15 @@ const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA
  * they answer for its refusals together.
  */
 const ENTRY_POINTS = [
-  { verbs: ['claim'], at: ['board.js#claim'] },
-  { verbs: ['release'], at: ['board.js#release'] },
-  { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
-  { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
+  { verbs: ['claim'], at: ['../packages/store/src/shell/board.js#claim'] },
+  { verbs: ['release'], at: ['../packages/store/src/shell/board.js#release'] },
+  { verbs: ['submit'], at: ['../packages/store/src/shell/board.js#submit', '../apps/cli/src/shell/commands/submit.js#submitHere'] },
+  { verbs: ['reserve'], at: ['../packages/store/src/shell/board.js#reserveReview', '../packages/store/src/shell/board.js#reserveNextReview'] },
+  { verbs: ['accept', 'reject'], at: ['../packages/store/src/shell/board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['../packages/store/src/core/board-escalate.js#escalate'] },
-  { verbs: ['withdraw'], at: ['board.js#withdraw'] },
-  { verbs: ['refreeze'], at: ['board.js#refreeze'] },
-  { verbs: ['reopen'], at: ['board.js#reopen'] },
+  { verbs: ['withdraw'], at: ['../packages/store/src/shell/board.js#withdraw'] },
+  { verbs: ['refreeze'], at: ['../packages/store/src/shell/board.js#refreeze'] },
+  { verbs: ['reopen'], at: ['../packages/store/src/shell/board.js#reopen'] },
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
@@ -90,58 +90,43 @@ const CAUGHT = {
   '../apps/cli/src/shell/cli/claim.js#refreshesLanePolicy': ['../apps/cli/src/shell/cli/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
-  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  '../packages/store/src/shell/board-next-for.js#nextFor': ['../packages/store/src/core/exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
   // An unknown code map keeps the file collision; every read inside it is caught.
   '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
-  '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['../packages/store/src/shell/board.js#reviewerChecks'],
+  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', '../packages/doctrine/src/shell/doctrine-checks.js#checkRulesAt'],
   // Machine-verified submit lands after its record, and that landing call is caught like verify's.
   // The same catches as reached at the CLI's moved source (#2886).
-  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
-  '../packages/spec/src/shell/spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
+  '../packages/spec/src/shell/spec-approval.js#specApprovalState': ['../packages/store/src/shell/board-query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  'board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
+  '../packages/store/src/shell/board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
-  'board-rigor.js#eventCauses': ['board-rigor.js#causeProblem'],
-  '../src/board-rigor.js#eventCauses': ['../src/board-rigor.js#causeProblem'], // The same helper as reached from the moved Rigor cell.
-  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../src/board-rigor.js#causeProblem'],
+  '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
+  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../src/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  'board-rigor-source.js#readRigorSource': ['board-rigor.js#causeProblem'],
-  '../src/board-rigor-source.js#readRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
-  'board-rigor-auto-source.js#readAutomaticRigorSource': ['board-rigor.js#causeProblem'],
-  '../src/board-rigor-auto-source.js#readAutomaticRigorSource': ['../src/board-rigor.js#causeProblem'], // As reached from the moved Rigor cell.
+  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
+  '../packages/store/src/core/board-rigor-auto-source.js#readAutomaticRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  'board-rigor-auto-source.js#automaticDecisionSource': ['spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../src/board-rigor-auto-source.js#automaticDecisionSource': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
-  'board-rigor-auto-source.js#rigorDecisionKey': ['spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../src/board-rigor-auto-source.js#rigorDecisionKey': ['../src/spec.js#parseSpec'], // As reached from the moved Rigor cell.
-  'person-row-proof.js#signedRowDecisionsMatch': ['spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
+  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/person/src/shell/person-row-proof.js#signedRowDecisionsMatch': ['../packages/spec/src/shell/spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation', 'relay.js#relayRecovered', 'relay.js#relayCommandReceipt', 'relay.js#relayCommandReceiptReported']);
-
-/** Exact moved providers retain the same injected lifecycle callbacks as their original bodies. */
-const ITEM_CALLBACK_SOURCES = {
-  '../packages/items/src/core/reopen-authority.js': 'reopen-authority.js',
-  '../packages/items/src/shell/outside-verify.js': 'outside-verify.js',
-  '../packages/items/src/shell/item-authors.js': 'item-authors.js',
-  '../packages/gate/src/shell/gate-execution.js': 'gate-execution.js',
-};
+const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/shell/relay.js#relayLinked', '../packages/link/src/shell/relay.js#relayOperation', '../packages/link/src/shell/relay.js#relayRecovered', '../packages/link/src/shell/relay.js#relayCommandReceipt', '../packages/link/src/shell/relay.js#relayCommandReceiptReported']);
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -162,7 +147,7 @@ function codeWalk(read, { caught = false } = {}) {
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
-    if (seen.has(key) || [...skip].some(entry => auditKey(entry) === auditKey(key)) || TRANSPORT_BOUNDARIES.has(auditKey(key))) return new Set();
+    if (seen.has(key) || [...skip].some(entry => entry === key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
     const { bodies, named, spaces, source, stars } = load(file);
@@ -178,8 +163,7 @@ function codeWalk(read, { caught = false } = {}) {
     let facts = localFacts.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
-      const logicalFile = auditKey(`${file}#`).split('#')[0];
-      const callbacks = CALLBACKS[logicalFile] ?? CALLBACKS[ITEM_CALLBACK_SOURCES[file]];
+      const callbacks = CALLBACKS[file];
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
@@ -191,7 +175,7 @@ function codeWalk(read, { caught = false } = {}) {
     }
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
-      if (caught && (CAUGHT[auditKey(key)] ?? []).some(entry => auditKey(entry) === auditKey(callee))) continue;
+      if (caught && (CAUGHT[key] ?? []).some(entry => entry === callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
     return codes;
@@ -246,7 +230,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
-    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', '../packages/gate/src/shell/gate-submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+    '../packages/store/src/shell/board.js', ...moveFiles, '../apps/cli/src/shell/cli.js', '../packages/spec/src/shell/spec.js', '../packages/gate/src/shell/gate-submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -465,12 +449,12 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
     'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
-  assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
-  assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
-  assert.ok(walk.refusalsOf('board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
-  assert.ok(walk.refusalsOf('board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
-  assert.ok(walk.refusalsOf('commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
-  assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
+  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
+  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
+  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
+  assert.ok(walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
+  assert.ok(!walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
   assert.ok(walk.refusalsOf('../apps/cli/src/shell/cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);

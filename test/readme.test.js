@@ -13,7 +13,7 @@ import { FIGURES, drawLifecycle } from '../docs/img/draw.mjs';
 import { themeVariants } from '../docs/img/theme.mjs';
 import { help$HELP as HELP, commandPhrases } from '../apps/cli/index.js';
 import { MACHINE } from '../src/machine.js';
-import { agentsBlock } from '../src/doctrine.js';
+import { agentsBlock } from '../packages/doctrine/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -28,10 +28,10 @@ const SHOT_FIGURES = [
 ];
 
 test('CONTRIBUTING explains issue clarification and the seven-day reply aim [I1]', () => {
-  assert.match(CONTRIBUTING, /^## Issues and pull requests$/mu, 'the contribution section is present');
+  assert.match(CONTRIBUTING, /^## After you submit$/mu, 'the contribution section is present');
   assert.match(CONTRIBUTING, /- `clarify`: closes after 14 days without a reply\. Reply to reopen\./u, 'the clarify rule says when issues close and how to reopen them');
-  assert.match(CONTRIBUTING, /- Confirmed issues move to our board and close; the changelog may acknowledge them\./u, 'the brief keeps the confirmed-issue closing sentence exact');
-  assert.match(CONTRIBUTING, /1\. \*\*We aim to reply within 7 days\.\*\*/u, 'the first reply step has the new seven-day aim');
+  assert.match(CONTRIBUTING, /2\. \*\*Board:\*\* accepted records become items; the issue closes with a link\./u, 'a confirmed issue moves to the board and closes');
+  assert.match(CONTRIBUTING, /1\. \*\*Reply:\*\* within 7 days \(an aim\)\./u, 'the first reply step has the seven-day aim');
 });
 
 /**

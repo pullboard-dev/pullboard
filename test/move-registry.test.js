@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
-/** @pullboard-test-loads src/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
+/** @pullboard-test-loads packages/moves/src/shell/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
-import './typed-request-registry.test.js';
+import '../apps/lib/tests/typed-request-registry.test.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
 import * as store from '../packages/store/index.js';
-import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
@@ -165,9 +165,9 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './src/move-registry.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './packages/moves/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { NEXT_STEPS } from './src/next-step-words.js';
+import { nextStepWords$NEXT_STEPS as NEXT_STEPS } from './apps/cli/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -175,14 +175,14 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/index.js';
+import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();
 const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:'seedAlpha',args:[7,{agentId:'seed-agent'}]}),
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
-  const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./src/move-registry.js');
+  const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
   const {importsIn}=await import('./src/module-imports.js');
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();

@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js */
+/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js */
 /** Destination imports obey the same creation grants as ordinary additions [E15,E21,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';

@@ -5,7 +5,7 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { openBoardForRead } from '../apps/lib/index.js';
+import { openBoardForRead } from '../apps/lib/src/core/native-board.js';
 
 /** Observe only the private fixture's canonical delivery projection. */
 function receipts(box) {
@@ -30,8 +30,8 @@ function cursor(box) {
 /** Seed ordinary native decision records before relay linking; the real snapshot then carries their history. */
 export async function prepareKeylessInbox(box) {
   const result = await box.script(`
-    import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
+    import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)};
     import { join } from 'node:path';
     const board = openBoard(join(process.cwd(), '.git', 'pullboard', 'board.sqlite'));
     try {

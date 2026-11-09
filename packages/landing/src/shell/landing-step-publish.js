@@ -11,7 +11,7 @@ import { mergeOnlyLandingProblem } from '../../../merge/index.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { existsSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { git } from '../../../../src/git.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';

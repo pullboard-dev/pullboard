@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { driveLanding, LANDING_RUN_KIND } from '../packages/drive/index.js';
 import { jobView, jobsOf } from '../packages/jobs/index.js';
 import { closeBoard, getItem } from '../packages/store/index.js';

@@ -71,8 +71,8 @@ import {
   MOVE_OPERATIONS,
   minimumMoveEngine,
   declaredMoveActor,
-} from '../../../../src/move-registry.js';
-import { withMoveNextSteps } from '../../../../packages/moves/index.js';
+  withMoveNextSteps,
+} from '../../../../packages/moves/index.js';
 import {
   activeViewAgents,
   viewProofSummary,
@@ -85,7 +85,7 @@ import {
   relayPerson,
   requestPerson,
 } from '../../../../packages/link/index.js';
-import { projectState } from '../../../../src/serve.js';
+import { projectState } from '../../../view/index.js';
 import {
   projectFit,
   pendingFit,
@@ -128,7 +128,7 @@ import {
 import {
   sealItemPatchSubmit,
   sealItemPatchFollow,
-} from '../../../../src/item-patch-submit.js';
+} from '../../../../packages/items/index.js';
 import {
   sealSourceAdvance,
   sealSourceAdvanceReturn,
@@ -159,7 +159,7 @@ import { recordRowVerification as applyRowVerification } from '../../../../packa
 import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../../packages/spec/index.js';
 import { draftSpecRow as applySpecRowDraft } from '../../../../packages/spec/index.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../../packages/store/index.js';
 import {
   addMilestone,
   editMilestone,
@@ -169,10 +169,10 @@ import {
   removeMilestone,
   roadmap,
   shipMilestone,
-} from '../../../../src/board-milestones.js';
+} from '../../../../packages/store/index.js';
 import { beginCommandPhase } from '../../../../packages/link/index.js';
 
-import { boardEnginePorts } from '../../../../src/board-engine-ports.js';
+import { boardEnginePorts } from '../../../../packages/store/index.js';
 import {
   openBoardStore,
   requireRuntimePorts,
@@ -193,21 +193,17 @@ import {
   currentProofCounters,
   proofCounter,
 } from '../../../../packages/verify/index.js';
-import {
-  ensureHotIndexes,
-  missingAdditiveIndexes,
-  ensureAdditiveIndexes,
-} from '../../../../src/board-hot.js';
+import { ensureHotIndexes } from '../../../../packages/store/index.js';
+import { missingAdditiveIndexes } from '../../../../packages/store/index.js';
+import { ensureAdditiveIndexes } from '../../../../packages/store/index.js';
 import {
   configureBoardJournal,
   closeBoardWrites,
 } from '../../../../packages/store/index.js';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from '../../../../src/board-schema.js';
+import { sharedSchemaOwner } from '../../../../packages/store/index.js';
+import { expectedBoardSchema } from '../../../../packages/store/index.js';
+import { sharedSchemaDiagnostic } from '../../../../packages/store/index.js';
+import { reportSharedSchema } from '../../../../packages/store/index.js';
 import {
   boardStanding,
   migrate,
@@ -220,9 +216,7 @@ import {
   readEventLogVersion,
   systemClock,
 } from '../../../../packages/store/index.js';
-import {
-  migrateEventLogVersion,
-} from '../../../../src/board-event-log-migrate.js';
+import { migrateEventLogVersion } from '../../../../packages/store/index.js';
 import {
   boardNotWritable,
   boardBusyError,
@@ -252,11 +246,9 @@ import {
   reviewPolicyChange,
   saveItemReviewPolicy,
 } from '../../../../packages/verify/index.js';
-import {
-  holdUntilKind,
-  forgetHoldMaintenance,
-  rememberHoldCondition,
-} from '../../../../src/board-conditional-holds.js';
+import { holdUntilKind } from '../../../../packages/store/index.js';
+import { forgetHoldMaintenance } from '../../../../packages/store/index.js';
+import { rememberHoldCondition } from '../../../../packages/store/index.js';
 import {
   STALE_STATE_ENGINE,
 } from '../../../../packages/state/core.js';
@@ -279,17 +271,50 @@ import {
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
 import * as self from './native-board.js';
-import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
-const MILESTONE_NAMES = ['addMilestone', 'editMilestone', 'editMilestoneItems', 'orderMilestoneItems', 'moveMilestone', 'removeMilestone', 'roadmap', 'shipMilestone'];
+/** The milestone operations, each read through its live binding at call time (the same cyclic-load rule). */
+const MILESTONE_READS = {
+  addMilestone: () => addMilestone, editMilestone: () => editMilestone, editMilestoneItems: () => editMilestoneItems, orderMilestoneItems: () => orderMilestoneItems,
+  moveMilestone: () => moveMilestone, removeMilestone: () => removeMilestone, roadmap: () => roadmap, shipMilestone: () => shipMilestone,
+};
 const libraryBoard = {};
 /** Properties read through live bindings, so a cyclic first load never reads a store export before it exists. */
 function libraryExport(name, read) { Object.defineProperty(libraryBoard, name, { enumerable: true, get: read }); }
-for (const name of Reflect.ownKeys(store)) if (typeof name === 'string') libraryExport(name, () => store[name]);
+/** The store names the library's public board has always exposed, each read from the store front door by name [C7]. */
+const LIBRARY_STORE_NAMES = [
+  'ACCEPT_REASON', 'BOARD_BUSY_TIMEOUT_MS', 'EVENT_LOG_VERSION', 'EVIDENCE_KINDS', 'FACT_KINDS', 'PERSON', 'REJECT_REASONS', 'ROUTES',
+  'SCHEMA_VERSION', 'SIGNED_EVENT_LOG_VERSION', 'acceptCheck', 'acceptedVerdict', 'actOnActivity', 'activityDeliveryState', 'addItem',
+  'agentActivity', 'agentAt', 'agentById', 'agentCreator', 'allShouts', 'answerDecision', 'answerTypedRequests', 'appendFact', 'applyRehomeItem',
+  'applyRowDecisions', 'approveOutside', 'atomic', 'attachItemPatch', 'boardBusyError', 'boardId', 'buildOrder', 'canTake', 'canonicalFamily',
+  'canonicalMilestoneTarget', 'checkedLandingCommit', 'claim', 'closeBoard', 'completeCheckBaseline', 'completeSubmitHandoff', 'coordinatorCheck',
+  'coordinatorHolder', 'coordinatorOnly', 'createItemSlice', 'decisionAndEvidenceShouts', 'decisionAnswers', 'declareJob', 'editItem',
+  'ensureCoordinator', 'escalate', 'events', 'eventsOfKinds', 'factReference', 'fileTypedRequest', 'finishLandingBatch', 'followItemPatches',
+  'foreignBlockers', 'foreignDependencyStates', 'getItem', 'getShout', 'holdItem', 'holdLane', 'inbox', 'intakeOutside', 'itemById',
+  'itemCheckAuthor', 'itemFiles', 'itemHold', 'itemPatchDigest', 'itemPatches', 'itemRedirect', 'itemThread', 'itemsInStatus', 'landingBatches',
+  'landingFlakes', 'landingLeaseMove', 'landingLeaseState', 'landingTestDefects', 'landingWaiverCovers', 'landingWaiverKind', 'laneHold',
+  'laneHolds', 'laneLeads', 'lastMoves', 'lineSettings', 'linkPublishRepair', 'listAgents', 'listItems', 'logEvent', 'maintainStaleState', 'merged',
+  'milestonePriorities', 'milestones', 'moveItem', 'nextFor', 'nextSeatId', 'onlyCoordinator', 'openBoardReadOnly', 'openDecisions', 'openHandoff',
+  'openRequests', 'passDecision', 'peekShouts', 'pendingRefreeze', 'pendingRefreezeProblem', 'planCompanion', 'postRigorNotices', 'prepareClaim',
+  'prepareMergeOnlySubmit', 'prepareQueueSubmitHandoff', 'projectItemThreads', 'proofReceipts', 'queueSubmitHandoff', 'readBoardMembers',
+  'readBoardSnapshot', 'readEventLogVersion', 'recentEvents', 'recentShouts', 'recordActivityDelivery', 'recordAttempt', 'recordExitProgress',
+  'recordHealthFindings', 'recordJobRun', 'recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordLandingWaiver',
+  'recordNextIdle', 'recordProofRun', 'recordRelayRefusal', 'recordRowDecisions', 'recordSharedUsage', 'recordSpecApprovalBaseline', 'recordUsage',
+  'recordUsageBatch', 'refreeze', 'register', 'rehomeDestinationItemId', 'rehomeImport', 'rehomeItem', 'relatedItems', 'release', 'releaseItemHold',
+  'releaseLane', 'removeItemPatch', 'reopen', 'requestCompanion', 'requireExitActive', 'reserveNextReview', 'reserveRehomeItemId', 'reserveReview',
+  'reviewHolder', 'reviewOffer', 'reviewQueue', 'reviewQueueBreakdown', 'reviewReleaseCooldown', 'reviewReleaseNoteProblem', 'reviewerChecks',
+  'rowDecisions', 'rowDrafts', 'rowVerifications', 'schemaMissing', 'seatEnrolled', 'seatFamily', 'seatLineage', 'setBarReady', 'setBoardMembers',
+  'setItem', 'setLaneLead', 'setLineSetting', 'shout', 'shoutDetails', 'signBar', 'specApprovalBaseline', 'specApprovalBaselineExists',
+  'startSubmitHandoff', 'stats', 'submit', 'submitInvariantEvents', 'systemClock', 'takeCoordinator', 'takeHandoff', 'typedRequests', 'unreadCount',
+  'unverifiedSubmissions', 'validateItemAddition', 'validateItemEdit', 'verdictReviewProblem', 'verdictsFor', 'verify', 'withVerifierStanding',
+  'withdraw', 'writeRefused',
+];
+/** The library names the store's write variants, which the door exports under a board_ prefix. */
+const LIBRARY_WRITE_NAMES = { ensureCoordinator: 'board_ensureCoordinator', recordNextIdle: 'board_recordNextIdle' };
+for (const name of LIBRARY_STORE_NAMES) libraryExport(name, () => store[LIBRARY_WRITE_NAMES[name] ?? name]);
 for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
-for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
+for (const [name, read] of Object.entries(MILESTONE_READS)) libraryExport(name, read);
 export const board = Object.freeze(libraryBoard);
 export { closeBoard } from '../../../../packages/store/index.js';
 

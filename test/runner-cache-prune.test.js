@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { takeResource } from '../packages/resources/index.js';
@@ -20,8 +20,10 @@ import { SOURCE_CACHE_CANDIDATES } from '../packages/runners/index.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each sandbox's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Execute actual private Git with complete diagnostics and normal fixture isolation. */
 function git(root, args, input) {
@@ -57,7 +59,7 @@ async function cacheLease(root, repoId, onWait) {
 
 /** Build a real bare cache plus private job directory and return an actually held native cache lease. */
 async function fixture(t, count = 8) {
-  const box = e2e.sandbox(), runnerRoot = join(box.dir, 'runner'), cache = join(box.dir, 'cache.git');
+  const box = cellSandbox(owner), runnerRoot = join(box.dir, 'runner'), cache = join(box.dir, 'cache.git');
   mkdirSync(join(runnerRoot, 'jobs'), { recursive: true });
   git(box.dir, ['init', '--bare', '-q', cache]);
   const commits = history(cache, count), repoId = createHash('sha256').update(cache).digest('hex');
@@ -172,7 +174,7 @@ function marker(file, completion) {
 }
 
 test('a real worker runs beyond 1024 legacy refs while another live job keeps its candidate [C7]', async () => {
-  const box = e2e.sandbox(), repo = join(box.dir, 'source'), home = join(box.dir, 'home');
+  const box = cellSandbox(owner), repo = join(box.dir, 'source'), home = join(box.dir, 'home');
   const bin = join(box.dir, 'bin'), worker = join(box.dir, 'worker'), machine = join(box.dir, 'machine');
   for (const directory of [repo, home, bin, worker, machine]) mkdirSync(directory, { recursive: true });
   git(repo, ['init', '-q', '-b', 'main']);

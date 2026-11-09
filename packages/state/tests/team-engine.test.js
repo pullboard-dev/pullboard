@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js packages/state/src/core/engines/agent-grant-engine.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js packages/state/src/shell/machine.js packages/state/src/core/engines/agent-grant-engine.js */
 /** Sealed re-reviews bind the original work without changing released receipts [E8,H16,V8]. */
 import assert from 'node:assert/strict';
 import {
@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import {

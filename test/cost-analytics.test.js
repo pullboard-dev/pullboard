@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { logEvent } from '../packages/store/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';

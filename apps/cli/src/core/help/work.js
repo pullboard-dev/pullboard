@@ -64,6 +64,7 @@ export const workHelp = `Work
   pullboard sentinel run [--health-only]  run due approved watches, or only scan board health
   pullboard sentinel decline <name> --reason "<why>"   person: prevent future runs
   pullboard sentinels                   approvals, owners and the last result; does not run checks
+  pullboard waits [record]              every hold, wait, queue and process against its budget; record reclaims and files
   pullboard loop declare <name> --every 10m --owner <seat or lane>   coordinator: declare a recurring job's cadence
   pullboard loop ran <name>             record that a recurring job just ran; health flags one silent for 1.5 cadences
   pullboard loop                        list the recurring jobs and their last runs
@@ -105,6 +106,9 @@ export const workHelp = `Work
                                         one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
+                                        in an agent seat it queues on the board and returns at once with a run id;
+                                        the result comes back through pullboard next; --wait blocks
+  pullboard test --status <run id>      print a queued test run's state once
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill

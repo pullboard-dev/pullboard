@@ -1,46 +1,41 @@
 /** Landing captures the flake ratchet from one read snapshot, so a busy board never refuses it [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import {
-  mkdtempSync,
-  rmSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  board as store,
-  closeBoard,
-  openBoard,
-} from '../../../apps/lib/index.js';
+  cellBoard,
+  cellRepo,
+  closeCellBoard,
+} from '../../../test/cell-fixture.js';
 import {
   gateRuns,
   landingFlakeRatchet,
 } from '../index.js';
 
-/** A real git repo with a real SQLite board file; returns its root and board path. */
+/** A real git repo with a real SQLite board file holding one event; returns its root and board path. */
 function realBoard(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard busy ratchet '));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
-  const file = join(root, '.git/pullboard/board.sqlite');
-  const seed = openBoard(file, undefined, { isMain: true, gitRoot: root });
-  try { store.addItem(seed, { by: 'coordinator', lane: 'core', title: 'Seed', criterion: 'Exists' }); } finally { closeBoard(seed); }
+  const { root, boardFile: file } = cellRepo(t);
+  const seed = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
+  try { appendEvent(seed, 'Seed'); } finally { closeCellBoard(seed); }
   return { root, file };
+}
+
+/** Append one plain event to the board's log, the write another connection makes to a board in use. */
+function appendEvent(board, note) {
+  board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?,?,?,?,?)')
+    .run(new Date().toISOString(), 'coordinator', 'note', null, JSON.stringify({ note }));
 }
 
 test('a write from a second connection during the capture neither refuses it nor changes it from a quiet capture [C7]', t => {
   const { root, file } = realBoard(t);
-  const reader = openBoard(file, undefined, { isMain: true, gitRoot: root });
-  t.after(() => closeBoard(reader));
+  const reader = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
   const quiet = landingFlakeRatchet(reader);
   let wrote = 0;
-  /** Read the runs, then write a new item from another connection before the capture's later queries. */
+  /** Read the runs, then write a new event from another connection before the capture's later queries. */
   const busyRuns = board => {
     const runs = gateRuns(board);
-    const writer = openBoard(file, undefined, { isMain: true, gitRoot: root });
-    try { store.addItem(writer, { by: 'coordinator', lane: 'core', title: 'Concurrent write', criterion: 'Lands mid-capture' }); wrote += 1; }
-    finally { closeBoard(writer); }
+    const writer = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
+    try { appendEvent(writer, 'Concurrent write'); wrote += 1; }
+    finally { closeCellBoard(writer); }
     return runs;
   };
   const busy = landingFlakeRatchet(reader, { readRuns: busyRuns });

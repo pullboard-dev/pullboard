@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js */
 /** Computed grants preserve actual authority and exact historical replicas [E21,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -10,7 +10,7 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,
@@ -158,11 +158,12 @@ test('clause 1: an agent grant narrows at claim without trapping its own handoff
   run(box, box.web, 'claim', '1');
   const actor = withBoard(box.repo, board => store.listAgents(board).find(agent => agent.agent_path === box.web).agent_id);
   const held = withBoard(box.repo, board => store.getItem(board, 1));
-  // Finish real baseline observations before cloning the prefix; no detached writer may advance only one replica.
+  // With no registered runner a baseline stays pending and its worker has exited (add --wait) without writing, so no
+  // detached writer can advance only one replica after the prefix is cloned [C7,#3851].
   for (const id of [1, 2]) {
     const baseline = withBoard(box.repo, board => store.getItem(board, id).item_check_baseline);
     assert.ok(baseline, 'each setup item retains its baseline observation');
-    assert.notEqual(baseline.result, 'pending', 'setup baselines finish before replica export');
+    assert.equal(baseline.result, 'pending', 'with no runner a setup baseline stays pending, so no worker writes after replica export');
   }
   const snapshot = withBoard(box.repo, exportBoard);
   const peer = join(box.dir, 'handoff-grant-replica');
@@ -201,12 +202,12 @@ test('clause 1: an agent grant narrows at claim for accepted numeric-text item i
   run(box, box.web, 'claim', '1');
   const actor = withBoard(box.repo, board => store.listAgents(board).find(agent => agent.agent_path === box.web).agent_id);
   const held = withBoard(box.repo, board => store.getItem(board, 1));
-  // Detached baseline completion would write only the source after this replica is copied.
+  // With no runner no baseline worker writes at all, so none can write only the source after this replica is copied [C7,#3851].
   // The public synchronous path finishes both setup observations before capturing the prefix.
   for (const id of [1, 2]) {
     const baseline = withBoard(box.repo, board => store.getItem(board, id).item_check_baseline);
     assert.ok(baseline, 'each setup item retains its baseline observation');
-    assert.notEqual(baseline.result, 'pending', 'no setup baseline can append after replica export');
+    assert.equal(baseline.result, 'pending', 'no runner: no setup baseline can append after replica export');
   }
   const snapshot = withBoard(box.repo, exportBoard);
   const peer = join(box.dir, 'text-id-grant-replica');

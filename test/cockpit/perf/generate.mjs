@@ -12,10 +12,10 @@ import {
   board_ensureCoordinator as ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
   register, reopen, shout, verify, withdraw,
 } from '../../../packages/store/index.js';
-import { addMilestone } from '../../../src/board-milestones.js';
+import { addMilestone } from '../../../packages/store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { submitFixture } from '../../board-submit-fixture.js';
-import { appliedSequence, applyEngineMove } from '../../../src/engine.js';
+import { appliedSequence, applyEngineMove } from '../../../packages/state/index.js';
 import { PROOF_RUN_ENGINE } from '../../../packages/state/src/core/engines/proof-run-engine.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');

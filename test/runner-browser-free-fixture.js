@@ -166,7 +166,9 @@ export async function browserFreeRunnerCheck(t, helpers) {
 export async function runnersOnlyRefusalStaysOnRunner(t, helpers) {
   await withNoBrowserRunner(t, helpers, async (fixture) => {
     const { show, hold, free } = fixture;
-    fixtureMachineSettings(fixture.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, gate: { runnersOnly: true } });
+    // Keep the registered runner: only gate.runnersOnly is added to this machine's settings.
+    const settings = JSON.parse(readFileSync(join(fixture.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8'));
+    fixtureMachineSettings(fixture.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnersOnly: true } });
     await hold();
     const command = `PULLBOARD_TEST_REUSE=0 node bin/run-tests.js ${shellQuote('test/declared.test.js')}`;
     const pending = gateRun(fixture, command);

@@ -1,5 +1,5 @@
 import * as queueStore from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { roadmap, addMilestone, editMilestoneItems, orderMilestoneItems } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 import { crossLaneFixture } from './e2e-helpers.js';

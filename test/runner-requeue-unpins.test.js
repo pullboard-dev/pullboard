@@ -25,7 +25,7 @@ function fixture(t) {
   runFixtureGit(['add', '-A'], { cwd: paths.repo, env });
   runFixtureGit(['commit', '-qm', 'test: private requeue source'], { cwd: paths.repo, env });
   const runners = [HOST, `${HOST}-setup`].map(host => ({ host, slots: 1, browser: 0, node: process.execPath }));
-  writeFileSync(join(paths.machine, 'settings.json'), JSON.stringify({ gateSlots: 0, browserSlots: 0, runners }));
+  writeFileSync(join(paths.machine, 'settings.json'), JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { timingRunner: false }, runners })); // #2512 keeps one of two runners for timed checks; this fixture pins and requeues across both
   return { directory, ...paths, env, runners };
 }
 

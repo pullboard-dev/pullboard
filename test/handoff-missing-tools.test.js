@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { takeResource } from '../packages/resources/index.js';
 import { HANDOFF_DISPATCHER_RESOURCE, drainHandoffQueue, handoffQueueDirectory, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { endedSubmitHandoff, getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { gateAdmission } from '../bin/handoff-worker-dispatcher.js';

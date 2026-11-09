@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { atomic } from '../packages/store/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
 import { repoInfo } from '../packages/git/index.js';

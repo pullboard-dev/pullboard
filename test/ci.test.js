@@ -97,8 +97,7 @@ test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Lin
     assert.match(text, /\n {8}node: \['22\.13', '24'\]\n/, `${name} runs Node 22.13 and 24`);
     assert.match(text, /\n {10}node-version: \$\{\{ matrix\.node \}\}\n/, `${name} sets up the matrix's Node`);
     assert.match(text, /\n {10}fetch-depth: 0\n/, `${name} checks out full history, which spec check reads`);
-    assert.match(text, /if: github\.event_name == 'push' \|\| github\.event_name == 'pull_request'\n\s+run: node bin\/check-signoffs\.js/u,
-      `${name} includes sign-offs in the matrix gate that publication requires`);
+    assert.doesNotMatch(text, /check-signoffs|Signed-off-by/u, `${name} requires no sign-off: the DCO is dropped`);
     assert.equal([...text.matchAll(/\n {6}- run: node bin\/pullboard\.js spec check(?=\n)/gu)].length, 1,
       `${name} checks the spec exactly once in every matrix job`);
     assert.ok(text.includes('npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}'),

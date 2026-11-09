@@ -10,7 +10,7 @@ import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireNoLockOnlyRed } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
 import { headTree } from '../../../git/index.js';
@@ -30,6 +30,7 @@ import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
+import { trunkMoveReruns } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { bisect } from './landing-step-diagnose.js';
@@ -146,7 +147,8 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
 /**
  * Main moved while the batch gated. When every commit main gained touches no file the batch changes, the batch is
  * rebuilt on the new tip and gated again on its own plan, focused on the tests those commits reach; a move that
- * touches the batch's files, or a rebuilt batch that is red, is refused as before. Why: a 7-item batch that went green
+ * touches the batch's files, or a rebuilt batch of several items that is red, is refused as before. A rebuilt
+ * one-item batch that is red returns its item and resolves null. Why: a 7-item batch that went green
  * after a 51-minute bisection was refused LAND_TRUNK_MOVED for two commits outside its files, and the rebuild re-gated
  * and re-bisected everything [C7].
  */
@@ -165,12 +167,41 @@ async function followMovedTrunk(state, gate) {
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
-    const focus = !affected.full && affected.files.length ? { focus: affected.files } : {};
+    // Only tests whose closure reaches both sides can change; none means the batch's proof holds on the new tip [C7].
+    const reruns = trunkMoveReruns(state, { trunkFiles, batchFiles, trunkAffected: affected });
+    if (reruns && !reruns.length) {
+      state.say(`main's move to ${moved.slice(0, 12)} shares no test closure with this batch; its proof stands on the rebuilt tree`);
+      gate = await reusedAcrossMove(state, gate, previous, moved);
+      continue;
+    }
+    const focus = reruns ? { focus: reruns } : !affected.full && affected.files.length ? { focus: affected.files } : {};
     gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
+    if (!accepted(state, gate) && oneItemBatch(state)) {
+      // One item's red on the rebuilt tree is that item's, as on its first gate: it returns alone to its builder and
+      // the trunk is not held. Why: #3768 went red three times at "gate trunk-moved-N" and held every landing (9 Nov) [C7].
+      await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
+      await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+      return null;
+    }
     if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
   return gate;
+}
+
+/**
+ * The batch's gate carried onto the tree rebuilt on main's move, after the static checks and the CLI smoke on that
+ * tree, which read every file and so are never reused. The gate keeps its log and names the move it was carried over.
+ */
+async function reusedAcrossMove(state, gate, from, to) {
+  const services = state.guardServices ?? {};
+  const runChecks = services.runStaticChecks ?? runStaticChecks;
+  await Promise.all([
+    runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); }),
+    landingSmoke(services)(state.batch.root, { record: true }),
+  ]);
+  return { ...gate, tree: headTree(state.batch.root), carriedAcrossMove: { from, to, tree: gate.tree } };
 }
 
 /**
@@ -275,6 +306,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   gate = await landingSpan('follow trunk', () => followMovedTrunk(state, gate));
+  if (!gate) return; // The rebuilt tree was red and its one item went back to its builder.
   const proof = landingProof(gate, () => gate.knownMainProof ?? waivedProof(state, gate));
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   state.say('trunk: gate proved; binding the flake ratchet');

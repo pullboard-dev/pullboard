@@ -793,7 +793,7 @@ The full and summary board state include `decisionQueue`, the coordinator's open
 
 ### Cross-board decision handoffs
 
-`decisionHandoffs(db, { boardId, authorize })` in `src/decision-handoff.js` is
+`decisionHandoffs(db, { boardId, authorize })` in `packages/items/src/shell/decision-handoff.js` is
 an I-D persistence port, not an aggregation CLI or a board-name resolver.
 Each participant supplies its own SQLite connection, opaque immutable board ID,
 and existing authority adapter. Call mutations inside the caller’s ordered
@@ -818,7 +818,7 @@ query; it does not execute the decision or grant cross-board authority.
 
 ## Cross-board offer and private receipt contracts
 
-`src/item-offer.js` exposes `acceptItemOffer`, `declineItemOffer`, `itemOfferAnnouncement`, `recordItemOfferResult` and `readItemOffer`. An `ItemOffer` has exactly `{ version: 1, offerId, sourceBoardId, parentItem, destinationBoardId, proposedContent, disposition, childRef, reason }`. Pending offers have null child/reason; accepted results name `{boardId,item}` on the destination; declines carry a reason. Disclosed proposal fields are `lane`, `title`, and optional `criterion`, `specIds`, `brief`, `route`, `check`; a foreign parent never becomes a destination-local parent. State announcements omit `proposedContent` entirely. The destination stores only a request digest and state result, and retries return the same child after reopening SQLite. Different content or dispositions under the same source/offer id conflict.
+`packages/items/src/shell/item-offer.js` exposes `acceptItemOffer`, `declineItemOffer`, `itemOfferAnnouncement`, `recordItemOfferResult` and `readItemOffer`. An `ItemOffer` has exactly `{ version: 1, offerId, sourceBoardId, parentItem, destinationBoardId, proposedContent, disposition, childRef, reason }`. Pending offers have null child/reason; accepted results name `{boardId,item}` on the destination; declines carry a reason. Disclosed proposal fields are `lane`, `title`, and optional `criterion`, `specIds`, `brief`, `route`, `check`; a foreign parent never becomes a destination-local parent. State announcements omit `proposedContent` entirely. The destination stores only a request digest and state result, and retries return the same child after reopening SQLite. Different content or dispositions under the same source/offer id conflict.
 
 Consumers supply the existing canonical resolver as `resolveBoardRef(id) -> {boardId}` without alias normalization here, their local `boardId`, and a synchronous authenticated `authorize({action,boardId,document})` port. Actions are `accepted`, `declined`, and `receive-result`. The port must verify the appropriate source/destination authority for the exact document; there is no permissive default. The destination's synchronous `createChild(content)` port must perform its native child move on this same board and return its item id. Invoke these contracts inside the consumer's ordered move: child creation and the destination retry record share one SQLite transaction. Source result delivery is a separately authorized, idempotent transaction. These contracts add no offer orchestration, two-board transaction or landing sequencer.
 

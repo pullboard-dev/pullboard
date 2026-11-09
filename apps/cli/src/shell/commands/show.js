@@ -17,7 +17,7 @@ import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,
   testRuntimeRows,
-} from '../../../../../packages/sandbox/index.js';
+} from '../../../../../packages/verify/core.js';
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
@@ -30,6 +30,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
+  itemSpecIds,
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
@@ -79,7 +80,7 @@ export async function run(io, { first, values }) {
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
-      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
     if (values.json) return result;
     const history = store.events(board, { itemId: id });
@@ -179,7 +180,7 @@ export async function run(io, { first, values }) {
   if (attempts.length) io.say(`unattended attempts: ${attempts.join(', ')}`);
   for (const event of moves.filter((entry) => entry.event_kind === 'escalate')) {
     const detail = JSON.parse(event.event_detail);
-    io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${detail.note.split('\n')[0]}`);
+    io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
   }
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
@@ -212,7 +213,7 @@ export async function run(io, { first, values }) {
       if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
     } else {
       const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${detail.note}` : ''}`);
+      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
     }
   }
   return 0;

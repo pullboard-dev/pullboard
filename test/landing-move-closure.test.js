@@ -10,7 +10,7 @@ import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles, packageFiles, runnerExecutionServices } from '../packages/runners/index.js';
 import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions, warmAcceptedCells } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
-import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
@@ -136,7 +136,7 @@ test('a narrow body cannot expand into a higher barrel through the alias cut [C7
 
 
 test('generated landing bindings keep the actual provider for legacy and canonical gate entries [C7,H16]', async () => {
-  for (const entry of ['src/gate-wait.js', 'src/test-run.js', 'src/gate-slot.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
+  for (const entry of ['packages/gate/src/shell/test-run.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
     const source = executionServicesSource(new URL('../' + entry, import.meta.url).href);
     const loaded = await import('data:text/javascript,' + encodeURIComponent(source + '\nexport { executionServices };'));
     assert.equal(loaded.executionServices.runners.runOnRunner, runnerExecutionServices().runOnRunner, entry);

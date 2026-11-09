@@ -10,16 +10,15 @@ import { roundFailures } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { tryGit } from '../../../../src/git.js';
 import { landingLeaseState } from '../../../../src/board-landing-lease.js';
-import { sameEnvironment } from '../../../sandbox/index.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';
 import { compareMainFailures } from './main-red.js';
 import { cachedFailureSignatures } from './main-failure-matches.js';
-import { landingRunnersOnly } from './landing-host.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -247,6 +246,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
+    const reds = repeatedReds(batches, item);
+    if (reds >= LANDING_RED_LIMIT) { blocked.push({ id: item.item_id, code: 'LAND_REPEATED_RED', commit: item.item_commit, count: reds,
+      message: `red in its last ${reds} landing batches at ${item.item_commit.slice(0, 12)}` }); continue; }
     const dependencies = localDependencyIds(item);
     const waitsOn = dependencies.filter((id) => !dependencySatisfied(all.find((other) => other.item_id === id))); // only merged or withdrawn count as met, even a verified dependency already in this batch [C7]
     // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
@@ -282,6 +284,39 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
   }
   return { ready, blocked };
+}
+
+/** How many landing batches in a row may end red for one item at one commit before it returns to its builder. */
+export const LANDING_RED_LIMIT = 3;
+
+/** Batch states that end a landing with nothing landed. */
+const RED_ENDS = new Set(['blocked', 'test-defect', 'flaky']);
+
+/**
+ * How many of an item's latest landing batches at its current commit ended red in a row: blocked with a failing test,
+ * or held as a test defect or flake. A refusal that names no test (a lost lease, a runner fault) neither counts nor
+ * breaks the run.
+ * Why: #3768 was gated red three times in a row on 9 Nov, each time holding the trunk, instead of going back [C7].
+ *
+ * @param {object[]} batches - The board's landing batch records, oldest first.
+ * @param {{ item_id: number, item_commit: string }} item
+ * @returns {number}
+ */
+export function repeatedReds(batches, item) {
+  const latest = new Map();
+  for (const batch of batches) if (batch?.id) latest.set(batch.id, batch);
+  let reds = 0;
+  for (const batch of [...latest.values()].reverse()) {
+    const entries = batch.items ?? batch.candidates ?? [];
+    if (!entries.some(entry => entry.id === item.item_id && entry.commit === item.item_commit)) continue;
+    if (batch.dropped || batch.supersededByMain) continue;
+    if (['landed', 'trunk', 'pushed'].includes(batch.state)) break;
+    if (!RED_ENDS.has(batch.state)) continue;
+    const red = batch.state !== 'blocked' || (batch.failures ?? []).some(failure => failure?.file)
+      || (batch.culprits ?? []).some(entry => entry.id === item.item_id);
+    if (red) reds += 1;
+  }
+  return reds;
 }
 
 /**
@@ -325,12 +360,12 @@ export function perItemMaximum(config, maximum = Infinity) {
 /**
  * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
  * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item. A runners-only machine takes one [C7,H24].
+ * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
  */
-export function landingMaximum(board, config, maximum = Infinity, automatic = false, { runnersOnly = landingRunnersOnly() } = {}) {
-  // A runners-only machine runs a landing gate on one runner with no fan-out, so a batch's union rerun can outgrow what
-  // one runner finishes; one item a batch lands each on its own submit proof plus a small rerun [C7].
-  if (landsPerItem(config) || runnersOnly) return 1;
+export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
+  // A runners-only machine batches like any other: a batch lands on its items' submit receipts and reruns only each
+  // item's own moved closures and their interactions, fanned out over runner slots [C7].
+  if (landsPerItem(config)) return 1;
   const override = store.lineSettings(board).landingBatchSize;
   if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
   return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));

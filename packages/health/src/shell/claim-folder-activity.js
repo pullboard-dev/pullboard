@@ -38,10 +38,46 @@ export function claimFolderActive(root, id, now) {
   } catch { return null; }
 }
 
-/** The claim's native item folder beside the seat checkout, or the seat checkout itself when there is none. */
+/**
+ * The Git folder that holds a checkout's repository: its own .git, or the common folder a linked worktree points at.
+ * Read from the files alone, so no Git process runs; null when it cannot be read.
+ */
+function commonGitDir(folder) {
+  try {
+    const dotGit = join(folder, '.git');
+    const metadata = lstatSync(dotGit);
+    if (metadata.isDirectory()) return resolve(dotGit);
+    const pointer = /^gitdir: (.+)\s*$/u.exec(readFileSync(dotGit, 'utf8'));
+    if (!metadata.isFile() || !pointer) return null;
+    const gitDir = resolve(folder, pointer[1].trim());
+    const common = join(gitDir, 'commondir');
+    return existsSync(common) ? resolve(gitDir, readFileSync(common, 'utf8').trim()) : gitDir;
+  } catch { return null; }
+}
+
+/**
+ * An item folder an earlier seat opened and this claim's seat adopted: a sibling named `<anything>-item-<id>` that is a
+ * worktree of the same repository as the seat checkout. The newest by name wins when several remain.
+ */
+function adoptedItemFolder(root, id) {
+  const suffix = `-item-${id}`;
+  try {
+    const repository = commonGitDir(root);
+    if (!repository) return null;
+    const parent = dirname(root);
+    const found = readdirSync(parent).filter(name => name.endsWith(suffix)).sort().reverse()
+      .map(name => join(parent, name)).filter(folder => commonGitDir(folder) === repository);
+    return found[0] ?? null;
+  } catch { return null; }
+}
+
+/**
+ * The claim's native item folder beside the seat checkout; else the folder an earlier seat opened that this claim
+ * adopted (the claim moves seats, the work stays in the first seat's folder); else the seat checkout itself.
+ */
 function claimFolder(root, id) {
   const itemRoot = join(dirname(root), `${basename(root)}-item-${id}`);
-  return existsSync(itemRoot) ? itemRoot : root;
+  return existsSync(itemRoot) ? itemRoot : adoptedItemFolder(root, id) ?? root;
 }
 
 /** The HEAD reflog path of a checkout or linked worktree, read without Git; null when .git is unreadable. Throws when .git is missing. */
