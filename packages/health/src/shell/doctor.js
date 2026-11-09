@@ -28,7 +28,7 @@ import {
   staleItemFinding,
 } from '../../../spec/index.js';
 import { loadSpec } from '../../../spec/index.js';
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import {
   preMergeHookProblems,
   unwiredHookProblems,

@@ -13,7 +13,7 @@
   ["test/package.test.js","packages/doctrine/tests/package.test.js","seed"],
   ["src/main-criterion-facts.js","packages/doctrine/src/shell/main-criterion-facts.js","rule"]
  ],
- "reexports": ["src/doctrine.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":2,"before":true},
   {"cell":"git","imports":2,"before":true},
