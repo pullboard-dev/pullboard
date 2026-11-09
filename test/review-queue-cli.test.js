@@ -20,6 +20,8 @@ import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
+/** An agent that commits a change, since a submit with no change against its claim head is refused (EMPTY_SUBMIT). */
+const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt && git add web/built.txt && git commit -q -m \"feat(web): build the item [G1]\"'";
 
 /** Capture the actual CLI with a deterministic board clock and one JSON result. */
 async function run(box, cwd, args) {
@@ -88,31 +90,29 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('[Q1,V15] next offers before a new claim, --build records the skip, and held claims renew normally', async (t) => {
+test('[Q1,V15] next reserves the mandatory review before a new claim, --build records the skip, and held claims renew normally', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
-  const before = store.events(box.board).length;
   const offered = await run(box, box.builder, ['next', '--json']);
   assert.equal(offered.code, 0, offered.stderr);
-  assert.ok(offered.data.offer, 'next produces a review offer before claiming');
-  assert.ok(ids.includes(offered.data.offer.item));
-  assert.equal(offered.data.offer.command, `pullboard next --verify ${offered.data.offer.item}`);
-  assert.equal(offered.data.build.item_id, id);
+  // Review is work next hands out: a seat with no claim at the ratio takes the first review (ca4d88511e).
   assert.equal(offered.data.review, true);
-  assert.equal(store.events(box.board).length, before, 'a suggestion emits no move');
-  assert.equal(store.getItem(box.board, id).item_status, 'open');
-  assert.equal(store.getItem(box.board, offered.data.offer.item).item_review_by, null, 'offering does not reserve');
+  assert.equal(offered.data.offer, undefined, 'a mandatory review is handed out, not offered');
+  const reserved = offered.data.item.item_id;
+  assert.ok(ids.includes(reserved));
+  assert.equal(store.getItem(box.board, reserved).item_review_by, box.builderId, 'the review is reserved for the seat');
+  assert.equal(store.getItem(box.board, id).item_status, 'open', 'the build stays unclaimed');
   const prose = await run(box, box.builder, ['next']);
-  assert.match(prose.stdout, /ratio 3 reached/u);
-  assert.ok(prose.stdout.indexOf('review offered:') < prose.stdout.indexOf('build available:'), 'review appears first');
+  assert.match(prose.stdout, new RegExp(`next to verify: #${reserved} `, 'u'));
+  assert.match(prose.stdout, /reserved for you until/u);
   const claimed = await run(box, box.builder, ['next', '--build', '--json']);
   assert.equal(claimed.code, 0, claimed.stderr);
   assert.equal(claimed.data.item.item_id, id);
   assert.equal(claimed.data.item.item_status, 'claimed');
   const detail = JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail);
   assert.ok(detail.reviewSkipped, 'the explicit build claim records the offered review');
-  assert.equal(detail.reviewSkipped.offeredItem, offered.data.offer.item);
+  assert.equal(detail.reviewSkipped.offeredItem, reserved);
   assert.equal(detail.reviewSkipped.pending, 3);
   assert.equal(detail.reviewSkipped.ratio, 3);
   const renewal = await run(box, box.builder, ['next', '--json']);
@@ -231,7 +231,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(afterHour.data.item.item_id, hourBoundary, 'the original reviewer is eligible at exactly one hour');
 });
 
-test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and explicit build keeps the claim contract', async (t) => {
+test('[Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -248,13 +248,12 @@ test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and exp
     assert.equal(response.status, 200, await response.clone().text());
     return response.json();
   }
-  const before = store.events(box.board).length;
   const offered = await next({});
-  assert.ok(offered.offer, 'the HTTP success contains its unreserved offer');
-  assert.equal(offered.event, null);
-  assert.equal(offered.offer.command, `pullboard next --verify ${offered.offer.item}`);
-  assert.equal(offered.result.offer.item, offered.offer.item);
-  assert.equal(store.events(box.board).length, before);
+  // Review is work next hands out: with the ratio reached and no claim, the mandatory first review is reserved (ca4d88511e).
+  assert.equal(offered.offer, undefined, 'the HTTP success hands out the review rather than offering it');
+  assert.equal(offered.result.review, true);
+  assert.equal(offered.result.item.item_review_by, box.builderId);
+  assert.equal(store.getItem(box.board, offered.result.item.item_id).item_review_by, box.builderId);
   assert.equal(store.getItem(box.board, id).item_status, 'open');
   const claimed = await next({ build: true });
   assert.equal(claimed.event.event_kind, 'claim');
@@ -267,7 +266,7 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box, 'true');
-  const ran = await run(box, box.builder, ['run', '--agent', 'true', '--items', '1', '--attempts', '1', '--minutes', '1']);
+  const ran = await run(box, box.builder, ['run', '--agent', COMMITTING_AGENT, '--items', '1', '--attempts', '1', '--minutes', '1']);
   assert.equal(ran.code, 0, ran.stderr);
   assert.equal(store.getItem(box.board, id).item_status, 'submitted', ran.stdout);
   assert.match(ran.stdout, /runner done: 1 submitted, 0 escalated/u);
@@ -290,8 +289,10 @@ test('[N2,B13,H16] plain next follows recorded line capacity without a reviewer 
   const offered = await run(box, box.builder, ['next', '--json']);
   assert.equal(offered.code, 0, offered.stderr);
   assert.equal(offered.data.review, true);
-  assert.ok(ids.includes(offered.data.offer.item));
-  assert.equal(offered.data.offer.ratio, 1.5);
+  // Recorded line capacity makes the review mandatory, and next hands it out reserved (ca4d88511e).
+  assert.equal(offered.data.offer, undefined);
+  assert.ok(ids.includes(offered.data.item.item_id));
+  assert.equal(offered.data.item.item_review_by, box.builderId);
   assert.equal(store.getItem(box.board, id).item_status, 'open');
   const refused = await run(box, box.builder, ['claim', String(id), '--json']);
   assert.equal(refused.code, 1);
