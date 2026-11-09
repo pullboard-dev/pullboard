@@ -113,7 +113,7 @@ function project() {
 function laneWorktree(box, lane, branch) {
   const path = join(box.dir, `${lane}-worktree`);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = fixtureJoin(box.run, path, lane);
+  const joined = fixtureJoin(box.run, path, lane, '--route', 'strong');
   assert.equal(joined.code, 0, joined.err);
   return path;
 }
@@ -183,7 +183,8 @@ test('[L3] a linked worktree refuses lane checks when the common Git directory h
   const added = fixtureAdd(box.run, box.repo, 'web', 'Graft proof', '--specs', 'G1', '--criterion', 'history remains genuine', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(web, 'claim', String(id)).code, 0);
+  const claimed = box.run(web, 'claim', String(id));
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const item = JSON.parse(box.run(web, 'show', String(id), '--json').out);
   const commonDir = resolve(web, box.git(web, 'rev-parse', '--git-common-dir'));
   const grafts = join(commonDir, 'info', 'grafts');
