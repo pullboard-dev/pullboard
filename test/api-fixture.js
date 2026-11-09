@@ -120,6 +120,24 @@ export function bindApiFixtureMachine(t, env) {
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
 }
 
+/**
+ * Add an item routed light the way the board admits one: filed mid, then diagnosed by the coordinator.
+ * Why: a light item needs a current diagnosis fact (#3120), so a direct light add refuses DIAGNOSIS_REQUIRED.
+ */
+export function addLightItem(board, fields) {
+  const id = addBoardItem(board, { ...fields, route: 'mid' });
+  appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: fields.brief });
+  return id;
+}
+
+/** File a light item through the CLI: `json` adds it mid and checks the add shape, then its own brief diagnoses it; returns the added document. */
+export function addLightViaCli(json, box, cwd, args) {
+  const added = json(box, cwd, 'add', args, 'add');
+  const diagnosed = box.run(cwd, 'fact', String(added.item.item_id), 'diagnosis', args[args.indexOf('--brief') + 1], '--json');
+  assert.equal(diagnosed.status, 0, diagnosed.stderr || diagnosed.stdout);
+  return added;
+}
+
 /** Include a fixture CLI result's timing and JSON output when a named test step fails. */
 export function fixtureCommandEvidence(step, result, env) {
   return `${step}\n${result.context}\nstdout: ${safeFixtureDiagnostic(result.stdout, env)}`;

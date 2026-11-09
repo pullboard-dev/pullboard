@@ -47,6 +47,7 @@ import {
   nextSseEvent,
   shellWord,
   timedMs,
+  addLightItem, addLightViaCli,
 } from './api-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
@@ -622,11 +623,11 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
 
   const addArgs = (title) => [
-    'app', title, '--route', 'light', '--criterion', 'roadmap item', '--check', 'true',
+    'app', title, '--route', 'mid', '--criterion', 'roadmap item', '--check', 'true',
     '--brief', 'Files:\n- app/roadmap.js\nChange: track this work\nTest: inspect its status',
   ];
-  const localItem = json(box, box.repo, 'add', addArgs('Local release'), 'add').item;
-  const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
+  const localItem = addLightViaCli(json, box, box.repo, addArgs('Local release')).item;
+  const externalItem = addLightViaCli(json, foreign, foreign.repo, addArgs('External follow-up')).item;
   const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
 
   json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--reason', 'Arrange fixture release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
@@ -996,7 +997,7 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const httpClaimStep = await observedApiStep('claim an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpClaimStep), cliRefusal, `${httpClaimStep.evidence}\nCLI evidence:\n${cliClaimStep.evidence}`);
 
-    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', [], 1);
+    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', ['--wait', '0'], 1);
     const noWork = cliNextStep.document.error;
     assert.equal(noWork.code, 'NOTHING_FREE', cliNextStep.evidence);
     const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env, 409);
@@ -1041,7 +1042,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent');
+    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent', '--route', 'strong');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1301,10 +1302,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const ids = [];
   try {
     for (let index = 0; index < 300; index += 1) {
-      ids.push(addBoardItem(board, {
+      ids.push(addLightItem(board, {
         by: 'coordinator', lane: 'app', title: `Incremental item ${String(index + 1).padStart(3, '0')}`,
         criterion: `Exercise item projection ${index + 1}`, specIds: ['G1'],
-        route: 'light',
         brief: 'Files:\n- app/incremental-fixture.js\nChange:\n- Preserve the fixture item.\nTest:\n- The API projection matches a full rebuild.',
         check: 'true',
         ...(index === 1 ? { after: [ids[0]] } : {}),
@@ -1565,8 +1565,8 @@ test('[N26,A2] an item detail answers under 20 ms on a large board', async (t) =
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
   try {
-    for (let index = 0; index < 1000; index += 1) ids.push(addBoardItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
-      criterion: `Detail ${index + 1}`, specIds: ['G1'], route: 'light', brief: 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.', check: 'true' }));
+    for (let index = 0; index < 1000; index += 1) ids.push(addLightItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
+      criterion: `Detail ${index + 1}`, specIds: ['G1'], brief: 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.', check: 'true' }));
     const insert = board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, 'coordinator', 'edit', ?, '{}')");
     board.db.exec('BEGIN'); // One transaction seeds the remaining events up to 40,000.
     for (let event = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n; event < 40_000; event += 1) insert.run(new Date(Date.UTC(2026, 0, 1, 0, 0, event)).toISOString(), ids[event % 1000]);
