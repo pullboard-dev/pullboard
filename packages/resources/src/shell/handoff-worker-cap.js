@@ -609,11 +609,21 @@ export const HANDOFF_DISPATCHER_OWNER_ENV = 'PULLBOARD_DISPATCHER_OWNER';
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
  * @param {{ startOf?: (pid: number) => string, owner?: string }} [options]
- * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine.
+ * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine or another launcher holds the launch lock, which this call never waits for.
  */
 export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner } = {}) {
   if (dispatcherHeld()) return false;
-  const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch' });
+  // Another launcher already holds the lock and is starting the dispatcher this call would start, so this call never queues
+  // behind it. Why: on 8 Nov ~77 board commands waited on this lock with no deadline, each poll a turn in the single-writer
+  // queue, and builders idled 20 minutes behind a 14-minute commit hook [C7].
+  let lock;
+  try {
+    lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch',
+      onWait() { throw new Refused('HANDOFF_LAUNCH_BUSY', 'another process is launching the dispatcher'); } });
+  } catch (error) {
+    if (error.code === 'HANDOFF_LAUNCH_BUSY') return false;
+    throw error;
+  }
   try {
     if (dispatcherHeld()) return false;
     const queue = handoffQueueDirectory();
