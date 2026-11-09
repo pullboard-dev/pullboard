@@ -13,32 +13,42 @@ import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { readFileSync } from 'node:fs';
 
+/**
+ * Add an item as a coordinator and read the refusal the relay reports for it. A linked board moves locally first and
+ * settles later [H21], so the add returns at once and the sync-time refusal appears in the device's status.
+ */
+async function refusedCoordinatorAdd(device, lane, title) {
+  const since = new Date().toISOString();
+  const added = await device.cli('add', lane, title);
+  assert.equal(added.code, 0, 'a linked board applies the move locally at once, then settles it with the relay');
+  const status = await device.cli('status');
+  assert.equal(status.code, 0, status.failure);
+  const refused = (status.document.relay.outboxRefusals ?? []).filter(entry => entry.queuedAt >= since).at(-1);
+  assert.equal(refused?.code, 'COORDINATOR_HELD', JSON.stringify(status.document.relay.outboxRefusals ?? null));
+  return refused;
+}
+
 test('linked computers use person-given names in coordinator holds and devices [E19,H16]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: real two-device CLI sign-in, pairing, takeover and cleanup; no speed target.
   const box = await relayClientFixture(t);
   await box.link('Writing desk');
   const pairing = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code, 'Travel laptop');
   assert.equal((await box.cli('add', box.lane, 'First named coordinator')).code, 0);
-  const denied = await other.cli('add', box.lane, 'Other coordinator is refused');
-  const meta = async d => (await d.cli('export')).document.tables.board_meta.filter(r => /holder|coord/u.test(r.meta_key));
-  const out = { deniedCode: denied.code, boxMeta: await meta(box), otherMeta: await meta(other), boxStatus: (await box.cli('status')).document.relay, otherStatus: (await other.cli('status')).document.relay, link: box.readLink() };
-  throw new Error('DEBUG ' + JSON.stringify(out));
-  assert.equal(denied.document?.error?.code, 'COORDINATOR_HELD', denied.failure ?? JSON.stringify(denied.document));
-  assert.match(denied.document.error.message, /Writing desk/u);
+  const denied = await refusedCoordinatorAdd(other, box.lane, 'Other coordinator is refused');
+  assert.match(denied.message, /Writing desk/u);
   const taken = await other.cli('takeover');
   assert.equal(taken.code, 0);
   assert.equal(taken.document.coordinator, 'Travel laptop');
   assert.equal(taken.document.previous, 'Writing desk');
-  const first = await box.cli('add', box.lane, 'Former coordinator is refused');
-  assert.equal(first.document?.error?.code, 'COORDINATOR_HELD');
-  assert.match(first.document.error.message, /Travel laptop/u);
+  const first = await refusedCoordinatorAdd(box, box.lane, 'Former coordinator is refused');
+  assert.match(first.message, /Travel laptop/u);
   for (const [device, expected] of [[box, 'Travel laptop'], [other, 'Writing desk']]) {
     const roster = await device.cli('relay', 'devices');
     assert.equal(roster.code, 0);
     assert.ok(JSON.stringify(roster.document).includes(expected), 'device roster retains the explicit name');
     for (const privateText of [hostname(), box.root, other.root]) {
       assert.equal(JSON.stringify(roster.document).includes(privateText), false, 'roster does not disclose host or path');
-      assert.equal(first.document.error.message.includes(privateText), false, 'refusal does not disclose host or path');
+      assert.equal(first.message.includes(privateText), false, 'refusal does not disclose host or path');
     }
   }
 });
@@ -49,10 +59,9 @@ test('linked computers without names use the machine tail in real refusals and d
   const pairing = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
   assert.equal((await box.cli('add', box.lane, 'Unnamed coordinator')).code, 0);
-  const refused = await other.cli('add', box.lane, 'Other unnamed coordinator');
+  const refused = await refusedCoordinatorAdd(other, box.lane, 'Other unnamed coordinator');
   const machine = JSON.parse(readFileSync(box.linkFile, 'utf8')).machine;
-  assert.equal(refused.document?.error?.code, 'COORDINATOR_HELD', refused.failure ?? JSON.stringify(refused.document));
-  assert.ok(refused.document.error.message.includes(`computer ${machine.slice(-8)}`));
+  assert.ok(refused.message.includes(`computer ${machine.slice(-8)}`));
   const roster = await box.cli('relay', 'devices');
   assert.equal(roster.code, 0);
   assert.equal(roster.document.computers[0].name, null);
