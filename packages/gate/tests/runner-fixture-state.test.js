@@ -1,13 +1,16 @@
 /** Runner fixture waits follow their actual deadline and retain useful state [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { readRemoteGateHolders, waitForCondition } from './runner-fixture-state.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { readRemoteGateHolders } from '../../../test/runner-fixture-state.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 test('a runner fixture wait observes a real holder release within its fixture deadline [C7]', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-wait-'));
@@ -27,7 +30,7 @@ test('a runner fixture timeout names elapsed time and last state at its real tes
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-deadline-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'held.test.mjs');
-  const module = pathToFileURL(join(import.meta.dirname, 'runner-fixture-state.js')).href;
+  const module = pathToFileURL(join(import.meta.dirname, '../../../test/runner-fixture-state.js')).href;
   writeFileSync(file, `import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { waitForCondition } from ${JSON.stringify(module)};

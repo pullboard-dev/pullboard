@@ -4,11 +4,12 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 
 const fixtureCredential = randomUUID();
-import { runFixtureChild, fixtureChildMessage } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { fixtureChildMessage } from '../../../test/fixture-child.js';
 
 /** Run a real ignored-stderr IPC worker inside a parent whose emitted diagnostics are captured. */
 function ignoredWorkerProbe(outcome) {
-  const helper = new URL('./fixture-child.js', import.meta.url).href;
+  const helper = new URL('../../../test/fixture-child.js', import.meta.url).href;
   const worker = `process.stderr.write('ignored worker cause ' + process.env.PULLBOARD_TEST_SECRET + ' pm_fixtureWorkerToken\\n');
     process.send('ready');
     process.once('message', message => {

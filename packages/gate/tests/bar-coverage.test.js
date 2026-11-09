@@ -1,15 +1,22 @@
 /** Signed test coverage preserves named checks, neighboring failures and the unchanged budget [V2,V4,M1]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { barCoverageCommand, normalizeBarCoverage, prepareBarCoverage, barTestPath, barCoverageForPolicy } from '../packages/verify/index.js';
-import { requireSubmitComposition } from '../packages/items/index.js';
-import { nativeBarActor } from '../packages/verify/index.js';
-import { baselineTestEvidence } from '../packages/gate/index.js';
-import { configFromSource } from '../packages/config/index.js';
-import { runFixtureChild } from './fixture-child.js';
+import { barCoverageCommand } from '../../verify/index.js';
+import { normalizeBarCoverage } from '../../verify/index.js';
+import { prepareBarCoverage } from '../../verify/index.js';
+import { barTestPath } from '../../verify/index.js';
+import { barCoverageForPolicy } from '../../verify/index.js';
+import { requireSubmitComposition } from '../../items/index.js';
+import { nativeBarActor } from '../../verify/index.js';
+import { baselineTestEvidence } from '../index.js';
+import { configFromSource } from '../../config/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
 const SHA = 'a'.repeat(40);
 /** Synthetic observations test schema and arithmetic, not an actual performance claim. */

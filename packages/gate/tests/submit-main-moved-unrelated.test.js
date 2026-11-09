@@ -7,12 +7,12 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../packages/gate/index.js';
-import { explicitCheckFiles } from '../packages/gate/index.js';
-import { composeAfterProof } from '../packages/items/index.js';
-import { trunkMoveFact } from '../packages/items/index.js';
-import { judgeTrunkMove } from '../packages/verify/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import { selectAffectedTests } from '../index.js';
+import { explicitCheckFiles } from '../index.js';
+import { composeAfterProof } from '../../items/index.js';
+import { trunkMoveFact } from '../../items/index.js';
+import { judgeTrunkMove } from '../../verify/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };

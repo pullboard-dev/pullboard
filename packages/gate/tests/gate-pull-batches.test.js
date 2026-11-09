@@ -1,15 +1,21 @@
 /** A gate pulls its proof's test batches from a queue into every runner slot it can get, not a shard plan fixed at start [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { takeResource } from '../packages/resources/index.js';
-import { BATCH_DROP_LIMIT, PROOF_MAX_SHARDS, freeRunnerSlots, proveBatches, shardSlotOptions } from '../packages/gate/src/shell/proof-shards.js';
-import { formatTestOutcomes, readTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
-import { privateFixtureFiles } from './fixture-child.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { takeResource } from '../../resources/index.js';
+import { BATCH_DROP_LIMIT } from '../src/shell/proof-shards.js';
+import { PROOF_MAX_SHARDS } from '../src/shell/proof-shards.js';
+import { freeRunnerSlots } from '../src/shell/proof-shards.js';
+import { proveBatches } from '../src/shell/proof-shards.js';
+import { shardSlotOptions } from '../src/shell/proof-shards.js';
+import { formatTestOutcomes } from '../src/shell/test-outcomes.js';
+import { readTestOutcomes } from '../src/shell/test-outcomes.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 const FILES = Array.from({ length: 60 }, (_, index) => `test/f${String(index).padStart(2, '0')}.test.js`);
 const RUNNERS = [{ host: 'fixture-a', slots: 6, browser: 0 }];

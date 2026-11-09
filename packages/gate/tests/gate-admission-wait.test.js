@@ -1,10 +1,14 @@
 /** Gate admission keeps its awaited callbacks alive until a recorded outcome [C7,Q1]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Run an actual SQLite admission in a child whose callbacks hold no event-loop reference. */
 async function admissionCase(t, refused) {
@@ -14,10 +18,10 @@ async function admissionCase(t, refused) {
   const home = join(root, '.machine');
   mkdirSync(home);
   writeFileSync(join(home, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { shortSlots: 0 } }));
-  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
-  const resources = new URL('../packages/resources/index.js', import.meta.url).href;
-  const runners = new URL('../packages/runners/index.js', import.meta.url).href;
-  const landing = new URL('../packages/landing/index.js', import.meta.url).href;
+  const gate = new URL('../index.js', import.meta.url).href;
+  const resources = new URL('../../resources/index.js', import.meta.url).href;
+  const runners = new URL('../../runners/index.js', import.meta.url).href;
+  const landing = new URL('../../landing/index.js', import.meta.url).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gate)};
 import { takeResource, listResources } from ${JSON.stringify(resources)};
 import { runnerExecutionServices } from ${JSON.stringify(runners)};
