@@ -592,7 +592,7 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     assert.notEqual(newMain, main);
     const afterMainChange = builder(box).run('next', '--json');
     assert.equal(afterMainChange.code, 0, afterMainChange.err);
-    assert.equal(JSON.parse(afterMainChange.out).item.item_id, middle, 'a cache for the former main cannot reorder the current main');
+    assert.equal(JSON.parse(afterMainChange.out).item?.item_id, middle, afterMainChange.out + 'a cache for the former main cannot reorder the current main');
   });
 
   await t.test('multiple approved rows never produce a guessed row or item [V1]', (sub) => {
