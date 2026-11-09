@@ -1721,8 +1721,8 @@
       "deep": 0
     },
     "packages/items/src/core/caught.js": {
-      "cells": 2,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/items/src/core/check-timing.js": {
       "cells": 1,
@@ -1735,10 +1735,6 @@
     "packages/items/src/core/critical-path-order.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/items/src/core/cross-repo-dependencies.js": {
-      "cells": 1,
-      "deep": 1
     },
     "packages/items/src/core/decision-origin.js": {
       "cells": 1,
@@ -1789,8 +1785,8 @@
       "deep": 0
     },
     "packages/items/src/core/item-routing.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/items/src/core/outside-sensitive.js": {
       "cells": 2,
@@ -1909,8 +1905,8 @@
       "deep": 0
     },
     "packages/items/src/shell/parent-session.js": {
-      "cells": 3,
-      "deep": 1
+      "cells": 2,
+      "deep": 0
     },
     "packages/items/src/shell/resume-sources.js": {
       "cells": 3,
@@ -3170,7 +3166,7 @@
     },
     "packages/stats/src/core/bar-stats.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/build-calibration.js": {
       "cells": 1,
@@ -3194,11 +3190,11 @@
     },
     "packages/stats/src/core/stats-flow-window.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-flow.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-moves.js": {
       "cells": 1,
@@ -3206,7 +3202,7 @@
     },
     "packages/stats/src/core/stats-pipeline.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/core/stats-time.js": {
       "cells": 1,
@@ -3250,7 +3246,7 @@
     },
     "packages/stats/src/shell/stats.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/store/src/core/board-accepted-reland.js": {
       "cells": 3,
@@ -3806,7 +3802,7 @@
     },
     "packages/verify/src/core/next-review.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/verify/src/core/post-move-handoff.js": {
       "cells": 1,
@@ -3886,7 +3882,7 @@
     },
     "packages/verify/src/shell/proof-counter-read.js": {
       "cells": 3,
-      "deep": 2
+      "deep": 0
     },
     "packages/verify/src/shell/proof-counters.js": {
       "cells": 2,
@@ -4727,7 +4723,7 @@
     },
     "<-kernel": {
       "imports": [],
-      "deepImporters": 41
+      "deepImporters": 36
     },
     "apps/lib": {
       "imports": [

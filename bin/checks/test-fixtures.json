@@ -2890,7 +2890,7 @@
     "raw-board": 2,
     "model": 1
   },
-  "test/reserve-next-review-lock.test.js": {
+  "packages/store/tests/reserve-next-review-lock.test.js": {
     "model": 3,
     "raw-board": 4
   },
@@ -3072,7 +3072,7 @@
   "packages/gate/tests/run-tests-options.test.js": {
     "tempdir": 3
   },
-  "test/run-tests-reporter.test.js": {
+  "packages/runners/tests/run-tests-reporter.test.js": {
     "tempdir": 3
   },
   "test/run-tests-timeout.test.js": {
@@ -3658,7 +3658,7 @@
   "test/team-verification-repair.test.js": {
     "raw-board": 1
   },
-  "test/test-action-cache.test.js": {
+  "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
   "test/test-cache-receipts.test.js": {

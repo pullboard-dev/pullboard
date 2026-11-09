@@ -16,7 +16,7 @@ import { twoTierReviews } from '../shell/review-independence.js';
 import { Refused } from '../../../kernel/index.js';
 import { refuseSelfSession } from '../../../items/index.js';
 import { itemAuthors } from '../../../items/index.js';
-import { shownPath } from '../../../kernel/src/core/registry-guards.js';
+import { shownPath } from '../../../kernel/index.js';
 
 /**
  * The other seat holding a live review reservation on this head, or null (#1356). The reviewer's own
