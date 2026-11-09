@@ -1,15 +1,15 @@
 /** Emergency routing retains person authority and never evicts active work [N2,B3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { mainRedBuildRouting } from '../packages/store/index.js';
-import { exportBoard } from '../packages/store/index.js';
-import { nextTake } from '../packages/sandbox/index.js';
-import { QUEUE_PREEMPT_ENGINE } from '../packages/state/core.js';
-import { prepareEngineMove } from '../packages/state/index.js';
-import { applyRelayMove } from '../packages/state/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { defaults } from '../packages/config/index.js';
+import * as store from '../../store/index.js';
+import { mainRedBuildRouting } from '../../store/index.js';
+import { exportBoard } from '../../store/index.js';
+import { nextTake } from '../index.js';
+import { QUEUE_PREEMPT_ENGINE } from '../../state/core.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyRelayMove } from '../../state/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { defaults } from '../../config/index.js';
 
 /** A private native board with explicit readiness, person marks and observed work. */
 function fixture(t) {

@@ -2556,7 +2556,7 @@
     "tempdir": 2,
     "raw-board": 2
   },
-  "test/queue-preempt.test.js": {
+  "packages/sandbox/tests/queue-preempt.test.js": {
     "raw-board": 4
   },
   "packages/queue/tests/queue-settings-port.test.js": {
