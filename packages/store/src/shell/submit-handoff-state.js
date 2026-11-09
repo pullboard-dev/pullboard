@@ -34,6 +34,12 @@ const EXHAUSTED_RETRIES = 2;
  */
 export const INFRASTRUCTURE_RETRY_LIMIT = 3;
 /**
+ * Runner refusals that mean the host could not run the work right now: the gate requeues on another runner and a sharded
+ * landing reruns the shard. One list serves both, so the two cannot drift apart again (#3753).
+ */
+export const RERUNNABLE_RUNNER_REFUSALS = Object.freeze(['RUNNER_SETUP_REFUSED', 'RESOURCE_LEASE_LOST', 'RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED']);
+
+/**
  * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
  * failing (#2521), a gate whose bounded infrastructure retries were spent (#2516), and every machinery code the
  * queued worker reruns on. One set serves both sides, so a code the worker treats as infrastructure never reaches
@@ -42,10 +48,10 @@ export const INFRASTRUCTURE_RETRY_LIMIT = 3;
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'GIT_READ_INFRASTRUCTURE', 'GATE_INFRA_EXHAUSTED',
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
-  'RUNNER_BUSY', 'RUNNER_BROWSER_SLOT_REQUIRED', 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
+  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
   'MERGE_CHECK_FAILED',
   // The remote analysis step returned nothing, or the resource lease vanished under the gate: machinery, not source (#3303).
-  'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST',
+  'RUNNER_RESULT_INVALID',
   // Accepted policy changed or became unavailable; the captured source has no test failure.
   'NO_POLICY',
   // The board's Git sync lease stayed busy or origin did not answer: the machine, not the source (#3111).
