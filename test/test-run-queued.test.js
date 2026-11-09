@@ -52,25 +52,28 @@ function runnerProject() {
  * of the machine-work variables the test runner itself puts in this process's environment.
  */
 function asSeat(box, ...args) {
-  const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID'].map(name => [name, box.env[name]]));
+  return seatRun(box, {}, ...args);
+}
+
+/** Run as the seat with only `extra` of the machine variables set; every other one the test runner set is removed. */
+function seatRun(box, extra, ...args) {
+  const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID', 'CLAUDECODE'].map(name => [name, box.env[name]]));
   for (const name of Object.keys(saved)) delete box.env[name];
+  Object.assign(box.env, extra);
   box.env.CLAUDECODE = '1';
   try {
     const started = performance.now();
     const ran = box.run(box.web, ...args);
     return { ...ran, ms: performance.now() - started };
   } finally {
-    delete box.env.CLAUDECODE;
+    for (const name of [...Object.keys(saved), ...Object.keys(extra)]) delete box.env[name];
     for (const [name, value] of Object.entries(saved)) if (value !== undefined) box.env[name] = value;
   }
 }
 
 /** Run one CLI command as the seat's agent session with extra machine variables set, as machine work starts it. */
 function asSeatInside(box, extra, ...args) {
-  const saved = Object.fromEntries(Object.keys(extra).map(name => [name, box.env[name]]));
-  Object.assign(box.env, extra);
-  try { return asSeat(box, ...args); }
-  finally { for (const [name, value] of Object.entries(saved)) { if (value === undefined) delete box.env[name]; else box.env[name] = value; } }
+  return seatRun(box, extra, ...args);
 }
 
 test('a seat\'s pullboard test returns in under 1 s with a run id, and next hands back the red result [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
@@ -123,7 +126,8 @@ test('--wait still blocks for a non-seat caller and prints the result itself [C7
 test('an item check that runs pullboard test on a red file fails, never a queued pass [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for the check and its nested runner run.
   const box = runnerProject();
   fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--check', `"${process.execPath}" "${BIN}" test test/red.test.js`);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const claimed = box.run(box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);
   const checked = asSeat(box, 'check', '--yes');
   assert.notEqual(checked.code, 0, `the red check is red: ${checked.out}${checked.err}`);
   assert.doesNotMatch(checked.out + checked.err, /queued test run/u, 'the check never got the queued answer');
@@ -133,7 +137,7 @@ test('a seat call under a live outer pullboard command or machine variables bloc
   const box = runnerProject();
   // This test process stands in for the live gate or check that started the call.
   const nested = asSeatInside(box, { PULLBOARD_CLI_PID: String(process.pid) }, 'test', 'test/red.test.js');
-  assert.equal(nested.code, 1, 'under a live pullboard command the run blocks and exits red');
+  assert.equal(nested.code, 1, `under a live pullboard command the run blocks and exits red: ${nested.out}${nested.err}`);
   assert.doesNotMatch(nested.out, /queued test run/u);
   const runnerJob = asSeatInside(box, { GIT_NO_REPLACE_OBJECTS: '1' }, 'test', 'test/red.test.js');
   assert.equal(runnerJob.code, 1, 'in the check runner\'s clean git environment the run blocks and exits red');
