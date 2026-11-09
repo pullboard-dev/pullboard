@@ -408,9 +408,9 @@ export function observation(result) {
 `);
   const oracle = join(root, 'native-oracle.mjs');
   writeFileSync(oracle, `import { spawnSync } from 'node:child_process';
-import { variants } from '../../../test/spawn-cases.mjs';
-import { startVariant } from '../../../test/spawn-cases.mjs';
-import { observation } from '../../../test/spawn-cases.mjs';
+import { variants } from './spawn-cases.mjs';
+import { startVariant } from './spawn-cases.mjs';
+import { observation } from './spawn-cases.mjs';
 const records = variants.map(variant => {
   try { return { variant, observed: observation(startVariant(spawnSync, variant)) }; }
   catch (error) { return { variant, observed: { error: error.code } }; }
@@ -430,9 +430,9 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
-import { variants } from '../../../test/spawn-cases.mjs';
-import { startVariant } from '../../../test/spawn-cases.mjs';
-import { observation } from '../../../test/spawn-cases.mjs';
+import { variants } from './spawn-cases.mjs';
+import { startVariant } from './spawn-cases.mjs';
+import { observation } from './spawn-cases.mjs';
 test('offered spawn matches independently loaded Node', async () => {
   const expected = JSON.parse(readFileSync('expected.json', 'utf8'));
   for (const variant of variants) {
