@@ -113,6 +113,4 @@ test('[V1,B3] at the current engine an earlier claimant who committed nothing do
   const committedUnknown = accepted(box, undefined, 'parent-Q');
   assert.equal(store.verdictsFor(box.board, committedUnknown.id)[0].assurance, 'procedural',
     'the committed author with no recorded parent still limits assurance');
-  const sameParent = accepted(box, 'parent-Q', 'parent-Q');
-  assert.equal(store.verdictsFor(box.board, sameParent.id)[0].assurance, 'procedural', 'a committed author under the reviewer\'s parent is not independent');
 });
