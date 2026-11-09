@@ -61,7 +61,8 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
     '--check', "test -f web/feature.txt && test -f docs/main.txt", '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(id));
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add auto merge fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
@@ -96,7 +97,8 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
     '--check', 'test -f web/feature.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(id));
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add review fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
@@ -134,7 +136,8 @@ test('submit names a real main conflict and leaves the builder checkout intact [
     '--check', 'test -f web/shared.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(id));
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const sourceChange = helpers.commitFile(box, box.web, 'web/shared.txt', 'builder\n', 'feat(web): edit shared file [G1]');
   assert.equal(sourceChange.status, 0, sourceChange.stderr);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
