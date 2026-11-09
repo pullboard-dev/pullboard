@@ -87,7 +87,7 @@ function restoreSaved(message) {
     const value = deserialize(readFileSync(file));
     if (value?.version !== SNAPSHOT_VERSION || value.key !== key) return;
     snapshots.restore(value.carry);
-    parentPort.postMessage({ type: 'record', key: message.key, restored: true, record: { ...value.record, current: false } });
+    parentPort.postMessage({ type: 'record', key: message.key, board: message.board, restored: true, record: { ...value.record, current: false } });
   } catch { /* No usable snapshot: the first build starts from the board itself. */ }
 }
 
@@ -100,7 +100,7 @@ function save(board, record, { force = false } = {}) {
   try {
     mkdirSync(dirname(file), { recursive: true });
     const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, serialize({ version: SNAPSHOT_VERSION, key, sequence: record.sequence, carry, record }));
+    writeFileSync(temporary, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
     renameSync(temporary, file);
     saved.set(cacheId, { at: Date.now(), board, record, sequence: record.sequence });
   } catch { /* A snapshot only speeds the next start; failing to save one never fails a build. */ }
@@ -110,6 +110,33 @@ function save(board, record, { force = false } = {}) {
 function errorFields(error) {
   return { name: error?.name, code: error?.code, message: error?.message ?? String(error), next: error?.next, stack: error?.stack };
 }
+
+/**
+ * Load every registered board's saved snapshot as the worker starts, before any read asks: why a restarted server's
+ * first read is served from memory rather than waiting on the worker to load and decode a large file.
+ */
+function prewarm() {
+  const folders = new Set();
+  for (const project of projects) {
+    try { folders.add(process.env.PULLBOARD_STATE_CACHE_DIR || snapshots.snapshotPlace({ id: '', root: project.root }).folder); } catch { /* An unreadable project has no snapshot. */ }
+  }
+  for (const folder of folders) {
+    let names = [];
+    try { names = readdirSync(folder).filter((name) => name.endsWith('.snapshot')); } catch { continue; }
+    for (const name of names) {
+      try {
+        const value = deserialize(readFileSync(join(folder, name)));
+        if (value?.version !== SNAPSHOT_VERSION || !value.board || value.key !== snapshotFile(value.board).key) continue;
+        const key = value.board.id + '\0' + value.board.root;
+        if (restored.has(key)) continue;
+        restored.add(key);
+        snapshots.restore(value.carry);
+        parentPort.postMessage({ type: 'record', key, board: value.board, restored: true, record: { ...value.record, current: false } });
+      } catch { /* No usable snapshot: that board's first build starts from the board itself. */ }
+    }
+  }
+}
+prewarm();
 
 const latest = new Map();
 parentPort.on('message', (message) => {

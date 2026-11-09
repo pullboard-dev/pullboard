@@ -76,7 +76,7 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   }
   worker.on('message', (message) => {
     if (message.type === 'build') { onStateBuild?.({ board: message.board, full: message.full }); return; }
-    const entry = boards.get(message.key);
+    const entry = message.board ? boardEntry(message.board) : boards.get(message.key);
     if (!entry) return;
     if (message.type === 'record') {
       const prior = entry.record;
