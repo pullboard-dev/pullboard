@@ -1,9 +1,9 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { builderFamilyProblem } from './builder-family-required.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { expectedBuildProblem } from '../../../items/index.js';
-import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
-import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
+import { UNTOUCHED_CLAIM_ENGINE } from '../../../state/core.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../state/core.js';
 import { EXIT_RULES_ENGINE } from "../../../state/index.js";
 import { capturedExitRules } from "../core/exit-rules-state.js";
 import {
@@ -19,16 +19,16 @@ import {
 } from "./board-write-preparation.js";
 import { checkedSubmitOutcome } from "./submit-outcome.js";
 import { submitAdmission as checkedSubmitAdmission } from "../../../state/src/core/submit-admission.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 import {
   ENGINE_VERSION,
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERIFIER_STANDING_ENGINE,
   IN_STATE,
 } from "../../../state/index.js";
-import { ITEM_FOLDER_ENGINE } from "../../../../src/item-folder-engine.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
-import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+import { ITEM_FOLDER_ENGINE } from "../../../state/core.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
+import { CLAIM_IDLE_ENGINE } from "../../../state/core.js";
 import {
   pendingRefreeze,
   pendingRefreezeProblem,

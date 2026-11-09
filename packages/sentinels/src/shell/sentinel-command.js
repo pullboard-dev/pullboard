@@ -7,7 +7,7 @@ import { sweepClaims } from "../../../health/index.js";
 import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
 import { atomic } from "../../../store/index.js";
 import { checkpointBoard } from "../../../store/index.js";
-import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
+import { planStaleState } from "../../../store/index.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
 import { PERSON } from "../../../store/index.js";

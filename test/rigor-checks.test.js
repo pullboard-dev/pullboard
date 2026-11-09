@@ -17,17 +17,17 @@ import { fileSizeProblems } from '../bin/checks/file-size.js';
 import { testNameProblems } from '../bin/checks/test-names.js';
 import { emptyCatchProblems } from '../bin/checks/empty-catch.js';
 import { testInputProblems } from '../bin/checks/test-inputs.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { loadConfig } from '../packages/config/index.js';
 import { draftConflictSplits } from '../packages/rigor/index.js';
 import { proposeDoctrine } from '../packages/doctrine/index.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { conflictNoteFiles, conflictReport } from '../packages/rigor/index.js';
-import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
+import { RIGOR_AUTO_ENGINE } from '../packages/state/core.js';
 import {
   breachLine,
   changeRange,

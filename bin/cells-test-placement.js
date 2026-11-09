@@ -102,14 +102,81 @@ function specifierFrom(file, target) {
 }
 
 /**
- * The plain quoted import, re-export, dynamic import and require specifiers of a module, and whether its code reads its own location.
- * `lex` is the kernel lexer, handed in by the caller so this root module adds no cross-cell import.
+ * The plain quoted import, re-export, dynamic import and require specifiers of a module, the literals it reads its own
+ * location through, and whether it reads its own location any other way. `lex` is the kernel lexer, handed in by the caller
+ * so this root module adds no cross-cell import. An own-location literal is the path in new URL(literal, import.meta.url), or
+ * the first path after import.meta.dirname in join(...) or resolve(...); a template counts by its static part up to the last
+ * slash before its first substitution. Any other import.meta, __dirname or __filename read leaves `located` true [C7,CD64].
  */
 function importLiterals(source, lex) {
   const info = lex(source);
   const literals = info.strings.filter(row => (source[row.start] === "'" || source[row.start] === '"') && row.end - row.start === row.text.length + 2
     && /(?:\bfrom|\bimport|\bimport\s*\(|\brequire\s*\()\s*$/u.test(info.code.slice(Math.max(0, row.start - 40), row.start)));
-  return { literals, located: /\bimport\s*\.\s*meta\b|\b__dirname\b|\b__filename\b/u.test(info.code) };
+  const reads = [...info.code.matchAll(/\bimport\s*\.\s*meta\b|\b__dirname\b|\b__filename\b/gu)].map(match => match.index);
+  const covered = new Set(), own = [];
+  for (const row of info.strings) {
+    if (row.end - row.start !== row.text.length + 2) continue;
+    const before = info.code.slice(Math.max(0, row.start - 80), row.start), after = info.code.slice(row.end, row.end + 40);
+    const url = /new\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\s*\.\s*meta\s*\.\s*url\s*\)/u.exec(after);
+    const dir = /\b(?:join|resolve)\(\s*(import\s*\.\s*meta)\s*\.\s*dirname\s*,\s*$/u.exec(before);
+    if (!url && !dir) continue;
+    const prefix = row.text.includes('${') ? row.text.slice(0, row.text.indexOf('${')) : row.text;
+    if (row.text.includes('${') && !prefix.includes('/')) continue;
+    covered.add(url ? row.end + after.indexOf('import') : row.start - before.length + dir.index + dir[0].indexOf('import'));
+    own.push(row);
+  }
+  return { literals, own, located: reads.some(at => !covered.has(at)) };
+}
+
+/** The path part of an own-location literal and the text kept after it: a template keeps everything from its last static slash. */
+function ownPath(text) {
+  if (!text.includes('${')) return { path: text.replace(/\/+$/u, ''), rest: text.endsWith('/') && text !== '/' ? '/' : '' };
+  const prefix = text.slice(0, text.indexOf('${')), cut = prefix.lastIndexOf('/');
+  return { path: prefix.slice(0, cut), rest: text.slice(cut) };
+}
+
+/**
+ * Rewrite the own-location literals of a file read at `from` and written at `to` so each still names the same tracked file or
+ * folder, following a moved target to its home; `missing` names a literal whose target is not tracked.
+ */
+function repointOwn(source, rows, from, to, moved, exists) {
+  let out = '', at = 0;
+  const changes = [], missing = [];
+  for (const row of [...rows].sort((a, b) => a.start - b.start)) {
+    const { path, rest } = ownPath(row.text);
+    const target = posix.normalize(posix.join(posix.dirname(from), path || '.'));
+    if (target.startsWith('../') || !exists(target)) { missing.push(row.text); continue; }
+    const relative = posix.relative(posix.dirname(to), moved.get(target) ?? target) || '.';
+    const next = (relative.startsWith('.') ? relative : `./${relative}`) + rest;
+    if (next === row.text) continue;
+    out += source.slice(at, row.start + 1) + next;
+    at = row.end - 1;
+    changes.push(`${row.text} -> ${next}`);
+  }
+  return { source: out + source.slice(at), changes, missing };
+}
+
+/**
+ * The committed list of files that name test paths as data. A move rewrites an exact quoted moved path in them and nothing else.
+ * View roles and policy belong to the view lane and are not listed, so a test they name is moved by that lane [C7,CD64].
+ */
+export const TEST_PATH_TABLES_FILE = 'bin/checks/test-path-tables.json';
+
+/** The declared table paths, read from the inventory; an absent or malformed list declares none. */
+function testPathTables(inventory) {
+  try { const list = JSON.parse(inventory.files.get(TEST_PATH_TABLES_FILE)?.toString('utf8') ?? '[]'); return Array.isArray(list) ? list.filter(path => typeof path === 'string') : []; }
+  catch { return []; }
+}
+
+/** Replace each exact quoted moved path in a table's text; `count` is how many quoted paths changed. */
+function repointTable(source, moved) {
+  let count = 0;
+  const out = source.replace(/(['"`])([^'"`\\\r\n]+)\1/gu, (whole, quote, text) => {
+    if (!moved.has(text)) return whole;
+    count++;
+    return quote + moved.get(text) + quote;
+  });
+  return { source: out, count };
 }
 
 /**
@@ -160,12 +227,19 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [],
     else moved.set(file, testHome(cell, file));
   }
   const writes = [];
+  const folder = path => listed.has(path) || path === '.' || tracked.some(file => file.startsWith(`${path}/`));
   for (const [file, to] of moved) {
     const source = inventory.files.get(file).toString('utf8');
-    if (importLiterals(source, lex).located) { refused.push(`unsafe path ${file} (reads paths relative to its own location; move it by hand)`); continue; }
+    const read = importLiterals(source, lex);
+    if (read.located) { refused.push(`unsafe path ${file} (reads paths relative to its own location; move it by hand)`); continue; }
     const result = repoint(source, file, to, moved, exists, lex);
-    if (result.missing.length) refused.push(`unsafe path ${file} (unknown import ${result.missing.join(', ')})`);
-    else if (result.changes.length) writes.push({ file: to, source: result.source, changes: result.changes });
+    if (result.missing.length) { refused.push(`unsafe path ${file} (unknown import ${result.missing.join(', ')})`); continue; }
+    // Own-location literals sit outside the import literals, so they are rewritten on the repointed text at their own offsets.
+    const own = repointOwn(source, read.own, file, to, moved, folder);
+    if (own.missing.length) { refused.push(`unsafe path ${file} (unknown own-location path ${own.missing.join(', ')})`); continue; }
+    const merged = own.changes.length ? repoint(own.source, file, to, moved, exists, lex) : result;
+    const changes = [...result.changes, ...own.changes];
+    if (changes.length) writes.push({ file: to, source: merged.source, changes });
   }
   const importers = [...inventory.edges].filter(([file, edges]) => !moved.has(file) && edges.some(edge => moved.has(edge.target)))
     .map(([file]) => file).sort(byCodeUnit);
@@ -175,6 +249,15 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [],
     else if (result.changes.length) writes.push({ file, source: result.source, changes: result.changes });
   }
   if (refused.length) return { refused: { code: 'CELLS_TESTS_UNSAFE', message: `refusing to move tests for ${cell.name}: ${refused.join('; ')}; nothing moved` } };
+  for (const table of testPathTables(inventory)) {
+    const home = moved.get(table) ?? table, pending = writes.find(write => write.file === home);
+    const bytes = pending ? pending.source : listed.has(table) ? inventory.files.get(table)?.toString('utf8') : null;
+    if (bytes == null || !moved.size) continue;
+    const result = repointTable(bytes, moved);
+    if (!result.count) continue;
+    if (pending) { pending.source = result.source; pending.changes.push(`${result.count} test path table rows`); }
+    else writes.push({ file: home, source: result.source, changes: [`${result.count} test path table rows`] });
+  }
   return { cell: cell.name, moves: [...moved], writes, already };
 }
 

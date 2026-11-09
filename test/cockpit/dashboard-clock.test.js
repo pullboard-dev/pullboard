@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { serveApi } from '../../packages/api/index.js';
 import { refusalDocument } from '../../apps/cli/index.js';

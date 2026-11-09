@@ -1,13 +1,13 @@
-import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
-import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.js";
-import { MECHANICAL_MERGE_ENGINE } from "../../../../../src/mechanical-merge-engine.js";
-import { GENERATED_DOCS_ENGINE } from "../../../../../src/generated-docs-engine.js";
-import { PLAN_MERGE_ENGINE } from "../../../../../src/plan-merge-engine.js";
-import { AGENT_GRANT_ENGINE } from "../../../../../src/agent-grant-engine.js";
-import { VERDICT_WITHDRAW_ENGINE } from "../../../../../src/verdict-withdraw-engine.js";
-import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../../src/merge-only-verdict-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { REJECTION_RETURN_ENGINE } from '../../../../state/core.js';
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
+import { SOURCE_ADVANCE_ENGINE } from "../../../../state/core.js";
+import { MECHANICAL_MERGE_ENGINE } from "../../../../state/core.js";
+import { GENERATED_DOCS_ENGINE } from "../../../../state/core.js";
+import { PLAN_MERGE_ENGINE } from "../../../../state/core.js";
+import { AGENT_GRANT_ENGINE } from "../../../../state/core.js";
+import { VERDICT_WITHDRAW_ENGINE } from "../../../../state/core.js";
+import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by reopen, discovered without a shared registry edit [C7,V4,H16]. */
 import { itemById } from "../../../../store/core.js";
 import {
@@ -16,12 +16,10 @@ import {
   REOPEN_FIRST_REFUSAL_ENGINE,
   SUBMITTED_CONFLICT_ENGINE,
 } from "../../../../../src/engine-metadata.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
-import {
-  CONFLICT_ENGINE,
-  carriesConflict,
-} from "../../../../merge/src/shell/trunk-conflict.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { CONFLICT_ENGINE } from "../../../../state/core.js";
+import { carriesConflict } from "../../../../merge/src/shell/trunk-conflict.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

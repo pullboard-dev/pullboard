@@ -12,7 +12,9 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   confirmRunnerProbe,
+  gateSpanCause,
   inheritedGateSlot,
+  recordGateSpan,
   memoryAdmission,
   readMachineMemory,
   takeResource,
@@ -118,6 +120,17 @@ export function requireGateExecutionServices(value) {
     landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
 }
 
+/**
+ * Record one phase of a gate run under its slot, from `start` until now, for the open gate's span telemetry [C7].
+ * Why here: the slot already owns the gate's admission and retry spans, so its callers need no telemetry import.
+ *
+ * @param {string} phase
+ * @param {number} start - Epoch milliseconds.
+ */
+export function recordSlotPhase(phase, start) {
+  recordGateSpan({ phase, start, outcome: 'done' });
+}
+
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {
   if (!lease?.tracker) return undefined;
@@ -143,6 +156,16 @@ export function settleReceipt(lease) {
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
+}
+
+/**
+ * Whether this machine's settings say gate.runnersOnly: then no runner failure or refusal falls back to a local run.
+ * Why: on 8 Nov 15 gates on one machine reran their tests locally after a runner refused them, at load 78 (#3898).
+ *
+ * @returns {boolean}
+ */
+function machineRunnersOnly() {
+  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
 }
 
 /** Run work under the machine queue: landings first, then every other eligible waiter in arrival order.
@@ -183,7 +206,8 @@ export async function withGateSlot(root, action, options = {}) {
       if (result && typeof result === 'object') result.runnerAttempt = attempt;
       return result;
     }
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
+    // On a gate.runnersOnly machine a runner's refusal never becomes a local rerun: the run ends and the gate requeues (#3898).
+    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh' || machineRunnersOnly()) throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
     const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
@@ -294,6 +318,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const releaseContext = gateQueueSettings().currentReleaseFirst
     ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
+  const admissionStart = Date.now();
   let lease = await takeResource({
     name: 'gate',
     capacity: capacityProvider(),
@@ -325,7 +350,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
     runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    runnerIdleProbe: (runner, previous, { liveJobs = [] } = {}) => probeRunnerHealth(runner, previous, { idle: true, liveJobs }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
@@ -340,7 +365,12 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
       if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
       return onWait?.(state);
     },
+  }).catch(error => {
+    recordGateSpan({ phase: 'admission', start: admissionStart, outcome: 'failed', cause: gateSpanCause(error), code: error?.code, kind: receiptKind });
+    throw error;
   });
+  // The admission span: queued for a slot until one was granted, on its runner or this machine [C7].
+  recordGateSpan({ phase: 'admission', start: admissionStart, host: lease.runner?.host, kind: receiptKind });
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   let healthyTransportRetry = false;
@@ -446,14 +476,16 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
               : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
                 : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
-        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        const retryStart = Date.now();
         if (waitMs > 0) await retryPolicy.sleep(waitMs);
         try {
           lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
-            local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
+            local: cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
             infrastructureRetryCount: boundedRetry ? infrastructureAttempts.length : 0,
             infrastructureAttempts: [...infrastructureAttempts] });
         } catch (requeueError) {
+          recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'failed', cause: 'infra-retry', code: requeueError?.code, kind: receiptKind });
           const requeueAttempt = requeueError?.code === 'RUNNER_WAIT_DEADLINE'
             ? { kind: 'runner-wait', code: requeueError.code, runner: requeueError.infrastructureAttempt?.runners?.[0]?.host ?? null,
               runners: requeueError.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: requeueError.message }
@@ -467,6 +499,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw requeueError;
         }
+        // The retry span: from the runner's stop through the backoff until the requeued run is admitted again.
+        recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'retry', cause: 'infra-retry', code: failure.code, kind: receiptKind });
         lease.infrastructureAttempts = [...infrastructureAttempts];
       }
     }

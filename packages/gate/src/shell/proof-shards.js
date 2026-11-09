@@ -88,7 +88,7 @@ function reusablePasses(passes, files, timingRunId) {
   return reused;
 }
 
-/** Proof files per queued batch: small, so every slot the gate gets during the proof takes a share of the work. */
+/** Proof files per queued batch when a caller asks for fixed-size batches (`batchFiles`); the gate splits by lane. */
 export const PROOF_BATCH_FILES = 3;
 
 /** How long a slot request that found no slot, or whose runner dropped, pauses before it asks again. */
@@ -177,23 +177,58 @@ export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHAR
 }
 
 /**
+ * The least recorded runtime one shard should carry before the proof splits further. Why: every shard pays one runner
+ * dispatch, about 4 s of transfer and 3.5 s to READY on a warm runner, so a shard shorter than two dispatches of work
+ * spends more on its own dispatch than it saves the proof by running beside the others.
+ */
+export const PROOF_MIN_SHARD_MS = 15_000;
+
+/**
  * How many shards a proof's files split into. An explicit `batchFiles` cuts batches of about that many files. Without
- * one, a pool with free slots gets one shard per free slot (at least two, at most one per file), so every shard starts
- * at once on its own slot; a pool with none falls back to PROOF_BATCH_FILES batches that slots freed mid-proof can take.
+ * one, the files split into one shard per lane the gate may run (`lanes`, at most PROOF_MAX_SHARDS), and fewer when the
+ * recorded runtime (`expectedMs`) would leave a shard under PROOF_MIN_SHARD_MS. Each lane then pays one transfer and one
+ * READY for its whole share; the runner runs that shard's files side by side on its own slots.
  *
- * Why: 6 files cut into batches of 3 made 2 batches, and the gate's lane ran both one after the other while runner
- * slots idled: "proof ran 2 batches on the gate's lane and up to 1 more runner slots", 805 s at p90 (8 Nov) [C7].
+ * Why: one shard per free slot cut #3883's proof into 23 batches of one to three files, and its 3 lanes paid a dispatch
+ * for each: 258 s of transfer and 99 s of READY summed for 146 s of tests (9 Nov). Before that, 6 files cut into
+ * batches of 3 ran 2 batches one after the other on the gate's lane while runner slots idled (8 Nov) [C7].
  *
  * @param {number} fileCount
- * @param {{ freeSlots?: number, batchFiles?: number|null }} [options]
+ * @param {{ lanes?: number, batchFiles?: number|null, expectedMs?: number|null }} [options]
  * @returns {number}
  */
-export function proofShardCount(fileCount, { freeSlots = 0, batchFiles = null } = {}) {
+export function proofShardCount(fileCount, { lanes = PROOF_MAX_SHARDS, batchFiles = null, expectedMs = null } = {}) {
   if (fileCount < 1) return 0;
   if (batchFiles != null) return Math.ceil(fileCount / Math.max(1, Math.floor(batchFiles) || 1));
-  const free = Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 0;
-  if (free < 1) return Math.ceil(fileCount / PROOF_BATCH_FILES);
-  return Math.min(fileCount, Math.max(2, free));
+  const cap = Math.max(1, Math.min(PROOF_MAX_SHARDS, Number.isFinite(lanes) ? Math.floor(lanes) : 1));
+  const byRuntime = Number.isFinite(expectedMs) && expectedMs >= 0 ? Math.max(1, Math.floor(expectedMs / PROOF_MIN_SHARD_MS)) : cap;
+  return Math.min(fileCount, cap, byRuntime);
+}
+
+/**
+ * The most lanes one gate runs at once, its own lane included; the other shards wait on the queue for a free lane.
+ * Why: each running shard is its own runner-controller process on the coordinator. One lane per free slot let a single
+ * gate start 13 controllers; at load 59 the confirming probes took 100–200 s and marked every idle runner unresponsive,
+ * stopping all gates (8 Nov). A shard per lane is safe for the 1 MiB runner request: the spec names the runtime by
+ * digest (#3884), and its only per-file parts are the command line, one input key per file and the optional cached
+ * results packet, which requestFor drops before it would pass the limit [C7].
+ */
+export const PROOF_MAX_SHARDS = 3;
+
+/**
+ * The recorded runtime of a proof's files, a new file at the average known time; null when no file has a record.
+ *
+ * @param {string[]} files
+ * @param {Record<string, number>} times
+ * @param {string|null} root
+ * @param {(file: string, root: string|null) => string} key
+ * @returns {number|null}
+ */
+function expectedRuntime(files, times, root, key) {
+  const known = files.map(file => times[key(file, root)]).filter(ms => Number.isFinite(ms) && ms >= 0);
+  if (!known.length) return null;
+  const sum = known.reduce((total, ms) => total + ms, 0);
+  return sum + (files.length - known.length) * (sum / known.length);
 }
 
 /**
@@ -203,13 +238,14 @@ export function proofShardCount(fileCount, { freeSlots = 0, batchFiles = null } 
  * @param {string[]} files
  * @param {Record<string, number>} [times]
  * @param {string|null} [root]
- * @param {number|null} [batchFiles] - Files per batch; null shards by `freeSlots`.
- * @param {number} [freeSlots]
+ * @param {number|null} [batchFiles] - Files per batch; null splits one shard per lane.
+ * @param {number} [lanes] - The lanes the gate may run; one (no runner slots to take) gives one shard.
  * @returns {Promise<string[][]>}
  */
-export async function proofBatches(files, times = {}, root = null, batchFiles = null, freeSlots = 0) {
-  const { planFreeSlotShards } = await import('../../../landing/index.js');
-  const { shards } = planFreeSlotShards(files, proofShardCount(files.length, { freeSlots, batchFiles }), times, root);
+export async function proofBatches(files, times = {}, root = null, batchFiles = null, lanes = PROOF_MAX_SHARDS) {
+  const { planFreeSlotShards, fileKey } = await import('../../../landing/index.js');
+  const count = proofShardCount(files.length, { lanes, batchFiles, expectedMs: expectedRuntime(files, times, root, fileKey) });
+  const { shards } = planFreeSlotShards(files, count, times, root);
   return shards.sort((a, b) => b.weight - a.weight).map(shard => shard.files);
 }
 
@@ -217,7 +253,7 @@ export async function proofBatches(files, times = {}, root = null, batchFiles = 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Run the proof files from a queue of small batches. The gate's own lease is one lane; while batches remain the gate
+ * Run the proof files from a queue of batches, one per lane the gate may run (proofShardCount). The gate's own lease is one lane; while batches remain the gate
  * keeps asking for more runner slots with `takeSlot`, and each slot it gets is one more lane. Every lane pulls the
  * next batch as soon as it is free, so no batch waits behind another while a slot is free, and a slot the pool frees
  * mid-proof joins at once. A batch whose runner drops, on a slot or on the gate's own lease, goes back on the queue for
@@ -242,23 +278,24 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
  *   runFirst: (files: string[]) => Promise<object>,
  *   takeSlot?: ((lane: (run: (files: string[]) => Promise<object>) => Promise<void>, queue: { closed: () => boolean }) => Promise<unknown>) | null,
  *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number|null }} options - `freeSlots` is how many slot requests open at once and, with
- *   no `batchFiles`, how many shards the files split into; `takeSlot` takes one runner slot, calls `lane` with that
- *   slot's run and releases the slot when `lane` settles.
+ *   retryMs?: number, batchFiles?: number|null, gateLaneFree?: Promise<unknown>|null }} options - `freeSlots` is how many slot requests open at once; with no
+ *   `batchFiles` the files split one shard per lane, so each lane pays one dispatch; `takeSlot` takes one runner slot, calls `lane` with that
+ *   slot's run and releases the slot when `lane` settles; `gateLaneFree` settles when the gate's own lease may run a
+ *   batch (it may still run the item check), while slot requests open at once.
  * @returns {Promise<{ files: string[], run: object }[] | null>} Each batch's files and run in queue order, then reused.
  */
 export async function runProofShards(files, { freeSlots = 0, times = {}, root = null, runFirst, takeSlot = null, passes = null,
-  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null }) {
+  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null, gateLaneFree = null }) {
   const reused = reusablePasses(passes, files, timingRunId);
   const covered = new Set(reused.flatMap(shard => shard.files));
   const owed = files.filter(file => !covered.has(file));
   if (reused.length) say(`proof reuses ${covered.size} of ${files.length} files that passed for tree ${passes.tree.slice(0, 12)}; running ${owed.length}`);
   if (!owed.length) return reused;
-  const queue = (await proofBatches(owed, times, root, batchFiles, takeSlot ? freeSlots : 0)).map((batch, index) => ({ index, files: batch }));
+  const queue = (await proofBatches(owed, times, root, batchFiles, takeSlot ? PROOF_MAX_SHARDS : 1)).map((batch, index) => ({ index, files: batch }));
   if (queue.length < 2 && !reused.length) return null;
   const batches = queue.length;
   const settled = [];
-  let inflight = 0, failure = null, pending = 0, slots = 0, mostSlots = 0;
+  let inflight = 0, failure = null, pending = 0, slots = 0, mostSlots = 0, requests = 0;
   let wake = () => {};
   let changed = new Promise(resolve => { wake = resolve; });
   /** Wake every lane waiting on the queue: a batch settled or went back on it. */
@@ -297,6 +334,8 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
    */
   const gateLane = async () => {
     let rest = false;
+    // The gate's own lease may still run the item check; its lane joins once that is done, while slot lanes start now.
+    if (gateLaneFree) await gateLaneFree;
     while (!closed()) {
       if (!queue.length || rest || gateDropped && slots > 0) { rest = false; await changed; continue; }
       const dropped = await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), Boolean(takeSlot));
@@ -321,6 +360,7 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
   };
   /** Ask for one more slot until a lane on it ends with the queue empty; no slot or a dropped runner asks again. */
   const request = async () => {
+    requests += 1;
     pending += 1;
     let waiting = true;
     /** Count the request admitted once, and open another while batches outnumber the requests still waiting. */
@@ -346,14 +386,18 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
         if (!waiting) { waiting = true; pending += 1; }
         if (!closed() && queue.length) await pause(retryMs);
       }
-    } finally { if (waiting) pending -= 1; }
+    } finally { if (waiting) pending -= 1; requests -= 1; }
   };
-  /** Open one more slot request while batches outnumber the requests already waiting. */
+  /**
+   * Open one more slot request while batches outnumber the requests already waiting and the gate's lanes are under
+   * PROOF_MAX_SHARDS. A request is a lane for its whole life: its slot pulls batch after batch, and a dropped slot asks
+   * again inside the same request, so a lane never needs reopening from a lane's own end.
+   */
   function grow() {
-    if (takeSlot && !closed() && queue.length > pending) request().catch(error => { failure ??= error; notify(); });
+    if (takeSlot && !closed() && queue.length > pending && requests < PROOF_MAX_SHARDS - 1) request().catch(error => { failure ??= error; notify(); });
   }
   const gate = gateLane();
-  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.floor(freeSlots)) : 1;
+  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.min(PROOF_MAX_SHARDS - 1, Math.floor(freeSlots))) : 1;
   for (let count = 0; count < opening; count += 1) grow();
   await gate;
   // Drain every running batch before refusing, so each slot's receipt and lease stay accurate.
@@ -376,18 +420,19 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
  *   remoteOptions?: { source?: { tree?: string }, metadata: { timingRunId?: string } }, localOptions?: object }} execution - The proof's profiled execution.
  * @param {{ files: string[], filesCommand: (files: string[]) => string, takeSlot?: Parameters<typeof runProofShards>[1]['takeSlot'],
  *   freeSlots?: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number }} options
+ *   retryMs?: number, batchFiles?: number, gateLaneFree?: Promise<unknown>|null }} options - `gateLaneFree` holds runs on the gate's own lease.
  * @returns {Promise<object>} The one run the proof receipt records.
  */
 export async function proveBatches(root, execution, { files, filesCommand, takeSlot = null, freeSlots = 0, times = {}, say, retryMs, batchFiles,
-  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])) }) {
+  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])), gateLaneFree = null }) {
   const onRunner = Boolean(execution.gateLease?.runner);
   const runners = execution.gateLease?.executionServices?.runners;
   const runFirst = onRunner
     ? batch => runners.runOnRunnerAsync(root, filesCommand(batch), execution.remoteOptions)
     : batch => runShellAsync(root, filesCommand(batch), execution.localOptions);
   const shards = await runProofShards(files, { freeSlots, times, root, runFirst, takeSlot: onRunner ? takeSlot : null, passes,
-    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles });
+    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles, gateLaneFree });
+  if (!shards && gateLaneFree) await gateLaneFree;
   if (!shards) return onRunner ? runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions) : runFirst(files);
   // The one local lane's single run is today's command over every file; it is the run, not a merge of one.
   return shards.length === 1 && shards[0].files.length === files.length ? shards[0].run : mergeShardRuns(shards);

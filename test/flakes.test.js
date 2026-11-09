@@ -1,6 +1,6 @@
 import { flakyProject, writeTarget, TITLE, targetRuns, assertReceipts, privateBuilder, commitCandidate, checkedItem } from '../packages/git/tests/flakes-fixture.js';
 import * as nativeBoard from '../apps/lib/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import './quarantine-core-cases.js';
@@ -32,10 +32,10 @@ import { runSubmitGate } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { readMainAudit } from '../packages/gate/index.js';
 import { saveMainAudit } from '../packages/gate/index.js';
-import { landingLeaseState } from '../src/board-landing-lease.js';
+import { landingLeaseState } from '../packages/store/index.js';
 import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../packages/flakes/index.js';
-import { eventCauses } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
 
 const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
   executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,

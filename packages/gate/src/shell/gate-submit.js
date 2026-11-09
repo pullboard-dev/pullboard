@@ -12,6 +12,7 @@ import { dirname } from 'node:path';
 import { testOutcomeFields } from './test-outcomes.js';
 import { sourceAdvancePlan } from '../../../codemap/index.js';
 import {
+  recordSlotPhase,
   withGateSlot,
 } from './gate-slot.js';
 import {
@@ -75,6 +76,8 @@ import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
 import { proveBatches } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
+import { progressingWait } from './gate-progress.js';
+import { whileGateRuns } from './gate-progress.js';
 import {
   commandWord,
   runStaticChecks,
@@ -202,7 +205,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
-  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission };
+  // Each runner-wait poll and a beat while tests run report progress to a driving drive cell (#3829).
+  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
   const diagnostics = [];
   const gateResult = await withGateSlot(root, async (lease) => {
@@ -231,8 +235,16 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const criterionLease = phaseLease('criterion');
     const proofLease = phaseLease('proof');
     const proofWait = check ? 0 : lease.waitMs;
+    /**
+     * Settles when the gate's own lease is free for the proof: at once locally, after the item check on a runner.
+     * Why: one remote lease holds one controller at a time, so the proof waited for the whole check before it asked for
+     * a single slot; #3841's check ran 173 s alone, then its three shards ran about 15 s each (9 Nov) [C7].
+     */
+    let releaseGateLane = () => {};
+    const gateLaneFree = lease.runner ? new Promise(resolve => { releaseGateLane = resolve; }) : Promise.resolve();
     /** Launch final proof under its own phase context while preserving its full-gate stamping rules. */
     const prove = async () => {
+      if (!(proofFiles.length > 1 && !(!deferFullFallback && selection.full))) await gateLaneFree;
       if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
       const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
@@ -265,7 +277,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         shardSlotOptions(slotOptions, { closed }));
       // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
       const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
-      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote, gateLaneFree });
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */
@@ -276,12 +288,13 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };
-    // One remote lease holds one controller at a time. Local phases can still overlap; either way,
-    // drain both phases even on rejection so their receipts and the admission lease stay accurate.
-    const outcomes = lease.runner
-      ? [...await Promise.allSettled([criterionRun()]), ...await Promise.allSettled([prove()])]
-      : await Promise.allSettled([criterionRun(), prove()]);
+    // One remote lease holds one controller at a time: the proof's batches start on slots of their own beside the item
+    // check, and only its runs on the gate's own lease wait until the check is done. Either way, drain both phases even
+    // on rejection so their receipts and the admission lease stay accurate.
+    const outcomes = await whileGateRuns(async () => Promise.allSettled([
+      criterionRun().finally(() => releaseGateLane()), prove()]));
     lease.tracker?.mark('ranAt');
+    const ranAt = Date.now();
     lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
     const active = [criterionLease, proofLease].filter(value => value.environment);
     lease.environment = active.length && active.every(value => JSON.stringify(value.environment) === JSON.stringify(active[0].environment)) ? active[0].environment : null;
@@ -336,13 +349,37 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     }
     if (trials.length) writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
     result.refusalTrials = trials;
+    // The span from the last test run's end through the merged result, so no time after the tests is unattributed [C7].
+    recordSlotPhase('proof-finish', ranAt);
     return criterion.isGreen ? result : { ...result, isGreen: false, completedProof: proof,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, slotOptions);
-  if (diagnostics.length) await diagnoseAfterResult(root, onFailure, diagnostics, slotOptions);
+  // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
+  if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;
+}
+
+/**
+ * Queue a red gate's flake diagnostics as jobs, then start running them in a slot of their own without waiting for it.
+ * The returned promise settles when the diagnostics have run; the gate's caller never has to await it.
+ *
+ * Why: asking for a second runner slot before the verdict returned held 22 gates about 60 minutes and lost two known
+ * reds as GATE_INFRA_EXHAUSTED (#3830). Queueing is a cheap board write; the slot wait is not.
+ *
+ * @param {string} root
+ * @param {(run: object, context: object) => Promise<void>} onFailure - The observer; its optional `queue` records the jobs.
+ * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
+ * @param {object} slotOptions - The gate's own slot options.
+ * @param {{ withSlot?: Function }} [options] - `withSlot` replaces the gate slot provider.
+ * @returns {Promise<{ done: Promise<void> }>} Resolves once the jobs are queued; `done` settles when the diagnostics have run.
+ */
+export async function startDiagnostics(root, onFailure, diagnostics, slotOptions, { withSlot = withGateSlot } = {}) {
+  for (const [run, context] of diagnostics) {
+    try { await onFailure.queue?.(run, context); } catch { /* A job that cannot be queued is still diagnosed in the slot below. */ }
+  }
+  return { done: diagnoseAfterResult(root, onFailure, diagnostics, slotOptions, withSlot) };
 }
 
 /**
@@ -356,11 +393,12 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
  * @param {(run: object, context: { root: string, command: string, lease: object }) => Promise<void>} onFailure
  * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
  * @param {object} slotOptions - The gate's own slot options.
+ * @param {Function} [withSlot] - The slot provider.
  * @returns {Promise<void>}
  */
-async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions) {
+async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions, withSlot = withGateSlot) {
   try {
-    await withGateSlot(root, async (lease) => {
+    await withSlot(root, async (lease) => {
       for (const [run, context] of diagnostics) {
         const phase = context.lease;
         Object.assign(lease, { timingOperation: 'submit', proof: phase.proof, runMetadata: phase.runMetadata, quarantines: phase.quarantines ?? [],

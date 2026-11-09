@@ -100,7 +100,6 @@
   "src/gate-slot.js",
   "src/gate-wait.js",
   "src/gui-admission.js",
-  "src/main-audit-engine.js",
   "src/module-imports.js",
   "src/perf-budgets.js",
   "src/test-action-cache.js",

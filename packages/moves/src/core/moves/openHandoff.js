@@ -1,5 +1,5 @@
 /** Routing metadata for accepted handoff moves [B3,N19,H16,C7]. */
-import { HANDOFF_ENGINE } from "../../../../../src/handoff-engine.js";
+import { HANDOFF_ENGINE } from "../../../../state/core.js";
 /** Accepted handoff operations require their feature engine before all older conditions. */
 function minimumEngine() { return HANDOFF_ENGINE; }
 /** Both accepted handoff operations name their actor in their first options argument. */

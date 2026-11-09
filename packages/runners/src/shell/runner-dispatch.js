@@ -9,6 +9,7 @@ import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -79,7 +80,7 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
@@ -92,8 +93,10 @@ export function runOnRunner(root, command, options) {
 /** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  // The dispatch span starts before the tooling export, so the export is attributed, not a gap after admission [C7].
+  const dispatchStart = Date.now();
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
@@ -123,9 +126,17 @@ export async function runOnRunnerAsync(root, command, options) {
   child.on('error', caught => { error ??= caught; });
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
+  // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
+  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
+  const spawned = Date.now();
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
-    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
+    return result;
+  } catch (failure) {
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
+    throw failure;
   } finally { signal?.removeEventListener('abort', abort); }
   } finally { installation?.cleanup(); }
 }
@@ -257,7 +268,10 @@ export function startupDeadline(options, startedAt) {
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  // When the controller began preparing the request and when it was ready, so the source scans before connecting are spans [C7].
+  const preparing = Date.now();
   const request = await requestFor(root, command, options, ports);
+  const prepared = Date.now();
   const deadline = ports.controllerCustody;
   deadline?.job?.(request.spec.recovery);
   let removeAbort = () => {};
@@ -270,6 +284,7 @@ async function runInController(root, command, options, ports) {
     /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
+    Object.assign(request.phaseAt, { prepare: preparing, prepared });
     const child = spawnSsh(request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];

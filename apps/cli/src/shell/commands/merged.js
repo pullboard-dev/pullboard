@@ -5,8 +5,8 @@ import { warnMainMoved } from '../../../../../packages/merge/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
-import { runCommitCliSmoke } from '../../../../../packages/landing/index.js';
-import { requireLandingPlanCheck } from '../../../../../packages/landing/index.js';
+import { smokeCommit } from '../../../../../packages/landing/index.js';
+import { landingPlanCheck } from '../../../../../packages/landing/index.js';
 import { placeLandingNewFiles } from '../../../../../packages/landing/index.js';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
@@ -102,6 +102,14 @@ async function refreshMap(ctx, io, board, trunk) {
 async function requireMergedOnTrunk(ctx, io, board, values, id, commit) {
   const note = (textArg(io, values, 'note') ?? '').trim();
   const item = store.getItem(board, id);
+  if (values.forced !== undefined) {
+    // A forced landing skips the verify, never the trunk: its commit must be on the primary trunk.
+    const onTrunk = mainCheckout(ctx.info.root);
+    if (!(onTrunk?.commit && contains(ctx.info.root, commit, onTrunk.commit))) {
+      throw new Refused('NOT_MERGED', `commit ${commit} is not on trunk ${onTrunk?.branch ?? 'the unavailable primary trunk'}${onTrunk?.commit ? ` at ${onTrunk.commit}` : ''}; a forced merge records only a commit that is on main`);
+    }
+    return;
+  }
   if (item.item_status !== 'verified') return;
   requireLandingCompanions(ctx.info.root, board, [item], commit);
   const moduleBase = tryGit(ctx.info.root, ['rev-parse', '--verify', `${commit}^`]);
@@ -148,6 +156,7 @@ export async function run(io, { first, second, values }) {
     io.say(`#${first} is already merged as ${existing.commit.slice(0, 12)}; nothing recorded`);
     return 0;
   }
+  if (values.forced !== undefined && !String(values.forced).trim()) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
   const train = values['gate-receipt'] !== undefined || mainPolicy(ctx.info.root).config.landing?.requireReceipts === true;
   const ids = train && values.items !== undefined ? String(values.items).split(',').map(value => idArg(value.trim())) : [id];
   const parent = tryGit(ctx.info.root, ['rev-parse', '--verify', '--quiet', `${commit}^`]);
@@ -161,9 +170,9 @@ export async function run(io, { first, second, values }) {
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
     placeUncoveredOnTrunk(ctx.info.root, commit, io);
-    requireLandingPlanCheck(ctx.info.root, commit);
+    await landingPlanCheck(ctx.info.root, commit);
     // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
-    runCommitCliSmoke(ctx.info.root, commit);
+    await smokeCommit(ctx.info.root, commit);
     if (train) {
       if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the primary coordinator records a train envelope');
       if (!ids.includes(id)) throw new Refused('USAGE', '--items must include the first named item');
@@ -174,7 +183,7 @@ export async function run(io, { first, second, values }) {
     // The store's own refusals, checked before any step is written so a refused merge writes no tooling pin.
     store.coordinatorOnly(me.id, 'records merges');
     const item = store.getItem(board, id);
-    if (item.item_status !== 'verified' && item.item_merged_commit !== commit) {
+    if (values.forced === undefined && item.item_status !== 'verified' && item.item_merged_commit !== commit) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     return { train: false };
@@ -193,7 +202,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }) }]);
     return {};
   };
   let announced = false;

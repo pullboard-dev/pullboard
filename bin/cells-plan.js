@@ -25,10 +25,10 @@ import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
 import { moveHistoryPlacement } from '../packages/codemap/index.js';
-import { engineLeafPlacement } from '../packages/codemap/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from './cells-snapshot-git.js';
+import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { runnerWorkerFiles } from './cells-move-closure.js';
@@ -257,7 +257,7 @@ export function unplanned(root, plan, inventory) {
   for (const row of plan.stays) known.add(row.path);
   const listed = tryGit(root, ['ls-files']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
-  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && moveHistoryPlacement(file) === null && !engineLeafPlacement(file));
+  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && moveHistoryPlacement(file) === null);
 }
 
 /**
@@ -321,19 +321,18 @@ function moveBase(root) {
 const historyReferencesByBase = new Map();
 
 /** Read only sealed history already present on the accepted base; candidate edits cannot create authority. */
-function historyShimReferences(root, acceptedBase) {
+export function historyShimReferences(root, acceptedBase) {
   const base = acceptedBase || tryGit(root, ['rev-parse', 'main']).stdout || tryGit(root, ['rev-parse', 'HEAD']).stdout;
   if (!/^[a-f0-9]{40,64}$/u.test(base)) return new Map();
-  const key = `${root}\0${base}`;
+  const key = base; // A commit id names its whole tree, so every snapshot root shares one read, in one Git batch (#3896).
   if (historyReferencesByBase.has(key)) return historyReferencesByBase.get(key);
-  const listing = tryGit(root, ['ls-tree', '-r', '--name-only', base, '--', 'src/move-history']);
+  const listing = tryGit(root, ['ls-tree', '-r', '-z', base, '--', 'src/move-history']);
   if (listing.status !== 0) return new Map();
-  const declarations = new Map();
-  for (const file of listing.stdout.split('\n').filter(file => /^src\/move-history\/\d+\.json$/u.test(file))) {
-    const blob = tryGit(root, ['show', `${base}:${file}`]);
-    if (blob.status !== 0) continue;
-    try {
-      const row = JSON.parse(blob.stdout);
+  const declarations = new Map(), listed = listing.stdout.split('\0').map(row => /^100(?:644|755) blob ([a-f0-9]+)\t(src\/move-history\/\d+\.json)$/u.exec(row)).filter(Boolean);
+  const blobs = readBlobs(root, listed.map(match => match[1]));
+  for (const [, object, file] of listed) {
+    try { // A blob Git could not read is absent here, and its parse throws into the catch below.
+      const row = JSON.parse(blobs.get(object));
       if (row.version !== 1 || row.engine !== Number(posix.basename(file, '.json')) || !row.declarations || Array.isArray(row.declarations) || typeof row.declarations !== 'object') continue;
       for (const [name, source] of Object.entries(row.declarations)) {
         if (/^[A-Za-z0-9_-]+\.js$/u.test(name) && typeof source === 'string') declarations.set(`${name}\0${source}`, { name, source, file });

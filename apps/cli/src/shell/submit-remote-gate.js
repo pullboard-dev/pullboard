@@ -79,6 +79,7 @@ import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cells from './bin/cells-submit-checks.js';
 import * as cellsCache from './bin/cells-inventory-cache.js';
+import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -86,13 +87,15 @@ import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url));
 const root = process.argv[2];
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const result = { main: input.main, source: input.source, steps: {}, notes: [] };
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
-const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) });
+const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
+  ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}) });
 /** In per-part mode a Refused ends only its own part and is recorded under it; otherwise it ends the whole analysis as before. */
 const part = async (name, work) => {
   if (!input.perPart) return work();
@@ -115,12 +118,27 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
+  // The doctrine hold runs beside the other parts in its own child: it may load the candidate's check scripts, never into this process.
+  const doctrineRun = selected('doctrine') && input.doctrine ? step('doctrine', () => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', input.doctrine.entry], { cwd: root, stdio: ['pipe', 'pipe', 'inherit'] });
+    const chunks = [];
+    child.stdout.on('data', chunk => chunks.push(chunk));
+    child.on('error', reject);
+    child.on('close', () => {
+      const line = Buffer.concat(chunks).toString('utf8').split('\\n').find(row => row.startsWith('PULLBOARD_DOCTRINE_RESULT '));
+      try { resolve(JSON.parse(line.slice(line.indexOf(' ') + 1))); } catch { reject(new Error('the doctrine hold returned no result on the runner')); }
+    });
+    child.stdin.end(JSON.stringify({ module: pathToFileURL(join(tools, 'packages/doctrine/index.js')).href, root, options: input.doctrine.options }));
+  })) : null;
+  doctrineRun?.catch(() => {});
   if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
-  if (selected('static') && input.staticChecks) await part('static', () => step('static', () => {
-    const run = spawnSync('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
-    const output = String(run.stdout ?? '') + String(run.stderr ?? '');
-    if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
-  }));
+  // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
+  const staticRun = selected('static') && input.staticChecks ? part('static', () => step('static', () => new Promise(resolve => {
+    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
+    child.stdout.on('data', chunk => chunks.push(chunk)); child.stderr.on('data', chunk => chunks.push(chunk));
+    child.on('error', error => resolve({ error })); child.on('close', status => resolve({ status, output: Buffer.concat(chunks).toString('utf8') }));
+  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed')); }))) : null;
+  if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
   if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main)));
   let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
   // The controller holds no inventory for these accepted commits: produce each here, once per runner cache (#2535).
@@ -154,6 +172,14 @@ try {
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
       { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
   });
+  if (doctrineRun) result.doctrine = await part('doctrine', async () => {
+    const held = await doctrineRun;
+    if (held.refused) throw Object.assign(refuse(held.refused.code, held.refused.message), held.refused.next ? { next: held.refused.next } : {},
+      typeof held.refused.machineryRule === 'string' ? { machineryRule: held.refused.machineryRule } : {});
+    if (!Array.isArray(held.rules)) throw new Error('the doctrine hold failed on the runner: ' + String(held.error ?? 'no rules').slice(0, 4000));
+    return held.rules;
+  });
+  await staticRun;
   if (input.perPart) result.outcomes = outcomes;
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
@@ -162,6 +188,24 @@ try {
   else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
+`;
+
+/**
+ * The doctrine hold's child entry: it imports accepted main's doctrine module from the archive and holds the candidate
+ * checkout, printing one result line; a Refused keeps its code, message and machinery identity [C7].
+ */
+const DOCTRINE_ENTRY = `import { readFileSync } from 'node:fs';
+const input = JSON.parse(readFileSync(0, 'utf8'));
+const say = value => process.stdout.write('PULLBOARD_DOCTRINE_RESULT ' + JSON.stringify(value) + '\\n');
+try {
+  const doctrine = await import(input.module);
+  if (typeof doctrine.holdDoctrineAsync !== 'function') say({ refused: { code: 'RUNNER_TOOLING_FILES', message: 'accepted main lacks the doctrine hold' } });
+  else say({ rules: await doctrine.holdDoctrineAsync(input.root, input.options) });
+} catch (error) {
+  if (error?.name !== 'Refused') say({ error: String(error?.stack ?? error) });
+  else say({ refused: { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
+    ...(typeof error.machineryRule === 'string' ? { machineryRule: error.machineryRule } : {}) } });
+}
 `;
 
 /** A queued submit sends its analysis to a runner whenever this machine has one registered or allows only runners. */
@@ -253,13 +297,14 @@ export function analysisResultFile(artifactDirectory, { main, source, parts, too
  * @param {string} cuts JSON of the board's cut rows the result was computed against.
  * @returns {object|null}
  */
-function readAnalysisResult(file, { main, source, tooling = runningToolingId() }, cuts) {
+function readAnalysisResult(file, keys, cuts) {
+  const { main, source, tooling = runningToolingId() } = keys;
   try {
     const saved = JSON.parse(readFileSync(file, 'utf8'));
     const value = saved?.value;
     if (saved?.version !== 1 || saved.main !== main || saved.source !== source || saved.tooling !== tooling || saved.cuts !== cuts
       || !value || value.main !== main || value.source !== source || value.refusal || value.infra || value.refused
-      || Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused)
+      || Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused) || keys.doctrine && !Array.isArray(value.doctrine)
       || typeof saved.directory !== 'string' || typeof saved.sha256 !== 'string') return null;
     return saved;
   } catch { return null; }
@@ -284,9 +329,11 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   // A missing accepted inventory is produced on the runner, never on this machine (#2535).
   const { inventory, produce } = !request.parts || request.parts.includes('cells') ? await runnerCellsInventory(root, main, source) : { inventory: null, produce: [] };
   const cutRows = readCutItems();
+  const doctrine = request.doctrine ?? null;
+  if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -301,9 +348,9 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
   }
-  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection'];
+  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection', ...(doctrine ? ['doctrine'] : [])];
   const red = name => value.outcomes?.[name]?.refused;
-  if (parts.includes('cells') && !red('cells') && !value.cells || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
+  if (parts.includes('cells') && !red('cells') && !value.cells || doctrine && parts.includes('doctrine') && !red('doctrine') && !Array.isArray(value.doctrine) || parts.includes('selection') && !red('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   // A part that refused is never recorded: its next attempt runs it fresh.
@@ -330,7 +377,8 @@ export function sharedRemoteAnalysis(startJob) {
   return async (part, signal) => {
     const analysis = await (job ??= startJob(signal));
     const refused = analysis.outcomes?.[part]?.refused;
-    if (refused) throw new Refused(refused.code, refused.message, refused.next);
+    // The doctrine's machinery identity rides along, so its refusal trial reads the same rule as a local hold.
+    if (refused) throw Object.assign(new Refused(refused.code, refused.message, refused.next), typeof refused.machineryRule === 'string' ? { machineryRule: refused.machineryRule } : {});
     return analysis;
   };
 }

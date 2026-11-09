@@ -44,8 +44,9 @@ export function changedStaticFailures(root, files, { staged = false, only = null
   const read = file => ({ file, source: text(file) });
   const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file)).map(read);
   let engineSources = sources;
-  if (staged && sources.some(row => row.source.includes('EXIT_RULES_ENGINE'))) {
-    const paths = gitSpawnSync(['ls-files', '-z', '--', 'src/exit-rules-engine.js', 'packages/state/core.js', 'packages/state/src/core'], { cwd: root, encoding: 'utf8' });
+  // A file forwarding an engine through a state front door is judged against those doors and the leaves they name.
+  if (staged && sources.some(row => /_ENGINE\b/u.test(row.source))) {
+    const paths = gitSpawnSync(['ls-files', '-z', '--', 'packages/state/index.js', 'packages/state/core.js', 'packages/state/src/core'], { cwd: root, encoding: 'utf8' });
     if (paths.status !== 0) throw new Error('cannot list staged state metadata');
     const extra = paths.stdout.split('\0').filter(file => file && !files.includes(file) && /\.[cm]?js$/u.test(file));
     engineSources = [...sources, ...extra.map(read)];

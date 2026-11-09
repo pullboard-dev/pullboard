@@ -1,11 +1,11 @@
-import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../../src/submit-proof-reuse-engine.js';
+import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../state/core.js';
 import { EXIT_RULES_ENGINE } from "../../../../state/core.js";
-import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
+import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/core.js";
 /** Native proof receipt routing is pure; origin binding belongs to the engine adapter [C7,H16]. */
-import { PROOF_RUN_ENGINE } from "../../../../../src/proof-run-engine.js";
-import { SUBMIT_ADMISSION_ENGINE } from "../../../../../src/submit-admission-engine.js";
-import { SHADOW_TIER1_ENGINE } from "../../../../../src/shadow-tier1-engine.js";
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
+import { PROOF_RUN_ENGINE } from "../../../../state/core.js";
+import { SUBMIT_ADMISSION_ENGINE } from "../../../../state/core.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../state/core.js";
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
 
 /** Proof provenance always requires its own replay floor, regardless of optional metadata. */
 function minimumEngine(args) { const receipt = args[0]?.receipt ?? {}; return Math.max(Object.hasOwn(receipt, 'shadow') ? SHADOW_TIER1_ENGINE : 1,

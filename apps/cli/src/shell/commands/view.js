@@ -59,7 +59,8 @@ import {
 
 /** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
 export function serveView(options = {}) {
-  return serveProvidedView({ refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), ...options, renderPage: cockpitPage });
+  // The state module pullboard serve hands its materializer, so the view reads resident state instead of rebuilding it.
+  return serveProvidedView({ refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), statePorts: new URL('./serve.js', import.meta.url).href, ...options, renderPage: cockpitPage });
 }
 
 /** Export the page with the same command authority and renderer used by the live view [N26]. */

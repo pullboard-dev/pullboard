@@ -96,6 +96,7 @@ import { settingsInventory } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
+import { startStateMaterializer } from './state-materializer.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -562,6 +563,13 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain, boardOpeners);
+  Object.assign(projection, readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary));
+  return { ...state, ...projection, observedAt: new Date(observedAt).toISOString() };
+}
+
+/** The fields a read stamps on a build at its observation time: claim overlaps, capacity and the flow windows. */
+function readProjection(state, root, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary) {
+  const projection = {};
   projection.claimOverlaps = withBoard(root, board => {
     const items = store.listItems(board);
     const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
@@ -575,7 +583,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
       flow: viewFlowSummary(projectFlowStats(preparedFlow, null, observedAt, state.proofStats)),
     };
   }
-  return { ...state, ...projection, observedAt: new Date(observedAt).toISOString() };
+  return projection;
 }
 
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
@@ -914,10 +922,164 @@ function isLiteralIPv4(host) {
   return octets.length === 4 && octets.every(octet => /^(?:0|[1-9]\d{0,2})$/u.test(octet) && Number(octet) <= 255);
 }
 
+/**
+ * The board-state builds one process keeps, each board's latest build reused while its revision holds and
+ * otherwise rebuilt from it, item by item, for the items whose events moved [A2,C7]. The local API handler
+ * reads through it on the request; the state materializer runs the same builds on its worker thread, so a
+ * read there never builds at all.
+ */
+export function createStateSnapshots({ projects = listApiProjects, scope, isMain, onStateBuild, onItemBuild, now = () => Date.now(), boardOpeners, viewPorts } = {}) {
+  const { openBoard } = requireBoardOpeners(boardOpeners);
+  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
+  if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createStateSnapshots needs view projection ports');
+  const projectScope = apiProjectScope(projects, scope);
+  const apiProjects = projectScope.projects;
+  const scopeCommonDir = projectScope.commonDir;
+  const codeIsMain = codeIsFromMain() && isMain !== false;
+  const stateCache = new Map();
+  /** File, identity, HEAD or wire-version changes invalidate the item projector's assumptions: the inputs that moved, or none. */
+  function fullRebuildCauses(cached, before) {
+    if (!cached || !before.cacheable || cached.sequence > before.event || !cached.inputs) return ['base'];
+    const moved = ['identity', 'eventLogVersion'].filter((key) => JSON.stringify(cached.inputs[key]) !== JSON.stringify(before.inputs[key]));
+    // An item's projection reads its own rows; HEAD, blocks and sign-offs feed only the whole-board fields every build
+    // recomputes, so they never cost a full rebuild, while the config, spec, doctrine and fit files shape items too.
+    const kept = new Map((cached.inputs.files ?? []).map(([name, digest]) => [name, digest]));
+    for (const [name, digest] of before.inputs.files ?? []) if (/^(?:config|spec|practice|builtin|fit):/u.test(name) && kept.get(name) !== digest) moved.push(name);
+    return moved;
+  }
+  /** Changed lease tuples include eventless claim/review expiry. */
+  function changedLeaseItems(cached, before) {
+    const oldLeases = new Map((cached?.inputs?.leases ?? []).map((row) => [row[0], JSON.stringify(row)]));
+    return new Set((before.inputs.leases ?? []).filter((row) => oldLeases.get(row[0]) !== JSON.stringify(row)).map((row) => row[0]));
+  }
+  /**
+   * Read the current board build through `read(entry, cached)`, reusing the cached build while every
+   * input revision holds before and after the read, and building it again when one moved.
+   */
+  function withSnapshot(board, read, observedAt = now()) {
+    const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
+    const cached = stateCache.get(before.cacheId);
+    if (before.cacheable && cached?.revision === before.revision && nativeStateClockMatches(cached.clockWindow, observedAt)) {
+      const result = read(cached, true);
+      const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
+      if (after.cacheable && after.revision === before.revision) {
+        cached.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
+        stateCache.delete(before.cacheId);
+        stateCache.set(before.cacheId, cached);
+        return result;
+      }
+    }
+
+    const causes = fullRebuildCauses(cached, before);
+    const fullItemRebuild = causes.length > 0;
+    // An item whose verdict could not be settled last build is projected again, and only it.
+    const changedLeases = fullItemRebuild ? new Set() : new Set([...changedLeaseItems(cached, before), ...(cached.uncertain ?? [])]);
+    onStateBuild?.({ board: board.id, full: fullItemRebuild, causes });
+    // Keep projection, global fields, event history and sequence in one SQLite read transaction.
+    const built = withBoard(board.root, (currentBoard) => buildLocalBoardState(board.root, board.id, currentBoard, codeIsMain, {
+      previous: fullItemRebuild ? null : cached,
+      previousHistory: cached?.comparisonHistory ?? null,
+      fullItemRebuild,
+      refreshVerdicts: !fullItemRebuild && JSON.stringify(cached.inputs.trunk) !== JSON.stringify(before.inputs.trunk),
+      afterSequence: cached?.sequence ?? 0,
+      changedLeases,
+      onItemBuild,
+      projects: apiProjects,
+      scopeCommonDir,
+      observedAt,
+      localRelayHealth: relayCanaryNeeds(board.root),
+      localCapacity: true,
+    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot }), codeIsMain, boardOpeners);
+    // Capture the complete prefix once in this transaction; each read projects its actual observation
+    // windows from those cached canonical inputs without another database scan or state rebuild.
+    const state = { ...built.state, sequence: built.sequence,
+      statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
+    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
+      inputs: before.inputs,
+      itemMeta: built.itemMeta,
+      itemMoveCounts: built.itemMoveCounts,
+      clockWindow: built.clockWindow,
+      comparisonHistory: built.history,
+    });
+    entry.cacheId = before.cacheId;
+    const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
+    // Missing Git objects can arrive without a board event or trunk move; retry that uncertainty. A build the
+    // board moved under, or one with an unsettled verdict, is never served again as current, but it stays the
+    // base the next build extends: why, on a board that moves every second, dropping it made every build full.
+    entry.uncertain = state.items.filter(item => item.verdictState?.reason).map(item => item.id);
+    if (!(after.cacheable && before.revision === after.revision) || entry.uncertain.length) entry.revision = null;
+    if (before.cacheable) {
+      stateCache.delete(before.cacheId);
+      stateCache.set(before.cacheId, entry);
+      while (stateCache.size > 32) stateCache.delete(stateCache.keys().next().value);
+    } else {
+      stateCache.delete(before.cacheId);
+    }
+    return read(entry, false);
+  }
+  /** Each board's recent build prints with their sequences, the bases materialized deltas start from. */
+  const builtPrints = new Map();
+  /**
+   * Build one board's state as text a read only joins: the summary, compact and (once asked for) full JSON,
+   * every clock reading stamped at this build and each split around the per-read unread count, with their
+   * validators, the shout ids that count, the search texts, and the delta from each held sequence [A2,C7].
+   *
+   * @param {{ id: string, root: string }} board
+   * @param {{ held?: number[], full?: boolean }} [options] The sequences clients hold, and whether to build the full state.
+   */
+  function materialize(board, { held = [], full = false } = {}) {
+    const observedAt = now();
+    return withProjectGitTimeout(board.root, () => withGitReadFacts(() => withSnapshot(board, (entry, cached) => {
+      const marker = JSON.stringify('pullboard-unseen:' + randomBytes(12).toString('hex'));
+      const split = (text) => [text.slice(0, text.indexOf(marker)), text.slice(text.indexOf(marker) + marker.length)];
+      const stamped = { ...readProjection(entry.summary, board.root, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary),
+        unseen: JSON.parse(marker), observedAt: new Date(observedAt).toISOString() };
+      const reportValidator = reportValidation(entry, observedAt);
+      const variant = (base, fields, suffix = '') => ({ json: split(serializeState({ ...base, ...stamped }, fields)),
+        validator: split(serializeState({ ...base, ...stamped }, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + suffix) });
+      const kept = builtPrints.get(entry.cacheId) ?? { builds: [], forgottenThrough: -1 };
+      builtPrints.set(entry.cacheId, kept);
+      if (!kept.builds.some((build) => build.print === entry.print)) kept.builds.push({ sequence: entry.sequence, print: entry.print });
+      while (kept.builds.length > DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
+      const deltas = {};
+      for (const since of new Set([...held, ...kept.builds.slice(-4).map((build) => build.sequence)])) {
+        const bases = since > kept.forgottenThrough && since <= entry.sequence ? kept.builds.filter((build) => build.sequence === since).map((build) => build.print) : [];
+        if (bases.length) deltas[since] = split(JSON.stringify(stateDelta(bases, entry.print, { ...entry.summary, ...stamped })));
+      }
+      const compact = entry.compact ??= compactItemSummaries(entry.summary);
+      return {
+        cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
+        summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
+        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas,
+        search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
+        shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
+      };
+    }, observedAt)));
+  }
+  /** What the next build of a board extends: its latest build's items, their metadata and the inputs it read. */
+  function carry(cacheId) {
+    const entry = stateCache.get(cacheId);
+    return entry ? { cacheId, sequence: entry.sequence, items: entry.items, itemMeta: entry.itemMeta, itemMoveCounts: entry.itemMoveCounts, inputs: entry.inputs, uncertain: entry.uncertain ?? [] } : null;
+  }
+  /** Resume from a carried build: never served as current, only extended by the next build's events. */
+  function restore(value) {
+    if (!stateCache.has(value.cacheId)) stateCache.set(value.cacheId, { ...value, revision: null, clockWindow: null });
+  }
+  /**
+   * Where a board's saved build lives: a derived cache beside the board, named by the board, that a missing or
+   * stale file only slows (the next build then starts from the board itself).
+   */
+  function snapshotPlace(board) {
+    const { commonDir } = repoInfo(board.root);
+    return { cacheId: commonDir + '\0' + board.id, folder: join(commonDir, 'pullboard', 'state-cache') };
+  }
+  return { withSnapshot, materialize, carry, restore, snapshotPlace, formats: `${store.SCHEMA_VERSION}:${store.EVENT_LOG_VERSION}`, stateCache, codeIsMain };
+}
+
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
@@ -948,7 +1110,19 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     throw new TypeError('createLocalApiHandler allowedHosts needs literal IPv4 addresses, without ports or wildcard binds');
   }
   const permittedHosts = [...new Set(allowedHosts)];
-  const stateCache = new Map();
+  const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
+  const { withSnapshot } = snapshots;
+  // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused,
+    onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads now build on the request thread\n`) }) : null;
+  /**
+   * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
+   * that were waiting on it: a failed worker never fails a read. A refusal from a running worker's build stands.
+   */
+  function materialized(fromWorker, direct) {
+    if (!materializer?.alive) return direct();
+    return fromWorker().catch((error) => { if (materializer.alive) throw error; return direct(); });
+  }
   // Each board's item details by item id, and each board's spec-approval view (#1040).
   const detailCache = new Map();
   const approvalCache = new Map();
@@ -963,76 +1137,6 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     kept.builds.push({ sequence: entry.sequence, print: entry.print });
     while (kept.builds.length > DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
     deltaBases.set(entry.cacheId, kept);
-  }
-  /** File, identity, HEAD or wire-version changes invalidate the item projector's assumptions. */
-  function needsFullItemRebuild(cached, before) {
-    if (!cached || !before.cacheable || cached.sequence > before.event) return true;
-    const previous = cached.inputs;
-    const current = before.inputs;
-    if (!previous) return true;
-    return ['identity', 'head', 'trunk', 'files', 'eventLogVersion'].some((key) => JSON.stringify(previous[key]) !== JSON.stringify(current[key]));
-  }
-  /** Changed lease tuples include eventless claim/review expiry. */
-  function changedLeaseItems(cached, before) {
-    const oldLeases = new Map((cached?.inputs?.leases ?? []).map((row) => [row[0], JSON.stringify(row)]));
-    return new Set((before.inputs.leases ?? []).filter((row) => oldLeases.get(row[0]) !== JSON.stringify(row)).map((row) => row[0]));
-  }
-  /**
-   * Read the current board build through `read(entry, cached)`, reusing the cached build while every
-   * input revision holds before and after the read, and building it again when one moved.
-   */
-  function withSnapshot(board, read, observedAt = now()) {
-    const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
-    const cached = stateCache.get(before.cacheId);
-    if (before.cacheable && cached?.revision === before.revision && nativeStateClockMatches(cached.clockWindow, observedAt)) {
-      const result = read(cached, true);
-      const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
-      if (after.cacheable && after.revision === before.revision) {
-        cached.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
-        stateCache.delete(before.cacheId);
-        stateCache.set(before.cacheId, cached);
-        return result;
-      }
-    }
-
-    const fullItemRebuild = needsFullItemRebuild(cached, before);
-    const changedLeases = fullItemRebuild ? new Set() : changedLeaseItems(cached, before);
-    onStateBuild?.({ board: board.id });
-    // Keep projection, global fields, event history and sequence in one SQLite read transaction.
-    const built = withBoard(board.root, (currentBoard) => buildLocalBoardState(board.root, board.id, currentBoard, codeIsMain, {
-      previous: fullItemRebuild ? null : cached,
-      fullItemRebuild,
-      afterSequence: cached?.sequence ?? 0,
-      changedLeases,
-      onItemBuild,
-      projects: apiProjects,
-      scopeCommonDir,
-      observedAt,
-      localRelayHealth: relayCanaryNeeds(board.root),
-      localCapacity: true,
-    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot }), codeIsMain, boardOpeners);
-    // Capture the complete prefix once in this transaction; each read projects its actual observation
-    // windows from those cached canonical inputs without another database scan or state rebuild.
-    const state = { ...built.state, sequence: built.sequence,
-      statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
-    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
-      inputs: before.inputs,
-      itemMeta: built.itemMeta,
-      itemMoveCounts: built.itemMoveCounts,
-      clockWindow: built.clockWindow,
-      comparisonHistory: built.history,
-    });
-    entry.cacheId = before.cacheId;
-    const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
-    // Missing Git objects can arrive without a board event or trunk move; retry that uncertainty.
-    if (before.cacheable && after.cacheable && before.revision === after.revision &&
-        !state.items.some(item => item.verdictState?.reason)) {
-      stateCache.set(before.cacheId, entry);
-      while (stateCache.size > 32) stateCache.delete(stateCache.keys().next().value);
-    } else {
-      stateCache.delete(before.cacheId);
-    }
-    return read(entry, false);
   }
   /** Return item summaries or every item in full, as asked or by this server's default, and the JSON for either. */
   function localState(board, seen, { detail = null, items = null } = {}) {
@@ -1178,7 +1282,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   function projectRead(board, read) {
     return withProjectGitTimeout(board.root, () => withGitReadFacts(read));
   }
-  return createApiHandler({
+  const handler = createApiHandler({
     refusalDocument,
     authenticate: (req) => {
       const url = new URL(req.url ?? '/', 'http://' + ADDRESS);
@@ -1205,15 +1309,16 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
-    stateJson: (board, who, seen, options) => projectRead(board, () => {
+    stateJson: (board, who, seen, options) => materialized(() => materializer.stateJson(board, seen, { ...options, stateDetail }), () => projectRead(board, () => {
       const sent = localState(board, seen, options);
       return { json: sent.json, validator: sent.validator, reportValidator: sent.reportValidator };
-    }),
+    })),
     watchRevision: (board) => {
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
-      return { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
+      const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
+      return materializer?.alive ? materializer.watch(board, watched) : watched;
     },
-    delta: (board, who, seen, options) => projectRead(board, () => localDelta(board, seen, options)),
+    delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
@@ -1223,7 +1328,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return proof;
     }, codeIsMain, boardOpeners)),
     item: (board, id) => projectRead(board, () => localItem(board, id)),
-    search: (board, text) => projectRead(board, () => localSearch(board, text)),
+    search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
@@ -1242,17 +1347,20 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),
   }, { tagState: true });
+  const closeStreams = handler.close;
+  handler.close = () => { materializer?.close(); closeStreams?.(); };
+  return handler;
 }
 
 /**
  * Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

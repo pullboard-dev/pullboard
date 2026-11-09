@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../index.js';
 import { openBoard } from '../../../apps/lib/index.js';
-import { INFRA_RELEASE_ENGINE } from '../../../src/infra-release-engine.js';
+import { INFRA_RELEASE_ENGINE } from '../../state/core.js';
 
 const commit = 'a'.repeat(40);
 

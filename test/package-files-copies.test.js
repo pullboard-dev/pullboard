@@ -403,7 +403,7 @@ function controllerFixture(t) {
 test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
   const { installed } = controllerFixture(t);
   const loaded = captureRunnerTooling(installed);
-  const unrelated = join(installed, 'src/check-timing-engine.js');
+  const unrelated = join(installed, 'packages/state/src/core/engines/check-timing-engine.js');
   writeFileSync(unrelated, readFileSync(unrelated, 'utf8') + '\n// unrelated private generation\n');
   assert.deepEqual(currentRunnerTooling(installed, loaded), runnerPackage(installed),
     'an unrelated shipped file is not part of this controller generation');

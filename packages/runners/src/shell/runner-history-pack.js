@@ -6,11 +6,13 @@ import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { objectRecord } from './runner-source-scan.js';
+import { cachedScan } from './runner-source-scan.js';
 import { protectedHistoryPath } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { spawnSync } from 'node:child_process';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -30,10 +32,20 @@ export function originAncestor(root, source) {
   return result.status === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(base) ? base : undefined;
 }
 
-/** Select safe tags that point to commits in the exact candidate ancestry. */
+/**
+ * Select safe tags that point to commits in the exact candidate ancestry. The selection for one commit and one exact
+ * set of tag refs in one repository is kept (cachedScan): every object it reads is immutable.
+ */
 export function candidateTags(root, source) {
-  const rows = sourceGit(root, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(objecttype)', 'refs/tags'])
-    .split('\n').filter(Boolean);
+  const listed = sourceGit(root, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(objecttype)', 'refs/tags']);
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '')) return selectTags(root, source, listed);
+  const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+  return cachedScan('candidate-tags', [common, source.commit, listed], () => selectTags(root, source, listed));
+}
+
+/** Check every listed tag ref and keep those that peel to a commit in the candidate's ancestry. */
+function selectTags(root, source, listed) {
+  const rows = listed.split('\n').filter(Boolean);
   if (rows.length > MAX_HISTORY_TAGS) throw new Refused('RUNNER_SCAN_LIMIT', 'too many local tags to transfer safely; keep this run local');
   const selected = [];
   // Budget: annotation scanning shares the 8 MiB object ceiling across all selected tag visits.
@@ -93,12 +105,25 @@ export function candidateTags(root, source) {
   return selected;
 }
 
+/**
+ * Run a source read whose output grows with history into a private file in the pack directory and return its text.
+ * Why: sourceGit buffers at most 8 MiB, and once main's unpublished object list passed that every runner dispatch and
+ * merged record refused RUNNER_SOURCE (#3930); each line is still validated by its caller.
+ */
+function streamedSourceGit(root, args, directory, name, input) {
+  const file = join(directory, name);
+  const output = openSync(file, 'wx', 0o600);
+  try { sourceGit(root, args, { input, stdio: ['pipe', output, 'pipe'] }); }
+  finally { closeSync(output); }
+  try { return readFileSync(file, 'utf8'); } finally { rmSync(file, { force: true }); }
+}
+
 /** Scan and pack exactly the candidate objects absent from the locked remote cache inventory. */
 export function historyPack(root, source, tips, directory, tags = [], knownTagObjects = []) {
   const knownTags = new Set(knownTagObjects);
   const known = sourceGit(root, ['cat-file', '--batch-check'], { input: tips.map(tip => `${tip}\n`).join('') })
     .split('\n').map(line => /^([a-f0-9]{40,64}) commit \d+$/u.exec(line)?.[1]).filter(Boolean);
-  const records = sourceGit(root, ['rev-list', '--objects', source.commit, ...(source.extraCommits ?? []), '--not', ...known])
+  const records = streamedSourceGit(root, ['rev-list', '--objects', source.commit, ...(source.extraCommits ?? []), '--not', ...known], directory, 'history.objects')
     .split('\n').filter(Boolean).map(line => {
       const match = /^([a-f0-9]{40,64})(?: (.*))?$/u.exec(line);
       if (!match) throw new Refused('RUNNER_SOURCE', 'unsupported history path; keep this run local');
@@ -110,7 +135,7 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
   const historicalTrees = new Set();
   const config = source.protect ? { protect: source.protect } : sourceGit(root, ['ls-tree', '--name-only', source.commit, '--', 'pullboard.json']).trim()
     ? configFromSource(sourceGit(root, ['show', `${source.commit}:pullboard.json`])) : defaults();
-  const metadata = sourceGit(root, ['cat-file', '--batch-check'], { input: objects.map(object => `${object}\n`).join('') });
+  const metadata = streamedSourceGit(root, ['cat-file', '--batch-check'], directory, 'history.metadata', objects.map(object => `${object}\n`).join(''));
   for (const line of metadata.split('\n').filter(Boolean)) {
     const match = /^[a-f0-9]{40,64} (blob|tree|commit|tag) (\d+)$/u.exec(line);
     if (!match || Number(match[2]) > MAX_BLOB_BYTES) throw new Refused('RUNNER_SCAN_LIMIT', 'a historical object exceeds the safe runner scan limit; keep this run local');
@@ -152,7 +177,7 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
   }
   // Check every full historical path, including reused cached blobs moved beneath a newly blocked prefix.
   for (const tree of historicalTrees) {
-    for (const record of sourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', tree]).split('\0').filter(Boolean)) {
+    for (const record of streamedSourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', tree], directory, 'history.tree').split('\0').filter(Boolean)) {
       const match = /^(\d+) (\w+) [a-f0-9]{40,64}\t([\s\S]+)$/u.exec(record);
       if (!match || match[2] !== 'blob' || protectedHistoryPath(match[3], config.protect)) {
         throw new Refused('RUNNER_SECRET', 'historical source includes a blocked private path or submodule; keep this run local');

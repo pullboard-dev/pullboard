@@ -11,8 +11,8 @@ import { localDependencyIds } from "./item-dependencies.js";
  * WORK_ORDER_ENGINE keep their old milestone, rank, route and age order.
  */
 import { engineAtLeast } from "../../../state/core.js";
-import { MILESTONE_RANK_ENGINE } from "../../../../src/milestone-rank-engine.js";
-import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
+import { MILESTONE_RANK_ENGINE } from "../../../state/core.js";
+import { WORK_ORDER_ENGINE } from "../../../state/core.js";
 import { ROUTES } from "../../../seats/core.js";
 
 /** Effort per route: what one item of that route costs to build. */

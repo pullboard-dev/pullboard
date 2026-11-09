@@ -14,7 +14,7 @@ import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { cli, phaseCounts } from './runner-tooling-fixture.js';
 
-const CHECK_FILES = ['test/cells-owned-stays.test.js', 'test/cells-plan-trunk-read.test.js'];
+const CHECK_FILES = ['test/cells-owned-stays.test.js', 'packages/items/tests/cells-plan-trunk-read.test.js'];
 const PROOF_FILE = 'test/cockpit/activity-codegen.test.js';
 
 /** Build small fixture bodies at the witnessed paths; this proves admission, not either historical item's behavior. */

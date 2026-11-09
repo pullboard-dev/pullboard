@@ -1,7 +1,7 @@
 /**
  * Engine numbers are given at landing, never picked by a builder (#1101).
  *
- * An item that adds a board move adds its own src/<name>-engine.js leaf as `export const NAME_ENGINE =
+ * An item that adds a board move adds its own packages/state/src/core/engines/<name>-engine.js leaf as `export const NAME_ENGINE =
  * unassignedEngine();`. On its branch the leaf reads as the trunk's highest engine plus one, so its tests run; the
  * landing merge then writes the next number into the leaf, in landing order, inside the item's merge commit. Two
  * items can never take the same number and none waits on a stale one; a landed number never changes, so moves
@@ -21,6 +21,9 @@ import {
   ENGINE_FILE,
   discovered,
 } from '../packages/kernel/index.js';
+
+/** The folder that holds the engine leaves, one constant per file so two items adding engines never conflict [V4]. */
+export const ENGINE_FOLDER = 'packages/state/src/core/engines';
 
 /** The one declaration a leaf holds: a landed number, or the placeholder a branch carries until it lands. */
 export const ENGINE_LINE = /^export const ([A-Z][A-Z0-9_]*_ENGINE) = (?:(\d+)|unassignedEngine\(\));$/u;
@@ -53,17 +56,16 @@ export function nextEngineNumber(leaves) {
 }
 
 /**
- * Give each unlanded leaf under `root`/src (one importing the placeholder) its number, next above the landed ones in file-name order, and keep the
+ * Give each unlanded leaf under `root`/ENGINE_FOLDER (one importing the placeholder) its number, next above the landed ones in file-name order, and keep the
  * documented move engine in docs/formats.md equal to the result. A tree with no unlanded leaf is left untouched.
  *
  * @param {string} root
  * @returns {{ files: string[], assigned: { name: string, number: number }[] }} The changed paths, relative to root.
  */
 export function assignEngineNumbers(root) {
-  const directory = join(root, 'src');
+  const directory = join(root, ENGINE_FOLDER);
   if (!existsSync(directory)) return { files: [], assigned: [] };
-  // Only a leaf that imports the placeholder is Pullboard's to number. Any other project may have its own
-  // src/*-engine.js files that follow none of these rules; they are never read as leaves, so a land never fails on them.
+  // Only a leaf that imports the placeholder is Pullboard's to number; any other file there is never read as a leaf.
   const texts = readdirSync(directory).filter((file) => ENGINE_CANDIDATE.test(file)).sort()
     .map((file) => ({ file, text: readFileSync(join(directory, file), 'utf8') }));
   const leaves = texts.map(({ file, text }) => {
@@ -94,7 +96,7 @@ export function assignEngineNumbers(root) {
       leaf.number = null;
       throw error;
     }
-    files.push(`src/${leaf.file}`, ...history);
+    files.push(`${ENGINE_FOLDER}/${leaf.file}`, ...history);
     assigned.push({ name: leaf.name, number: next });
   }
   const formats = join(root, 'docs', 'formats.md');

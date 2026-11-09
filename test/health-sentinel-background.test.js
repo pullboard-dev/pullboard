@@ -75,10 +75,10 @@ async function answers(port, secret) {
   }
 }
 
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 
 /** Exercise the real detached worker's callback without advancing or replacing its native cadence. */

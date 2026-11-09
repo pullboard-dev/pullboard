@@ -554,10 +554,10 @@
     "model": 1,
     "raw-board": 1
   },
-  "test/affected-graph-cache.test.js": {
+  "packages/gate/tests/affected-graph-cache.test.js": {
     "tempdir": 2
   },
-  "test/affected-source-loads.test.js": {
+  "packages/gate/tests/affected-source-loads.test.js": {
     "tempdir": 2
   },
   "test/affected-tests.test.js": {
@@ -606,17 +606,17 @@
     "hand-policy": 3,
     "raw-board": 7
   },
-  "test/attach-submit-eligibility.test.js": {
+  "packages/kernel/tests/attach-submit-eligibility.test.js": {
     "model": 1,
     "raw-board": 2
   },
   "test/automatic-landing-cadence.fixture.js": {
     "raw-board": 1
   },
-  "test/automatic-landing-main-worker.test.js": {
+  "packages/landing/tests/automatic-landing-main-worker.test.js": {
     "tempdir": 2
   },
-  "test/automatic-landing-wake.test.js": {
+  "packages/landing/tests/automatic-landing-wake.test.js": {
     "tempdir": 2
   },
   "test/automatic-landing.test.js": {
@@ -655,7 +655,7 @@
     "tempdir": 1,
     "raw-board": 1
   },
-  "test/board-in-memory.test.js": {
+  "packages/kernel/tests/board-in-memory.test.js": {
     "raw-board": 4
   },
   "test/board-link-fixture.js": {
@@ -665,7 +665,7 @@
   "test/board-link.test.js": {
     "tempdir": 1
   },
-  "test/board-lock-hold.test.js": {
+  "packages/verify/tests/board-lock-hold.test.js": {
     "tempdir": 1,
     "raw-board": 7
   },
@@ -673,7 +673,7 @@
     "raw-board": 4,
     "repo-read": 1
   },
-  "test/board-read-cantopen-retry.test.js": {
+  "packages/store/tests/board-read-cantopen-retry.test.js": {
     "tempdir": 1
   },
   "test/board-read-lock.test.js": {
@@ -697,7 +697,7 @@
     "raw-board": 3,
     "model": 1
   },
-  "test/board-writer.test.js": {
+  "packages/store/tests/board-writer.test.js": {
     "tempdir": 2
   },
   "test/board.test.js": {
@@ -773,7 +773,7 @@
   "test/cells-plan-fixture.js": {
     "tempdir": 2
   },
-  "test/cells-plan-trunk-read.test.js": {
+  "packages/items/tests/cells-plan-trunk-read.test.js": {
     "tempdir": 1
   },
   "test/cells-port-board-query.test.js": {
@@ -789,7 +789,7 @@
   "test/cells-remove-shims.test.js": {
     "tempdir": 2
   },
-  "test/cells-shards.test.js": {
+  "packages/codemap/tests/cells-shards.test.js": {
     "tempdir": 2
   },
   "test/cells-shims.test.js": {
@@ -801,7 +801,7 @@
   "test/cells-tools.test.js": {
     "tempdir": 3
   },
-  "test/check-accept.test.js": {
+  "apps/lib/tests/check-accept.test.js": {
     "tempdir": 1,
     "hand-policy": 2,
     "model": 1
@@ -811,7 +811,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "test/check-proves-nothing.test.js": {
+  "packages/verify/tests/check-proves-nothing.test.js": {
     "raw-board": 1
   },
   "test/check-receipts.test.js": {
@@ -831,7 +831,7 @@
   "test/checks-test-fixtures.test.js": {
     "tempdir": 1
   },
-  "test/chrome-clone-cleanup.test.js": {
+  "apps/runner/tests/chrome-clone-cleanup.test.js": {
     "tempdir": 1
   },
   "test/chrome-clone-proof.js": {
@@ -840,14 +840,14 @@
   "test/chrome-fixture.js": {
     "tempdir": 1
   },
-  "test/chrome-fixture.test.js": {
+  "packages/gate/tests/chrome-fixture.test.js": {
     "tempdir": 6
   },
   "test/ci.test.js": {
     "repo-read": 3,
     "tempdir": 2
   },
-  "test/claim-health-read.test.js": {
+  "packages/store/tests/claim-health-read.test.js": {
     "raw-board": 3
   },
   "test/claim-hygiene.test.js": {
@@ -889,7 +889,7 @@
     "tempdir": 1,
     "raw-board": 1
   },
-  "test/cli-io-gate-wait-default.test.js": {
+  "apps/cli/tests/cli-io-gate-wait-default.test.js": {
     "tempdir": 2
   },
   "test/cli-read-performance.test.js": {
@@ -927,7 +927,7 @@
     "raw-cli": 2,
     "raw-board": 1
   },
-  "test/cockpit/activity-sentences.test.js": {
+  "apps/view/tests/cockpit/activity-sentences.test.js": {
     "model": 3
   },
   "test/cockpit/activity.test.js": {
@@ -941,7 +941,7 @@
     "tempdir": 4,
     "env-spread": 1
   },
-  "test/cockpit/agent-floor-data.js": {
+  "apps/view/tests/cockpit/agent-floor-data.js": {
     "model": 1
   },
   "test/cockpit/agent-floor-journey.test.js": {
@@ -1347,7 +1347,7 @@
   "test/cockpit/view-data.js": {
     "model": 3
   },
-  "test/cockpit/view-pure.test.js": {
+  "apps/view/tests/cockpit/view-pure.test.js": {
     "model": 1
   },
   "test/cockpit/view-startup.test.js": {
@@ -1369,17 +1369,17 @@
   "test/commit-msg.test.js": {
     "hand-policy": 2
   },
-  "test/companion-three-way.test.js": {
+  "packages/items/tests/companion-three-way.test.js": {
     "tempdir": 8
   },
   "test/companion.test.js": {
     "model": 1,
     "raw-board": 2
   },
-  "test/controller-registration-diagnostics.test.js": {
+  "packages/resources/tests/controller-registration-diagnostics.test.js": {
     "tempdir": 1
   },
-  "test/coordinator-resume.test.js": {
+  "apps/lib/tests/coordinator-resume.test.js": {
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 3
@@ -1425,16 +1425,16 @@
     "tempdir": 2,
     "hand-policy": 1
   },
-  "test/doctrine-count-follows-moves.test.js": {
+  "packages/doctrine/tests/doctrine-count-follows-moves.test.js": {
     "tempdir": 2
   },
-  "test/doctrine-diff-only.test.js": {
+  "packages/doctrine/tests/doctrine-diff-only.test.js": {
     "tempdir": 2
   },
-  "test/doctrine-hold-composed.test.js": {
+  "packages/doctrine/tests/doctrine-hold-composed.test.js": {
     "tempdir": 3
   },
-  "test/doctrine-measured-baseline.test.js": {
+  "packages/doctrine/tests/doctrine-measured-baseline.test.js": {
     "tempdir": 3
   },
   "test/doctrine-name.test.js": {
@@ -1556,7 +1556,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "test/family-stored-once.test.js": {
+  "packages/items/tests/family-stored-once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -1584,7 +1584,7 @@
     "hand-policy": 1,
     "raw-board": 3
   },
-  "test/flake-ratchet-busy-board.test.js": {
+  "packages/flakes/tests/flake-ratchet-busy-board.test.js": {
     "tempdir": 2,
     "raw-board": 5
   },
@@ -1626,7 +1626,7 @@
     "hand-policy": 2,
     "env-spread": 1
   },
-  "test/gate-async.test.js": {
+  "packages/gate/tests/gate-async.test.js": {
     "tempdir": 2
   },
   "test/gate-driver-fixture.js": {
@@ -1648,7 +1648,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "test/gate-red-names-failures.test.js": {
+  "packages/gate/tests/gate-red-names-failures.test.js": {
     "tempdir": 1
   },
   "test/gate-stages-concurrent.test.js": {
@@ -1676,7 +1676,7 @@
   "test/generated-docs-fixture.js": {
     "tempdir": 2
   },
-  "test/git-adapter.test.js": {
+  "packages/git/tests/git-adapter.test.js": {
     "tempdir": 2,
     "repo-read": 3
   },
@@ -1686,7 +1686,7 @@
     "hand-policy": 4,
     "raw-board": 1
   },
-  "test/git-sync-lock.test.js": {
+  "packages/sync/tests/git-sync-lock.test.js": {
     "tempdir": 1
   },
   "test/git-sync-self-repair.test.js": {
@@ -1695,7 +1695,7 @@
     "raw-board": 1,
     "tempdir": 2
   },
-  "test/guard-revert-port.test.js": {
+  "packages/commits/tests/guard-revert-port.test.js": {
     "tempdir": 1
   },
   "test/guarded-docs-refresh.test.js": {
@@ -1707,20 +1707,20 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "test/handoff-cap-runner-slots.test.js": {
+  "packages/resources/tests/handoff-cap-runner-slots.test.js": {
     "tempdir": 1
   },
   "test/handoff-cap-status-line.test.js": {
     "hand-policy": 1
   },
-  "test/handoff-dispatcher-capacity.test.js": {
+  "packages/resources/tests/handoff-dispatcher-capacity.test.js": {
     "tempdir": 1
   },
   "test/handoff-dispatcher-session.test.js": {
     "raw-board": 1,
     "model": 1
   },
-  "test/handoff-dispatcher-slot-reuse.test.js": {
+  "packages/kernel/tests/handoff-dispatcher-slot-reuse.test.js": {
     "tempdir": 1
   },
   "test/handoff-drops-orphan.test.js": {
@@ -1728,7 +1728,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "test/handoff-folder-prune.test.js": {
+  "packages/resources/tests/handoff-folder-prune.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -1743,7 +1743,7 @@
     "raw-board": 1,
     "tempdir": 2
   },
-  "test/handoff-urgent-first.test.js": {
+  "packages/kernel/tests/handoff-urgent-first.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -1751,10 +1751,10 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "test/handoff-worker-cap.test.js": {
+  "packages/resources/tests/handoff-worker-cap.test.js": {
     "tempdir": 1
   },
-  "test/handoff-workers-shrink.test.js": {
+  "packages/resources/tests/handoff-workers-shrink.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -1849,7 +1849,7 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "test/item-list-retained-claim.test.js": {
+  "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
   "test/item-notes-engine.test.js": {
@@ -1874,7 +1874,7 @@
   "test/item-patches.test.js": {
     "raw-board": 12
   },
-  "test/item-session-port.test.js": {
+  "packages/items/tests/item-session-port.test.js": {
     "tempdir": 1
   },
   "test/item-size-budget.test.js": {
@@ -1923,14 +1923,14 @@
     "model": 3,
     "raw-board": 1
   },
-  "test/known-main-red-match.test.js": {
+  "packages/landing/tests/known-main-red-match.test.js": {
     "tempdir": 2,
     "repo-read": 2
   },
   "test/known-main-running-file.test.js": {
     "raw-board": 4
   },
-  "test/known-main-signature-normalize.test.js": {
+  "packages/landing/tests/known-main-signature-normalize.test.js": {
     "tempdir": 2,
     "repo-read": 1
   },
@@ -1954,13 +1954,13 @@
   "test/land-parallel-fixture.js": {
     "hand-policy": 2
   },
-  "test/land-why.test.js": {
+  "packages/store/tests/land-why.test.js": {
     "raw-board": 4
   },
   "test/land.test.js": {
     "hand-policy": 1
   },
-  "test/landing-adaptive-batch.test.js": {
+  "packages/store/tests/landing-adaptive-batch.test.js": {
     "raw-board": 2
   },
   "test/landing-adopts-interrupted.test.js": {
@@ -1976,17 +1976,17 @@
   "test/landing-applies-companions.test.js": {
     "raw-board": 1
   },
-  "test/landing-base-split-cached.test.js": {
+  "packages/landing/tests/landing-base-split-cached.test.js": {
     "tempdir": 2
   },
   "test/landing-batch-runner-source.test.js": {
     "model": 1,
     "hand-policy": 1
   },
-  "test/landing-bisect-base-red.test.js": {
+  "packages/store/tests/landing-bisect-base-red.test.js": {
     "raw-board": 1
   },
-  "test/landing-bisects-unaccounted.test.js": {
+  "packages/store/tests/landing-bisects-unaccounted.test.js": {
     "raw-board": 1
   },
   "test/landing-blocked-retry.test.js": {
@@ -1996,7 +1996,7 @@
   "test/landing-cli-smoke.test.js": {
     "tempdir": 2
   },
-  "test/landing-controller-placement.test.js": {
+  "packages/gate/tests/landing-controller-placement.test.js": {
     "tempdir": 1,
     "hand-policy": 1,
     "repo-read": 2
@@ -2011,7 +2011,7 @@
     "raw-board": 1,
     "hand-policy": 1
   },
-  "test/landing-history-plan.test.js": {
+  "packages/kernel/tests/landing-history-plan.test.js": {
     "tempdir": 2,
     "hand-policy": 2
   },
@@ -2028,7 +2028,7 @@
   "test/landing-known-main.test.js": {
     "model": 1
   },
-  "test/landing-lease.test.js": {
+  "packages/state/tests/landing-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -2039,16 +2039,16 @@
   "test/landing-main-red-keeps-verdicts.test.js": {
     "model": 1
   },
-  "test/landing-merge-attribution.test.js": {
+  "packages/landing/tests/landing-merge-attribution.test.js": {
     "tempdir": 1
   },
   "test/landing-move-closure.test.js": {
     "tempdir": 2
   },
-  "test/landing-new-test-file-bisects.test.js": {
+  "packages/landing/tests/landing-new-test-file-bisects.test.js": {
     "tempdir": 2
   },
-  "test/landing-parallel-known-main.test.js": {
+  "packages/landing/tests/landing-parallel-known-main.test.js": {
     "tempdir": 2
   },
   "test/landing-parser-failure.test.js": {
@@ -2063,7 +2063,7 @@
   "test/landing-queue-fixture.js": {
     "raw-board": 3
   },
-  "test/landing-refresh-detached.test.js": {
+  "packages/landing/tests/landing-refresh-detached.test.js": {
     "tempdir": 2
   },
   "test/landing-refuses-unplaced.test.js": {
@@ -2076,18 +2076,18 @@
     "raw-board": 3,
     "repo-read": 2
   },
-  "test/landing-reschedules-itself.test.js": {
+  "apps/cli/tests/landing-reschedules-itself.test.js": {
     "repo-read": 2
   },
   "test/landing-reuses-green-tree.test.js": {
     "raw-board": 2,
     "tempdir": 1
   },
-  "test/landing-runner-source-hold.test.js": {
+  "packages/items/tests/landing-runner-source-hold.test.js": {
     "raw-board": 2,
     "tempdir": 2
   },
-  "test/landing-selection-complete.test.js": {
+  "packages/gate/tests/landing-selection-complete.test.js": {
     "tempdir": 2
   },
   "test/landing-shards-name-filter.test.js": {
@@ -2112,10 +2112,10 @@
   "test/landing-trunk-moved-rebuild.test.js": {
     "model": 1
   },
-  "test/landing-wake-log.test.js": {
+  "packages/gate/tests/landing-wake-log.test.js": {
     "tempdir": 1
   },
-  "test/landing-withdrawn-dependency.test.js": {
+  "packages/store/tests/landing-withdrawn-dependency.test.js": {
     "tempdir": 2,
     "raw-board": 1
   },
@@ -2142,7 +2142,7 @@
   "test/lease-lapse.test.js": {
     "raw-board": 5
   },
-  "test/legacy-watchdog.test.js": {
+  "packages/gate/tests/legacy-watchdog.test.js": {
     "tempdir": 1
   },
   "test/line-capacity.test.js": {
@@ -2169,7 +2169,7 @@
   "test/lost-handoff-ticket.test.js": {
     "raw-board": 1
   },
-  "test/machine-generator.test.js": {
+  "packages/gate/tests/machine-generator.test.js": {
     "repo-read": 1
   },
   "test/machine-lifecycle.test.js": {
@@ -2190,7 +2190,7 @@
     "raw-board": 44,
     "hand-policy": 2
   },
-  "test/main-audit-attribution.test.js": {
+  "packages/gate/tests/main-audit-attribution.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 9
@@ -2202,7 +2202,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "test/main-audit-plain-commit.test.js": {
+  "packages/gate/tests/main-audit-plain-commit.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 2
@@ -2218,7 +2218,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/main-compare-knows-main.test.js": {
+  "packages/landing/tests/main-compare-knows-main.test.js": {
     "tempdir": 2
   },
   "test/main-comparison-cache-id.test.js": {
@@ -2250,14 +2250,14 @@
   "test/main-red-build-routing-fixture.js": {
     "raw-board": 2
   },
-  "test/main-red-cache-lock.test.js": {
+  "packages/gate/tests/main-red-cache-lock.test.js": {
     "tempdir": 2,
     "model": 2
   },
-  "test/main-red-refresh-unnamed.test.js": {
+  "packages/landing/tests/main-red-refresh-unnamed.test.js": {
     "tempdir": 4
   },
-  "test/maintenance-timer-quiet.test.js": {
+  "apps/cli/tests/maintenance-timer-quiet.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -2281,13 +2281,13 @@
     "raw-board": 18,
     "tempdir": 2
   },
-  "test/merge-read-ports.test.js": {
+  "packages/kernel/tests/merge-read-ports.test.js": {
     "raw-board": 2
   },
   "test/merged-idempotent.test.js": {
     "raw-board": 1
   },
-  "test/merged-plan-check.test.js": {
+  "packages/git/tests/merged-plan-check.test.js": {
     "tempdir": 6
   },
   "test/milestone-placement.test.js": {
@@ -2303,7 +2303,7 @@
     "model": 4,
     "hand-policy": 1
   },
-  "test/module-import-cache.test.js": {
+  "packages/gate/tests/module-import-cache.test.js": {
     "tempdir": 1
   },
   "test/move-registry-fixture.js": {
@@ -2323,7 +2323,7 @@
   "test/multiple-claims-board.test.js": {
     "raw-board": 9
   },
-  "test/native-flakes.test.js": {
+  "packages/flakes/tests/native-flakes.test.js": {
     "tempdir": 2
   },
   "test/needs.test.js": {
@@ -2397,7 +2397,7 @@
     "tempdir": 3,
     "env-spread": 1
   },
-  "test/open-decisions-projection.test.js": {
+  "packages/kernel/tests/open-decisions-projection.test.js": {
     "raw-board": 3
   },
   "test/outbox-ports.test.js": {
@@ -2411,7 +2411,7 @@
   "test/package-files-copies.test.js": {
     "tempdir": 1
   },
-  "test/package-shim-graph.test.js": {
+  "packages/runners/tests/package-shim-graph.test.js": {
     "tempdir": 1
   },
   "test/pairing.test.js": {
@@ -2436,7 +2436,7 @@
   "test/per-file-timeout-report.test.js": {
     "tempdir": 1
   },
-  "test/perf-budgets.test.js": {
+  "packages/gate/tests/perf-budgets.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -2469,7 +2469,7 @@
     "repo-read": 1,
     "hand-policy": 2
   },
-  "test/pinned-tool-policy-once.test.js": {
+  "apps/cli/tests/pinned-tool-policy-once.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -2544,7 +2544,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/projects.test.js": {
+  "packages/seats/tests/projects.test.js": {
     "tempdir": 7,
     "env-spread": 1,
     "model": 1
@@ -2591,10 +2591,10 @@
   "test/queue-preempt.test.js": {
     "raw-board": 4
   },
-  "test/queue-settings-port.test.js": {
+  "packages/queue/tests/queue-settings-port.test.js": {
     "tempdir": 1
   },
-  "test/queued-item-lease-busy.test.js": {
+  "packages/resources/tests/queued-item-lease-busy.test.js": {
     "tempdir": 2
   },
   "test/queued-red-returns-to-builder.test.js": {
@@ -2604,10 +2604,10 @@
   "test/ratchet-against-main.test.js": {
     "tempdir": 3
   },
-  "test/ratchet-rename.test.js": {
+  "packages/doctrine/tests/ratchet-rename.test.js": {
     "tempdir": 2
   },
-  "test/read-command-no-background.test.js": {
+  "packages/link/tests/read-command-no-background.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -2670,10 +2670,10 @@
     "hand-policy": 1,
     "raw-board": 2
   },
-  "test/relay-cached-access.test.js": {
+  "apps/relay/tests/relay-cached-access.test.js": {
     "tempdir": 1
   },
-  "test/relay-canary-needs.test.js": {
+  "packages/link/tests/relay-canary-needs.test.js": {
     "tempdir": 2
   },
   "test/relay-canary-notice-delivery.test.js": {
@@ -2715,10 +2715,10 @@
   "test/relay-device-http.test.js": {
     "tempdir": 2
   },
-  "test/relay-http.test.js": {
+  "apps/relay/tests/relay-http.test.js": {
     "tempdir": 1
   },
-  "test/relay-journal.test.js": {
+  "apps/relay/tests/relay-journal.test.js": {
     "tempdir": 1
   },
   "test/relay-local-first-verdict.test.js": {
@@ -2730,10 +2730,10 @@
     "tempdir": 1,
     "raw-board": 3
   },
-  "test/relay-machine-auth.test.js": {
+  "packages/state/tests/relay-machine-auth.test.js": {
     "tempdir": 2
   },
-  "test/relay-machine-journal.test.js": {
+  "apps/relay/tests/relay-machine-journal.test.js": {
     "tempdir": 1
   },
   "test/relay-machine-race.test.js": {
@@ -2791,7 +2791,7 @@
   "test/relay-parity-source-advance.js": {
     "raw-board": 1
   },
-  "test/relay-parity-stale-state.js": {
+  "packages/health/tests/relay-parity-stale-state.js": {
     "raw-board": 1
   },
   "test/relay-parity-submit-handoff.js": {
@@ -2812,7 +2812,7 @@
     "tempdir": 1,
     "raw-board": 3
   },
-  "test/relay-phone-grants.test.js": {
+  "apps/relay/tests/relay-phone-grants.test.js": {
     "tempdir": 1
   },
   "test/relay-retention.test.js": {
@@ -2841,7 +2841,7 @@
   "test/relay-snapshot-size.test.js": {
     "raw-board": 5
   },
-  "test/relay-storage-quota.test.js": {
+  "packages/state/tests/relay-storage-quota.test.js": {
     "tempdir": 1
   },
   "test/relay-study-delta.study.js": {
@@ -2867,7 +2867,7 @@
   "test/relay-upload-pause.test.js": {
     "raw-board": 1
   },
-  "test/relay-version.test.js": {
+  "packages/state/tests/relay-version.test.js": {
     "tempdir": 1
   },
   "test/relay.test.js": {
@@ -2908,7 +2908,7 @@
     "raw-board": 1,
     "model": 3
   },
-  "test/remote-gate-trunk-pack.test.js": {
+  "apps/cli/tests/remote-gate-trunk-pack.test.js": {
     "tempdir": 2
   },
   "test/reopen-cause.test.js": {
@@ -2943,7 +2943,7 @@
     "hand-policy": 2,
     "model": 1
   },
-  "test/resource-recovery-ports.test.js": {
+  "packages/resources/tests/resource-recovery-ports.test.js": {
     "tempdir": 1
   },
   "test/resources-lease-fixture.js": {
@@ -2987,7 +2987,7 @@
     "raw-board": 6,
     "model": 4
   },
-  "test/review-family-submitted-head.test.js": {
+  "packages/kernel/tests/review-family-submitted-head.test.js": {
     "raw-board": 3
   },
   "test/review-packet-fixture-cases.test.js": {
@@ -3014,7 +3014,7 @@
     "hand-policy": 2,
     "raw-board": 7
   },
-  "test/review-route-skips-author-session.test.js": {
+  "packages/kernel/tests/review-route-skips-author-session.test.js": {
     "raw-board": 2
   },
   "test/review-tier-default.test.js": {
@@ -3026,7 +3026,7 @@
     "model": 1,
     "repo-read": 2
   },
-  "test/rework-same-family.test.js": {
+  "packages/kernel/tests/rework-same-family.test.js": {
     "raw-board": 6
   },
   "test/rigor-auto.test.js": {
@@ -3060,7 +3060,7 @@
     "model": 7,
     "raw-board": 21
   },
-  "test/roadmap-queue-order.test.js": {
+  "packages/roadmap/tests/roadmap-queue-order.test.js": {
     "raw-board": 4
   },
   "test/roadmap.test.js": {
@@ -3087,7 +3087,7 @@
   "test/row-decision-guidance.test.js": {
     "hand-policy": 2
   },
-  "test/row-decisions-replay.test.js": {
+  "packages/kernel/tests/row-decisions-replay.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
@@ -3101,7 +3101,7 @@
   "test/ruling-owner.test.js": {
     "raw-board": 5
   },
-  "test/run-tests-cleanup-enotempty.test.js": {
+  "packages/gate/tests/run-tests-cleanup-enotempty.test.js": {
     "tempdir": 2
   },
   "test/run-tests-empty-selection.test.js": {
@@ -3122,7 +3122,7 @@
   "test/run-tests-timeout.test.js": {
     "tempdir": 3
   },
-  "test/run-tests-worker-identity.test.js": {
+  "packages/runners/tests/run-tests-worker-identity.test.js": {
     "tempdir": 1
   },
   "test/run-tests.test.js": {
@@ -3149,7 +3149,7 @@
   "test/runner-cache-prune.test.js": {
     "tempdir": 2
   },
-  "test/runner-cancel-on-red.test.js": {
+  "packages/sandbox/tests/runner-cancel-on-red.test.js": {
     "tempdir": 1
   },
   "test/runner-capacity-fixture.js": {
@@ -3157,11 +3157,11 @@
     "hand-policy": 4,
     "env-spread": 2
   },
-  "test/runner-capacity-read.test.js": {
+  "packages/config/tests/runner-capacity-read.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
-  "test/runner-capsule-stdin.test.js": {
+  "packages/runners/tests/runner-capsule-stdin.test.js": {
     "tempdir": 2
   },
   "test/runner-cleanup-foreign-process.test.js": {
@@ -3181,14 +3181,14 @@
     "tempdir": 2,
     "hand-policy": 1
   },
-  "test/runner-custody.test.js": {
+  "apps/runner/tests/runner-custody.test.js": {
     "tempdir": 1
   },
-  "test/runner-disk-floor.test.js": {
+  "apps/runner/tests/runner-disk-floor.test.js": {
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/runner-disk-sweep.test.js": {
+  "packages/resources/tests/runner-disk-sweep.test.js": {
     "tempdir": 1
   },
   "test/runner-drain-fixture.js": {
@@ -3199,16 +3199,16 @@
   "test/runner-exclusive-drain.test.js": {
     "hand-policy": 1
   },
-  "test/runner-fetches-trunk.test.js": {
+  "packages/items/tests/runner-fetches-trunk.test.js": {
     "tempdir": 3
   },
   "test/runner-fixture-state.test.js": {
     "tempdir": 2
   },
-  "test/runner-history-bound.test.js": {
+  "packages/config/tests/runner-history-bound.test.js": {
     "tempdir": 4
   },
-  "test/runner-history-incremental.test.js": {
+  "packages/config/tests/runner-history-incremental.test.js": {
     "tempdir": 2
   },
   "test/runner-idle-dead-holder.test.js": {
@@ -3221,10 +3221,10 @@
   "test/runner-job-lost.fixture.js": {
     "model": 1
   },
-  "test/runner-leak-heal-busy.test.js": {
+  "packages/resources/tests/runner-leak-heal-busy.test.js": {
     "tempdir": 1
   },
-  "test/runner-leak-scan.test.js": {
+  "packages/commits/tests/runner-leak-scan.test.js": {
     "tempdir": 1,
     "env-spread": 1,
     "hand-policy": 1
@@ -3249,7 +3249,7 @@
     "hand-policy": 2,
     "env-spread": 1
   },
-  "test/runner-pid.test.js": {
+  "packages/gate/tests/runner-pid.test.js": {
     "tempdir": 1
   },
   "test/runner-policy.test.js": {
@@ -3261,7 +3261,7 @@
     "raw-board": 1,
     "hand-policy": 4
   },
-  "test/runner-quarantine-recovers.test.js": {
+  "packages/resources/tests/runner-quarantine-recovers.test.js": {
     "tempdir": 3
   },
   "test/runner-registration-gui-fixture.js": {
@@ -3319,7 +3319,7 @@
     "hand-policy": 3,
     "env-spread": 1
   },
-  "test/runner-worker-capacity-sync.test.js": {
+  "packages/resources/tests/runner-worker-capacity-sync.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -3369,7 +3369,7 @@
   "test/seal-selection.test.js": {
     "tempdir": 2
   },
-  "test/seals.test.js": {
+  "packages/gate/tests/seals.test.js": {
     "tempdir": 3
   },
   "test/seat-address.test.js": {
@@ -3380,19 +3380,19 @@
     "tempdir": 2,
     "raw-board": 5
   },
-  "test/seat-test-slot-cap.test.js": {
+  "packages/resources/tests/seat-test-slot-cap.test.js": {
     "tempdir": 2
   },
   "test/seat-timing.test.js": {
     "tempdir": 6
   },
-  "test/selection-cache.test.js": {
+  "packages/gate/tests/selection-cache.test.js": {
     "tempdir": 6
   },
-  "test/selection-fallbacks.test.js": {
+  "packages/gate/tests/selection-fallbacks.test.js": {
     "tempdir": 2
   },
-  "test/selector-gap-verdict.test.js": {
+  "packages/kernel/tests/selector-gap-verdict.test.js": {
     "raw-board": 4
   },
   "test/sentinel-cpu.test.js": {
@@ -3410,7 +3410,7 @@
     "raw-board": 6,
     "model": 1
   },
-  "test/session-tokens.test.js": {
+  "packages/stats/tests/session-tokens.test.js": {
     "model": 5,
     "tempdir": 1
   },
@@ -3427,12 +3427,12 @@
   "test/shadow-tier1-verdict.test.js": {
     "raw-board": 3
   },
-  "test/shared-version.test.js": {
+  "packages/runners/tests/shared-version.test.js": {
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/shared-wait-guard.test.js": {
+  "packages/gate/tests/shared-wait-guard.test.js": {
     "tempdir": 4,
     "repo-read": 1
   },
@@ -3498,7 +3498,7 @@
     "raw-board": 6,
     "tempdir": 1
   },
-  "test/stale-cli-reclaim.test.js": {
+  "packages/resources/tests/stale-cli-reclaim.test.js": {
     "tempdir": 1
   },
   "test/stale-state.test.js": {
@@ -3506,10 +3506,10 @@
     "raw-board": 8,
     "model": 2
   },
-  "test/stale-waiter-priority.test.js": {
+  "packages/resources/tests/stale-waiter-priority.test.js": {
     "tempdir": 2
   },
-  "test/static-style.test.js": {
+  "packages/runners/tests/static-style.test.js": {
     "tempdir": 1
   },
   "test/stats-cli.test.js": {
@@ -3565,7 +3565,7 @@
   "test/submit-cells-receipt-line.test.js": {
     "repo-read": 1
   },
-  "test/submit-cells-remote.test.js": {
+  "apps/cli/tests/submit-cells-remote.test.js": {
     "tempdir": 6
   },
   "test/submit-compare.test.js": {
@@ -3604,7 +3604,7 @@
   "test/submit-handoff-recovery.test.js": {
     "raw-board": 3
   },
-  "test/submit-handoff-worker-exit.test.js": {
+  "packages/resources/tests/submit-handoff-worker-exit.test.js": {
     "tempdir": 1
   },
   "test/submit-handoff-worker-gone.test.js": {
@@ -3742,13 +3742,13 @@
     "env-spread": 2,
     "hand-policy": 1
   },
-  "test/test-sandbox-cleanup.test.js": {
+  "packages/gate/tests/test-sandbox-cleanup.test.js": {
     "tempdir": 2
   },
   "test/test-tier-selection.test.js": {
     "hand-policy": 1
   },
-  "test/test-tiers.test.js": {
+  "packages/gate/tests/test-tiers.test.js": {
     "tempdir": 2
   },
   "test/test-value.test.js": {
@@ -3817,13 +3817,13 @@
     "hand-policy": 2,
     "raw-board": 8
   },
-  "test/verdict-composes-unchanged.test.js": {
+  "packages/verify/tests/verdict-composes-unchanged.test.js": {
     "tempdir": 2
   },
   "test/verdict-trunk-moved.test.js": {
     "hand-policy": 1
   },
-  "test/verdict-trunk-off-main.test.js": {
+  "packages/verify/tests/verdict-trunk-off-main.test.js": {
     "tempdir": 4
   },
   "test/verdict-trunk.test.js": {
@@ -3841,7 +3841,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "test/verify-known-main.test.js": {
+  "apps/cli/tests/verify-known-main.test.js": {
     "tempdir": 2
   },
   "test/verify-move-closure.test.js": {
@@ -3875,10 +3875,10 @@
     "model": 4,
     "hand-policy": 1
   },
-  "test/wall-clock-budgets.test.js": {
+  "packages/gate/tests/wall-clock-budgets.test.js": {
     "tempdir": 7
   },
-  "test/wall-limit-load-scaled.test.js": {
+  "packages/verify/tests/wall-limit-load-scaled.test.js": {
     "tempdir": 1
   },
   "test/webkit-fixture.js": {
