@@ -12,7 +12,7 @@ import { gateSettled } from '../../../test/submit-handoff-fixture.js';
 import { removeSandboxes } from '../../../test/submit-handoff-fixture.js';
 import { test } from 'node:test';
 import { openBoard } from '../index.js';
-import { HOOK_WORKER } from '../index.js';
+import { HOOK_WORKER } from '../../cli/index.js';
 import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
 import { admitGateDrive } from '../../../packages/drive/index.js';
 import { drainLoop } from '../../../packages/drive/index.js';
