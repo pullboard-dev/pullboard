@@ -13,9 +13,11 @@ export function roadmapSummary(milestone, context = {}) {
   const count = '<span class="roadmap-left"><b>'+escape(summary.left)+' to go</b><span aria-label="'+escape(summary.landed)+'/'+escape(summary.total)+' landed">'+escape(summary.landed)+' of '+escape(summary.total)+' landed</span></span>';
   const description = states.map(([key,label]) => summary[key]+' '+label).join(', ');
   let offset = 0;
-  const segments = states.map(([key]) => { const x = offset; offset += summary[key]; return '<rect class="roadmap-summary-segment ' + key + '" data-summary-segment="' + key + '" data-count="' + summary[key] + '" x="' + x + '" width="' + summary[key] + '" height="1"/>'; }).join('');
+  const segments = states.map(([key]) => { const x = offset; offset += summary[key]; return '<rect class="roadmap-summary-segment ' + key + '" data-summary-segment="' + key + '" data-count="' + summary[key] + '" x="' + x + '" width="' + summary[key] + '" height="1"' + (key === 'landing' ? ' fill="url(#roadmap-summary-stripe)"' : '') + '/>'; }).join('');
+  // Landing is striped: an SVG rect paints from its fill, so the stripe is a pattern the rect references, not a CSS background.
+  const stripe = '<defs><pattern id="roadmap-summary-stripe" patternUnits="userSpaceOnUse" width="' + ((summary.total || 1) / 60) + '" height="1" patternTransform="skewX(-' + Math.round(Math.atan((summary.total || 1) / 30) * 180 / Math.PI) + ')"><rect class="roadmap-stripe-a" width="' + ((summary.total || 1) / 120) + '" height="1"/><rect class="roadmap-stripe-b" x="' + ((summary.total || 1) / 120) + '" width="' + ((summary.total || 1) / 120) + '" height="1"/></pattern></defs>';
   // Geometry uses the supplied counts as SVG units; inline CSS is disallowed by the view's policy.
-  const bar = '<svg class="milestone-progress roadmap-summary-bar" viewBox="0 0 ' + (summary.total || 1) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + escape(milestone.name+': '+description) + '" data-total="' + summary.total + '">' + segments + '</svg>';
+  const bar = '<svg class="milestone-progress roadmap-summary-bar" viewBox="0 0 ' + (summary.total || 1) + ' 1" preserveAspectRatio="none" role="img" aria-label="' + escape(milestone.name+': '+description) + '" data-total="' + summary.total + '">' + stripe + segments + '</svg>';
   // The held count opens the held items alone, and a second press shows every item again (#1256).
   const heldLink = key => key === 'held' && summary.held > 0;
   /** Keep every legend entry's dot, count and label in the same aligned structure. */
