@@ -10,3 +10,4 @@ export { decodedProofEvent, proofEventDetail } from './src/core/event-detail.js'
 export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
 export { machineHome } from './core.js';
 export { RUNNER_PRELOAD_ENV, declareKnownNodeOption, declareNodeOptionProofs, foreignNodeOptions } from './src/core/foreign-node-options.js';
+export { seal, unseal, generateBoardKey, encodeBoardKey, decodeBoardKey } from './src/core/seal.js';

@@ -1,20 +1,30 @@
-import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
+import { REJECT_OPEN_ENGINE } from '../../../packages/state/index.js';
+import { REOPEN_FIRST_REFUSAL_ENGINE } from '../../../packages/state/index.js';
 /** @pullboard-test-loads packages/store/src/shell/board.js src/claims.js packages/config/src/shell/config.js packages/state/src/shell/machine.js packages/state/src/shell/engine.js */
 /** Reopened claims reserve the original builder's context only when enabled [B13,B5]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { configFromSource, defaults } from '../packages/config/index.js';
-import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
-import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
-import { saveAgentSession, saveAgentParent } from '../packages/seats/index.js';
-import { BLOCKED_DEPENDENCIES_ENGINE } from '../packages/state/core.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { configFromSource } from '../../../packages/config/index.js';
+import { defaults } from '../../../packages/config/index.js';
+import { prepareEngineMove } from '../../../packages/state/index.js';
+import { applyEngineMove } from '../../../packages/state/index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { barReadiness } from '../../../packages/verify/index.js';
+import { barReadySetting } from '../../../packages/verify/index.js';
+import { setBarReady } from '../../../packages/verify/index.js';
+import { signBar } from '../../../packages/verify/index.js';
+import { saveAgentSession } from '../../../packages/seats/index.js';
+import { saveAgentParent } from '../../../packages/seats/index.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../packages/state/core.js';
+import { ITEM_FOLDER_ENGINE } from '../../../packages/state/core.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);
@@ -146,11 +156,10 @@ test('[B13,B5] releasing another review cannot cancel the builder reservation', 
 });
 
 test('[B13,B5,H16] a sealed return persists one window and notice across replay and snapshots', async (t) => {
-  const { REOPEN_FIRST_REFUSAL_ENGINE } = await import('../packages/state/index.js');
   // A sealed move carries the current engine, which a later feature may raise past this one.
-  const { ENGINE_VERSION } = await import('../packages/state/index.js');
+  const { ENGINE_VERSION } = await import('../../../packages/state/index.js');
   assert.ok(ENGINE_VERSION >= REOPEN_FIRST_REFUSAL_ENGINE);
-  const { firstRefusalArgs } = await import('../packages/items/index.js');
+  const { firstRefusalArgs } = await import('../../../packages/items/index.js');
   const f = fixture(t);
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'replay', route: 'mid',
     criterion: 'prove', check: 'true', brief: 'Files: src/a.js\nTest: proves replay' });
@@ -333,7 +342,6 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
 });
 
 test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const first = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'first', route: 'mid', criterion: 'first works', check: 'true', brief: 'Files: src/a.js\nTest: first works' });
   const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'second', route: 'mid', criterion: 'second works', check: 'true', brief: 'Files: src/b.js\nTest: second works' });
@@ -348,7 +356,6 @@ test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', asy
 });
 
 test('older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('legacy first'), second = add('legacy second');
@@ -360,7 +367,6 @@ test('older replay retains the one-claim guard even if an unknown modern flag is
 });
 
 test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('first'), second = add('second');

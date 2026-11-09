@@ -1,15 +1,18 @@
 /** GUI capability survives the common runner stage without inventing unknown availability [C7,O5,V4]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { recordRunnerGui } from '../packages/resources/index.js';
-import { placeRunner } from '../apps/runner/index.js';
-import { readRunnerStage } from '../apps/runner/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { recordRunnerGui } from '../../../packages/resources/index.js';
+import { placeRunner } from '../../runner/index.js';
+import { readRunnerStage } from '../../runner/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 test('GUI placement uses the common stage and excludes false or unknown desktop sessions [C7,O5,V4]', t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gui-stage-')));
