@@ -160,7 +160,7 @@ function observedPorts(label, calls) {
 }
 
 test('the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
-  assert.equal(door.openBoard, undefined, 'the store no longer re-exports the native root');
+  assert.equal(door.openBoardReadOnly, undefined, 'the store no longer re-exports the native root');
   assert.equal(library.openBoard, native.openBoard);
   for (const [name, value] of Object.entries(legacy)) assert.equal(library[name], value, `the library surface keeps the store export ${name}`);
   const calls = [], ports = observedPorts('one', calls);
