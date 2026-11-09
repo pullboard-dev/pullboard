@@ -113,7 +113,9 @@ for (const branch of ['master', 'trunk']) {
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);
-    assert.equal(item.item_check_baseline.result, 'red', `${branch} baseline actually ran instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
+    // Baselines wait for a registered runner and never run on the coordinator (#3851); this fixture has none, so the request stays queued.
+    assert.equal(item.item_check_baseline.result, 'pending', `${branch} baseline queued for a runner instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
+    assert.match(item.item_check_baseline.request, /^[0-9a-f-]{36}$/u, `${branch} baseline carries its queued request`);
     assert.notEqual(item.item_check_baseline.reason, 'no main');
   });
 }
@@ -167,7 +169,7 @@ function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture', '--model', FIXTURE_MODEL).code, 0);
+  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture', '--model', FIXTURE_MODEL, '--route', 'strong').code, 0);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
