@@ -6,6 +6,7 @@ import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { objectRecord } from './runner-source-scan.js';
+import { cachedScan } from './runner-source-scan.js';
 import { protectedHistoryPath } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { spawnSync } from 'node:child_process';
@@ -30,10 +31,20 @@ export function originAncestor(root, source) {
   return result.status === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(base) ? base : undefined;
 }
 
-/** Select safe tags that point to commits in the exact candidate ancestry. */
+/**
+ * Select safe tags that point to commits in the exact candidate ancestry. The selection for one commit and one exact
+ * set of tag refs in one repository is kept (cachedScan): every object it reads is immutable.
+ */
 export function candidateTags(root, source) {
-  const rows = sourceGit(root, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(objecttype)', 'refs/tags'])
-    .split('\n').filter(Boolean);
+  const listed = sourceGit(root, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(objecttype)', 'refs/tags']);
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '')) return selectTags(root, source, listed);
+  const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+  return cachedScan('candidate-tags', [common, source.commit, listed], () => selectTags(root, source, listed));
+}
+
+/** Check every listed tag ref and keep those that peel to a commit in the candidate's ancestry. */
+function selectTags(root, source, listed) {
+  const rows = listed.split('\n').filter(Boolean);
   if (rows.length > MAX_HISTORY_TAGS) throw new Refused('RUNNER_SCAN_LIMIT', 'too many local tags to transfer safely; keep this run local');
   const selected = [];
   // Budget: annotation scanning shares the 8 MiB object ceiling across all selected tag visits.
