@@ -115,7 +115,7 @@ async function repeatNativePhases(f, binding) {
 import { openBoard } from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
-import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
+import { withItemPatchSubmit } from ${JSON.stringify(new URL('../packages/items/index.js', import.meta.url).href)};
 import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(new URL('../packages/sandbox/index.js', import.meta.url).href)};
 const root = process.cwd();
 // @pullboard-board-file journey: record actual native proof receipts on the same persistent CLI fixture board
