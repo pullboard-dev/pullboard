@@ -1,14 +1,23 @@
 /** The sentinel keeps every claim when most seats miss heartbeats together, and still releases a seat that misses alone [B4,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdirSync, writeFileSync, utimesSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { addItem, claim, logEvent, getItem, register } from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { policyRepository } from './board-submit-fixture.js';
-import { captureLapsedClaims, sweepClaims } from '../packages/health/index.js';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { machineStalled } from '../packages/health/src/core/machine-stall.js';
+import { addItem } from '../../store/index.js';
+import { claim } from '../../store/index.js';
+import { logEvent } from '../../store/index.js';
+import { getItem } from '../../store/index.js';
+import { register } from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { policyRepository } from '../../../test/board-submit-fixture.js';
+import { captureLapsedClaims } from '../index.js';
+import { sweepClaims } from '../index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { machineStalled } from '../src/core/machine-stall.js';
 
 test('clause 1: most claimed seats quiet together is a machine stall, a single quiet seat is not [B4,N2]', () => {
   assert.deepEqual(machineStalled({ claimed: 7, quiet: 5 }), { claimed: 7, quiet: 5 });

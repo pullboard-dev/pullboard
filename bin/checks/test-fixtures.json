@@ -1795,8 +1795,8 @@
   "test/import-style-helpers.js": {
     "tempdir": 1
   },
-  "test/inbox-starts-at-join.test.js": {
-    "raw-board": 4
+  "packages/store/tests/inbox-starts-at-join.test.js": {
+    "raw-board": 3
   },
   "test/infra-retry.test.js": {
     "hand-policy": 1
@@ -3942,5 +3942,8 @@
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 6
+  },
+  "test/next-answer-first.test.js": {
+    "raw-board": 1
   }
 }
