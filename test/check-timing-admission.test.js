@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
@@ -56,9 +57,10 @@ for (const timing of [true, false]) {
     assert.equal(submitReceipt.occupiedSlots, timing ? 2 : 1);
     assert.deepEqual(submitReceipt.unfencedClients, []);
     const head = box.git(box.web, 'rev-parse', 'HEAD');
-    // A moved main makes the submit proof unreusable, so verification runs the frozen check and writes its own review receipt.
-    writeFileSync(join(box.repo, 'main-moved.txt'), 'main moved\n');
-    box.git(box.repo, 'add', 'main-moved.txt');
+    // A submit proof is reused past a moved main unless main changed what the check runs (4bcbf7d227), so main edits the checked
+    // test file; verification then runs the frozen check and writes its own review receipt.
+    appendFileSync(join(box.repo, 'test/admission.test.js'), '// main changed the checked file\n');
+    box.git(box.repo, 'add', 'test/admission.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'test: move main after submit');
     box.env.CODEX_THREAD_ID = 'timing-reviewer-session';
     const reviewer = join(box.dir, 'reviewer');
