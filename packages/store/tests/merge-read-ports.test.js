@@ -1,7 +1,7 @@
 /** Merge readers use explicit canonical native operations without changing history [V1,V4,H16,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
+import * as store from '../index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { mergeOnlyBasis } from '../../merge/index.js';
 import { mergeOnlyProblem } from '../../merge/index.js';

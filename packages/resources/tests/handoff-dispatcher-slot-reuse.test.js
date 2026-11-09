@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { Refused } from '../index.js';
+import { Refused } from '../../kernel/index.js';
 import {
   HANDOFF_DISPATCHER_RESOURCE,
   drainHandoffQueue,
@@ -23,7 +23,7 @@ import {
   queueHandoffLaunch,
   reserveHandoffTicket,
   takeResource,
-} from '../../resources/index.js';
+} from '../index.js';
 import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker records when it started and exits at once. */

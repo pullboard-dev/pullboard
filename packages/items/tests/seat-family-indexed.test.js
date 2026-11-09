@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../test/board-fixture.js';
-import { seatFamily } from '../../items/index.js';
+import { seatFamily } from '../index.js';
 
 const ROWS = 300_000;
 const SEATS = 100;

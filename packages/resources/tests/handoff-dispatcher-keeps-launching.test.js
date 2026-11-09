@@ -11,14 +11,14 @@ import {
 import { join } from 'node:path';
 import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { test } from 'node:test';
-import { Refused } from '../index.js';
+import { Refused } from '../../kernel/index.js';
 import {
   drainHandoffQueue,
   handoffDispatcherLog,
   queueHandoffLaunch,
   reserveHandoffTicket,
   takeResource,
-} from '../../resources/index.js';
+} from '../index.js';
 import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker that records its job directory name and exits at once. */

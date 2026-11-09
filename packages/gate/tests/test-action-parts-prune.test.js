@@ -10,16 +10,16 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { packTestResults } from '../../gate/index.js';
+import { packTestResults } from '../index.js';
 import { temporaryDirectory } from '../../../test/board-fixture.js';
 import {
   firstChangedInput,
   recordInputParts,
-} from '../../gate/index.js';
+} from '../index.js';
 import {
   maintainPartsStore,
   prunePartsStore,
-} from '../../gate/index.js';
+} from '../index.js';
 
 const DAY = 86_400_000;
 const hash = (character) => character.repeat(64);
