@@ -95,7 +95,12 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
       try { await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')'); }
       catch (error) {
         const seen = await chrome.evaluate("JSON.stringify({ href: location.href.replace(/key=[^&]*/u, 'key=_'), notice: document.querySelector('#relay-notice')?.textContent, chain: document.querySelector('#chain')?.innerHTML.slice(0, 600), tab: localStorage.getItem('pb.tab'), panes: Array.from(document.querySelectorAll('[data-pane]'), pane => pane.dataset.pane + ':' + pane.hidden), body: document.body.innerText.slice(0, 600) })");
-        throw new Error(error.message + ' DIAG ' + seen, { cause: error });
+        const relay = await fetch(box.origin + '/api/v2/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.agentTokens.coordinator.token } });
+        const relayText = (await relay.text()).slice(0, 300);
+        await chrome.navigate(box.origin + '/');
+        let afterReload = 'absent';
+        try { await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')', Math.round(relayWorkBudgetMs() / 4)); afterReload = 'present'; } catch { /* diagnosis only */ }
+        throw new Error(error.message + ' DIAG ' + seen + ' RELAY ' + relay.status + ' ' + relayText + ' AFTER_RELOAD ' + afterReload, { cause: error });
       }
       assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 1,
         'successful pairing asks the browser to retain its storage');
