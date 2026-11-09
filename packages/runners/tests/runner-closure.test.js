@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree package.json */
-/** The gate move leaves the runner worker closure unchanged: the same eight modules, each at its moved body [C7,doctrine:CD60]. */
+/** The gate move leaves the runner worker closure unchanged: the same eight modules, each at its moved body, plus the preload's journal source split out of it [C7,doctrine:CD60]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -20,7 +20,8 @@ test('the runner worker closure holds the same gate modules after the move, with
   for (const body of bodies) assert.ok(files.includes(body), `${body} stays in the closure`);
   for (const old of BEFORE) assert.ok(!files.includes(old), `${old} left no shim in the closure`);
   const gate = files.filter(file => file.startsWith('packages/gate/'));
-  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/core.js'].sort(), 'no other gate module enters the closure');
+  // The one deliberate addition: the preload's journal source split into its own module (d75861e52d), which the preload imports.
+  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/shell/child-journal-source.js', 'packages/gate/core.js'].sort(), 'no other gate module enters the closure');
   assert.ok(!files.includes('packages/gate/index.js'), 'the worker does not load the gate front door');
 });
 
