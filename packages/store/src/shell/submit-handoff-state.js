@@ -1,6 +1,7 @@
 import { ownershipWaitForJob } from './board-ownership-wait.js';
 import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../state/core.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
+import { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from '../../../state/index.js';
 import {
   boardWriteSnapshot,
   requireBoardWriteSnapshot,
@@ -222,9 +223,15 @@ export function startSubmitHandoff(board, id, options) {
     }
     if (options.unrecoverable) return { started: false, job: spendStoppedHandoff(board, id, job, options.unrecoverable) };
     if (options.retryJob) return { started: false, job: retryStoppedHandoff(board, id, job, options.retryJob) };
-    if (job.state !== 'queued') return { started: false, job };
     const item = getItem(board, id);
-    if (item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== job.digest) {
+    const serving = item.item_status === 'claimed' && item.item_owner === options.agentId && item.item_frozen_digest === job.digest;
+    // A running hand-off is resumed by the driver admitted after a dead one; it resumes only while its item still
+    // waits on it, as a queued one starts only then (#4073, state-machine gap SM3).
+    if (job.state === 'running' && (board.executionEngineVersion ?? ENGINE_VERSION) >= RUNNING_HANDOFF_ITEM_CHECK_ENGINE && !serving) {
+      throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the running claim or frozen bar changed; do not resume its old gate');
+    }
+    if (job.state !== 'queued') return { started: false, job };
+    if (!serving) {
       throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the queued claim or frozen bar changed; do not run its old gate');
     }
     return { started: true, job: record(board, id, { ...job, state: 'running', startedAt: now(board) }) };

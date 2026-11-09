@@ -186,6 +186,7 @@ export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectio
 export { STRICT_RENAME_ENGINE } from './src/core/engines/strict-rename-engine.js';
 
 export { DEAD_HANDOFF_RETRY_ENGINE } from './src/core/engines/dead-handoff-retry-engine.js';
+export { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from './src/core/engines/running-handoff-item-check-engine.js';
 
 export { STRANDED_DEPENDENCY_ENGINE } from './src/core/engines/stranded-dependency-engine.js';
 export { TWO_TIER_DIAGNOSIS_ENGINE } from './src/core/engines/two-tier-diagnosis-engine.js';
