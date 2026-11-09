@@ -665,7 +665,7 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "test/board-scale-1000-seats.test.js": {
+  "apps/lib/tests/board-scale-1000-seats.test.js": {
     "tempdir": 1,
     "raw-board": 6
   },
@@ -1591,7 +1591,7 @@
   "test/flow-report-api.test.js": {
     "raw-board": 4
   },
-  "test/flow-report-cache.test.js": {
+  "apps/lib/tests/flow-report-cache.test.js": {
     "tempdir": 2,
     "raw-board": 8
   },
@@ -3103,7 +3103,7 @@
   "test/runner-browser-need-single-decision.test.js": {
     "hand-policy": 2
   },
-  "test/runner-cache-prune.test.js": {
+  "apps/lib/tests/runner-cache-prune.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/runner-cancel-on-red.test.js": {
