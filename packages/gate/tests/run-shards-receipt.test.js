@@ -1,11 +1,12 @@
 /** The shards of one run merge into one result and receipt, and a failing file in any shard fails the run naming it [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { proveBatches } from '../packages/gate/src/shell/proof-shards.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { proveBatches } from '../src/shell/proof-shards.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
 const COMMAND = 'node bin/run-tests.js ';

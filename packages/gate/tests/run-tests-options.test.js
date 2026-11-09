@@ -1,13 +1,15 @@
 /** Options the production runner cannot apply are refused by name, wherever they appear [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
 
 test('an unknown option after the file is refused by name [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-unknown-option-after-')); try {

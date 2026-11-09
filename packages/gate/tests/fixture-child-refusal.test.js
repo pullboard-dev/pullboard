@@ -1,7 +1,7 @@
 /** A failed fixture child names its refusal even when it printed it on stdout and nothing on stderr [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
 test('clause 2: a failing --json style child shows its stdout refusal in the failure context [C7]', (t) => {
   t.mock.method(process.stderr, 'write', () => true);

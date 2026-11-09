@@ -2,14 +2,21 @@
 /** GitHub #16: Windows paths that differ only by \ versus / resolve to one commonDir [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
-import { laneSeatContext } from '../packages/seats/index.js';
-import { canonicalCommonDir, repoInfo, sameCommonDir } from '../packages/git/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { laneSeatContext } from '../../seats/index.js';
+import { canonicalCommonDir } from '../../git/index.js';
+import { repoInfo } from '../../git/index.js';
+import { sameCommonDir } from '../../git/index.js';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(import.meta.dirname, '../../..');
 
 test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and compare equal [C7]', () => {
   assert.equal(canonicalCommonDir('C:\\x\\.git'), 'C:/x/.git');

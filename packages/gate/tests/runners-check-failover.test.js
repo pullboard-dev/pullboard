@@ -2,13 +2,18 @@
 /** Real private queue admissions keep submit and review check retries off their caller [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
-const SOURCE = join(import.meta.dirname, '..');
+const SOURCE = join(import.meta.dirname, '../../..');
 
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
 // Since 4c5e2ac38d (#2512) the gate keeps one of two runners for timed checks by default; these failover cases

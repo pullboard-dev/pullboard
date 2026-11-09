@@ -4,13 +4,24 @@
  * command, and every git hook, runs the installed pullboard, never this repo's bin.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { runFixtureExecFile as execFileSync } from '../../../test/fixture-child.js';
+import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { after, test } from 'node:test';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'bin', 'docs', 'package.json', 'packages', 'skills', 'src'];
 const dirs = [];
 after(() => {
