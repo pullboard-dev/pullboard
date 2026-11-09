@@ -17,7 +17,8 @@ import { buildTimeStats } from '../index.js';
 import { buildTimeLines } from '../index.js';
 import { criterionSize } from '../../items/index.js';
 
-const BASE = Date.parse('2026-11-01T00:00:00Z');
+/** Two days back from now: the CLI report's default 7-day window must still hold every landing, whatever day the test runs. */
+const BASE = Math.floor((Date.now() - 2 * 86_400_000) / 60_000) * 60_000;
 
 /** Preserve known timestamps as imported native events, without presenting them as a runner receipt. */
 function fixture(t) {
