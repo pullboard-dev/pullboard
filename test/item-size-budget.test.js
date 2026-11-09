@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Authored build scope is cut before claim, and capacity measures real build intervals against it [N2,B3]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
@@ -85,4 +85,31 @@ test('build estimates and board budgets reject invalid numbers and keep unknown 
   const report = buildCalibration(history, [{ item_id: 1, item_title: 'renewed', item_expected_build_minutes: 5 }, { item_id: 2, item_title: 'historical' }]);
   assert.deepEqual(report.items.map(({ expectedMinutes, actualMinutes, ratio }) => ({ expectedMinutes, actualMinutes, ratio })),
     [{ expectedMinutes: 10, actualMinutes: 20, ratio: 2 }, { expectedMinutes: null, actualMinutes: null, ratio: null }]);
+});
+
+const EVIDENCE_MODEL = 'Inspection evidence fixture';
+
+/** Add and edit admission through the real CLI: a clause without an evidence kind is refused before the check starts [C7]. */
+test('real CLI refuses add/edit before starting the check and exposes reasoning warnings [C7]', t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const isolated = e2e.sandbox();
+  isolated.env.PULLBOARD_MODEL = EVIDENCE_MODEL;
+  const box = e2e.project('true', isolated);
+  const marker = join(box.repo, 'should-not-execute');
+  const check = `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)},"ran")'`;
+  const bad = fixtureAdd(box.run, box.repo, 'web', 'Invalid evidence', '--criterion', '1. returns zero', '--check', check,
+    '--route', 'mid', '--brief', 'Files: web/page.html\nTest: refusal before check');
+  assert.notEqual(bad.code, 0);
+  assert.match(bad.err, /CLAUSE_EVIDENCE_REQUIRED/u);
+  assert.equal(existsSync(marker), false);
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Design evidence', '--criterion', '1. explain design [reasoning]', '--check', 'true',
+    '--route', 'mid', '--brief', 'Files: web/page.html\nTest: native evidence warning', '--json');
+  assert.equal(added.code, 0, added.err);
+  const result = JSON.parse(added.out);
+  assert.equal(result.warnings[0].code, 'CLAUSE_REASONING_WEAK');
+  const edited = box.run(box.repo, 'edit', String(result.item.item_id), '--criterion', '1. no kind', '--check', check, '--reason', 'invalid correction');
+  assert.notEqual(edited.code, 0);
+  assert.match(edited.err, /CLAUSE_EVIDENCE_REQUIRED/u);
+  assert.equal(existsSync(marker), false);
 });
