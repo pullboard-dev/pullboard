@@ -59,7 +59,7 @@ try { result = await withGateSlot(process.cwd(), async lease => {
   if (${JSON.stringify(exhausted)} || host === 'failed-runner') {
     if (${JSON.stringify(timedOut)}) return { isGreen: false, timedOut: true };
     if (${JSON.stringify(dropped)}) throw new RunnerDropped(host, { reason: 'admission-deadline' });
-    if (${JSON.stringify(leaked)}) throw Object.assign(new Refused('RUNNER_CLEANUP_TIMEOUT', 'a test left a server running'), { diagnostic: { phase: 'ready', reason: 'cleanup-unverified' } });
+    if (${JSON.stringify(leaked)}) throw Object.assign(new Refused('RUNNER_CLEANUP_TIMEOUT', 'a test left a server running'), { diagnostic: { phase: 'ready', reason: 'cleanup-unverified', cleanup: { id: 'job', stage: 'descendants', reason: ${JSON.stringify(leaked === 'overflow' ? 'child spawn journal overflow or write failure' : 'a descendant outlived the run')}, uncertain: ${JSON.stringify(leaked === 'overflow')}, processes: [{ pid: 4242, command: 'node', started: null, birth: null }] } } });
     throw new Refused('RUNNER_CLEANUP_TIMEOUT', 'the timed-out runner did not prove cleanup');
   }
   return host;
@@ -115,6 +115,9 @@ test('a runner that cannot clean up after the tests ran refuses RUNNER_TEST_LEAK
   assert.equal(run.holders.length, 0);
   const before = failover(t);
   assert.deepEqual(before.attempts, ['failed-runner', 'next-runner'], 'a cleanup timeout with no READY is still retried');
+  const overflow = failover(t, { leaked: 'overflow' });
+  assert.notEqual(overflow.failure?.code, 'RUNNER_TEST_LEAK', 'a cleanup the runner could not verify (an overflowed spawn journal) is no proof of a test leak');
+  assert.deepEqual(overflow.attempts, ['failed-runner', 'next-runner'], 'it is the runner\'s infrastructure and runs on another runner');
 });
 
 for (const dropped of [false, true]) {
