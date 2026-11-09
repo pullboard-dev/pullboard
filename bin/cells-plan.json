@@ -1913,6 +1913,7 @@
     "health->state",
     "moves->state",
     "rigor->state",
-    "sandbox->state"
+    "sandbox->state",
+    "commits->kernel"
   ]
 }
