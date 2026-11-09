@@ -3,8 +3,8 @@
 /** One real machine setup reaches current and future projects through one phone key [H5,H15,H17]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
-import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
+import { startFixtureChild as spawn } from './fixture-child.js';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -13,13 +13,13 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { createPageStepEvaluator } from '../../../test/chrome-fixture.js';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { enrollProtocolPhone } from '../../../test/relay-device-enrollment-fixture.js';
-import { startChrome } from '../../../test/relay-browser-fixture.js';
-import { findChromeExecutable } from '../../../test/relay-browser-fixture.js';
+import { createPageStepEvaluator } from './chrome-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
+import { enrollProtocolPhone } from './relay-device-enrollment-fixture.js';
+import { startChrome } from './relay-browser-fixture.js';
+import { findChromeExecutable } from './relay-browser-fixture.js';
 
-const CLI = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Poll a real state change with a finite deadline and no retries of the operation being tested. */
 async function waitFor(read, message, timeout = 20_000) {
@@ -488,7 +488,7 @@ test('set up once keeps completed links on interruption and names partial failur
 
 test('set up once reports a newly registered project when its stored session is gone [H5,H17]', async t => {
   const box = await relayClientFixture(t);
-  const machine = new URL('../src/shell/relay-machine.js', import.meta.url).href;
+  const machine = new URL('../packages/link/src/shell/relay-machine.js', import.meta.url).href;
   const saved = await box.script(`import { updateRelayMachine } from ${JSON.stringify(machine)};
     updateRelayMachine(state => {state.autoLink=true;state.session=null;}); console.log(JSON.stringify({saved:true}));`);
   assert.equal(saved.code, 0);
