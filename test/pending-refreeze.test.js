@@ -17,11 +17,11 @@ import {
   VERIFIER_STANDING_ENGINE,
 } from '../packages/state/index.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
-import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../packages/sentinels/index.js';
 import { RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
-import { CONFLICT_ENGINE } from '../packages/merge/index.js';
+import { CONFLICT_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { unpackRelease } from './release-archive.js';
 import { fixtureAdd } from './testkit-fixture.js';

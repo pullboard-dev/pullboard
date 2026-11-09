@@ -14,7 +14,7 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
+import { LANE_LEAD_ENGINE } from '../packages/state/core.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);

@@ -10,7 +10,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
+import { TYPED_REQUESTS_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { orderedMoveCommand } from '../packages/link/index.js';

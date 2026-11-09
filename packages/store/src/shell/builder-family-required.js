@@ -1,6 +1,6 @@
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../src/builder-family-required-engine.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../state/core.js';
 import { frozenFamilyPolicy } from './review-family-relaxation.js';
 
 /** Require the native derived family under current or frozen required-family authority, preserving older moves. */

@@ -24,7 +24,7 @@ import {
 } from '../../../../src/engine-metadata.js';
 import {
   SOURCE_ADVANCE_ENGINE,
-} from '../../../../src/source-advance-engine.js';
+} from '../../../state/core.js';
 import {
   sourceAdvanceChain,
 } from '../../../verify/index.js';

@@ -1,5 +1,5 @@
 /** Shared numeric usage summaries: raw native sessions never enter the board [N2]. */
-import { COST_ENGINE } from '../../../../src/cost-engine.js';
+import { COST_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from '../../../kernel/index.js';
@@ -11,7 +11,7 @@ import { sumUsage } from './cost-read.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 import { hasInputSplit } from './cost-read.js';
 import { unknownInputSplit } from './cost-read.js';
-import { COST_INPUT_SPLIT_ENGINE } from '../../../../src/cost-input-split-engine.js';
+import { COST_INPUT_SPLIT_ENGINE } from '../../../state/core.js';
 
 /** Only documented numeric summary fields can be sealed, stored or replayed. */
 export function sanitizedUsage(rows, engine = ENGINE_VERSION) {

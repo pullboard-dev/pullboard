@@ -12,7 +12,7 @@ import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { defaults, configFromSource } from '../packages/config/index.js';
-import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
 import { boardReceiptStore } from '../packages/gate/index.js';
 import { readTestValueTimings, retainTestValueTimings } from '../packages/gate/index.js';
 import { testValueReport } from '../packages/gate/index.js';

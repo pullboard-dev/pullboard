@@ -1,5 +1,5 @@
 import { ownershipWaitForJob } from './board-ownership-wait.js';
-import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../state/core.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
 import {
   boardWriteSnapshot,
@@ -67,10 +67,10 @@ export function infrastructureStop(error) {
     || /\bSIG[A-Z0-9]+\b/u.test(String(error.message ?? '')));
 }
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
-import { PIPELINE_CAUSE_ENGINE } from "../../../../src/pipeline-cause-engine.js";
+import { QUEUED_RED_RETURN_ENGINE } from "../../../state/core.js";
+import { PIPELINE_CAUSE_ENGINE } from "../../../state/core.js";
 import { pipelineCause } from "../../../kernel/index.js";
-import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
+import { CONVEYOR_RETURN_ENGINE } from "../../../state/core.js";
 
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;

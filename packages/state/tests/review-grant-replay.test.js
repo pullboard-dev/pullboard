@@ -12,7 +12,7 @@ import {
   applyEngineMove,
   prepareEngineMove,
 } from '../src/shell/engine.js';
-import { REVIEW_GRANT_ENGINE } from '../../../src/review-grant-engine.js';
+import { REVIEW_GRANT_ENGINE } from '../src/core/engines/review-grant-engine.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 const BASE = 'a'.repeat(40);

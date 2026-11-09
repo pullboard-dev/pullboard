@@ -601,11 +601,33 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
+  // The waiters that could take a runner slot now: the asker and every earlier one still polling.
+  const competing = waiters.filter(other => other.remote === 1 && (other.ticket === ticket || pollingNow(other, now))).length;
+  const headroom = Math.max(4, Math.ceil(runners.reduce((sum, runner) => sum + runner.slots, 0) / 4));
+  /**
+   * Whether the compatible runner slots free for this waiter exceed the waiters competing for runner slots by a
+   * headroom (a quarter of all runner slots, at least 4): then no ordering rule holds it back. Why: on 8-9 Nov runs
+   * waited minutes on queue priority with about 105 of 118 runner slots free, and proofs ended RUNNER_WAIT_DEADLINE
+   * with every runner up; priority, the one-test-per-seat rule and the landing hold exist for the last free slots, and
+   * a small pool keeps them all (#3928).
+   */
+  function plentyFor(waiter) {
+    if (waiter.remote !== 1 || waiter.timing === 1 || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'local') return false;
+    let free = 0;
+    for (const runner of runners) {
+      if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
+      const used = usage.get(runner.host);
+      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
+    }
+    return free - competing >= headroom;
+  }
   /** Find a currently free compatible slot without reserving it for later queue entries. */
   function available(waiter) {
-    if (blockedByLanding(waiter)) return null;
-    const seatTest = isSeatTest(waiter.kind), reserve = seatTest && !overdue.has(waiter.token); // an overdue test may take the spare slot
-    if (seatTest && testSeats.has(JSON.stringify([waiter.repo, waiter.agent]))) return null;
+    const plenty = plentyFor(waiter);
+    if (!plenty && blockedByLanding(waiter)) return null;
+    const seatTest = isSeatTest(waiter.kind), reserve = seatTest && !plenty && !overdue.has(waiter.token); // an overdue test may take the spare slot
+    if (seatTest && !plenty && testSeats.has(JSON.stringify([waiter.repo, waiter.agent]))) return null;
     /** Pick an eligible runner in durable round-robin order when the machine opts in. */
     function runnerSlot() {
       if (waiter.remote !== 1 || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'local') return null;

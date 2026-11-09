@@ -16,7 +16,7 @@ import {
 } from '../packages/items/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';
+import { WORK_ORDER_ENGINE } from '../packages/state/core.js';
 import { runFixtureGit } from './fixture-child.js';
 import { captureReleaseQueue, localReleaseRank } from '../packages/landing/index.js';
 import { orderedWaiters } from '../packages/queue/index.js';

@@ -107,7 +107,7 @@ test('declared effects replay exactly, preserve legacy meaning and refuse older 
   const nativeBoard = await import('../apps/lib/index.js');
   const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { RULING_OWNER_ENGINE } = await import('../src/ruling-owner-engine.js');
+  const { RULING_OWNER_ENGINE } = await import('../packages/state/core.js');
   const source = nativeBoard.openBoard(':memory:'), replica = nativeBoard.openBoard(':memory:'), restored = nativeBoard.openBoard(':memory:');
   t.after(() => { for (const board of [source, replica, restored]) store.closeBoard(board); });
   store.register(source, { lane: 'coordinator', path: '/ruling-fixture' });

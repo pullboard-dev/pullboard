@@ -15,7 +15,7 @@ import { main } from './native-cli-fixture.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
-import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 

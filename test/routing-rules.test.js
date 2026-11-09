@@ -10,7 +10,7 @@ import { dispatchWork } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { RELEASE_REASONS } from '../packages/store/index.js';
 import { effectiveAgentParent } from '../packages/seats/index.js';
-import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
+import { RELEASE_REASONS_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { crossLaneFixture } from './e2e-helpers.js';

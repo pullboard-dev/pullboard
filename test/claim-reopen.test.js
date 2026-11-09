@@ -14,7 +14,7 @@ import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
 import { saveAgentSession, saveAgentParent } from '../packages/seats/index.js';
-import { BLOCKED_DEPENDENCIES_ENGINE } from '../src/blocked-dependencies-engine.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../packages/state/core.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);
@@ -333,7 +333,7 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
 });
 
 test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const first = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'first', route: 'mid', criterion: 'first works', check: 'true', brief: 'Files: src/a.js\nTest: first works' });
   const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'second', route: 'mid', criterion: 'second works', check: 'true', brief: 'Files: src/b.js\nTest: second works' });
@@ -348,7 +348,7 @@ test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', asy
 });
 
 test('older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('legacy first'), second = add('legacy second');
@@ -360,7 +360,7 @@ test('older replay retains the one-claim guard even if an unknown modern flag is
 });
 
 test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
-  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const { ITEM_FOLDER_ENGINE } = await import('../packages/state/core.js');
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('first'), second = add('second');

@@ -10,7 +10,7 @@ import { runFixtureGit } from './fixture-child.js';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
-import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
+import { KNOWN_MAIN_FAILURES_ENGINE } from '../packages/state/core.js';
 import { matchingMainFailures } from '../packages/landing/index.js';
 import { failureSignatures } from '../packages/landing/index.js';
 import { linkKnownMainReworks } from '../packages/store/index.js';
@@ -85,7 +85,7 @@ test('known main receipts preserve exact identities and refuse unsupported histo
 });
 
 test('repair links retain historical receipts and reject closed, stale or ambiguous repairs [V4,B3,H16]', async () => {
-  const { KNOWN_MAIN_REWORKS_ENGINE } = await import('../src/known-main-reworks-engine.js');
+  const { KNOWN_MAIN_REWORKS_ENGINE } = await import('../packages/state/core.js');
   const row = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
   const known = { main: 'b'.repeat(40), failures: [row] };
   const repair = { item_id: 7, item_status: 'claimed', item_title: 'Main red: one assertion',

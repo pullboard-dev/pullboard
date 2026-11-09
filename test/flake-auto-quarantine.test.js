@@ -11,7 +11,7 @@ import { openBoard, flakeQuarantines, gateRuns } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { recordGateRun, requireSubmitDiagnosticAdmission, submitFlakePairs } from '../packages/flakes/index.js';
 import { recordGateRun as recordGateRunMove } from '../packages/moves/index.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/core.js';
 import { proofRunReceipt } from '../packages/store/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 

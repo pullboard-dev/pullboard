@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { COORDINATOR, loadConfig } from '../packages/config/index.js';
-import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from '../packages/state/core.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';

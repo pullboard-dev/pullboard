@@ -19,7 +19,7 @@ import { applyRelayMove } from '../packages/state/index.js';
 import { engineReceipt } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { REFERENCE_ENGINE } from '../src/reference-engine.js';
+import { REFERENCE_ENGINE } from '../packages/state/core.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords } from '../packages/link/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';

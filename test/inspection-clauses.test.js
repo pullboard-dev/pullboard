@@ -1,4 +1,4 @@
-import { CLAUSE_INSPECTION_ENGINE } from '../src/clause-inspection-engine.js';
+import { CLAUSE_INSPECTION_ENGINE } from '../packages/state/core.js';
 /** Prove clause inspection: an unticked clause refuses submit and is named, free text is unaffected [#2050]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
