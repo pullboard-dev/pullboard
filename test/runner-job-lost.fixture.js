@@ -121,7 +121,7 @@ finally{clearInterval(watch);}`;
   return JSON.parse(result.stdout);
 }
 
-/** Observe real job loss under its own lease, then verify that one controlled second failure exhausts its retry. */
+/** Observe real job loss under its own lease, then verify that controlled repeated failures exhaust the bounded retry. */
 function retryContract(box) {
   const gate = sourceURL('packages/gate/src/shell/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
@@ -190,8 +190,9 @@ export function registerRunnerJobLostTests() {
     assert.equal(result.diagnostic.remoteCleanup, 'unknown');
     assert.match(result.message, /cleanup remains unknown/u);
     assert.equal(retry.code, 'RUNNER_INFRA_RETRY_EXHAUSTED');
-    assert.equal(retry.attempts, 2, 'one observed loss permits one retry, never a third action');
-    assert.deepEqual(retry.seen, [box.runner.host, `${HOST}-setup`]);
+    // The retry window is bounded at ten stops, so a pool that never recovers ends RUNNER_INFRA_RETRY_EXHAUSTED instead of looping.
+    assert.equal(retry.attempts, 10, 'ten stops end the retry, never an eleventh action');
+    assert.deepEqual(retry.seen, Array.from({ length: 10 }, (_, index) => index % 2 ? `${HOST}-setup` : box.runner.host), 'each retry rotates to the runner not just tried');
     assert.equal(retry.infrastructureAttempts[0].code, 'RUNNER_JOB_LOST');
     assert.match(retry.unavailable[0].until, /exact-job cleanup/u);
     assert.equal(retry.unavailable[0].diagnostic.confirmingProbe, null, 'ordinary healthy SSH cannot erase unknown cleanup');

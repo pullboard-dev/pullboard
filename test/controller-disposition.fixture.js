@@ -27,8 +27,8 @@ import{rmSync}from'node:fs';import{join}from'node:path';import{DatabaseSync}from
 import{takeResource,listResources,runnerResourceStatus}from ${JSON.stringify(resource)};
 import{consumeControllerDisposition}from ${JSON.stringify(disposition)};
 const root=process.cwd(),source=join(root,'source'),scenario=${JSON.stringify(scenario)};
-const first={host:'first-disposition.invalid',slots:1,browser:1},second={host:'second-disposition.invalid',slots:1,browser:1};
-let runners=[first],lease=await takeResource({name:'gate',capacity:0,scope:'machine',root,repo:source,
+const first={host:'first-disposition.invalid',slots:1,browser:1};
+const runners=[first];let lease=await takeResource({name:'gate',capacity:0,scope:'machine',root,repo:source,
 agent:'coordinator',item:'2055',kind:'submit',remote:true,runnerOnly:true,runnerWaitMs:5000,runnerProvider:()=>runners});
 const child=spawn(process.execPath,['--input-type=module','-e',${JSON.stringify(custodian)}],{env:process.env,stdio:['pipe','pipe','pipe']});
 const closed=once(child,'close');let timer;
@@ -55,7 +55,7 @@ lease.cancelRunner(cancellation);
 assert.equal(db.prepare('SELECT since FROM runner_unavailable WHERE host=?').get(first.host).since,unavailable,'settlement must not duplicate/reset quarantine');
 }else{
 assert.throws(()=>consumeControllerDisposition(db,owner,'cancel',cancellation),{code:'RESOURCE_LEASE_LOST'},'dead-controller disposal does not impersonate source cancellation');
-runners=[first,second];lease=await lease.requeueRunner('transport-lost');assert.equal(lease.runner.host,second.host);
+lease=await lease.requeueRunner('transport-lost');assert.equal(lease.runner.host,first.host,'the healthy host stays in service and takes the redispatch');
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable WHERE host=?').get(first.host).n,0,'the requeue leaves the first host in service');
 }
 assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind=?").get(recorded).n,1);
