@@ -12313,7 +12313,7 @@
       ]
     },
     {
-      "file": "test/cockpit/activity-codegen.test.js",
+      "file": "apps/view/tests/cockpit/activity-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12723,7 +12723,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agents-panel-codegen.test.js",
+      "file": "apps/view/tests/cockpit/agents-panel-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -13441,7 +13441,7 @@
       ]
     },
     {
-      "file": "test/cockpit/dashboard-runtime.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-runtime.test.js",
       "tier": "T3",
       "packages": [
         ".",
