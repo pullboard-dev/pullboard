@@ -51,7 +51,7 @@ import {
   copySubmitHandoffOrigin,
   submitHandoffPolicy,
   requireSubmitHandoffExecution,
-} from '../submit-handoff-origin.js';
+} from '../../../../../packages/sandbox/index.js';
 import { blockingFailures } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
 import { gateClauseTickNotes } from '../gate-clause-ticks.js';

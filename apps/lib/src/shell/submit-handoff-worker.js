@@ -27,7 +27,7 @@ import {
   bindSubmitHandoffOrigin,
   submitHandoffRoot,
   isSubmitHandoffWorker,
-} from '../../../../src/submit-handoff-origin.js';
+} from '../../../../packages/sandbox/index.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';

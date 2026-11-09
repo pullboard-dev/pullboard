@@ -37,7 +37,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli-identity.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/cli-main/handoff-recovery.js": {
@@ -596,14 +596,6 @@
       "cells": 4,
       "deep": 0
     },
-    "apps/cli/src/shell/submit-handoff-origin.js": {
-      "cells": 5,
-      "deep": 0
-    },
-    "apps/cli/src/shell/submit-handoff-seal.js": {
-      "cells": 5,
-      "deep": 0
-    },
     "apps/cli/src/shell/submit-handoff-sweep.js": {
       "cells": 1,
       "deep": 0
@@ -697,7 +689,7 @@
       "deep": 0
     },
     "apps/lib/src/shell/submit-handoff-worker.js": {
-      "cells": 5,
+      "cells": 6,
       "deep": 0
     },
     "apps/lib/src/shell/submit-infra-requeue.js": {
@@ -1856,6 +1848,10 @@
       "cells": 2,
       "deep": 0
     },
+    "packages/items/src/shell/item-folder-claim.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/items/src/shell/item-function-planning.js": {
       "cells": 2,
       "deep": 0
@@ -1869,10 +1865,6 @@
       "deep": 0
     },
     "packages/items/src/shell/item-patch-review.js": {
-      "cells": 2,
-      "deep": 0
-    },
-    "packages/items/src/shell/item-folder-claim.js": {
       "cells": 2,
       "deep": 0
     },
@@ -2818,6 +2810,14 @@
     },
     "packages/sandbox/src/shell/source-advance.js": {
       "cells": 4,
+      "deep": 0
+    },
+    "packages/sandbox/src/shell/submit-handoff-origin.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sandbox/src/shell/submit-handoff-seal.js": {
+      "cells": 3,
       "deep": 0
     },
     "packages/sandbox/src/shell/tool-regeneration.js": {
@@ -4776,15 +4776,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/submit-handoff-origin.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/submit-handoff-read.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/submit-handoff-seal.js": {
       "cells": 1,
       "deep": 0
     },

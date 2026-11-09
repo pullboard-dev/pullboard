@@ -61,7 +61,7 @@ import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { submitHandoffRoot } from '../../../../packages/sandbox/index.js';
 import { advanceIdleToolTree } from './tools-snapshot-advance.js';
 import { keepToolsIndex } from './tools-snapshot-advance.js';
 import { checkoutCommittedTools } from './tools-snapshot-advance.js';
