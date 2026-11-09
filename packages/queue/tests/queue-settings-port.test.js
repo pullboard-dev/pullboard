@@ -1,12 +1,24 @@
 /** The queue cell reads machine settings only from the file its caller names [O5,O6,C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { machineHome, machineSettingsFile } from '../packages/resources/index.js';
-import { DEFAULT_QUEUE_AGING_MINUTES, readGateQueueSettings, readMachineSettingsFile } from '../packages/queue/index.js';
-import { gateQueueSettings } from '../packages/config/index.js';
+import {
+  machineHome,
+  machineSettingsFile,
+} from '../../resources/index.js';
+import {
+  DEFAULT_QUEUE_AGING_MINUTES,
+  readGateQueueSettings,
+  readMachineSettingsFile,
+} from '../index.js';
+import { gateQueueSettings } from '../../config/index.js';
 
 /** Write one settings object into a fresh directory, returning the directory and its file. */
 function settingsDir(value) {

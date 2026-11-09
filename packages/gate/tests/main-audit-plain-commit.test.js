@@ -1,12 +1,27 @@
 /** Main's own commits queue the full-suite audit, with no landing batch needed [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
-import { activateMainAudits, mainAuditJobs, mainAuditKey, saveMainAudit } from '../packages/gate/index.js';
+import {
+  board as store,
+  closeBoard,
+  openBoard,
+  openBoardForRead,
+} from '../../../apps/lib/index.js';
+import {
+  activateMainAudits,
+  mainAuditJobs,
+  mainAuditKey,
+  saveMainAudit,
+} from '../index.js';
 
 /** Run real Git in the fixture with no user or system configuration, optionally at a fixed date. */
 function gitAt(date, root, ...args) {

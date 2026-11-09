@@ -1,12 +1,17 @@
 /** A red submit stage stops its already running runner job and returns its slot promptly [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync, watch } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  watch,
+} from 'node:fs';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { runGateStages } from '../packages/gate/index.js';
-import { spawnCaptured } from '../packages/sandbox/index.js';
+import { runGateStages } from '../../gate/index.js';
+import { spawnCaptured } from '../index.js';
 
 /** Wait until the child process confirms its admitted job has started. */
 async function waitForFile(path, directory) {

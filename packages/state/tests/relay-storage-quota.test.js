@@ -2,22 +2,28 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { createRelayAuth } from '../apps/relay/index.js';
-import { createGitHubClient } from '../apps/relay/index.js';
-import { createRelayJournal } from '../apps/relay/index.js';
-import { createRelayPages } from '../apps/relay/index.js';
-import { createRelayHandler } from '../apps/relay/index.js';
-import { noticeLines } from '../apps/relay/index.js';
-import { boardStorageBytes, createStorageQuota } from '../apps/relay/index.js';
-import { ENGINE_VERSION } from '../packages/state/index.js';
-import { request as relayRequest } from '../packages/link/index.js';
-import { githubFixture } from './relay-fixture.js';
+import { createRelayAuth } from '../../../apps/relay/index.js';
+import { createGitHubClient } from '../../../apps/relay/index.js';
+import { createRelayJournal } from '../../../apps/relay/index.js';
+import { createRelayPages } from '../../../apps/relay/index.js';
+import { createRelayHandler } from '../../../apps/relay/index.js';
+import { noticeLines } from '../../../apps/relay/index.js';
+import {
+  boardStorageBytes,
+  createStorageQuota,
+} from '../../../apps/relay/index.js';
+import { ENGINE_VERSION } from '../index.js';
+import { request as relayRequest } from '../../link/index.js';
+import { githubFixture } from '../../../test/relay-fixture.js';
 
 const A = 'a'.repeat(32);
 const B = 'b'.repeat(32);

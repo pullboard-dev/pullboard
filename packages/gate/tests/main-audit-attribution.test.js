@@ -1,12 +1,30 @@
 /** A main audit's new failure is attributed to the items landed since the last green audit and filed to their lane [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { board as store, closeBoard, loadConfig, openBoard, openBoardForRead } from '../apps/lib/index.js';
-import { activateMainAudits, attributeAuditFailures, fileAuditRegressions, mainAuditJobs, routeAuditFailures, saveMainAudit } from '../packages/gate/index.js';
+import {
+  board as store,
+  closeBoard,
+  loadConfig,
+  openBoard,
+  openBoardForRead,
+} from '../../../apps/lib/index.js';
+import {
+  activateMainAudits,
+  attributeAuditFailures,
+  fileAuditRegressions,
+  mainAuditJobs,
+  routeAuditFailures,
+  saveMainAudit,
+} from '../index.js';
 
 /** Run real Git in the fixture with no user or system configuration, optionally at a fixed date. */
 function gitAt(date, root, ...args) {

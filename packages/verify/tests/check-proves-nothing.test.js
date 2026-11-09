@@ -1,10 +1,10 @@
 /** A check that already passes on main names the check that would prove the work, and a hold leaves the agent a step [V2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeBoard } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { refuseProvesNothing } from '../packages/verify/index.js';
-import { sayCheckBaseline } from '../packages/gate/index.js';
+import { closeBoard } from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import { refuseProvesNothing } from '../index.js';
+import { sayCheckBaseline } from '../../gate/index.js';
 
 /** The #849 shape: an item whose whole-suite check is green on main before any work. */
 function provesNothing(overrides = {}) {

@@ -1,12 +1,17 @@
 /** A new numbered move-history file is staged, then placed as an engine stay, never into the state cell [C7,D3,H16]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { Refused } from '../packages/kernel/index.js';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { Refused } from '../index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { placeLandingHistory } from '../packages/landing/index.js';
+import { placeLandingHistory } from '../../landing/index.js';
 
 test('a new src/move-history file is placed as a stay [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));

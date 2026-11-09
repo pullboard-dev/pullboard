@@ -1,14 +1,17 @@
 /** Real authenticated client version gates before opaque board records [H16,H3]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createRelayAuth } from '../apps/relay/index.js';
-import { createGitHubClient } from '../apps/relay/index.js';
-import { serveRelay } from '../apps/relay/index.js';
-import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
+import { createRelayAuth } from '../../../apps/relay/index.js';
+import { createGitHubClient } from '../../../apps/relay/index.js';
+import { serveRelay } from '../../../apps/relay/index.js';
+import { githubFixture } from '../../../test/relay-fixture.js';
+import { VERIFIER_STANDING_ENGINE } from '../index.js';
 
 const A = 'a'.repeat(32); // no board credential has ever existed
 const B = 'b'.repeat(32); // historical board credential, even after revocation

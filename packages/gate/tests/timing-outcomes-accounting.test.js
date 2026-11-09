@@ -5,10 +5,10 @@ import {
   formatSuiteTiming,
   timingAccountingOutput,
   timingAccountingStages,
-} from '../packages/gate/index.js';
-import { formatTestOutcomes } from '../packages/gate/index.js';
-import { tapFailures } from '../packages/landing/index.js';
-import { accountedFailures } from '../packages/landing/index.js';
+} from '../index.js';
+import { formatTestOutcomes } from '../index.js';
+import { tapFailures } from '../../landing/index.js';
+import { accountedFailures } from '../../landing/index.js';
 
 const id = '12345678-1234-1234-1234-123456789abc';
 const foreign = '87654321-1234-1234-1234-123456789abc';

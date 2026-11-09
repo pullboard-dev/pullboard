@@ -9,10 +9,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import { protectHistory } from '../packages/runners/index.js';
-import { sourceGit } from '../packages/runners/index.js';
-import { sourceObjects } from '../packages/runners/index.js';
-import { defaults } from '../packages/config/index.js';
+import { protectHistory } from '../../runners/index.js';
+import { sourceGit } from '../../runners/index.js';
+import { sourceObjects } from '../../runners/index.js';
+import { defaults } from '../index.js';
 
 /** Construct history with long names using shared blob objects, without checking files out. */
 test('runner history above 8 MiB scans and reports an actual smaller bound with byte count [H16,C7]', t => {

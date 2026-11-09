@@ -1,9 +1,12 @@
 /** The board read carries each claim's stalled, waiting and handoff state without turning missing evidence into idle time [B4,C7,#3039]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { claimHealthProjection, claimHealthSnapshot } from '../packages/health/index.js';
+import * as store from '../index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import {
+  claimHealthProjection,
+  claimHealthSnapshot,
+} from '../../health/index.js';
 
 const MINUTE = 60_000;
 

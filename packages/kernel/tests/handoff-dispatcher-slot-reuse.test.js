@@ -1,10 +1,18 @@
 /** The handoff dispatcher survives a failed slot release at a worker exit, and never trusts a receipt over the lock [C7,#2996]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { Refused } from '../packages/kernel/index.js';
+import { Refused } from '../index.js';
 import {
   HANDOFF_DISPATCHER_RESOURCE,
   drainHandoffQueue,
@@ -14,8 +22,8 @@ import {
   queueHandoffLaunch,
   reserveHandoffTicket,
   takeResource,
-} from '../packages/resources/index.js';
-import { waitForCondition } from './runner-fixture-state.js';
+} from '../../resources/index.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker records when it started and exits at once. */
 const WORKER = `const { appendFileSync } = require('node:fs');
