@@ -288,7 +288,6 @@
   "src/cockpit.js",
   "src/commands/index.js",
   "src/help.js",
-  "src/next-step-words.js",
   "src/next-steps.js"
  ],
  "imports": [
