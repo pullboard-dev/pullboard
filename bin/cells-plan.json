@@ -1495,6 +1495,14 @@
         "apps/cli/src/core/next-step-defaults.js",
         "seed"
       ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/claim-reopen-clock.test.js",
+        "packages/store/tests/claim-reopen-clock.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

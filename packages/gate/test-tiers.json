@@ -6560,7 +6560,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/claim-reopen-clock.test.js",
+      "file": "packages/moves/tests/claim-reopen-clock.test.js",
       "tier": "T3",
       "packages": [
         ".",

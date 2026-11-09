@@ -478,7 +478,7 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "packages/store/tests/claim-reopen-clock.test.js": {
+  "packages/moves/tests/claim-reopen-clock.test.js": {
     "tempdir": 1,
     "raw-board": 8
   },
