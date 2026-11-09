@@ -42,6 +42,7 @@ import {
   withDeclaredLoads,
 } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
@@ -171,12 +172,16 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
     if (!next || ['order', 'root', 'frontDoor'].some(key => next[key] !== cell[key])
-      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor)) {
+      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor && next.lightFrontDoor !== cell.pureFrontDoor)
+      || (cell.lightFrontDoor !== undefined && next.lightFrontDoor !== cell.lightFrontDoor)) {
       problems.push(`accepted cell ${cell.name} identity/order/front door changed`);
       continue;
     }
     if (cell.pureFrontDoor === undefined && next.pureFrontDoor !== undefined) {
       problems.push(...pureFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.lightFrontDoor === undefined && next.lightFrontDoor !== undefined) {
+      problems.push(...lightFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
@@ -254,7 +259,7 @@ export function touchedCells(files, before, after, inventories) {
   /** A source alias and a moved target both belong to their declared cell. */
   const owners = file => {
     if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file.startsWith(cell.root + '/')
+      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file.startsWith(cell.root + '/')
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
