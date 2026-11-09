@@ -10,9 +10,9 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import { onBoard } from "../../../test/land-board-fixture.js";
+import * as store from "../packages/store/src/shell/board.js";
+import { createE2eHelpers } from "./e2e-helpers.js";
+import { onBoard } from "./land-board-fixture.js";
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

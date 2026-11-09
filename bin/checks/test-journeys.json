@@ -36,20 +36,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/accepted-cells-identity-rebuild.test.js": {
-      "cells": [
-        "app:lib",
-        "codemap",
-        "gate",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/add-lane-check.test.js": {
       "cells": [
         "app:cli",
@@ -6600,20 +6586,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/no-package-reaches-cli.test.js": {
-      "cells": [
-        "app:lib",
-        "doctrine",
-        "gate",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/no-policy-rebinds.test.js": {

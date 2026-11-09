@@ -1,34 +1,32 @@
 /** A stale accepted-inventory identity rebuilds from the pinned commit's own tooling instead of staying pending [C7]. */
 import assert from 'node:assert/strict';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { cpSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { once } from 'node:events';
-import { after, test } from 'node:test';
-import {
-  acceptedCellsIdentity,
-  nudgeAcceptedCells,
-  readAcceptedCells,
-  toolingIsPinned,
-} from '../packages/gate/index.js';
-import { acceptedInventoryKey } from '../packages/codemap/index.js';
-import { git } from './cells-plan-fixture.js';
-import { cleanupFixtureChildren, fixtureChildMessage, runFixtureChildAsync } from './fixture-child.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { acceptedCellsIdentity } from '../index.js';
+import { nudgeAcceptedCells } from '../index.js';
+import { readAcceptedCells } from '../index.js';
+import { toolingIsPinned } from '../index.js';
+import { acceptedInventoryKey } from '../../codemap/index.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { fixtureChildMessage } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 
 after(cleanupFixtureChildren);
 

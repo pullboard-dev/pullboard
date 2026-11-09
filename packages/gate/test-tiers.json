@@ -6383,7 +6383,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/badge.test.js",
+      "file": "test/badge.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6554,7 +6554,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/commit-metadata.test.js",
+      "file": "test/commit-metadata.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6611,7 +6611,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/item-notes.test.js",
+      "file": "test/item-notes.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6668,7 +6668,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/landing-noop.test.js",
+      "file": "test/landing-noop.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6782,7 +6782,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/shout-readable.test.js",
+      "file": "test/shout-readable.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6839,7 +6839,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/stacked-submit.test.js",
+      "file": "test/stacked-submit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6896,7 +6896,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/verdict-check.test.js",
+      "file": "test/verdict-check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6953,7 +6953,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/verify.test.js",
+      "file": "test/verify.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24446,7 +24446,7 @@
       ]
     },
     {
-      "file": "test/item-notes-engine.test.js",
+      "file": "packages/moves/tests/item-notes-engine.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30233,7 +30233,7 @@
       ]
     },
     {
-      "file": "test/milestone-placement.test.js",
+      "file": "packages/store/tests/milestone-placement.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32025,7 +32025,7 @@
       ]
     },
     {
-      "file": "test/no-eligible-reviewer.test.js",
+      "file": "packages/health/tests/no-eligible-reviewer.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34497,7 +34497,7 @@
       ]
     },
     {
-      "file": "test/queue-fairness.test.js",
+      "file": "packages/store/tests/queue-fairness.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34611,7 +34611,7 @@
       ]
     },
     {
-      "file": "test/queue-preempt.test.js",
+      "file": "packages/sandbox/tests/queue-preempt.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -40252,7 +40252,7 @@
       ]
     },
     {
-      "file": "test/review-family-relax.test.js",
+      "file": "packages/store/tests/review-family-relax.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -47217,7 +47217,7 @@
       ]
     },
     {
-      "file": "test/spec-draft-refreeze.test.js",
+      "file": "packages/store/tests/spec-draft-refreeze.test.js",
       "tier": "T3",
       "packages": [
         ".",

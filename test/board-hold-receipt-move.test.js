@@ -5,11 +5,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { closeCellBoard } from '../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../test/cell-fixture.js';
-import { cellProject } from '../../../test/cell-fixture.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChild } from '../../../test/fixture-child.js';
+import { closeCellBoard } from './cell-fixture.js';
+import { openCellBoard } from './cell-fixture.js';
+import { cellProject } from './cell-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChild } from './fixture-child.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -20,9 +20,9 @@ test('clause 1: a hold row carries the move and the slowest named step with its 
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'move-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../store/index.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
-    import { measureBoardWritePhase } from ${JSON.stringify(new URL('../src/shell/board-write-lock.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
+    import { measureBoardWritePhase } from ${JSON.stringify(new URL('../packages/store/src/shell/board-write-lock.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-move', seat: 'web-1', item: 7 } });
     const wait = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
     try {
@@ -51,8 +51,8 @@ test('clause 1: a write with no named move body still carries a move on every ho
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'unnamed-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../store/index.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-bare', seat: 'web-1', item: 7 } });
     try { atomic(board, () => {}); } finally { closeBoard(board); }
   `;
