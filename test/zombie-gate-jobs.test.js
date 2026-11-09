@@ -167,8 +167,6 @@ test('a submitted item is current at the head its hand-off submitted, not at a g
   assert.equal(JSON.parse(box.run(box.web, 'submit', String(id), '--no-next', '--json').out).queued, true);
   const status = () => withFixtureBoard(boardFile, board => board.db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id).item_status);
   await helpers.waitFor(() => status() === 'submitted', 'the gate submitted the item', 120000); // budget: real gate ceiling, no timing assertion.
-  // The item flips to submitted a moment before its hand-off ends; a live hand-off serves a claimed item, so wait for it to finish.
-  await helpers.waitFor(() => !['queued', 'running'].includes(handoffState(boardFile, id)?.state), 'the hand-off finished', 120000); // budget: real gate ceiling, no timing assertion.
   const handoff = handoffState(boardFile, id);
   // @pullboard-board-file journey: a lapsed gate job whose candidate is the composed merge, not the submitted head.
   withFixtureBoard(boardFile, board => {
@@ -180,5 +178,5 @@ test('a submitted item is current at the head its hand-off submitted, not at a g
   assert.equal(box.run(box.web, 'next', '--json').code, 0);
   // @pullboard-board-file journey: read the job the fallback pass judged.
   const job = withFixtureBoard(boardFile, board => jobView(board.db, 'handoff-drive-composed'));
-  assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a job for an item submitted at its hand-off head is not stale');
+  assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a job for an item submitted at its hand-off head is not stale' + JSON.stringify({ steps: job.steps, handoff, now: handoffState(boardFile, id), item: withFixtureBoard(boardFile, board => board.db.prepare('SELECT item_status, item_commit, item_owner FROM item WHERE item_id = ?').get(id)) }));
 });
