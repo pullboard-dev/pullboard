@@ -1,8 +1,11 @@
 /** A blocked landing batch sends its items behind untried accepted work, and the next run starts at once [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { landingTurns } from '../packages/landing/src/shell/landing-step-selection.js';
-import { landingRetryAt, untriedAfter, LANDING_NEXT_BATCH_MS, LANDING_RETRY_MS } from '../apps/cli/src/shell/commands/land.js';
+import { landingTurns } from '../../../packages/landing/index.js';
+import { landingRetryAt } from '../src/shell/commands/land.js';
+import { untriedAfter } from '../src/shell/commands/land.js';
+import { LANDING_NEXT_BATCH_MS } from '../src/shell/commands/land.js';
+import { LANDING_RETRY_MS } from '../src/shell/commands/land.js';
 
 /** A verified, unmerged item at a commit. */
 function verified(id, commit = `c${id}`, extra = {}) {
