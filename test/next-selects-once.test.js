@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { cli, fixture } from './next-take-fixture.js';
-import { nextSelection } from '../apps/cli/src/shell/cli/next.js';
+import { nextSelection } from '../packages/moves/index.js';
 
 /** Count calls to each entry of a selection seam, optionally running a hook after each, and restore it after the test. */
 function counted(t, seam, after = {}) {
