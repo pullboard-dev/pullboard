@@ -55,7 +55,7 @@ import {context,cli$ordered as ordered,withBoard,resourceAgent,cli$freezer as fr
 import {runnerExecutionServices} from './tooling/src/runners.js';
 import {landingExecutionServices} from './tooling/packages/landing/index.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/packages/gate/index.js';
-import {prepareEngineMove,applyEngineMove,appliedSequence} from './tooling/src/engine.js';
+import {prepareEngineMove,applyEngineMove,appliedSequence} from './tooling/packages/state/index.js';
 import {QUARANTINE_VERDICT_ENGINE} from './tooling/packages/state/src/core/engines/quarantine-verdict-engine.js';
 import {quarantineVerdictSnapshot,flakeQuarantines,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './tooling/packages/flakes/index.js';
 import {receiptBlockingGreen,nativeProofBlockingGreen,blockingFailures} from './tooling/packages/verify/index.js';

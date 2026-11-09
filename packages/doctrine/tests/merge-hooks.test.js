@@ -2,7 +2,7 @@
 import { boardBusyError } from "../../store/index.js";
 import { openBoardReadOnly } from "../../store/index.js";
 import { rowDecisions } from "../../spec/index.js";
-import { checkLoosening } from "../../doctrine/index.js";
+import { checkLoosening } from "../index.js";
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { defaults } from "../../config/index.js";
-import { preCommitProblems } from "../src/shell/hooks.js";
+import { preCommitProblems } from "../../commits/index.js";
 
 const BIN = join(import.meta.dirname, '..', '..', '..', 'bin', 'pullboard.js');
 

@@ -12,13 +12,13 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../../store/index.js";
+import * as store from "../index.js";
+import * as items from "../../items/index.js";
 import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
-  const module = new URL('../src/shell/item-offer.js', import.meta.url);
-  assert.ok(existsSync(module), 'the shared item-offer contract must exist');
-  const api = await import(module.href);
+  assert.equal(typeof items.acceptItemOffer, 'function', 'the shared item-offer contract must exist');
+  const api = items;
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-item-offer-'));
   const boards = [];
   t.after(() => { for (const entry of boards) store.closeBoard(entry.board); rmSync(directory, { recursive: true, force: true }); });

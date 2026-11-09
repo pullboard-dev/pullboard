@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { importParseScopes } from './module-import-cache-state.js';
 import { storedCompilations } from './parse-result-store.js';
-import { foreignNodeOptions } from './test-isolation.js';
+import { foreignNodeOptions } from '../../../kernel/index.js';
 import {
   mkdirSync,
   mkdtempSync,

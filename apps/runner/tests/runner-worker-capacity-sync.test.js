@@ -1,16 +1,14 @@
 /** The remote worker synchronizes its persisted pool to the board's per-job registration [C7]. */
 import assert from 'node:assert/strict';
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as resources from '../index.js';
-import { registeredCapacity } from '../../../apps/runner/index.js';
+import * as resources from '../../../packages/resources/index.js';
+import { registeredCapacity } from '../index.js';
 
 /** Give this test a private machine resource database and restore the caller's environment. */
 function privateMachine(t) {
