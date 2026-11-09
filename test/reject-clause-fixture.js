@@ -1,5 +1,5 @@
 /** Faithful clause-bearing defaults for the existing board verdict fixture [V6,H16]. */
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
 
