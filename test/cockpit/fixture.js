@@ -1115,7 +1115,7 @@ async function readRoadmap(chrome) {
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
               seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
-              button: row.matches('button,[role="button"]'), tip: row.title, title: [...title.childNodes].slice(1).map((node) => node.textContent).join(''),
+              button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
               cut: title.scrollWidth > title.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
             };
