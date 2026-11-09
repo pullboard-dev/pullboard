@@ -5,21 +5,23 @@ import {
   mkdirSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { after, test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
-import { LOAD_BEARING_CEILINGS } from '../packages/gate/index.js';
-import { loadBearingFailures } from '../packages/gate/index.js';
-import { loadBearingSites } from '../packages/gate/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { LOAD_BEARING_CEILINGS } from '../../../packages/gate/index.js';
+import { loadBearingFailures } from '../../../packages/gate/index.js';
+import { loadBearingSites } from '../../../packages/gate/index.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '..', 'bin', 'checks');
+const REAL = join(import.meta.dirname, '../../..', 'bin', 'checks');
 
 const DAEMON = [
   "import { spawn } from 'node:child_process';",
@@ -111,7 +113,7 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
 });
 
 test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'),
     LOAD_BEARING_CEILINGS, 'apps/cli/src/shell/submit-handoff-worker.js', 'packages/resources/src/shell/handoff-worker-cap.js', 'packages/gate/src/core/load-bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
