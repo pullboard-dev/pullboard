@@ -302,7 +302,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "packages/sandbox/tests/lane-bypass.test.js": {
+  "test/lane-bypass.test.js": {
     "tempdir": 1,
     "hand-policy": 2
   },
@@ -313,14 +313,14 @@
     "tempdir": 2,
     "repo-read": 1
   },
-  "packages/sandbox/tests/trunk.test.js": {
+  "test/trunk.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
   "packages/sandbox/tests/trusted-policy-ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/sandbox/tests/trusted-policy.test.js": {
+  "test/trusted-policy.test.js": {
     "hand-policy": 1
   },
   "packages/state/tests/bar-corrections.test.js": {
@@ -1610,7 +1610,7 @@
     "tempdir": 2,
     "raw-board": 8
   },
-  "test/focus-reviews-finished-work.test.js": {
+  "packages/store/tests/focus-reviews-finished-work.test.js": {
     "raw-board": 3
   },
   "test/gate-admission-p95-fixture.js": {
@@ -1928,7 +1928,7 @@
     "tempdir": 2,
     "repo-read": 2
   },
-  "test/known-main-running-file.test.js": {
+  "packages/store/tests/known-main-running-file.test.js": {
     "raw-board": 4
   },
   "packages/landing/tests/known-main-signature-normalize.test.js": {
@@ -3147,7 +3147,7 @@
   "test/runner-cache-prune.test.js": {
     "tempdir": 2
   },
-  "packages/sandbox/tests/runner-cancel-on-red.test.js": {
+  "packages/gate/tests/runner-cancel-on-red.test.js": {
     "tempdir": 1
   },
   "test/runner-capacity-fixture.js": {
