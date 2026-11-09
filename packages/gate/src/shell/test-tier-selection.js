@@ -2,6 +2,9 @@
 import { gitSpawnSync } from '../../../git/index.js';
 import { posix } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
+import { checkCommandDefinition } from '../../../git/index.js';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { testOutcomeFields } from './test-outcomes.js';
 import { Refused } from '../../../kernel/index.js';
 import { literalShellWords } from '../../../kernel/index.js';
@@ -15,6 +18,8 @@ import { sealStoreFile } from './seals.js';
 import { sealsExist } from './seals.js';
 import { checkSkippedSeals } from './seals.js';
 import { refusalFloor } from './refusal-floor.js';
+import { readTierSnapshot } from './test-tier-snapshot-cache.js';
+import { writeTierSnapshot } from './test-tier-snapshot-cache.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -60,11 +65,33 @@ export function generateTestTiersAt(root, commit, hooks) {
   return generateTestTiersFrom(snapshot, hooks);
 }
 
+/** The modules whose code, with everything they import, decides a commit's tiers. */
+const TIER_CODE = ['./test-tiers.js', './test-tier-selection.js', './commit-source-snapshot.js'].map(path => fileURLToPath(new URL(path, import.meta.url)));
+let tierCode;
+
+/** The digest of the tier code's bytes by path inside this tool and of the Node version, or null when unreadable (#3927). */
+function tierCodeDigest() {
+  if (tierCode !== undefined) return tierCode;
+  try {
+    const files = checkCommandDefinition(fileURLToPath(new URL('../../../../', import.meta.url)), [], TIER_CODE).map(file => [file.path, file.mode, file.digest]);
+    tierCode = createHash('sha256').update(JSON.stringify({ node: process.version, files })).digest('hex');
+  } catch { tierCode = null; }
+  return tierCode;
+}
+
 /** Recompute classifications and ownership from the exact source, including stale or edited manifest rows. */
 function snapshotAt(root, commit) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const key = `${common}:${commit}`;
   if (snapshots.has(key)) return snapshots.get(key);
+  // Another process on this machine may have built this commit's tiers with the same code (#3927).
+  const cached = readTierSnapshot(commit, tierCodeDigest());
+  if (cached) {
+    const result = { ...cached, rows: new Map(cached.manifest.files.map(row => [row.file, row])) };
+    snapshots.set(key, result);
+    if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
+    return result;
+  }
   // Read from the commit's Git objects: a sealed in-memory source, no clone or checkout on this machine [C7,V4].
   let owners, packageFiles;
   const helpers = new Map();
@@ -83,6 +110,7 @@ function snapshotAt(root, commit) {
     },
   });
   const result = { manifest, owners, packageFiles, helpers, rows: new Map(manifest.files.map(row => [row.file, row])) };
+  writeTierSnapshot(commit, tierCodeDigest(), result);
   snapshots.set(key, result);
   if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
   return result;
