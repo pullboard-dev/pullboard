@@ -783,7 +783,7 @@
       ]
     },
     {
-      "file": "packages/codemap/tests/root-allowlist.test.js",
+      "file": "packages/gate/tests/root-allowlist.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -825,7 +825,7 @@
       ]
     },
     {
-      "file": "packages/codemap/tests/shim-import-ratchet.test.js",
+      "file": "packages/gate/tests/shim-import-ratchet.test.js",
       "tier": "T3",
       "packages": [
         ".",
