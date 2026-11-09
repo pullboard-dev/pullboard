@@ -1990,6 +1990,13 @@
     "moves->store",
     "moves->verify",
     "moves->health",
+    "moves->activity",
+    "moves->items",
+    "moves->seats",
+    "moves->landing",
+    "moves->roadmap",
+    "moves->config",
+    "moves->link",
     "rigor->state",
     "sandbox->state",
     "commits->kernel"
