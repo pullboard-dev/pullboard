@@ -429,7 +429,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
       // The driver asks every 30 s whether this hand-off still serves its item; once it does not, the gate ends (#4072).
-      const serving = () => withBoard(ctx, board => store.handoffServes(board, request.item, request.job));
+      const serving = () => withBoard(ctx, board => { const ok = store.handoffServes(board, request.item, request.job); if (!ok) process.stderr.write('DIAG serving false ' + JSON.stringify({ h: store.submitHandoff(board, request.item), i: board.db.prepare('SELECT item_status, item_owner, item_frozen_digest FROM item WHERE item_id = ?').get(request.item) }) + '\n'); return ok; });
       const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null }, serving });
       // A gate whose item moved on records nothing more: its drive job already says why it ended.
       process.stderr.write('DIAG last ' + JSON.stringify({code:last.code}) + '\n');
