@@ -238,7 +238,10 @@ async function json(box, cwd, command, args = [], subcommand) {
   if (command === 'check' && subcommand !== 'accept') {
     assert.equal(result.stderr, `check #${document.id} set by ${document.by} (unknown): ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
   } else if (command === 'done' || command === 'submit') {
-    assert.match(result.stderr, /^(?:cells-submit receipt not reused: config changed\n)?$/, `${command} permits only the cache diagnostic on stderr`);
+    assert.match(result.stderr, /^(?:(?:cells-submit|submit-placement) receipt not reused: (?:tree|config) changed(?:; (?:tree|config) changed)*\n)*$/, `${command} permits only the cache diagnostic on stderr`);
+  } else if (command === 'test') {
+    // A local start waits out a busy host and says so on stderr; nothing else may appear beside the one JSON document.
+    assert.match(result.stderr, /^(?:pullboard test: load \d+(?:\.\d+)? on \d+ cores; waiting for it to drop under \d+ before a local start\n)*$/, 'test --json permits only the load wait notice on stderr');
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
@@ -395,6 +398,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
   await json(box, reviewPath, 'next', ['--verify']);
+  await box.git(reviewPath, 'switch', '--detach', submitted.commit);
   await json(box, reviewPath, 'verify', ['1', 'accept', '--note', 'checked the fixture result', '--no-next']);
   await json(box, repo, 'merged', ['1', 'HEAD']);
 
