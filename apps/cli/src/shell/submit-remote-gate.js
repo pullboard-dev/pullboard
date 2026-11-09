@@ -132,11 +132,13 @@ try {
   })) : null;
   doctrineRun?.catch(() => {});
   if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
-  if (selected('static') && input.staticChecks) await part('static', () => step('static', () => {
-    const run = spawnSync('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
-    const output = String(run.stdout ?? '') + String(run.stderr ?? '');
-    if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
-  }));
+  // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
+  const staticRun = selected('static') && input.staticChecks ? part('static', () => step('static', () => new Promise(resolve => {
+    const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
+    child.stdout.on('data', chunk => chunks.push(chunk)); child.stderr.on('data', chunk => chunks.push(chunk));
+    child.on('error', error => resolve({ error })); child.on('close', status => resolve({ status, output: Buffer.concat(chunks).toString('utf8') }));
+  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed')); }))) : null;
+  if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
   if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main)));
   let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
   // The controller holds no inventory for these accepted commits: produce each here, once per runner cache (#2535).
@@ -177,6 +179,7 @@ try {
     if (!Array.isArray(held.rules)) throw new Error('the doctrine hold failed on the runner: ' + String(held.error ?? 'no rules').slice(0, 4000));
     return held.rules;
   });
+  await staticRun;
   if (input.perPart) result.outcomes = outcomes;
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
