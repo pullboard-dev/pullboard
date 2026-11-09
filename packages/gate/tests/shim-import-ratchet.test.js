@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shimImportProblems } from '../../codemap/index.js';
 import { stagedShimImportProblems } from '../../codemap/index.js';
 import { importsIn } from '../index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixturePolicy } from '../../../test/testkit-fixture.js';
 
 const PLAN = { cells: [{ order: 1, name: 'git', root: 'packages/git', frontDoor: 'packages/git/index.js',
   paths: [['src/git.js', 'packages/git/src/shell/git.js', 'seed']] }] };
@@ -100,6 +102,10 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
     edges: [{ importer: 'web/new.js', target: 'src/git.js', contractItem: 123, expires: '2099-01-01' }] }));
   box.git(box.repo, 'add', 'src/new.js', 'bin/cells-plan/temporary-edges.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: retain a bounded temporary edge [G1]');
+  // The bars name src/git.js, so the web lane owns src/ and claim's cross-ownership guard stays out of the way.
+  const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'src/'] } } });
+  box.git(box.web, 'merge', '-q', 'main');
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
