@@ -2604,7 +2604,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:cli front door (apps/cli/src/shell/commands/view.js)",
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "imports past app:view front door (src/view-state-summary.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -6092,16 +6091,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/next-step-no-wait.test.js": {
-      "cells": [
-        "app:cli",
-        "config"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/core/next-step-defaults.js)",
-        "imports past config front door (packages/config/src/core/json-output.js)"
-      ]
-    },
     "test/next-steps.test.js": {
       "cells": [
         "app:cli",
@@ -8248,24 +8237,6 @@
         "kernel",
         "outbox",
         "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/release-focus.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "spec",
         "store",
         "sync"
       ],

@@ -1,7 +1,7 @@
 /** Source-only view test policy. Roles do not change browser admission or supply execution evidence [N26,C7]. */
 import { posix } from 'node:path';
-import { lex } from "../../../../../packages/kernel/index.js";
-import { lineAt } from "../../../../../packages/kernel/index.js";
+import { lex } from "../../../../../packages/kernel/core.js";
+import { lineAt } from "../../../../../packages/kernel/core.js";
 import { freeWindowOffsets } from "../../core/view-binding-reads.js";
 
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */

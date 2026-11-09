@@ -382,7 +382,6 @@
     "src/agent-grant.js->src/bar-sign-grant-engine.js": 1,
     "src/agent-grant.js->src/review-grant-engine.js": 1,
     "src/agent-hook-work.js->src/board.js": 1,
-    "src/agent-hook-work.js->src/cli-presence.js": 1,
     "src/agent-hook-work.js->src/cli.js": 2,
     "src/agent-hook-work.js->src/git.js": 1,
     "src/agent-hook.js->src/agent-hook-work.js": 1,
