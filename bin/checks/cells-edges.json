@@ -762,7 +762,7 @@
     },
     "apps/relay/src/shell/browser-page.js": {
       "cells": 4,
-      "deep": 1
+      "deep": 0
     },
     "apps/relay/src/shell/device-store.js": {
       "cells": 2,
