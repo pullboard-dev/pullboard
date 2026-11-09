@@ -2005,6 +2005,7 @@
     "rigor->store",
     "(root)->store",
     "(root)->doctrine",
+    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine"
   ]

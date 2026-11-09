@@ -2025,7 +2025,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past gate front door (src/gate-run-receipt.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past landing front door (src/landing-shards.js)",
         "imports past runners front door (src/runners.js)",
         "imports past state front door (src/engine.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
