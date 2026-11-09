@@ -527,7 +527,7 @@
   "test/accept-reuses-receipt.test.js": {
     "model": 2
   },
-  "test/accepted-cells-identity-rebuild.test.js": {
+  "apps/lib/tests/accepted-cells-identity-rebuild.test.js": {
     "hand-policy": 1
   },
   "test/accepted-green-relands.test.js": {
@@ -623,7 +623,7 @@
     "model": 2,
     "raw-board": 3
   },
-  "test/bar-replay.test.js": {
+  "apps/lib/tests/bar-replay.test.js": {
     "raw-board": 5
   },
   "test/blueprint-web-defaults.test.js": {
@@ -665,7 +665,7 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "test/board-scale-1000-seats.test.js": {
+  "apps/lib/tests/board-scale-1000-seats.test.js": {
     "tempdir": 1,
     "raw-board": 6
   },
@@ -1591,7 +1591,7 @@
   "test/flow-report-api.test.js": {
     "raw-board": 4
   },
-  "test/flow-report-cache.test.js": {
+  "apps/lib/tests/flow-report-cache.test.js": {
     "tempdir": 2,
     "raw-board": 8
   },
@@ -1837,7 +1837,7 @@
   "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
-  "test/item-notes-engine.test.js": {
+  "apps/lib/tests/item-notes-engine.test.js": {
     "raw-board": 3
   },
   "test/item-patch-cli.test.js": {
@@ -3103,7 +3103,7 @@
   "test/runner-browser-need-single-decision.test.js": {
     "hand-policy": 2
   },
-  "test/runner-cache-prune.test.js": {
+  "apps/lib/tests/runner-cache-prune.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/runner-cancel-on-red.test.js": {
@@ -3440,7 +3440,7 @@
     "model": 2,
     "tempdir": 1
   },
-  "test/spec-draft-refreeze.test.js": {
+  "apps/lib/tests/spec-draft-refreeze.test.js": {
     "raw-board": 4
   },
   "test/spec-refreeze-fixture.js": {

@@ -1,10 +1,11 @@
 /** The dirty-warning observer covers apps/lib/src shipped runtime on a controlled clock [O5,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { observeDirtyRunnerTooling } from '../packages/runners/index.js';
-import { cellSandbox } from './cell-fixture.js';
+import { observeDirtyRunnerTooling } from '../../../packages/runners/index.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
 
 test('a dirty apps/lib/src edit warns and an unrelated path does not [O5,C7]', t => {
   const box = cellSandbox(t), root = join(box.dir, 'tooling');
