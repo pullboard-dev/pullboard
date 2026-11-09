@@ -1610,7 +1610,7 @@
     "tempdir": 2,
     "raw-board": 8
   },
-  "test/focus-reviews-finished-work.test.js": {
+  "packages/store/tests/focus-reviews-finished-work.test.js": {
     "raw-board": 3
   },
   "test/gate-admission-p95-fixture.js": {
@@ -1928,7 +1928,7 @@
     "tempdir": 2,
     "repo-read": 2
   },
-  "test/known-main-running-file.test.js": {
+  "packages/store/tests/known-main-running-file.test.js": {
     "raw-board": 4
   },
   "packages/landing/tests/known-main-signature-normalize.test.js": {
