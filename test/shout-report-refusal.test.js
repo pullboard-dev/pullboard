@@ -45,7 +45,8 @@ test('[C7] a report shout right after the same agent verdict is refused naming t
   assert.equal(viaItem.code, 1, 'naming the item with --item is the same report');
   assert.equal(shouts(box), before, 'refusals record no shout');
 
-  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner', '--kind', 'blocker'], ]) {
+  // A bare '#1 blocked on the runner' only restates the board (BOARD_SHOWS_THIS, 3d6a7169b3); a blocker names its cause.
+  for (const args of [['Should #1 land now?', '--kind', 'question'], ['#1 blocked on the runner because its gate failed to start', '--kind', 'blocker'], ]) {
     const sent = box.run(box.web, 'shout', 'coordinator', ...args, '--json');
     assert.equal(sent.code, 0, `${args.join(' ')}: ${sent.out}`);
   }
