@@ -3964,7 +3964,7 @@
       ]
     },
     {
-      "file": "packages/sandbox/tests/lane-bypass.test.js",
+      "file": "test/lane-bypass.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4015,7 +4015,7 @@
       ]
     },
     {
-      "file": "packages/sandbox/tests/runner-closure.test.js",
+      "file": "packages/runners/tests/sandbox-runner-closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4057,7 +4057,7 @@
       ]
     },
     {
-      "file": "packages/sandbox/tests/trunk.test.js",
+      "file": "test/trunk.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4141,7 +4141,7 @@
       ]
     },
     {
-      "file": "packages/sandbox/tests/trusted-policy.test.js",
+      "file": "test/trusted-policy.test.js",
       "tier": "T3",
       "packages": [
         ".",
