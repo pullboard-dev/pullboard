@@ -1,14 +1,21 @@
 /** A requeued, recovered or retried gate runs current main tooling while it proves the source its submit named [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { prepareDeadHandoffRetry } from '../packages/items/index.js';
-import { currentHandoffTools, toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
-import { withFixtureBoard } from './testkit-fixture.js';
-import { createJob, jobView } from '../packages/jobs/index.js';
-import { driveOnce } from '../packages/drive/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { prepareDeadHandoffRetry } from '../../../packages/items/index.js';
+import { currentHandoffTools } from '../src/shell/submit-handoff.js';
+import { toolsSnapshot } from '../src/shell/submit-handoff.js';
+import { withFixtureBoard } from '../../../test/testkit-fixture.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { driveOnce } from '../../../packages/drive/index.js';
 
 /** A tool root (a Pullboard checkout stand-in), a project repo and one stopped job's captured request at tooling A. */
 function stoppedGate(t) {

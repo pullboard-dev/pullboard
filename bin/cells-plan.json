@@ -1547,6 +1547,54 @@
       ]
     },
     {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
+    },
+    {
       "cell": "person",
       "row": [
         "test/person-credential-vault.test.js",
