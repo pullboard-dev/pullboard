@@ -66,7 +66,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   assert.equal(taken.document.previous, firstName, 'takeover reports the holder it replaced');
   assert.equal((await other.cli('add', box.lane, 'Planned on the second machine after takeover')).code, 0, 'the new holder coordinates');
   const first = await refusedCoordinatorAdd(box, box.lane, 'Planned again on the first machine');
-  assert.ok(first.message.includes(secondName), `the refusal names the new holder: ${refusal(first).message}`);
+  assert.ok(first.message.includes(secondName), `the refusal names the new holder: ${first.message}`);
 
   // Both replicas agree on the items each holder made, and on no others.
   for (const device of [box, other]) {
