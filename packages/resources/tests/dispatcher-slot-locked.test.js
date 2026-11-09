@@ -1,19 +1,30 @@
 /** The gate dispatcher survives a locked slot database, and the gate workers it started survive any dispatcher exit [C7]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { HANDOFF_WORKER_RESOURCE, handoffDispatcherLog, queueHandoffLaunch, reserveHandoffTicket, takeResource } from '../packages/resources/index.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { HANDOFF_WORKER_RESOURCE } from '../index.js';
+import { handoffDispatcherLog } from '../index.js';
+import { queueHandoffLaunch } from '../index.js';
+import { reserveHandoffTicket } from '../index.js';
+import { takeResource } from '../index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** How long the test holds the resources database lock: past the 10 s a slot write waits before SLOT_DB_LOCKED. */
 const HOLD_MS = 15_000;
 
-const DISPATCHER = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
+const DISPATCHER = fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url));
 
 /**
  * A stand-in gate driver: it records its pid beside its request, blocks reading its job's pipe until the test lets its

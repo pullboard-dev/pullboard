@@ -877,60 +877,30 @@
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
-        "apps/lib",
-        "apps/runner",
-        "apps/view",
-        "packages/activity",
-        "packages/api",
-        "packages/blueprints",
         "packages/codemap",
         "packages/commits",
         "packages/config",
-        "packages/doctrine",
-        "packages/flakes",
         "packages/gate",
         "packages/git",
-        "packages/github",
-        "packages/health",
-        "packages/items",
+        "packages/jobs",
         "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/mcp",
-        "packages/merge",
-        "packages/moves",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
+        "packages/pin",
         "packages/queue",
         "packages/resources",
-        "packages/rigor",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
         "packages/seats",
-        "packages/sentinels",
-        "packages/shouts",
         "packages/spec",
         "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/sync",
-        "packages/verify"
+        "packages/transport"
       ],
       "reasons": [
-        "board: apps/cli/src/shell/cli-board-read.js",
-        "browser: apps/cli/src/shell/worker-scale.js",
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/transport/src/shell/ssh.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/core/next-step-words.js",
-        "runner: apps/cli/src/shell/commands/test.js",
-        "unresolved: apps/cli/src/shell/commands/index.js"
+        "process: packages/codemap/src/core/path-map.js"
       ]
     },
     {
-      "file": "packages/commits/tests/landing-message.test.js",
+      "file": "test/landing-message.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -987,19 +957,20 @@
       ]
     },
     {
-      "file": "packages/commits/tests/merge-hooks.test.js",
+      "file": "packages/doctrine/tests/merge-hooks.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -1008,7 +979,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -1018,12 +991,14 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
@@ -2458,7 +2433,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-canary-history.test.js",
+      "file": "test/relay-canary-history.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2516,7 +2491,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-device-confirmation.test.js",
+      "file": "test/relay-device-confirmation.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2631,7 +2606,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-machine-storage.test.js",
+      "file": "test/relay-machine-storage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2731,7 +2706,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-setup-once.test.js",
+      "file": "test/relay-setup-once.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2789,7 +2764,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-stall-phases.test.js",
+      "file": "test/relay-stall-phases.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2847,7 +2822,7 @@
       ]
     },
     {
-      "file": "packages/link/tests/relay-sync.test.js",
+      "file": "test/relay-sync.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20785,7 +20760,7 @@
       ]
     },
     {
-      "file": "test/family-bulk-read.test.js",
+      "file": "packages/items/tests/family-bulk-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32092,13 +32067,11 @@
       ]
     },
     {
-      "file": "test/no-eligible-reviewer.test.js",
+      "file": "apps/lib/tests/no-eligible-reviewer.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "apps/lib",
-        "apps/runner",
         "apps/view",
         "packages/activity",
         "packages/api",
@@ -32107,23 +32080,26 @@
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/flakes",
         "packages/gate",
         "packages/git",
         "packages/github",
         "packages/health",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
         "packages/link",
-        "packages/mcp",
         "packages/merge",
         "packages/moves",
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/rigor",
         "packages/roadmap",
@@ -32131,21 +32107,21 @@
         "packages/sandbox",
         "packages/seats",
         "packages/sentinels",
-        "packages/shouts",
         "packages/spec",
         "packages/state",
         "packages/stats",
         "packages/store",
         "packages/sync",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
-        "board: apps/cli/src/shell/cli-board-read.js",
-        "browser: apps/cli/src/shell/worker-scale.js",
+        "board: apps/lib/src/core/native-board.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/core/next-step-words.js",
-        "runner: apps/cli/src/shell/commands/test.js",
-        "unresolved: apps/cli/src/shell/commands/index.js"
+        "process: apps/view/src/core/view/activity-model.js",
+        "runner: bin/run-tests.js",
+        "unresolved: bin/run-tests.js"
       ]
     },
     {
@@ -44429,7 +44405,7 @@
       ]
     },
     {
-      "file": "test/runner-worker-state.test.js",
+      "file": "packages/verify/tests/runner-worker-state.test.js",
       "tier": "T3",
       "packages": [
         ".",
