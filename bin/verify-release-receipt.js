@@ -3,7 +3,7 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyHostedRelease } from '../src/release-hosted.js';
+import { verifyHostedRelease } from '../packages/sandbox/index.js';
 import { releaseReceiptFields } from '../packages/gate/index.js';
 import { releaseReceiptProblem } from '../packages/gate/index.js';
 import { latestGitHubReleaseRun } from '../packages/gate/index.js';

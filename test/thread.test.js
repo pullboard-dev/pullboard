@@ -121,7 +121,8 @@ test('[B32] fact references require a full SHA and a safe positive ascending lin
 test('[B29,B31,B32] itemThread merges moves and facts in append order with exact ids, stamps and text', (t) => {
   const { board, clock } = fixture(t);
   const id = item(board, 'Ordered thread');
-  const beforeClaim = store.events(board, { itemId: id }).at(-1);
+  // Filing now also places the item in its milestone, so the thread opens with every earlier move on the item.
+  const beforeClaim = store.events(board, { itemId: id });
   clock.advance(1_000);
   store.claim(board, id, {
     agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR,
@@ -134,16 +135,17 @@ test('[B29,B31,B32] itemThread merges moves and facts in append order with exact
   store.release(board, id, 'web-1', 'Return the claim before reading its thread.', 'OTHER');
   const releaseEvent = store.events(board, { itemId: id }).at(-1);
   const thread = store.itemThread(board, id);
+  const opening = beforeClaim.length;
   assert.deepEqual(thread.map((entry) => entry.type === 'fact' ? `fact:${entry.id}` : `move:${entry.kind}`), [
-    `move:${beforeClaim.event_kind}`, `move:${claimEvent.event_kind}`, `fact:${fact.id}`, 'move:release',
+    ...beforeClaim.map(event => `move:${event.event_kind}`), `move:${claimEvent.event_kind}`, `fact:${fact.id}`, 'move:release',
   ]);
-  assert.deepEqual(thread[2], {
+  assert.deepEqual(thread[opening + 1], {
     type: 'fact', id: 'ordered-fact', eventId: fact.eventId, kind: 'capture', text: 'first line\nsecond line stays',
     by: 'web-2', at: '2026-10-08T00:00:02.000Z', ref: null, supersedes: null,
   });
-  assert.equal(thread[0].eventId, beforeClaim.event_id);
-  assert.equal(thread[1].eventId, claimEvent.event_id);
-  assert.equal(thread[3].eventId, releaseEvent.event_id);
+  assert.deepEqual(thread.slice(0, opening).map(entry => entry.eventId), beforeClaim.map(event => event.event_id));
+  assert.equal(thread[opening].eventId, claimEvent.event_id);
+  assert.equal(thread[opening + 2].eventId, releaseEvent.event_id);
   assert.ok(thread.every((entry, index) => index === 0 || thread[index - 1].eventId < entry.eventId));
 });
 
