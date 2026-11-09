@@ -2145,7 +2145,7 @@
   "packages/gate/tests/legacy-watchdog.test.js": {
     "tempdir": 1
   },
-  "test/line-capacity.test.js": {
+  "apps/lib/tests/line-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 12
@@ -2320,7 +2320,7 @@
   "test/moves-move-closure.test.js": {
     "tempdir": 2
   },
-  "test/multiple-claims-board.test.js": {
+  "apps/lib/tests/multiple-claims-board.test.js": {
     "raw-board": 9
   },
   "packages/flakes/tests/native-flakes.test.js": {
@@ -2379,7 +2379,7 @@
     "model": 4,
     "raw-board": 8
   },
-  "test/no-policy-rebinds.test.js": {
+  "apps/lib/tests/no-policy-rebinds.test.js": {
     "tempdir": 5,
     "hand-policy": 4,
     "raw-board": 3
@@ -2417,7 +2417,7 @@
   "test/pairing.test.js": {
     "tempdir": 1
   },
-  "test/parent-session.test.js": {
+  "apps/lib/tests/parent-session.test.js": {
     "tempdir": 4,
     "raw-board": 6,
     "hand-policy": 1
@@ -2461,7 +2461,7 @@
   "test/person-signing-case.js": {
     "hand-policy": 4
   },
-  "test/pinned-claim-lapse.test.js": {
+  "apps/lib/tests/pinned-claim-lapse.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -2624,7 +2624,7 @@
     "tempdir": 2,
     "raw-board": 4
   },
-  "test/red-return-idle-lapse.test.js": {
+  "apps/lib/tests/red-return-idle-lapse.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -2893,7 +2893,7 @@
   "test/release-transport-cases.js": {
     "tempdir": 1
   },
-  "test/release-twice-hold.test.js": {
+  "apps/lib/tests/release-twice-hold.test.js": {
     "tempdir": 4,
     "raw-board": 20
   },
