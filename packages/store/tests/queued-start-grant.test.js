@@ -9,7 +9,6 @@ import { requireAgentGrant } from '../../state/index.js';
 import { ENGINE_VERSION } from '../../state/index.js';
 import { QUEUED_START_GRANT_ENGINE } from '../../state/core.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
-import { cellSeat } from '../../../test/cell-fixture.js';
 
 /** The minimal frozen bar a claim needs. */
 const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
@@ -19,8 +18,8 @@ const MINUTE = 60_000;
 /** One item claimed for a minute by the builder, with its gate queued under that claim; the board closes with the test. */
 function queuedFixture(t, { rivalFirst = false } = {}) {
   const board = fixtureBoard(t);
-  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
-  const builder = cellSeat(board, { lane: 'core', path: '/builder' }).id;
+  register(board, { lane: 'coordinator', path: '/coordinator' });
+  const builder = register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Queued gate fixture', route: 'strong' });
   claim(board, id, { agentId: builder, lane: 'core', leaseMs: MINUTE, freeze: FREEZE });
   if (rivalFirst) {

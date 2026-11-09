@@ -14,7 +14,7 @@ test('one seat claims and renews two separate items [B5,H16]', t => {
   const seat = cellSeat(board, { lane: 'web', path: project.repo });
   const add = title => cellItem(board, { lane: 'web', title, specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
   const one = add('First fixture'), two = add('Second fixture');
-  for (const item of [one, two, one, two]) cellClaim(board, item, seat, { root: project.repo });
+  for (const item of [one, two, one, two]) cellClaim(board, item, seat, { root: project.repo, itemFolder: true });
   const a = getItem(board, one), b = getItem(board, two);
   assert.equal(a.item_status, 'claimed'); assert.equal(b.item_status, 'claimed');
   assert.equal(a.item_owner, b.item_owner); assert.ok(a.item_frozen_digest); assert.ok(b.item_frozen_digest);
