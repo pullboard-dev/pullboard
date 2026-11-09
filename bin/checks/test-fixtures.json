@@ -3768,9 +3768,6 @@
     "env-spread": 1,
     "hand-policy": 1
   },
-  "test/timing-runner-reserved.test.js": {
-    "hand-policy": 1
-  },
   "test/train-mechanical-merge.test.js": {
     "model": 1,
     "tempdir": 1
@@ -3876,6 +3873,9 @@
     "tempdir": 1,
     "env-spread": 1,
     "model": 4,
+    "hand-policy": 1
+  },
+  "packages/gate/tests/timing-runner-reserved.test.js": {
     "hand-policy": 1
   },
   "packages/gate/tests/wall-clock-budgets.test.js": {

@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { gitPath } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
@@ -45,7 +46,7 @@ export function itemFolderIdentity(board, root) {
     const item = board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(marker.item);
     if (!agent || item?.item_status !== 'claimed' || item.item_owner !== marker.seat
       || root !== itemFolderPath(agent.agent_path, marker.item)
-      || repoInfo(root).commonDir !== repoInfo(agent.agent_path).commonDir
+      || !sameCommonDir(repoInfo(root).commonDir, repoInfo(agent.agent_path).commonDir)
       || tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout !== `${agent.agent_lane}/item-${marker.item}`) return null;
     if (missing) writeItemMarker(root, marker.seat, marker.item);
     return { agent, item: marker.item };
