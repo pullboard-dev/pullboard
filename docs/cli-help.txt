@@ -142,6 +142,7 @@ Work
   pullboard sentinel run [--health-only]  run due approved watches, or only scan board health
   pullboard sentinel decline <name> --reason "<why>"   person: prevent future runs
   pullboard sentinels                   approvals, owners and the last result; does not run checks
+  pullboard waits [record]              every hold, wait, queue and process against its budget; record reclaims and files
   pullboard loop declare <name> --every 10m --owner <seat or lane>   coordinator: declare a recurring job's cadence
   pullboard loop ran <name>             record that a recurring job just ran; health flags one silent for 1.5 cadences
   pullboard loop                        list the recurring jobs and their last runs
