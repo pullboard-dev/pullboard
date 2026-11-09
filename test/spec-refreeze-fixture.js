@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { COORDINATOR, loadConfig } from '../packages/config/index.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../packages/state/core.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';

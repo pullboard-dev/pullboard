@@ -18,7 +18,7 @@ import { testNameProblems } from '../bin/checks/test-names.js';
 import { emptyCatchProblems } from '../bin/checks/empty-catch.js';
 import { testInputProblems } from '../bin/checks/test-inputs.js';
 import * as store from '../packages/store/index.js';
-import { openBoard, draftSpecRow } from '../apps/lib/index.js';
+import { openBoard, draftSpecRow } from '../apps/lib/src/core/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
