@@ -114,7 +114,7 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   const builds = [];
   const { api, read, landed } = await materializedApi(t, box, builds);
   const first = await read();
-  assert.equal(first.status, 200);
+  assert.equal(first.status, 200, JSON.stringify(first.document));
   const sequence = first.document.state.sequence;
   assert.deepEqual(builds.map((build) => build.full), [true], 'only the first read waits, on the one full build');
   appendLater(file, ids, 1, 70_000);
