@@ -25714,19 +25714,20 @@
       ]
     },
     {
-      "file": "test/land-engine-numbers.test.js",
+      "file": "packages/landing/tests/land-engine-numbers.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -25735,7 +25736,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -25745,12 +25748,14 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
@@ -27325,19 +27330,20 @@
       ]
     },
     {
-      "file": "test/landing-move-closure.test.js",
+      "file": "packages/landing/tests/landing-move-closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -27346,7 +27352,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -27356,12 +27364,14 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
@@ -47770,19 +47780,20 @@
       ]
     },
     {
-      "file": "test/submit-cells-composed.test.js",
+      "file": "packages/landing/tests/submit-cells-composed.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -47791,7 +47802,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -47801,12 +47814,14 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
@@ -47855,19 +47870,20 @@
       ]
     },
     {
-      "file": "test/submit-cells-stays.test.js",
+      "file": "packages/landing/tests/submit-cells-stays.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -47876,7 +47892,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -47886,30 +47904,33 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
     },
     {
-      "file": "test/submit-cells-wildcard.test.js",
+      "file": "packages/landing/tests/submit-cells-wildcard.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
         "packages/activity",
         "packages/codemap",
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/gate",
         "packages/git",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
         "packages/landing",
@@ -47918,7 +47939,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/roadmap",
         "packages/runners",
@@ -47928,12 +47951,14 @@
         "packages/state",
         "packages/stats",
         "packages/store",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
+        "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]
