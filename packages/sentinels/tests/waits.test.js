@@ -119,14 +119,14 @@ test('a board writer holding past two seconds is a breach and a dead writer mark
   await waitForCondition(() => !gone(live.pid), 'the writer runs');
   writeFileSync(join(directory, `${live.pid}-00000000-0000-0000-0000-000000000001.json`), JSON.stringify({ version: 1, pid: live.pid,
     started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 5_000, contender: true }));
-  const gone = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
-  writeFileSync(gone, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
+  const deadMarker = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
+  writeFileSync(deadMarker, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
   const snapshot = await m.snapshot();
   const row = snapshot.rows.find(entry => entry.surface === 'board-write' && entry.pid === live.pid);
   assert.equal(row.breach, true, 'five seconds against a two second database budget');
   assert.equal(row.holder, 'merged by coordinator');
   const recorded = await recordWaits(snapshot, m.ports());
-  assert.equal(existsSync(gone), false, 'the dead pid\'s marker is reclaimed at once');
+  assert.equal(existsSync(deadMarker), false, 'the dead pid\'s marker is reclaimed at once');
   assert.equal(recorded.filed.length, 1);
   assert.match(m.items()[0].item_brief, /Doing: node/u, 'the item says what the holder was doing');
 });
