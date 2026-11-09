@@ -1,8 +1,8 @@
 /** The handoff dispatcher's worker cap comes from the machine, never from the launching seat's environment [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { currentCapacity } from '../../../bin/handoff-worker-dispatcher.js';
-import { handoffWorkerCapacity } from '../index.js';
+import { currentCapacity } from '../index.js';
+import { handoffWorkerCapacity } from '../../resources/index.js';
 
 test('a PULLBOARD_HANDOFF_WORKERS in the inherited environment does not cap the dispatcher; an explicit env does [C7]', () => {
   const previous = process.env.PULLBOARD_HANDOFF_WORKERS;
