@@ -178,5 +178,5 @@ test('a submitted item is current at the head its hand-off submitted, not at a g
   assert.equal(box.run(box.web, 'next', '--json').code, 0);
   // @pullboard-board-file journey: read the job the fallback pass judged.
   const job = withFixtureBoard(boardFile, board => jobView(board.db, 'handoff-drive-composed'));
-  assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a job for an item submitted at its hand-off head is not stale' + JSON.stringify({ steps: job.steps, handoff, now: handoffState(boardFile, id), item: withFixtureBoard(boardFile, board => board.db.prepare('SELECT item_status, item_commit, item_owner FROM item WHERE item_id = ?').get(id)) }));
+  assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a job for an item submitted at its hand-off head is not stale');
 });
