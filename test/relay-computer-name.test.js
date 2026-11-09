@@ -20,7 +20,7 @@ test('linked computers use person-given names in coordinator holds and devices [
   const other = await box.otherDeviceJoin(pairing.document.code, 'Travel laptop');
   assert.equal((await box.cli('add', box.lane, 'First named coordinator')).code, 0);
   const denied = await other.cli('add', box.lane, 'Other coordinator is refused');
-  assert.equal(denied.document?.error?.code, 'COORDINATOR_HELD');
+  assert.equal(denied.document?.error?.code, 'COORDINATOR_HELD', denied.failure ?? JSON.stringify(denied.document));
   assert.match(denied.document.error.message, /Writing desk/u);
   const taken = await other.cli('takeover');
   assert.equal(taken.code, 0);
@@ -48,7 +48,7 @@ test('linked computers without names use the machine tail in real refusals and d
   assert.equal((await box.cli('add', box.lane, 'Unnamed coordinator')).code, 0);
   const refused = await other.cli('add', box.lane, 'Other unnamed coordinator');
   const machine = JSON.parse(readFileSync(box.linkFile, 'utf8')).machine;
-  assert.equal(refused.document?.error?.code, 'COORDINATOR_HELD');
+  assert.equal(refused.document?.error?.code, 'COORDINATOR_HELD', refused.failure ?? JSON.stringify(refused.document));
   assert.ok(refused.document.error.message.includes(`computer ${machine.slice(-8)}`));
   const roster = await box.cli('relay', 'devices');
   assert.equal(roster.code, 0);
