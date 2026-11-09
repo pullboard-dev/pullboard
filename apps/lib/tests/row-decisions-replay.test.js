@@ -9,20 +9,20 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
 import {
   exportBoard,
   importBoard,
-} from '../../store/index.js';
+} from '../../../packages/store/index.js';
 import {
   appliedSequence,
   applyEngineMove,
   engineReceipt,
   prepareEngineMove,
-} from '../../state/index.js';
-import { ENGINE_VERSION } from '../../state/index.js';
-import { AGENT_SHELL_MARKERS } from '../index.js';
+} from '../../../packages/state/index.js';
+import { ENGINE_VERSION } from '../../../packages/state/index.js';
+import { AGENT_SHELL_MARKERS } from '../../../packages/kernel/index.js';
 
 const RECORDED_AT = '2026-10-08T18:00:00.000Z';
 const APPLIED_AT = '2026-10-08T18:01:00.000Z';
