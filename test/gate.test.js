@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main as cli } from './native-cli-fixture.js';
 import { digestOf, testConcurrency } from '../packages/gate/index.js';
@@ -689,7 +689,7 @@ function flakeRepo(t, policy = {}) {
   const receipts = join(root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(dirname(file), { recursive: true });
   const setup = openBoard(file);
-  store.ensureCoordinator(setup, root);
+  store.board_ensureCoordinator(setup, root);
   store.closeBoard(setup);
   return { root, git, commit, gate, open, receipts, marker };
 }

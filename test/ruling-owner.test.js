@@ -103,7 +103,7 @@ test('malformed or forged ruling effects append no request through the real CLI 
 });
 
 test('declared effects replay exactly, preserve legacy meaning and refuse older engines [D1,N26,H16]', async t => {
-  const store = await import('../src/board.js');
+  const store = await import('../packages/store/index.js');
   const nativeBoard = await import('../apps/lib/index.js');
   const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');

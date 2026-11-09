@@ -112,7 +112,7 @@ test('a busy ordered item addition leaves no partial item and retries once [C7,P
 async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-named-board-writer');
   const source = `
-    import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
     const board = openBoard(process.argv[1], undefined, {
@@ -204,7 +204,7 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const source = `
-    import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'private-rollback', seat: 'coordinator' } });
     try {
@@ -417,7 +417,7 @@ test('native import observes committed and rolled-back write ownership without c
       import assert from 'node:assert/strict';
       import { readFileSync } from 'node:fs';
       import { DatabaseSync } from 'node:sqlite';
-      import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+      import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
       import { exportBoard, importBoard } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
@@ -576,7 +576,7 @@ test('a standalone native attempt and nested rollback each observe only their ac
     const source = `
       import assert from 'node:assert/strict';
       import { DatabaseSync } from 'node:sqlite';
-      import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+      import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
       import { exportBoard } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
