@@ -134,6 +134,22 @@ test('default next resumes a held claim after its cited row leaves the live spec
   assert.equal(store.getItem(box.board, id).item_status, 'claimed');
 });
 
+for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
+  test(`clause 1 and clause 2: after a ${reason} release next --take refuses a sibling seat and status shows the item as needing re-scope [C7]`, async t => {
+    const box = await fixture(t);
+    const id = box.add('Item that needs re-scope');
+    box.claim(id, box.seats.actor);
+    store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', reason);
+    box.advance(31 * 60_000);
+    const sibling = await cli(box, box.seats.builder.path, ['next', '--take']);
+    assert.equal(sibling.code, 1, sibling.out + sibling.err);
+    assert.equal(typeof sibling.document?.error?.code, 'string', 'native no-work refusal is retained');
+    assert.notEqual(sibling.document?.item?.item_id, id, `a second seat of the same lane and route is not offered the ${reason} item`);
+    const status = await cli(box, box.root, ['status']);
+    assert.equal(status.document.needsRescope[0].id, id, 'status shows the item as needing re-scope with its release reasons');
+  });
+}
+
 test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
   const box = crossLaneFixture(t);
   const web = box.seat('own-web', 'web', box.session);
