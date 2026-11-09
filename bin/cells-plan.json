@@ -1545,6 +1545,22 @@
         "packages/resources/tests/lsof-lookups.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "commits",
+      "row": [
+        "test/merge-hooks.test.js",
+        "packages/commits/tests/merge-hooks.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "test/item-offer.test.js",
+        "packages/items/tests/item-offer.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
