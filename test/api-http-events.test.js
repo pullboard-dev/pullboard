@@ -8,7 +8,7 @@ import { board as store } from '../apps/lib/index.js';
 import { registerProject } from '../packages/seats/index.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
-import { apiHttpFixture as fixture, apiHttpBox as httpBox, shellWord, FIXTURE_BRIEF } from './api-fixture.js';
+import { apiHttpFixture as fixture, apiHttpBox as httpBox, registerFixtureRunner, shellWord, FIXTURE_BRIEF } from './api-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
@@ -131,6 +131,7 @@ test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes
 
 test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', async (t) => {
   const box = await httpBox(t);
+  registerFixtureRunner(t, box);
   /** Build a finite check whose completion can be observed independently of the HTTP response. */
   function completedCheck(marker) {
     const script = `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'finished')`;
