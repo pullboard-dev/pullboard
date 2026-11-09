@@ -5,6 +5,7 @@ import { cellBoard } from '../../../test/cell-fixture.js';
 import { cellItem } from '../../../test/cell-fixture.js';
 import { cellRepo } from '../../../test/cell-fixture.js';
 import { cellSeat } from '../../../test/cell-fixture.js';
+import { board_ensureCoordinator } from '../../store/index.js';
 import { shout } from '../../store/index.js';
 import { CALLOUT_AGE_MS } from '../index.js';
 import { CLAIM_INTERRUPT_WINDOW_MS } from '../index.js';
@@ -148,13 +149,14 @@ test('the board\'s call-out line counts the unanswered actionable shouts to the 
   const now = new Date('2026-11-09T10:00:00.000Z');
   const board = cellBoard(t, repo.boardFile, { now: () => now });
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
+  board_ensureCoordinator(board, `${repo.root}/coordinator`);
   const open = cellItem(board, { lane: 'web', title: 'Still open' });
   const lanes = ['web', 'api'];
   shout(board, { from: seat.id, to: 'coordinator', text: `Stuck: decision #${open.item_id} unanswered for an hour`, lanes });
   shout(board, { from: seat.id, to: 'coordinator', text: 'just a note for you', lanes });
   assert.equal(coordinatorCalloutLine(board, now.getTime() + 5 * 60_000), null, 'too young to speak up');
   const line = coordinatorCalloutLine(board, now.getTime() + 30 * 60_000);
-  assert.match(line, /^1 unanswered call-out to the coordinator, oldest 30 min; the coordinator runs pullboard inbox to see it; tell /u);
+  assert.match(line, /^1 unanswered call-out to the coordinator, oldest 30 min; the coordinator runs pullboard inbox to see it; tell whoever runs the coordinator$/u);
 });
 
 test('a seat idling in next --wait hears each unread shout once and is told the open item it is asked to act on [B3,N2]', t => {
