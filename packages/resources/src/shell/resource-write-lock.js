@@ -1,5 +1,5 @@
 /** Resource queue admission covers every writer, including initialization [C7]. */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Translate contention from any transaction phase without replacing unrelated SQLite or application errors. */
 export function resourceWriteError(error, file) {

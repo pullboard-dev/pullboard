@@ -17,7 +17,7 @@ if (major < 22 || (major === 22 && minor < 13)) {
     const {
       commandOutput,
       versionedRefusal,
-    } = await import('../packages/config/index.js');
+    } = await import('../packages/config/pure.js');
     const output = commandOutput(args, { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
     output.refusal({ code: 'NODE_TOO_OLD', message, next });
     output.flush(1);
@@ -65,7 +65,7 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
     }
   } catch (error) {
     if (process.argv.includes('--json')) {
-      const { commandOutput, versionedRefusal } = await import('../packages/config/index.js');
+      const { commandOutput, versionedRefusal } = await import('../packages/config/pure.js');
       const output = commandOutput(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
       output.refusal({ code: error.code ?? 'TOOL_BUILD_UNAVAILABLE', message: error.message,
         next: 'ask the coordinator to promote a native gated tool build' });

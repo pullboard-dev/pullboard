@@ -48,7 +48,7 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
-  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model'), 'join a private builder');
+  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model', '--route', 'strong'), 'join a private builder');
   success(await box.cliAt(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
   mkdirSync(join(worker, 'source'), { recursive: true });
   writeFileSync(join(worker, 'source', 'repair-fixture.txt'), 'source for the linked submit\n');

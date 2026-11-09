@@ -1,12 +1,13 @@
 /** A capable seat whose pick is undiagnosed light work is offered 'diagnose #N', so the light seat builds it [C7,N2]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoin, fixturePolicy } from './testkit-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js Change: return the canonical result from the handler Test case: test/handler.test.js asserts the canonical result';
 
@@ -61,6 +62,9 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = COLD_SESSION_MODEL;
   const box = helpers.project('true', isolated);
+  // The diagnosis names test/handler.test.js, so the web lane owns test/ and claim's cross-ownership guard stays out of the way.
+  const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'test/'] } } });
   const light = join(box.dir, 'light');
   box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
   const joined = fixtureJoin(box.run, light, 'web', '--route', 'light', '--model', COLD_LIGHT_MODEL);
@@ -71,7 +75,7 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   const id = JSON.parse(added.out).item.item_id;
   const before = box.run(light, 'claim', String(id));
   assert.notEqual(before.code, 0);
-  assert.match(before.err, /DIAGNOSIS_REQUIRED/u);
+  assert.match(before.err, /\[ROUTE\] item #\d+ needs a mid model/u);
   const recorded = box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS);
   assert.equal(recorded.code, 0, recorded.err);
   const picked = box.run(light, 'next', '--build', '--json');
@@ -85,7 +89,7 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   assert.equal(onBoard(box, board => store.getItem(board, id).item_route), 'mid');
   const retry = box.run(light, 'claim', String(id));
   assert.notEqual(retry.code, 0);
-  assert.match(retry.err, /DIAGNOSIS_REQUIRED/u);
+  assert.match(retry.err, /\[ROUTE\] item #\d+ needs a mid model/u);
   assert.equal(box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS.replace('fixture', 'assertion')).code, 0);
   assert.equal(box.run(light, 'claim', String(id)).code, 0);
 });

@@ -1,4 +1,4 @@
 {
-  "src/queue-order.js": "packages/queue/src/shell/queue-order.js",
+  "src/queue-order.js": "packages/queue/src/core/queue-order.js",
   "src/queue-settings.js": "packages/queue/src/shell/queue-settings.js"
 }

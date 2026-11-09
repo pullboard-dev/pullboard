@@ -1,6 +1,6 @@
 /** One runner is kept for timed checks, so a timed check never drains a runner ordinary runs are using [C7]. */
 
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** A runner-reported load this recent counts as a measurement of its headroom. */
 const RESERVE_READING_FRESH_MS = 10 * 60_000;

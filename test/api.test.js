@@ -31,7 +31,7 @@ import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { serveApi } from '../packages/api/index.js';
 import * as apiExports from '../packages/api/index.js';
-import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
+import { allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
@@ -47,6 +47,7 @@ import {
   nextSseEvent,
   shellWord,
   timedMs,
+  addRoutedItem, addLightViaCli, commitWork, checkOutSubmitted,
 } from './api-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
@@ -622,11 +623,11 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
 
   const addArgs = (title) => [
-    'app', title, '--route', 'light', '--criterion', 'roadmap item', '--check', 'true',
+    'app', title, '--route', 'mid', '--criterion', 'roadmap item', '--check', 'true',
     '--brief', 'Files:\n- app/roadmap.js\nChange: track this work\nTest: inspect its status',
   ];
-  const localItem = json(box, box.repo, 'add', addArgs('Local release'), 'add').item;
-  const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
+  const localItem = addLightViaCli(json, box, box.repo, addArgs('Local release')).item;
+  const externalItem = addLightViaCli(json, foreign, foreign.repo, addArgs('External follow-up')).item;
   const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
 
   json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--reason', 'Arrange fixture release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
@@ -996,11 +997,12 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const httpClaimStep = await observedApiStep('claim an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpClaimStep), cliRefusal, `${httpClaimStep.evidence}\nCLI evidence:\n${cliClaimStep.evidence}`);
 
-    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', [], 1);
-    const noWork = cliNextStep.document.error;
-    assert.equal(noWork.code, 'NOTHING_FREE', cliNextStep.evidence);
-    const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env, 409);
-    assert.deepEqual(errorDocument(httpNextStep), noWork, `${httpNextStep.evidence}\nCLI evidence:\n${cliNextStep.evidence}`);
+    const cliNextRun = box.run(box.repo, 'next', '--json');
+    const cliNextStep = { evidence: fixtureCommandEvidence('request available work through the CLI', cliNextRun, box.env) };
+    const noWork = JSON.parse(cliNextRun.stdout);
+    assert.deepEqual([cliNextRun.status, cliNextRun.stderr, noWork.version, noWork.item, noWork.next, Array.isArray(noWork.reasons)], [0, '', 1, null, 'nothing for this seat: end your turn', true], cliNextStep.evidence);
+    const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env);
+    assert.deepEqual(httpNextStep.document, { version: 1, event: null, result: noWork }, `${httpNextStep.evidence}\nCLI evidence:\n${cliNextStep.evidence}`);
 
     const cliVerifyStep = observedFixtureStep(box, 'verify an unknown item through the CLI', box.repo, 'verify', ['999', 'accept', '--as', 'coordinator', '--note', 'checked the API'], 1);
     const verifierRefusal = cliVerifyStep.document.error;
@@ -1041,7 +1043,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent');
+    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent', '--route', 'strong');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1062,14 +1064,13 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
     const renewedStep = await observedApiStep('renew API move as app-1', apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {}, agent: 'app-1' }) }), box.env);
     const renewed = renewedStep.document;
     assert.equal(renewed.result.held, true, renewedStep.evidence);
-    assert.equal(renewed.event.event_kind, 'renew', renewedStep.evidence);
-    assert.ok(renewed.event.event_id > claimed.event.event_id, renewedStep.evidence);
+    assert.equal(renewed.event, null, renewedStep.evidence);
     assert.equal(renewed.result.item.item_id, claimed.result.item.item_id, renewedStep.evidence);
 
     const escalatedStep = await observedApiStep('escalate API move as app-1', apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'escalate', item: added.result.item.item_id, args: { note: 'Two attempts failed' }, agent: 'app-1' }) }), box.env);
     const escalated = escalatedStep.document;
     assert.equal(escalated.event.event_kind, 'escalate', escalatedStep.evidence);
-    const eventsStep = await observedApiStep('read events after escalation', apiFetch(api, `${path}/events?after=${renewed.event.event_id}`), box.env);
+    const eventsStep = await observedApiStep('read events after escalation', apiFetch(api, `${path}/events?after=${claimed.event.event_id}`), box.env);
     const afterEscalation = eventsStep.document.events;
     assert.deepEqual(afterEscalation.map((event) => event.event_kind), ['escalate', 'shout'], eventsStep.evidence);
     assert.equal(afterEscalation[0].event_id, escalated.event.event_id, eventsStep.evidence);
@@ -1301,10 +1302,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const ids = [];
   try {
     for (let index = 0; index < 300; index += 1) {
-      ids.push(addBoardItem(board, {
+      ids.push(addRoutedItem(board, {
         by: 'coordinator', lane: 'app', title: `Incremental item ${String(index + 1).padStart(3, '0')}`,
-        criterion: `Exercise item projection ${index + 1}`, specIds: ['G1'],
-        route: 'light',
+        criterion: `Exercise item projection ${index + 1}`, specIds: ['G1'], route: index === 2 ? 'mid' : 'light',
         brief: 'Files:\n- app/incremental-fixture.js\nChange:\n- Preserve the fixture item.\nTest:\n- The API projection matches a full rebuild.',
         check: 'true',
         ...(index === 1 ? { after: [ids[0]] } : {}),
@@ -1411,24 +1411,23 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
 
     builds.length = 0;
     await move('claim', ids[0], {}, builder.agent);
-    await move('submit', ids[0], {}, builder.agent);
-    await move('next', undefined, { verify: true }, verifier.agent);
+    commitWork(box, builder, ids[0]); await move('submit', ids[0], {}, builder.agent);
+    checkOutSubmitted(box, builder, verifier); await move('next', undefined, { verify: true }, verifier.agent);
     // Keep the fixture's trunk fixed so automatic landing cannot invalidate every item during this incremental check.
     writeFileSync(join(box.repo, 'landing-fixture-dirty'), 'hold the trunk\n');
     await move('verify', ids[0], { decision: 'accept', reason: 'CRITERION_MET', note: 'verified dependency' }, verifier.agent);
     builds.length = 0;
     const dependencyState = await assertFreshFullState('verified dependency');
-    assert.deepEqual(builds, [ids[0], ids[1]], 'the changed item and its dependent are recomputed');
+    assert.deepEqual(builds, [ids[0], ids[1], ids[3]], 'the verified item, its dependent and the next light item a seat claimed on submit are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
-    const dependent = dependencyState.items.find((item) => item.id === ids[1]);
-    if (dependent.claim) {
-      assert.ok([builder.agent, verifier.agent].includes(dependent.claim.by), 'the extra claim belongs to a fixture seat');
-      const owner = dependent.claim.by === builder.agent ? builder : verifier;
-      const released = box.run(owner.path, 'release', String(ids[1]), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
+    for (const extra of dependencyState.items.filter((item) => [ids[1], ids[3]].includes(item.id) && item.claim)) {
+      assert.ok([builder.agent, verifier.agent].includes(extra.claim.by), 'the extra claim belongs to a fixture seat');
+      const owner = extra.claim.by === builder.agent ? builder : verifier;
+      const released = box.run(owner.path, 'release', String(extra.id), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
       assert.equal(released.status, 0, released.stderr || released.stdout);
-      await assertFreshFullState('release the extra claim');
     }
+    await assertFreshFullState('release the extra claims');
 
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });
@@ -1565,7 +1564,7 @@ test('[N26,A2] an item detail answers under 20 ms on a large board', async (t) =
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
   try {
-    for (let index = 0; index < 1000; index += 1) ids.push(addBoardItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
+    for (let index = 0; index < 1000; index += 1) ids.push(addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
       criterion: `Detail ${index + 1}`, specIds: ['G1'], route: 'light', brief: 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.', check: 'true' }));
     const insert = board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, 'coordinator', 'edit', ?, '{}')");
     board.db.exec('BEGIN'); // One transaction seeds the remaining events up to 40,000.

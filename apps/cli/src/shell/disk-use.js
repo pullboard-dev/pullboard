@@ -66,7 +66,9 @@ function newestMtime(path) {
   let names = [];
   try { names = readdirSync(path); } catch { return stat.mtimeMs; }
   if (!names.length) return stat.mtimeMs;
-  return Math.max(...names.map(name => newestMtime(join(path, name))));
+  let newest = 0;
+  for (const name of names) newest = Math.max(newest, newestMtime(join(path, name)));
+  return newest;
 }
 
 /** Which store a top-level name belongs to. */

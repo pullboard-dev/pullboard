@@ -48,16 +48,27 @@ export function lightFrontDoorProblems(root, cell) {
   return doorProblems(root, cell, cell.lightFrontDoor, 'lightFrontDoor', true);
 }
 
+/**
+ * Validate a declared browser-safe pure door, <cell>/pure.js, that sits beside the cell's index.js and optional light core.js.
+ * Why: a light core.js may reach shell modules, so code served to browsers needs its own door whose closure holds no node: built-in and no shell [C7,D3].
+ */
+export function pureDoorProblems(root, cell) {
+  if (cell.pureDoor === undefined) return [];
+  return doorProblems(root, cell, cell.pureDoor, 'pureDoor', false);
+}
+
 /** Walk one declared entry's closure; a light entry may reach shell files and node: built-ins, a pure one may not. */
 function doorProblems(root, cell, entry, key, light) {
-  const directory = posix.dirname(cell.frontDoor), expected = `${directory}/core.js`;
+  const directory = posix.dirname(cell.frontDoor), expected = `${directory}/${key === 'pureDoor' ? 'pure' : 'core'}.js`;
   const kind = light ? 'light' : 'pure';
-  if (!directory.startsWith('packages/') || entry !== expected) return [`${cell.name} ${key} must be ${expected}`];
+  // A light door may sit in an app (apps/<name>/core.js); a pure door stays in a package.
+  if (!(directory.startsWith('packages/') || light && directory.startsWith('apps/')) || entry !== expected) return [`${cell.name} ${key} must be ${expected}`];
   const problems = [], queue = [entry], seen = new Set();
   const index = sourceAt(root, cell.frontDoor);
   try {
-    if (index === null || !reexports(index).some(specifier => specifier.startsWith('.')
-      && posix.normalize(posix.join(directory, specifier)) === entry)) {
+    // A pure door is a sibling of the index, not re-exported by it: the index may repeat names the light core.js already carries.
+    if (key !== 'pureDoor' && (index === null || !reexports(index).some(specifier => specifier.startsWith('.')
+      && posix.normalize(posix.join(directory, specifier)) === entry))) {
       problems.push(`${cell.frontDoor} must re-export ${kind} front door ${entry}`);
     }
   } catch { problems.push(`${cell.frontDoor} cannot prove its re-export of ${entry}`); }
