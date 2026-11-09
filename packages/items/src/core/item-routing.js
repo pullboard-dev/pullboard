@@ -2,7 +2,7 @@ import { ROUTES } from "../../../seats/core.js";
 /** Validate the brief and check required for an item's declared route [B10,B14]. */
 import { briefFiles } from "./brief.js";
 import { briefSections } from "../../../spec/core.js";
-import { refuseMaskedExit } from "../../../kernel/src/core/literal-shell-words.js";
+import { refuseMaskedExit } from "../../../kernel/index.js";
 import { REFERENCE_ENGINE } from "../../../state/core.js";
 import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../state/core.js';
 import { Refused } from "../../../kernel/core.js";
