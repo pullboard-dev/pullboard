@@ -243,7 +243,9 @@ test('a claim kept alive only by an orphaned heartbeat loop is a breach: the loo
   presence.prepare('INSERT OR REPLACE INTO heartbeat (seat, at) VALUES (?, ?)').run(seat, new Date().toISOString());
   presence.close();
   const pidFile = join(m.root, 'loop.pid');
-  execFileSync('/bin/sh', ['-c', `cd "${worktree}" && /bin/sh -c 'while true; do echo heartbeat >/dev/null; sleep 1; done' >/dev/null 2>&1 & echo $! > "${pidFile}"`]);
+  // Only the loop goes to the background, with every stream closed, so this launch returns as soon as the shell exits.
+  execFileSync('/bin/sh', ['-c', `/bin/sh -c 'while true; do echo heartbeat >/dev/null; sleep 1; done' </dev/null >/dev/null 2>&1 & echo $! > "${pidFile}"`],
+    { cwd: worktree, stdio: 'ignore' });
   const loop = Number(execFileSync('/bin/cat', [pidFile], { encoding: 'utf8' }).trim());
   m.children.push(loop);
   const snapshot = await m.snapshot({ readers: { heartbeat: { commitMs: () => 0 } } });
