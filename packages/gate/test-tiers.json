@@ -19736,7 +19736,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/handoff-cap-ignores-seat-env.test.js",
+      "file": "packages/runners/tests/handoff-cap-ignores-seat-env.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -23162,7 +23162,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/handoff-cap-status-line.test.js",
+      "file": "packages/runners/tests/handoff-cap-status-line.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -23225,7 +23225,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/handoff-dispatcher-main-tooling.test.js",
+      "file": "packages/runners/tests/handoff-dispatcher-main-tooling.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -54497,7 +54497,7 @@
       ]
     },
     {
-      "file": "packages/resources/tests/handoff-worker-cap-runners-only.test.js",
+      "file": "packages/runners/tests/handoff-worker-cap-runners-only.test.js",
       "tier": "T3",
       "packages": [
         ".",
