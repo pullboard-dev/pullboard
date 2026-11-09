@@ -116,7 +116,7 @@ function frontDoor(target, cell) {
 /** The committed listing: journeys with their reasons, the pure helpers and leaf cells a cell test may import, the ratchet, the sealed cells. */
 export function readListing(root) {
   const path = resolve(root, LISTING);
-  const empty = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: [] };
+  const empty = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: [], splits: {} };
   return existsSync(path) ? { ...empty, ...JSON.parse(readFileSync(path, 'utf8')) } : empty;
 }
 
@@ -251,7 +251,37 @@ export function testCellsReport(root, { facts, ...options } = {}) {
   const rows = classifyTests(root, options);
   const findings = {};
   for (const row of rows.filter(entry => entry.kind === 'finding')) findings[row.file] = row.problems.map(problem => problem.text);
-  return { rows, findings, rootTests: rows.filter(row => row.root).length, cells: sealedReport(rows, facts ?? cellFacts(root)) };
+  return { rows, findings, rootTests: rootTestCount(rows, (options.listing ?? readListing(root)).splits), cells: sealedReport(rows, facts ?? cellFacts(root)) };
+}
+
+/**
+ * The root test count, where the present targets of each declared split count as their one source: splitting a slow root
+ * journey into files adds no test, so it never raises the ratchet. The split's own case-coverage test proves every case
+ * lands in exactly one target.
+ */
+export function rootTestCount(rows, splits = {}) {
+  const root = new Set(rows.filter(row => row.root).map(row => row.file));
+  let count = root.size;
+  for (const [source, targets] of Object.entries(splits ?? {})) {
+    const present = (Array.isArray(targets) ? targets : []).filter(target => root.has(target)).length;
+    if (present && !root.has(source)) count -= present - 1;
+  }
+  return count;
+}
+
+/** Each malformed declared split: a target that is missing or not a root test, or a target in two splits. */
+function splitProblems(root, splits = {}) {
+  const problems = [], seen = new Map();
+  for (const [source, targets] of Object.entries(splits ?? {})) {
+    if (!Array.isArray(targets) || !targets.length) { problems.push({ path: LISTING, line: 1, text: `split ${source} names no target files` }); continue; }
+    for (const target of targets) {
+      if (!target.startsWith('test/') || !TEST.test(target)) problems.push({ path: LISTING, line: 1, text: `split ${source} target ${target} is not a root test file` });
+      else if (!existsSync(resolve(root, target))) problems.push({ path: LISTING, line: 1, text: `split ${source} target ${target} does not exist` });
+      if (seen.has(target)) problems.push({ path: LISTING, line: 1, text: `split target ${target} sits in two splits, ${seen.get(target)} and ${source}` });
+      seen.set(target, source);
+    }
+  }
+  return problems;
 }
 
 /**
@@ -261,6 +291,10 @@ export function testCellsReport(root, { facts, ...options } = {}) {
  */
 function listedFinding(listing, file) {
   if (Object.hasOwn(listing.findings, file)) return true;
+  // A target of a declared split carries the finding its source had.
+  for (const [source, targets] of Object.entries(listing.splits ?? {})) {
+    if (Array.isArray(targets) && targets.includes(file) && Object.hasOwn(listing.findings, source)) return true;
+  }
   const moved = /^(?:packages|apps)\/[^/]+\/tests\/(.+)$/u.exec(file);
   return Boolean(moved) && Object.hasOwn(listing.findings, `test/${moved[1]}`);
 }
@@ -277,6 +311,7 @@ export function testCellsProblems(root, options = {}) {
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
   problems.push(...impurePureHelpers(root, listing));
+  problems.push(...splitProblems(root, listing.splits));
   for (const row of current.rows.filter(entry => entry.kind === 'finding' && !listedFinding(listing, entry.file))) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);
   }
