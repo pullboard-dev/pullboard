@@ -5,6 +5,12 @@ import { rmSync } from 'node:fs';
 import { closeBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureCommittedGraph } from './testkit-fixture.js';
 import { openKitBoard } from './testkit-fixture.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
+import { privateFixtureFiles } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 /** The two-lane policy the e2e project uses, so a converted test keeps the project it asserted against. */
 export const CELL_CONFIG = Object.freeze({
@@ -70,3 +76,36 @@ export function openCellBoard(file, clock) {
 }
 
 export { closeBoard as closeCellBoard };
+
+/** The e2e project's default gate, so a converted test keeps the gate it ran against. */
+const PROJECT_GATE = 'test ! -f RED';
+
+/**
+ * A cell-level stand-in for the e2e project: the same policy files in a real Git repo, the same isolated Git identity
+ * and private PULLBOARD_HOME and PULLBOARD_MACHINE_HOME, with no `pullboard init`, no hooks, no CLI shim on PATH and no
+ * joined worktree. `dir` is a private scratch folder for the test's own files. Cleanup goes through `t.after`.
+ *
+ * @param {import('node:test').TestContext} t
+ * @param {{ gate?: string, config?: object, spec?: string, model?: string }} [options]
+ * @returns {{ dir: string, repo: string, boardFile: string, env: Record<string, string>, git: (cwd: string, ...args: string[]) => string, tryGit: (cwd: string, ...args: string[]) => object }}
+ */
+export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_SPEC, model = FIXTURE_MODEL } = {}) {
+  const scratch = privateFixtureFiles('pullboard-cell-project-');
+  t.after(() => rmSync(scratch.root, { recursive: true, force: true }));
+  const repo = cellRepo(t, { config: { ...CELL_CONFIG, gate, ...config }, spec });
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_')
+    && !AGENT_SHELL_MARKERS.includes(key) && !SSH_SHELL_MARKERS.includes(key)));
+  Object.assign(env, {
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
+    PULLBOARD_HOME: join(scratch.root, 'pullboard-home'),
+    PULLBOARD_MACHINE_HOME: join(scratch.root, 'machine-home'),
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
+    PULLBOARD_MODEL: model,
+  });
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  return { dir: scratch.root, repo: repo.root, boardFile: repo.boardFile, env, git, tryGit };
+}
