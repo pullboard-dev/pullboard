@@ -2,10 +2,17 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { createJob, writeStep, takeJob, gatePanel, stalledGates, LEASE_MS } from '../packages/jobs/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { writeStep } from '../../../packages/jobs/index.js';
+import { takeJob } from '../../../packages/jobs/index.js';
+import { gatePanel } from '../../../packages/jobs/index.js';
+import { stalledGates } from '../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
 
 const files = privateFixtureFiles('pullboard-durable-jobs-');
 after(() => rmSync(files.root, { recursive: true, force: true }));

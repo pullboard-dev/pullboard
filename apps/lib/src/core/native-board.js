@@ -128,7 +128,7 @@ import {
 import {
   sealItemPatchSubmit,
   sealItemPatchFollow,
-} from '../../../../src/item-patch-submit.js';
+} from '../../../../packages/items/index.js';
 import {
   sealSourceAdvance,
   sealSourceAdvanceReturn,

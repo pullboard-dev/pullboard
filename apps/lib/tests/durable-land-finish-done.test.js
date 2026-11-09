@@ -2,10 +2,15 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { jobView, reclaimLapsed, LEASE_MS } from '../packages/jobs/index.js';
-import { landMerged, mergedLandingJobId } from '../packages/land/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { reclaimLapsed } from '../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { landMerged } from '../../../packages/land/index.js';
+import { mergedLandingJobId } from '../../../packages/land/index.js';
 
 /** A repo with a trunk commit and a landed commit on top of it. */
 function landedRepo() {
