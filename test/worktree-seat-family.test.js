@@ -6,6 +6,7 @@ import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 test('clause 1: a worktree command records the family from the canonical model-tier table [C7]', t => {
@@ -40,6 +41,7 @@ test('clause 2: a submit without usage lists reviewers by the builder seat famil
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  board.executionEngineVersion = BUILDER_FAMILY_REQUIRED_ENGINE - 1;
   try {
     store.register(board, { id: 'coordinator', lane: 'coordinator', path: box.repo, family: 'person-family', model: 'fixture model' });
     store.register(board, { id: 'core-1', lane: 'core', path: join(box.dir, 'builder'), model: 'fixture model' });
@@ -51,6 +53,7 @@ test('clause 2: a submit without usage lists reviewers by the builder seat famil
     submitFixture(board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
     assert.equal(store.getItem(board, id).item_builder_family, null, 'the synthetic submit has no usage-family snapshot');
     store.register(board, { id: 'core-1', lane: 'core', path: join(box.dir, 'builder'), family: 'vendor-a', model: 'fixture model' });
+    delete board.executionEngineVersion;
     const eligibility = reviewEligibility(board, store.getItem(board, id), { policy: 'any', familyPolicy: 'require' });
     assert.ok(eligibility.eligible.includes('core-3'), 'a different declared family is eligible');
     assert.ok(!eligibility.eligible.includes('core-2'), 'the builder family is excluded');
