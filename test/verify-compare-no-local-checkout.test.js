@@ -95,7 +95,7 @@ function gitSpy(box) {
   const directory = join(box.dir, 'git-spy'), log = join(box.dir, 'git-spy.log');
   mkdirSync(directory, { recursive: true });
   const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8', env: box.env }).trim();
-  writeFileSync(join(directory, 'git'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nexec '${real}' "$@"\n`);
+  writeFileSync(join(directory, 'git'), `#!/bin/sh\nprintf '%s\\t%s\\n' "$PWD" "$*" >> '${log}'\nexec '${real}' "$@"\n`);
   chmodSync(join(directory, 'git'), 0o755);
   return { env: { ...box.env, PATH: `${directory}:${box.env.PATH}` }, log };
 }
@@ -125,8 +125,11 @@ test('verify --compare sends both commit ids to the runner and makes no clone, c
   assert.ok(calls.length > 0 && calls.every(call => call.host === HOST), 'every request went to the registered runner');
   assert.ok(existsSync(spy.log), 'the spy saw the comparison run its git commands');
   const commands = readFileSync(spy.log, 'utf8').split('\n').filter(Boolean);
-  assert.ok(commands.some(line => /\brev-parse\b/u.test(line)), 'the spy records real calls');
-  const local = commands.filter(line => /(?:^|\s)(?:clone|checkout|worktree|read-tree|archive)(?:\s|$)/u.test(line));
+  assert.ok(commands.some(line => /\brev-parse\b/u.test(line.split('\t')[1])), 'the spy records real calls');
+  // The ssh stand-in runs the runner's own git beside this one; only commands in this machine's folders count here.
+  const runnerSide = [join(box.dir, 'worker'), join(box.dir, 'pullboard-committed-runner-')];
+  const local = commands.map(line => line.split('\t')).filter(([cwd]) => !runnerSide.some(prefix => cwd.startsWith(prefix)))
+      .map(([, args]) => args).filter(args => !args.includes('pullboard-committed-runner-')).filter(args => /(?:^|\s)(?:clone|checkout|read-tree|archive)(?:\s|$)|\bworktree add\b/u.test(args));
   assert.deepEqual(local, [], 'no checkout, clone or worktree was made on the coordinator');
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head);
 });
