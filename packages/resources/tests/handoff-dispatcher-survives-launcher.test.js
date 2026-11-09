@@ -1,12 +1,18 @@
 /** @pullboard-world-pin copies the real detach entry point from bin/ so the dispatcher under test is the shipped file. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { temporaryDirectory } from './board-fixture.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** Prove the machine dispatcher survives a command ending and receives no agent session environment [C7]. */
 test('a handoff dispatcher is re-parented and survives its launcher process tree [C7]', async t => {
@@ -16,10 +22,10 @@ test('a handoff dispatcher is re-parented and survives its launcher process tree
   const entryDir = join(tools, 'bin');
   const marker = join(root, 'dispatcher.json');
   mkdirSync(entryDir, { recursive: true });
-  copyFileSync(join(import.meta.dirname, '../bin/handoff-worker-detach.js'), join(entryDir, 'handoff-worker-detach.js'));
+  copyFileSync(join(import.meta.dirname, '../../../bin/handoff-worker-detach.js'), join(entryDir, 'handoff-worker-detach.js'));
   writeFileSync(join(entryDir, 'handoff-worker-dispatcher.js'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, session: process.env.AGENT_SESSION_TOKEN ?? null, home: process.env.PULLBOARD_MACHINE_HOME }));\nsetInterval(() => {}, 60_000);\n`);
-  const module = pathToFileURL(join(import.meta.dirname, '../packages/resources/src/shell/handoff-worker-cap.js')).href;
+  const module = pathToFileURL(join(import.meta.dirname, '../src/shell/handoff-worker-cap.js')).href;
   const launch = `process.env.PULLBOARD_MACHINE_HOME=${JSON.stringify(machine)}; process.env.AGENT_SESSION_TOKEN='private-session'; const { ensureHandoffDispatcher }=await import(${JSON.stringify(module)}); await ensureHandoffDispatcher(${JSON.stringify(tools)}, ${JSON.stringify(root)});`;
   const launcher = spawn(process.execPath, ['--input-type=module', '-e', launch], { cwd: root, detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, PULLBOARD_MACHINE_HOME: machine, AGENT_SESSION_TOKEN: 'private-session' } });
   const stderr = [];
