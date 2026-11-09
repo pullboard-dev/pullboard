@@ -15,11 +15,12 @@ import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
+import { AGENT_TRANSCRIPT_ENV } from './cost-session.js';
 
 /** `inline` runs the checkpoint inside the command, as before #2504; any other value defers it to the worker. */
 export const USAGE_CHECKPOINT_ENV = 'PULLBOARD_USAGE_CHECKPOINT';
 /** Only what locates and attributes the caller's native session travels with a due checkpoint. */
-const SESSION_ENV = [...AGENT_SHELL_MARKERS, 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'HOME'];
+const SESSION_ENV = [...AGENT_SHELL_MARKERS, ...AGENT_TRANSCRIPT_ENV, 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'HOME'];
 const REQUEST = /^\d{15}-\d{12}-[0-9a-z-]+\.json$/u;
 const LOG_LIMIT = 256 * 1024;
 /** How long a due checkpoint waits for another writer of the private ledger before it counts as failed. */

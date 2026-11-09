@@ -99,8 +99,12 @@ test(`source-advance custody ${scenario} preserves exact cleanup authority [C7,P
         assert.equal(db.prepare('SELECT COUNT(*) AS n FROM holder').get().n,1,'health must retain the holder');
         listResources();
         assert.equal(db.prepare('SELECT COUNT(*) AS n FROM holder').get().n,orphan?0:1);
-        const cleanup=db.prepare("SELECT detail FROM runner_recovery_event WHERE kind='cleanup'").all();
+        // A dead controller leaves its healthy host in service and requeues (#3248); a lost source is still unverified cleanup.
+        const requeued=scenario==='controller exits';
+        const recorded=requeued?'orphan-requeued':'cleanup';
+        const cleanup=db.prepare("SELECT detail FROM runner_recovery_event WHERE kind IN ('cleanup','orphan-requeued')").all();
         assert.equal(cleanup.length,orphan?1:0);
+        assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind=?').get(orphan?recorded:'cleanup').n,orphan?1:0);
         if(orphan) {
           const detail=JSON.parse(cleanup[0].detail);
           assert.equal(detail.cause,scenario==='controller exits'?'controller process is gone':'source directory is gone');
@@ -108,9 +112,12 @@ test(`source-advance custody ${scenario} preserves exact cleanup authority [C7,P
           assert.equal(detail.remoteCleanup,'unknown','local absence is never remote cleanup proof');
           const status=runnerResourceStatus([runner])[0];
           assert.equal(status.inUse,0);
-          assert.equal(status.unavailableReason,'CLEANUP_UNVERIFIED');
+          if(requeued) {
+            assert.equal(status.unavailable,false,'a dead controller does not quarantine its healthy host');
+            assert.equal(status.unavailableReason,undefined);
+          } else assert.equal(status.unavailableReason,'CLEANUP_UNVERIFIED');
           listResources();
-          assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind='cleanup'").get().n,1,'cleanup is idempotent');
+          assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind IN ('cleanup','orphan-requeued')").get().n,1,'cleanup is idempotent');
         }
       } finally {db.close();}
       if(scenario==='unknown observation') assert.ok(psRefusals>0,'unknown observation was actually exercised');

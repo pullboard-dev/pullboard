@@ -128,17 +128,22 @@ export function loadBearingGrowth(sites, ceilings) {
 }
 
 /**
- * Ceilings that rose against the accepted ones: a new file or kind, or a larger count.
+ * Ceilings that rose against the accepted ones: a new file or kind, or a larger count. A file moved in the same change
+ * (`moves` maps its new path to its old one) starts from its old path's ceiling, so a rename is not a raise; only a
+ * count above the old path's is. The old path must be gone from the candidate, or the ceiling was copied, not moved.
  *
  * @param {Record<string, Record<string, number>>} accepted
  * @param {Record<string, Record<string, number>>} candidate
+ * @param {Record<string, string>} [moves] - New path to old path, for each file git reports as renamed.
  * @returns {{ path: string, kind: string, from: number, to: number }[]}
  */
-export function loadBearingRaised(accepted, candidate) {
+export function loadBearingRaised(accepted, candidate, moves = {}) {
   const raised = [];
   for (const [path, kinds] of Object.entries(candidate)) {
+    const old = moves[path];
+    const origin = old !== undefined && !(old in candidate) && !(path in accepted) ? accepted[old] : undefined;
     for (const [kind, to] of Object.entries(kinds)) {
-      const from = accepted[path]?.[kind] ?? 0;
+      const from = accepted[path]?.[kind] ?? origin?.[kind] ?? 0;
       if (to > from) raised.push({ path, kind, from, to });
     }
   }
@@ -152,9 +157,10 @@ export function loadBearingRaised(accepted, candidate) {
  * @param {{ file: string, source: string }[]} changed - Changed files with their candidate text.
  * @param {Record<string, Record<string, number>>} ceilings - The candidate ceilings.
  * @param {Record<string, Record<string, number>> | null} [accepted] - Main's ceilings; null when main has none.
+ * @param {Record<string, string>} [moves] - New path to old path for each file moved in this change.
  * @returns {string[]}
  */
-export function loadBearingFailures(changed, ceilings, accepted = null) {
+export function loadBearingFailures(changed, ceilings, accepted = null, moves = {}) {
   const failures = [];
   for (const { file, source } of changed) {
     for (const site of loadBearingGrowth(loadBearingSites(source, file), ceilings)) {
@@ -162,7 +168,7 @@ export function loadBearingFailures(changed, ceilings, accepted = null) {
     }
   }
   if (accepted) {
-    for (const row of loadBearingRaised(accepted, ceilings)) {
+    for (const row of loadBearingRaised(accepted, ceilings, moves)) {
       failures.push(`${LOAD_BEARING_CEILINGS}:1: load-bearing ceiling for ${row.path} ${row.kind} rose from ${row.from} to ${row.to}; the ceiling only falls, so move the site into a job instead`);
     }
   }

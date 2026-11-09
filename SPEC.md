@@ -60,7 +60,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - B31 [approved, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
-- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
+- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: test/trunk.test.js | serves: P2
 - B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
 - B37 [draft, must] When lanes are on, every item is built in its own lane; the coordinator claims only coordinator-lane items. (Proposed change to B12, Corey approved 3 Nov.) | gate: review
 - B38 [draft, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and files; with no brief, its check file is the test and its cells are the files. (Proposed replacement for B14, Corey approved 3 Nov.) | gate: review
@@ -198,7 +198,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N12 [wont, aim] `pullboard mcp` serves the commands as MCP tools; A9 covers it.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 - N14 [approved, must] `pullboard run` builds routed items unattended: a command per tier, verified dependencies merged, check, retry, submit or escalate. | gate: test/e2e.test.js | serves: N8
-- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: test/sweep.test.js, test/e2e.test.js
+- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: apps/cli/tests/sweep.test.js, test/e2e.test.js
 - N16 [retired] Merged into N14.
 - N17 [retired] Merged into N15.
 - N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.

@@ -1,4 +1,5 @@
 /** Canonical entry points for the verify cell; every moved body is exported here once [C7]. */
+export * from './core.js';
 export { normalizeReviewDefaults } from './src/shell/review-default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/shell/bar-actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/core/bar-check.js';
