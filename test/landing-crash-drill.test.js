@@ -82,7 +82,7 @@ async function crash(t, box, reviewer, id, stage) {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
     await closed;
   });
-  await waitForFixtureProgress({ child, ready: () => existsSync(marker), progress: () => output.length, description: 'landing reaches ' + stage });
+  await waitForFixtureProgress({ child, ready: () => existsSync(marker), progress: () => output.length, description: 'landing reaches ' + stage + ' ' + JSON.stringify(output) });
   const owner = JSON.parse(readFileSync(marker, 'utf8'));
   assert.equal(owner.stage, stage);
   assert.ok(Number.isSafeInteger(owner.pid) && owner.pid > 0 && owner.pid !== process.pid);
@@ -91,7 +91,7 @@ async function crash(t, box, reviewer, id, stage) {
   process.kill(owner.pid, 'SIGKILL');
   workerKilled = true;
   const [code] = await closed;
-  assert.equal(code, 0, output); // The verdict survives its post-verdict landing failure.
+  assert.equal(code, 0, 'OUT:' + output); // The verdict survives its post-verdict landing failure.
   return before.id;
 }
 
