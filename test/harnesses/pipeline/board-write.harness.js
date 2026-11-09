@@ -91,14 +91,14 @@ test('a coordinator write answers past a slow same-session command, a long reade
     import { repoInfo } from ${url('packages/git/index.js')};
     const held = await bindLocalSession(repoInfo(process.argv[1]), { agent: 'coordinator', digest: agentSessionDigest(), keepLease: true });
     process.stdout.write('ready\\n');
-    process.stdin.on('end', () => held.release()).resume();`, [box.repo], { ...box.env });
+    process.stdin.on('end', () => { held.release(); process.exit(0); }).resume();`, [box.repo], { ...box.env });
   // A reader holding one read transaction open, like a long state build.
   const reader = start(`
     import { DatabaseSync } from 'node:sqlite';
     const db = new DatabaseSync(process.argv[1], { readOnly: true });
     db.exec('BEGIN'); db.prepare('SELECT COUNT(*) FROM event').get();
     process.stdout.write('ready\\n');
-    process.stdin.on('end', () => { db.exec('COMMIT'); db.close(); }).resume();`, [board], box.env);
+    process.stdin.on('end', () => { db.exec('COMMIT'); db.close(); process.exit(0); }).resume();`, [board], box.env);
   // A gate worker writing short transactions back to back, like recordGateRun.
   const worker = start(`
     import { DatabaseSync } from 'node:sqlite';
@@ -107,7 +107,7 @@ test('a coordinator write answers past a slow same-session command, a long reade
     let stop = false, beats = 0;
     process.stdin.on('end', () => { stop = true; }).resume();
     const beat = () => {
-      if (stop) { db.close(); return; }
+      if (stop) { db.close(); process.exit(0); }
       db.exec('BEGIN IMMEDIATE');
       db.prepare("INSERT INTO board_meta(meta_key, meta_value) VALUES ('local:hop-gate-worker', ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value").run(String(++beats));
       db.exec('COMMIT');
@@ -130,4 +130,6 @@ test('a coordinator write answers past a slow same-session command, a long reade
     within(holdMs !== null && holdMs < WRITE_TARGET_MS, `every write of the add holds the lock under ${WRITE_TARGET_MS} ms`, measured);
     return measured;
   });
+  for (const child of children) child.stdin.end();
+  await Promise.all(children.map(child => child.closed));
 });
