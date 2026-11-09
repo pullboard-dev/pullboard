@@ -206,7 +206,7 @@ export { closeBoard } from "./board-read-open.js";
 export { itemById } from "./board-query.js";
 
 /**
- * The refusal codes src/machine.js declares for a guard of a move: the guard's own and any
+ * The refusal codes packages/state/src/shell/machine.js declares for a guard of a move: the guard's own and any
  * additional typed refusals, or for the state check, the move's.
  *
  * @param {any} move
@@ -248,7 +248,7 @@ function checkedItemMove(board, id, verb, checks, transition = null) {
  * Apply one declared move to an item (M1, M2). This is the only code that writes an item's status.
  *
  * It checks the move's guards, then any exit guard of its target the move does not name, in the
- * order src/machine.js declares them, and refuses with the first that does not hold. `checks` has
+ * order packages/state/src/shell/machine.js declares them, and refuses with the first that does not hold. `checks` has
  * one entry per guard: a function given the item that returns null when the guard holds or the
  * refusal when it does not, or null for a guard the caller has already checked, such as the CLI's
  * look at git and the gate. The item's state is checked against the move's declared starting

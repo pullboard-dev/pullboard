@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { commandOutput } from '../../../../../packages/config/core.js';
+import { commandOutput } from '../../../../../packages/config/pure.js';
 import { Refused } from '../../../../../packages/kernel/core.js';
 import { CHECKOUT_LEASES } from './session.js';
 import { CHECKOUT_BOARD_ONLY } from './session.js';
