@@ -3,7 +3,7 @@ import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import assert from 'node:assert/strict';
 import { compareMainFailures } from '../packages/landing/index.js';
 import { mainRedReworkItems } from '../packages/landing/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';

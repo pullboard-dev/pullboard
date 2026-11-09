@@ -9,6 +9,8 @@ export * from './src/shell/pool-lock.js';
 export { keepHeartbeatWhileBlocked } from './src/shell/blocked-heartbeat.js';
 export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/shell/analysis-artifact.js';
 
-export { HANDOFF_DISPATCHER_OWNER_ENV, HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, handoffQueueDirectory, handoffCapLine, handoffDispatcherLog, handoffTicketWaiting, handoffTicketsWaiting, dropHandoffTicket, handoffWorkerCapacity, handoffWorkerCapacityDetail, queueHandoffLaunch, recordHandoffCap, reserveHandoffTicket, withHandoffQueueOrder } from './src/shell/handoff-worker-cap.js';
-export { recoverHandoffDispatcher } from './src/shell/handoff-dispatcher-recovery.js';
+export { HANDOFF_DISPATCHER_OWNER_ENV, HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, finishRunningWorkers, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, repeatingSweep, handoffQueueDirectory, handoffCapLine, handoffDispatcherHeartbeat, handoffDispatcherLog, handoffTicketWaiting, handoffTicketsWaiting, dropHandoffTicket, handoffWorkerCapacity, handoffWorkerCapacityDetail, queueHandoffLaunch, recordHandoffCap, reserveHandoffTicket, withHandoffQueueOrder } from './src/shell/handoff-worker-cap.js';
+export { claimHandoffRecoveryTurn, handoffDispatcherMayBeDead, recoverHandoffDispatcher } from './src/shell/handoff-dispatcher-recovery.js';
 export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHandoffRoot } from './src/shell/handoff-folder-prune.js';
+export { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from './src/shell/gate-spans.js';
+export { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from './src/shell/handoff-queue-owner.js';

@@ -20,7 +20,6 @@ import { milestoneFocus } from "../../../../packages/roadmap/index.js";
  * the hosted page at https://app.pullboard.dev, which gets the secret by a round trip that only ever returns there.
  * Idle reads open no outbound connection (P5); an explicit person sign-in reuses the existing relay linking flow.
  */
-import { spawnSync } from 'node:child_process';
 import {
   createHash,
   randomBytes,
@@ -34,6 +33,11 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { Worker } from 'node:worker_threads';
+import { isMainThread } from 'node:worker_threads';
+import { parentPort } from 'node:worker_threads';
+import { workerData } from 'node:worker_threads';
 import { createServer } from 'node:http';
 import {
   basename,
@@ -271,28 +275,87 @@ function withProject(root, read, providedBoard = null, boardOpeners) {
 }
 
 /**
- * How new each row of a spec or doctrine file is, by the commit that added it: 1 for a row the newest commit to touch
- * the file added, 2 for the commit before, and so on. A row on disk but not yet committed is missing here, and the
- * state counts it 0, newer than any. Walking a file's history is the slowest read behind a state, so each file's ages
- * are kept until HEAD moves, one entry a file.
+ * How new each row of a spec or doctrine file is, by the commit that added it, and the commit those ages were read at
+ * (see computeRowAges). A row on disk but not yet committed is missing here, and the state counts it 0, newer than any.
+ * Walking a file's history is the slowest read behind a state, so each file's ages are kept until HEAD moves. With
+ * `later`, as the view server asks, a read never walks: it answers the ages it has (none at first, at null) and a
+ * worker thread refreshes them for HEAD, so the next read has them. Why: HEAD moves on every landing, and a walk of
+ * SPEC.md on a long-lived repo costs seconds that the board's first paint cannot wait for.
  *
  * @param {string} root
  * @param {string} file
  * @param {string | null} head The one commit captured for this project's state.
- * @param {(root: string, file: string, revs: string[]) => { ids: Map<string, string> }} [history]
+ * @param {'spec' | 'doctrine'} kind
+ * @param {{ later?: boolean }} [options]
+ * @returns {{ ages: Map<string, number>, at: string | null }}
+ */
+function rowAges(root, file, head, kind, { later = false } = {}) {
+  const key = root + '\0' + kind + '\0' + file, kept = agesKept.get(key);
+  if (kept && kept.at === head) return kept;
+  if (!later || !head) {
+    const fresh = { ages: computeRowAges(root, file, head, kind), at: head };
+    agesKept.set(key, fresh);
+    return fresh;
+  }
+  if (!agesRefreshing.has(key)) {
+    agesRefreshing.add(key);
+    rowAgesInWorker(root, file, head, kind).then(ages => {
+      agesRefreshing.delete(key);
+      if (ages) agesKept.set(key, { ages, at: head });
+    });
+  }
+  return kept ?? { ages: new Map(), at: null };
+}
+/** The history readers by name, so a worker thread can be told which one to run. */
+const HISTORIES = { spec: committedIds, doctrine: doctrineHistory };
+
+/**
+ * Walk `file`'s history up to `head` and give each committed row id its age: 1 for a row the newest commit
+ * to touch the file added, 2 for the commit before, and so on.
+ *
+ * @param {string} root
+ * @param {string} file
+ * @param {string | null} head
+ * @param {'spec' | 'doctrine'} kind
  * @returns {Map<string, number>}
  */
-function rowAges(root, file, head, history = committedIds) {
-  const key = root + '\0' + file, kept = agesKept.get(key);
-  if (kept && kept.head === head) return kept.ages;
-  const log = head ? spawnSync('git', ['log', '--follow', '--format=%H', head, '--', file], { cwd: root, encoding: 'utf8' }) : null;
-  const place = new Map((log?.status === 0 ? log.stdout : '').split('\n').filter(Boolean).map((commit, n) => [commit, n + 1]));
-  const ages = new Map([...(head ? history(root, file, [head]).ids : new Map())].map(([id, commit]) => [id, place.get(commit) ?? place.size + 1]));
-  agesKept.set(key, { head, ages });
-  return ages;
+function computeRowAges(root, file, head, kind) {
+  if (!head) return new Map();
+  const log = spawnSync('git', ['log', '--follow', '--format=%H', head, '--', file], { cwd: root, encoding: 'utf8' });
+  const place = new Map((log.status === 0 ? log.stdout : '').split('\n').filter(Boolean).map((commit, n) => [commit, n + 1]));
+  return new Map([...HISTORIES[kind](root, file, [head]).ids].map(([id, commit]) => [id, place.get(commit) ?? place.size + 1]));
 }
-/** @type {Map<string, { head: string | null, ages: Map<string, number> }>} */
+
+/**
+ * Compute the ages in a worker thread running this module, so the walk never blocks the view's requests.
+ * A failed worker resolves to null and the caller keeps what it had.
+ *
+ * @param {string} root
+ * @param {string} file
+ * @param {string} head
+ * @param {'spec' | 'doctrine'} kind
+ * @returns {Promise<Map<string, number> | null>}
+ */
+function rowAgesInWorker(root, file, head, kind) {
+  return new Promise(done => {
+    let worker;
+    try { worker = new Worker(new URL(import.meta.url), { workerData: { rowAges: { root, file, head, kind } } }); }
+    catch { done(null); return; }
+    worker.once('message', rows => done(new Map(rows)));
+    worker.once('error', () => done(null));
+    worker.once('exit', () => done(null));
+  });
+}
+
+if (!isMainThread && workerData?.rowAges?.kind in HISTORIES) {
+  const { root, file, head, kind } = workerData.rowAges;
+  parentPort.postMessage([...computeRowAges(root, file, head, kind)]);
+}
+
+/** @type {Map<string, { ages: Map<string, number>, at: string | null }>} */
 const agesKept = new Map();
+/** The files whose ages a worker thread is reading now, so one read at a time runs for each. */
+const agesRefreshing = new Set();
 
 let keptViewReleaseNotes;
 /** Lazily read the immutable release note summary once for this view process. */
@@ -335,14 +398,14 @@ function doctrineGateFiles(root, head, gate) {
  *   A supplied board stays owned by its caller.
  * @returns {any}
  */
-export function projectState(root, { seen = null, board: providedBoard = null, itemProjector = null, boardOpeners } = {}) {
+export function projectState(root, { seen = null, board: providedBoard = null, itemProjector = null, boardOpeners, rowAgesLater = false } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
     // Both row lists and their cached ages name this commit even if HEAD moves between Git reads.
     const head = resolveCommit(info.root, 'HEAD');
-    const rows = (file) => {
-      const ages = rowAges(info.root, file, head);
+    const specAges = rowAges(info.root, config.spec, head, 'spec', { later: rowAgesLater });
+    const rows = (file, ages) => {
       return loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
         id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
         gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
@@ -356,7 +419,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     };
     const doctrine = loadDoctrine(info.root, config);
     // A standard rule was never added to this repo, so it has no age here; the repo's own rows have.
-    const doctrineAges = rowAges(info.root, doctrine.name, head, doctrineHistory);
+    const doctrineAges = rowAges(info.root, doctrine.name, head, 'doctrine', { later: rowAgesLater });
     // A decline's text is its reason. Keep the inherited rule available so the page strikes the
     // rule itself, while showing the repo's reason beside it.
     const inherited = new Map(standardDoctrine().rows.map((row) => [row.id, row.text]));
@@ -365,7 +428,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const state = projectRowDecisions(store.rowDecisions(board), {
       root: info.root,
       releaseNotes: viewReleaseNotes(),
-      rowAgesAt: { [config.spec]: head, [doctrine.name]: head },
+      rowAgesAt: { [config.spec]: specAges.at, [doctrine.name]: doctrineAges.at },
       lanes: [COORDINATOR, ...Object.keys(config.lanes)],
       // The lanes that own folders, where builders work; review lanes own none.
       owning: Object.keys(config.lanes).filter((lane) => (config.lanes[lane].owns ?? []).length > 0),
@@ -390,10 +453,10 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       holds: store.laneHolds(board),
       // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
       itemHolds: all.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at })),
-      spec: rows(config.spec),
+      spec: rows(config.spec, specAges.ages),
       practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
         id, status: state, tier, text, gate, serves, section, origin, version, reason,
-        standardVersion: inherited.has(id) ? doctrine.version : null, overrides: origin === 'repo' && inherited.has(id), added: origin === 'standard' ? null : doctrineAges.get(id) ?? 0,
+        standardVersion: inherited.has(id) ? doctrine.version : null, overrides: origin === 'repo' && inherited.has(id), added: origin === 'standard' ? null : doctrineAges.ages.get(id) ?? 0,
         gateFiles: doctrineGateFiles(info.root, head, gate),
         ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
       })),
@@ -407,6 +470,18 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const projected = projectSpecRevisions({ ...state, focusMilestone: focus ? { name: focus.name, items: [...focus.ids] } : null, rigorDrafts: rigorDraftNeeds(rigorRows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) }, store.rowDrafts(board), store.rowDecisions(board));
     return { ...projected, needs: personNeeds(projected) };
   }, providedBoard, boardOpeners);
+}
+
+/**
+ * The running view's project state: row ages come from what the view already has, refreshed off the request
+ * path, so a state read never walks Git history while the person waits for the board.
+ *
+ * @param {string} root
+ * @param {object} [options]
+ * @returns {any}
+ */
+function liveProjectState(root, options = {}) {
+  return projectState(root, { ...options, rowAgesLater: true });
 }
 
 /**
@@ -491,7 +566,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {

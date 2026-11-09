@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { renameSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { NEXT_IDLE_ENGINE } from '../../src/next-idle-engine.js';

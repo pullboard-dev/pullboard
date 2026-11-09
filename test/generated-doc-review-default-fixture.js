@@ -1,6 +1,11 @@
 /** Exercise the migration's actual event for the format manifest, without claiming gate evidence [A5,V4,H16]. */
 import { openBoard, closeBoard } from '../apps/lib/index.js';
-import { ensureCoordinator, register, addItem, claim, appendFact, events } from '../src/board.js';
+import { board_ensureCoordinator as ensureCoordinator } from '../packages/store/index.js';
+import { register } from '../packages/store/index.js';
+import { addItem } from '../packages/store/index.js';
+import { claim } from '../packages/store/index.js';
+import { appendFact } from '../packages/store/index.js';
+import { events } from '../packages/store/index.js';
 import { REVIEW_DEFAULT_ENGINE } from '../src/review-default-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 

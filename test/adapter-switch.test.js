@@ -5,7 +5,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mainAuditFixture } from './main-audit-project.js';
 import { runFixtureExecFile } from './fixture-child.js';
-import { currentGitAdapter, realGitAdapter, withGitAdapter, withGitContractAdapter, withGitSelection, withGitMode } from '../src/git-adapter.js';
+import { currentGitAdapter } from '../packages/git/index.js';
+import { realGitAdapter } from '../packages/git/index.js';
+import { withGitAdapter } from '../packages/git/index.js';
+import { withGitContractAdapter } from '../packages/git/index.js';
+import { withGitSelection } from '../packages/git/index.js';
+import { withGitMode } from '../packages/git/index.js';
 import { createMemoryGitAdapter } from '../packages/git/index.js';
 import { auditAdapterEnvironment } from '../packages/kernel/index.js';
 

@@ -1,7 +1,7 @@
 /** Emergency routing retains person authority and never evicts active work [N2,B3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { nextTake } from '../packages/sandbox/index.js';

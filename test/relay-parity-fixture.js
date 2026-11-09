@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { addMilestone } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../packages/pages/index.js';
 import { presentationDigest } from '../packages/pages/index.js';

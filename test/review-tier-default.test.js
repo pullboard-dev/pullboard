@@ -1,7 +1,7 @@
 /** Synthetic native lifecycle contracts exercise real guards; none are landing proof [V4,B26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
