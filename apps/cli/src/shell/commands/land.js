@@ -275,10 +275,21 @@ export function landingRetryAt(result, now) {
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
 }
 
-/** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */
+/**
+ * Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. A notice never
+ * blocks or repeats a landing: a HEALTH_SCAN_STALE refusal (the board moved between the read and the move) reads
+ * the observation again once, and any other failure is logged and dropped, as on 9 Nov [C7].
+ */
 async function recordLandingNotices(ctx, board, io) {
-  try {
-    const observation = landingFailureObservation(board);
-    if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
-  } catch (error) { io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR')); }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const observation = landingFailureObservation(board);
+      if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
+      return;
+    } catch (error) {
+      if (error?.code === 'HEALTH_SCAN_STALE' && attempt === 0) continue;
+      io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR'));
+      return;
+    }
+  }
 }

@@ -46,8 +46,10 @@ function savedCandidateResult(state, candidate) {
 /** Keep only small replayable gate metadata; the complete output remains in its immutable log. */
 function candidateGateRecord(gate) {
   if (!gate) return null;
-  const { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, flakeDiagnostics, timedOut, proofRoot, proofCommit, affectedGate, blockingVerdict, exitCode, quarantineFailures, receiptId, proofReceiptId } = gate;
+  const { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, flakeDiagnostics, timedOut, proofRoot, proofCommit, affectedGate, blockingVerdict, exitCode, quarantineFailures, receiptId, proofReceiptId, collectionReport } = gate;
   return { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, affectedGate,
+    // The planned and completed files let a file-waived red be read as waived after adoption (waivedFileProof) [C7].
+    ...(collectionReport ? { collectionReport: { plannedFiles: collectionReport.plannedFiles, completedFiles: collectionReport.completedFiles } } : {}),
     ...(blockingVerdict ? { blockingVerdict, exitCode, quarantineFailures, receiptId, proofReceiptId } : {}),
     ...(proofRoot ? { proofRoot, proofCommit } : {}),
     ...(flakeDiagnostics ? { flakeDiagnostics } : {}), ...(timedOut ? { timedOut } : {}) };
