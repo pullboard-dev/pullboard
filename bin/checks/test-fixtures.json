@@ -1801,8 +1801,8 @@
   "test/import-style-helpers.js": {
     "tempdir": 1
   },
-  "test/inbox-starts-at-join.test.js": {
-    "raw-board": 4
+  "packages/store/tests/inbox-starts-at-join.test.js": {
+    "raw-board": 3
   },
   "test/infra-retry.test.js": {
     "hand-policy": 1
@@ -1849,7 +1849,7 @@
   "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
-  "test/item-notes-engine.test.js": {
+  "packages/moves/tests/item-notes-engine.test.js": {
     "raw-board": 3
   },
   "test/item-patch-cli.test.js": {
@@ -2335,7 +2335,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "test/next-lapsed-gated-claim.test.js": {
+  "packages/store/tests/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
   "test/next-light-reserve.test.js": {
@@ -2574,7 +2574,7 @@
     "model": 1,
     "hand-policy": 2
   },
-  "test/queue-fairness.test.js": {
+  "packages/store/tests/queue-fairness.test.js": {
     "raw-board": 3
   },
   "test/queue-order.test.js": {
@@ -3478,7 +3478,7 @@
     "model": 2,
     "tempdir": 1
   },
-  "test/spec-draft-refreeze.test.js": {
+  "packages/store/tests/spec-draft-refreeze.test.js": {
     "raw-board": 4
   },
   "test/spec-refreeze-fixture.js": {
@@ -3938,5 +3938,8 @@
     "model": 5,
     "raw-board": 6,
     "hand-policy": 1
+  },
+  "test/next-answer-first.test.js": {
+    "raw-board": 1
   }
 }
