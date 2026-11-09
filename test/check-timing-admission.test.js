@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
+import { fixtureCommittedPolicy } from './testkit-fixture.js';
 import { recentReceipts } from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
@@ -30,6 +31,8 @@ for (const timing of [true, false]) {
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
+    // A bar may only name paths its lane owns (CROSS_OWNERSHIP, 24e3f4c070), so the web lane owns the check's test folder.
+    fixtureCommittedPolicy(box, { lanes: { web: { owns: ['web/', 'test/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } } });
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
     writeFileSync(join(box.repo, 'test/admission.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('actual frozen admission check executes', () => assert.equal(2 + 2, 4));\n");
