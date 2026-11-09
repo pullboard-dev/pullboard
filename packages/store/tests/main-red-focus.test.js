@@ -1,21 +1,25 @@
 /** Main red items are always in focus, whatever milestone holds them [N2,B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { addMilestone } from '../../store/index.js';
-import { roadmap } from '../../store/index.js';
-import { setLineSetting } from '../../store/index.js';
-import { boardFixture } from '../../../test/next-order-fixture.js';
-import { HOUR } from '../../../test/next-order-fixture.js';
-import { FREEZE } from '../../../test/next-order-fixture.js';
+import * as store from '../index.js';
+import { addMilestone } from '../index.js';
+import { roadmap } from '../index.js';
+import { setLineSetting } from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
+
+const HOUR = 60 * 60 * 1000;
+/** The minimal frozen bar a claim needs. */
+const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
 
 /**
  * A board whose focus milestone 0.9.4 holds one item, already claimed by a peer, with overflow off. `seed` adds the
  * other items first, since a new item joins the open milestone.
  */
 function focused(t, seed) {
-  const { board, builder } = boardFixture();
-  t.after(() => store.closeBoard(board));
+  const board = fixtureBoard(t);
+  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
+  const builder = cellSeat(board, { lane: 'core', path: '/builder' }).id;
   const seeded = seed(board);
   const inFocus = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Focused' });
   addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.4', items: [inFocus] });
