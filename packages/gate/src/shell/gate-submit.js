@@ -73,6 +73,7 @@ import {
   safeLog,
 } from './gate-execution.js';
 import { shardSlotOptions } from './proof-shards.js';
+import { shardStartupMs } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
 import { proveBatches } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
@@ -270,7 +271,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const proveShards = async (execution, filesCommand) => {
       const runners = execution.gateLease.executionServices.runners;
       const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
-        runnerWaitDeadline: shardLease.runnerWaitDeadline, runnerStartupMs: shardLease.runnerStartupMs, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
+        runnerWaitDeadline: shardLease.runnerWaitDeadline, runnerStartupMs: shardStartupMs(shardLease.runnerStartupMs), browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
         metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
       /** Take one more runner slot and let `lane` pull batches on it; the request ends once the queue has closed. */
       const takeSlot = (lane, { closed }) => withGateSlot(root, shardLease => lane(files => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease))),
