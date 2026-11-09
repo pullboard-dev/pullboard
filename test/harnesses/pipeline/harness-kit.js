@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -28,6 +28,43 @@ export const ROOT = process.env.PULLBOARD_HOP_ROOT ? resolve(process.env.PULLBOA
  */
 export function from(path) {
   return import(pathToFileURL(join(ROOT, path)).href);
+}
+
+/** Git's environment for scratch repositories: no machine or account config, a fixed identity. */
+const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Hop Harness',
+  GIT_AUTHOR_EMAIL: 'hops@example.test', GIT_COMMITTER_NAME: 'Hop Harness', GIT_COMMITTER_EMAIL: 'hops@example.test' };
+
+/**
+ * Run git in a scratch repository and return its trimmed stdout, failing on a non-zero exit.
+ *
+ * @param {string} dir
+ * @param {...string} args
+ * @returns {string}
+ */
+export function gitIn(dir, ...args) {
+  const run = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: GIT_ENV, maxBuffer: 64 * 1024 * 1024 });
+  if (run.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${dir}: ${run.stderr}`);
+  return run.stdout.trim();
+}
+
+/**
+ * Copy a commit's tree of a Pullboard checkout into `into` as a fresh one-commit repository, never its working tree
+ * and never its history. Why: the stale-tooling repro moves a tool root's HEAD, and `--against` runs harnesses on an
+ * older tree; neither may touch the checkout itself.
+ *
+ * @param {string} root - The checkout to copy from.
+ * @param {string} into - An empty scratch folder.
+ * @param {string} [commit]
+ * @returns {string} `into`.
+ */
+export function committedCopy(root, into, commit = 'HEAD') {
+  mkdirSync(into, { recursive: true });
+  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', root, into, commit], { encoding: 'utf8', env: GIT_ENV });
+  if (run.status !== 0) throw new Error(`copy of ${commit} failed: ${run.stderr}`);
+  gitIn(into, 'init', '-q', '-b', 'main');
+  gitIn(into, 'add', '-A');
+  gitIn(into, 'commit', '-q', '-m', `copy of ${commit}`);
+  return into;
 }
 
 /** Every folder this harness made or was handed, so the leak check and the cleanup cover them all. */

@@ -4,51 +4,24 @@
  * real board and timed. Run alone with `node test/harnesses/pipeline/e2e.harness.js`, or through `node bin/hop-matrix.js`.
  */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
-import { basename, dirname, join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
-import { ROOT, from, gone, guardProcesses, hopCheck, survivors, waitUntil, within } from './harness-kit.js';
-import { handoffProject, json } from './handoff-project.js';
+import { ROOT, from, gone, guardProcesses, hopCheck, waitUntil, within } from './harness-kit.js';
+import { dispatchers, handoffProject, json, mainTooling } from './handoff-project.js';
 
 const { joinFixtureSeat } = await from('test/testkit-fixture.js');
 
-/** How long a lease may go unrenewed while its gate runs: the drive renews every 5 s, so two missed ticks is a fault. */
-const RENEW_GAP_MS = 10_000;
+/**
+ * How long a lease may go unrenewed while its gate runs: half the 2-minute lease (DJ12-DJ14). The drive renews every
+ * 5 s; a wider gap is reported, and only one that puts the lease at risk fails the hop.
+ */
+const RENEW_GAP_MS = 60_000;
 /** The board command latency target, per command, from Corey's 2 Nov speed rule. */
 const COMMAND_TARGET_MS = 200;
 
 let box;
 guardProcesses({ before: () => { if (box) writeFileSync(box.release, 'release\n'); } });
-
-/**
- * The dispatcher processes of this project's machine home, with the tools folder each one runs from.
- *
- * @param {string} home - The project's PULLBOARD_MACHINE_HOME.
- * @returns {{ pid: number, tools: string }[]}
- */
-function dispatchers(home) {
-  return survivors([home]).flatMap(({ pid, command }) => {
-    const match = /(\S*\/bin\/handoff-worker-dispatcher\.js)/u.exec(command);
-    return match ? [{ pid, tools: dirname(dirname(match[1])) }] : [];
-  });
-}
-
-/**
- * The tooling digest a shared tools snapshot is named by: the git ids of bin, apps, packages, src and package.json at
- * the tool root's HEAD, as `toolingDigest` in apps/cli/src/shell/submit-handoff.js computes it. Null outside git.
- *
- * @param {string} root
- * @returns {string | null}
- */
-function mainTooling(root) {
-  const ids = ['bin', 'apps', 'packages', 'src', 'package.json'].map(path => {
-    const id = spawnSync('git', ['-C', root, 'rev-parse', `HEAD:${path}`], { encoding: 'utf8' });
-    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout.trim()) ? `${path}=${id.stdout.trim()}` : `${path}=absent`;
-  });
-  return ids.every(id => id.endsWith('=absent')) ? null : createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
-}
 
 /**
  * Run one CLI command and return its result with its wall time.
@@ -64,7 +37,7 @@ function timed(cwd, ...args) {
 }
 
 test('one item goes from claim to merged through every hop, each state change on the real board [C7]', { timeout: 300_000 }, async t => {
-  box = handoffProject();
+  box = handoffProject({ resident: true });
   const home = box.env.PULLBOARD_MACHINE_HOME;
   const id = box.item('Say hi through every hop');
   const latencies = [];
