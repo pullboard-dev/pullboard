@@ -1,11 +1,19 @@
 /** A landing worker that dies mid-batch is replaced by the health sweep and the adoption is recorded [C7]. */
 import assert from 'node:assert/strict';
-import { rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
-import { startServeSentinel, LANDING_LIVENESS_INTERVAL_MS } from '../packages/sentinels/src/shell/serve-sentinel.js';
-import { runFixtureGit, privateFixtureFiles } from './fixture-child.js';
+import { scheduleAutomaticLanding } from '../../landing/index.js';
+import { resumeAutomaticLanding } from '../../landing/index.js';
+import { recoverAutomaticLanding } from '../../landing/index.js';
+import { automaticLandingDirectory } from '../../landing/index.js';
+import { startServeSentinel } from '../index.js';
+import { LANDING_LIVENESS_INTERVAL_MS } from '../index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const GIT_START = ['init', '-q'];
 
@@ -17,7 +25,7 @@ function fixture(t) {
   return root;
 }
 
-const worker = new URL('../bin/automatic-landing.js', import.meta.url);
+const worker = new URL('../../../bin/automatic-landing.js', import.meta.url);
 const dueAt = '2099-01-01T00:00:00.000Z';
 
 /** Read only this fixture's private wake record; it is not a board proof receipt. */
