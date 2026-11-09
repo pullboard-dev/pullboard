@@ -1,6 +1,8 @@
 import { auditAdapterEnvironment } from '../../../kernel/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { landingShardCount } from './test-concurrency.js';
+import { landingShardable } from './landing-gate-shards.js';
+import { landingShardExecution } from './landing-gate-shards.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
@@ -12,6 +14,7 @@ import { shadowOfRun } from './tier1-shadow-run.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from '../../core.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
+import { loadMachineSettings } from '../../../config/index.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { invalidateGitFacts } from '../../../../src/git.js';
 import { keepHeartbeatWhileBlocked } from '../../../resources/index.js';
@@ -508,7 +511,7 @@ export function pinRunMain(lease, observer) {
  * @param {{ trustStamp?: boolean, onWait?: (state: object) => void, landing?: boolean, runnerOnly?: boolean, collectAll?: boolean, auditBatchId?: string, agent?: string, item?: string|number }} [options]
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
-export async function runGate(root, config, { trustStamp = true, onWait, landing = false, runnerOnly = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], quarantines = [], proofContext, onFailure, executionServices } = {}) {
+export async function runGate(root, config, { trustStamp = true, onWait, landing = false, runnerOnly = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], quarantines = [], proofContext, onFailure, executionServices, shard = null } = {}) {
   const runnerAdmission = gateRunnerAdmission();
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
@@ -534,22 +537,27 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     throw missingGate(root);
   }
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
+  const slotOptions = {
+    executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
+    browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
+    ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
+    ...(landing && !runnerOnly ? landingControllerPlacement(root, { required: releaseRequest }) : {}),
+  };
   return await (landing ? withLandingGateSlot : withGateSlot)(root, async (lease) => {
     if (landing) lease.timingOperation = 'landing-gate';
     lease.testTiers = Boolean(config[VALUE_GATE]);
     lease.quarantines = quarantines;
     if (quarantines.length && proofContext) lease.proof = proofContext;
     pinRunMain(lease, onFailure);
-    const run = fullGateRun(root, config, trustStamp, { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, auditFiles, auditCoverage, releaseRequest, releaseStartedAt, stages: stages || quarantines.length > 0, waivers, kind: releaseRequest ? 'release' : landing ? 'land' : 'gate' });
+    const options = { waitMs: lease.waitMs, gateLease: lease, landing, collectAll, auditBatchId, auditFiles, auditCoverage, releaseRequest, releaseStartedAt, stages: stages || quarantines.length > 0, waivers, kind: releaseRequest ? 'release' : landing ? 'land' : 'gate' };
+    // A landing rerun on a runner lease fans its files out like a submit proof; the receipt and records stay the gate's [C7].
+    const run = landing && lease.runner && !releaseRequest && auditBatchId === undefined && landingShardable(config.gate, shard)
+      ? await fullGateRunWith(root, config, trustStamp, options, plan => landingShardExecution(root, shard, slotOptions, { say: shard.say, settings: loadMachineSettings })(plan))
+      : fullGateRun(root, config, trustStamp, options);
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
-  }, {
-    executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
-    browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
-    ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
-    ...(landing && !runnerOnly ? landingControllerPlacement(root, { required: releaseRequest }) : {}),
-  });
+  }, slotOptions);
 }
 
 /**
@@ -683,6 +691,20 @@ export function fullGateRun(root, config, trustStamp = false, options) {
   try {
     const step = execution.next();
     return step.done ? step.value : execution.next(runProfiledShell(...step.value)).value;
+  } finally { execution.return(); }
+}
+
+/**
+ * Run a full gate whose one command the caller executes, as shards or whole: the profile, run record, receipt and
+ * stamp rules are fullGateRun's own, so a sharded landing gate leaves exactly the records an unsharded one does [C7].
+ *
+ * @param {(execution: object) => Promise<object>} execute - Runs the profiled plan and returns its one run.
+ */
+export async function fullGateRunWith(root, config, trustStamp, options, execute) {
+  const execution = fullGateExecution(root, config, trustStamp, options);
+  try {
+    const step = execution.next();
+    return step.done ? step.value : execution.next(await runProfiledShardsAsync(...step.value, execute)).value;
   } finally { execution.return(); }
 }
 
