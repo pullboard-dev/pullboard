@@ -22,8 +22,24 @@ export async function fallbackReclaim(ctx, command) {
     const lapsed = await withBoardRead(ctx, board => lapsedGateJobs(board.db, { now: now() }));
     if (!lapsed.length) return null;
     // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
-    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed }));
+    // A job whose item is no longer submitted at its commit is ended, never renewed (zombie gate jobs, 9 Nov).
+    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed,
+      active: view => submittedAt(board.db, view) }));
   } catch {
     return null;
   }
+}
+
+/**
+ * Whether a gate job's item is still submitted at that job's candidate commit; null when the job names no item.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ item: number | null, candidate: string | null }} view
+ * @returns {boolean | null}
+ */
+export function submittedAt(db, view) {
+  if (view.item == null) return null;
+  const row = db.prepare('SELECT item_status, item_commit FROM item WHERE item_id = ?').get(view.item);
+  if (!row || row.item_status !== 'submitted') return false;
+  return !view.candidate || !row.item_commit || row.item_commit === view.candidate;
 }
