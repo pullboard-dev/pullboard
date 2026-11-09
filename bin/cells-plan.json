@@ -1927,6 +1927,8 @@
     "resources->jobs",
     "codemap->git",
     "runners->config",
+    "runners->verify",
+    "landing->verify",
     "runners->kernel",
     "runners->resources",
     "runners->transport",
