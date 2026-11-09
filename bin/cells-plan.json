@@ -3506,6 +3506,7 @@
     "gate->store",
     "github->store",
     "items->git",
+    "items->kernel",
     "items->store",
     "keys->store",
     "landing->git",
