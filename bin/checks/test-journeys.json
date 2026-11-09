@@ -5906,24 +5906,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/next-light-reserve.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/next-never-seat-checkout.test.js": {
       "cells": [
         "app:lib",
@@ -9374,21 +9356,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "packages/resources/tests/runner-leak-heal-spares-live-jobs.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources",
-        "runners"
-      ],
-      "reasons": [
-        "imports past resources front door (packages/resources/src/shell/runner-leak-heal.js)",
-        "imports past runners front door (packages/runners/src/shell/runner-leak-stop.js)",
-        "spawns a child process (test/runner-leak-heal-spares-live-jobs.test.js)"
       ]
     },
     "test/runner-load-aware-dispatch.test.js": {
