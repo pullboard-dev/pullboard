@@ -1,4 +1,5 @@
 /** Pure gate-side preload and machine-home policies, with host inputs supplied by callers [C7]. */
+import { join } from 'node:path';
 export { machineHome as gateMachineHome } from '../../../kernel/index.js';
 
 /** Return the trusted runtime preload source for an explicit directory. */
