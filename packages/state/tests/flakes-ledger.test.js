@@ -4,7 +4,7 @@ import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../fl
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyEngineMove,

@@ -20,7 +20,7 @@ import {
   gunzipSync,
   gzipSync,
 } from 'node:zlib';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   engineReceipt,
   executableArgs,

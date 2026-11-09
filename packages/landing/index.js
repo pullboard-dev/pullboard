@@ -29,7 +29,6 @@ export * from "./src/shell/landing-shards.js";
 export * from "./src/shell/run-shards.js";
 export * from "./src/shell/landing-test-policy.js";
 export * from "./src/core/landing-waivers.js";
-export * from "./src/core/landing-worker-identity.js";
 export * from "./src/shell/landing-worker.js";
 export { inProcessLandingBatch, landingProgress } from "./src/shell/landing-in-process.js";
 export * from "./src/shell/landing-worktree-prune.js";

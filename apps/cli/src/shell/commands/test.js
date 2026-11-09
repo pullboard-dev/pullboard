@@ -80,7 +80,7 @@ function sayTestRunStatus(io, ctx, id) {
   io.result?.(found);
   if (found.status === 'queued' || found.status === 'running') io.say(`test run ${found.id} ${found.status}: ${found.files.join(' ') || '--affected'}; pullboard next brings the result`);
   else for (const line of testRunLines(found)) io.say(line);
-  return found.status === 'red' || found.status === 'lost' ? 1 : 0;
+  return ['red', 'lost', 'refused'].includes(found.status) ? 1 : 0;
 }
 
 /** Run the files here and block for the result: the person's, the script's and a queued run's worker path. */

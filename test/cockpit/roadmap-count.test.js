@@ -24,8 +24,8 @@ test('Roadmap title counts shown remaining work and follows a real landing witho
   }
   build(box, demo, 1, 'landing.txt');
   accept(box, demo, 1);
-  box.run(demo.repo, 'milestone', 'add', 'Next', '--items', '1,2');
-  box.run(demo.repo, 'milestone', 'add', 'Later', '--items', '3');
+  box.run(demo.repo, 'milestone', 'add', 'Next', '--items', '1,2', '--reason', 'Arrange fixture release');
+  box.run(demo.repo, 'milestone', 'add', 'Later', '--items', '3', '--reason', 'Arrange fixture release');
   const server = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-count-'));
   let chrome;
