@@ -440,18 +440,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/board-hold-log.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-ratchet.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-baseline.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-pure-front-door.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -2107,6 +2095,8 @@
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
+    "store->resources",
+    "store->git",
     "github->items"
   ]
 }

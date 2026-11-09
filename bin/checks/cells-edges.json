@@ -457,12 +457,12 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/stats.js": {
-      "cells": 8,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/commands/status.js": {
-      "cells": 16,
-      "deep": 2
+      "cells": 12,
+      "deep": 0
     },
     "apps/cli/src/shell/commands/submit.js": {
       "cells": 21,
@@ -3649,7 +3649,7 @@
       "deep": 0
     },
     "packages/store/src/shell/board-write-lock.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 1
     },
     "packages/store/src/shell/board-write-preparation.js": {
@@ -4041,10 +4041,6 @@
       "deep": 0
     },
     "src/board-hold-lane.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-hold-log.js": {
       "cells": 1,
       "deep": 0
     },

@@ -8,9 +8,9 @@ import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { boardHoldBaselineProblems } from '../src/board-hold-ratchet.js';
-import { committedBoardHoldBaselineProblems } from '../src/board-hold-ratchet.js';
-import { boardHoldLines } from '../src/board-hold-log.js';
+import { boardHoldBaselineProblems } from '../packages/store/index.js';
+import { committedBoardHoldBaselineProblems } from '../packages/store/index.js';
+import { boardHoldLines } from '../packages/store/index.js';
 import { cellProject } from './cell-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -26,7 +26,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
     import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import assert from 'node:assert/strict';
-    import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    import { boardHoldStats } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { measureBoardWritePhase } from ${JSON.stringify(new URL('../packages/store/src/shell/board-write-lock.js', import.meta.url).href)};
     assert.equal(boardHoldStats().available, false, 'a missing machine log is unmeasured, not healthy zero');
     assert.equal(boardHoldStats().count, null);
@@ -107,7 +107,7 @@ test('a hold log append observes the actual SQLite writer already released after
     import { DatabaseSync } from 'node:sqlite';
     import { closeBoard, atomic } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
-    import { boardHoldLog } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    import { boardHoldLog } from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     // @pullboard-board-file locking: a separate real connection probes the same writer at the actual append.
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'post-commit', seat: 'web-1', item: 42 } });
     const peer = new DatabaseSync(process.argv[1]);
@@ -184,11 +184,11 @@ test('the daily allowance is unmeasured until its first full-day fact, and a mea
 
 test('the gate checks committed allowance changes without consulting live machine counts [C7]', t => {
   assert.deepEqual(committedBoardHoldBaselineProblems(join(import.meta.dirname, '..')), []);
-  const box = cellProject(t), file = join(box.repo, 'src', 'board-hold-baseline.json');
-  mkdirSync(join(box.repo, 'src'), { recursive: true });
+  const box = cellProject(t), file = join(box.repo, 'packages/store/src/shell/board-hold-baseline.json');
+  mkdirSync(join(box.repo, 'packages/store/src/shell'), { recursive: true });
   const baseline = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   writeFileSync(file, JSON.stringify(baseline));
-  box.git(box.repo, 'add', 'src/board-hold-baseline.json');
+  box.git(box.repo, 'add', 'packages/store/src/shell/board-hold-baseline.json');
   box.git(box.repo, 'commit', '-qm', 'chore: initialize fixture allowance [G1]');
   const first = { version: 1, allowancePerDay: 12, observedDay: '2026-10-28', fact: 'fixture-full-day-fact' };
   writeFileSync(file, JSON.stringify(first));
