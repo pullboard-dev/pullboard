@@ -177,7 +177,7 @@ test('a packet with one uncovered clause runs the frozen check and names the cla
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
   assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
   assert.doesNotMatch(accepted.out, /accepted from review packet/u);
-  assert.ok(existsSync(marker), 'the frozen check ran its test');
+  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
 });
 
 test('a reasoning clause the reviewer read accepts from the packet; unread, it runs the frozen check [V4,C7]', { timeout: 240_000 }, () => {
@@ -198,7 +198,7 @@ test('an unread reasoning clause still runs the frozen check and names itself [V
   ok(box, reviewer, 'join', 'api', '--route', 'strong');
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
   assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
-  assert.ok(existsSync(marker), 'the frozen check ran its test');
+  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
 });
 
 test('an uncovered free-text clause the reviewer read accepts from the packet [V4,C7]', { timeout: 240_000 }, () => {
