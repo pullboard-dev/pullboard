@@ -16,7 +16,7 @@ import {
   loadConfig,
   openBoard,
   openBoardForRead,
-} from '../../../apps/lib/index.js';
+} from '../index.js';
 import {
   activateMainAudits,
   attributeAuditFailures,
@@ -24,7 +24,7 @@ import {
   mainAuditJobs,
   routeAuditFailures,
   saveMainAudit,
-} from '../index.js';
+} from '../../../packages/gate/index.js';
 
 /** Run real Git in the fixture with no user or system configuration, optionally at a fixed date. */
 function gitAt(date, root, ...args) {
