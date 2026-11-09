@@ -927,7 +927,7 @@
     "raw-cli": 2,
     "raw-board": 1
   },
-  "test/cockpit/activity-sentences.test.js": {
+  "apps/view/tests/cockpit/activity-sentences.test.js": {
     "model": 3
   },
   "test/cockpit/activity.test.js": {
@@ -941,7 +941,7 @@
     "tempdir": 4,
     "env-spread": 1
   },
-  "test/cockpit/agent-floor-data.js": {
+  "apps/view/tests/cockpit/agent-floor-data.js": {
     "model": 1
   },
   "test/cockpit/agent-floor-journey.test.js": {
@@ -1347,7 +1347,7 @@
   "test/cockpit/view-data.js": {
     "model": 3
   },
-  "test/cockpit/view-pure.test.js": {
+  "apps/view/tests/cockpit/view-pure.test.js": {
     "model": 1
   },
   "test/cockpit/view-startup.test.js": {

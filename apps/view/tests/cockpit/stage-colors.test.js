@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
+import { roadmapSummary } from '../../src/core/view/roadmap-summary.js';
 
-const DIR = new URL('../../apps/view/src/shell/', import.meta.url);
+const DIR = new URL('../../src/shell/', import.meta.url);
 const FILES = ['view.css', 'view/stage.css', 'view/item-rows.css', 'view/dashboard.css', 'view/cost.css'];
 const css = Object.fromEntries(FILES.map((f) => [f, readFileSync(new URL(f, DIR), 'utf8')]));
 const all = Object.values(css).join('\n');

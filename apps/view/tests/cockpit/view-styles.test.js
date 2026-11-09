@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { composeViewStyles } from '../../apps/view/index.js';
-import { composeViewStyles as composerModule } from '../../apps/view/src/shell/view-styles.js';
+import { composeViewStyles } from '../../index.js';
+import { composeViewStyles as composerModule } from '../../src/shell/view-styles.js';
 
-const SHELL = new URL('../../apps/view/src/shell/', import.meta.url);
+const SHELL = new URL('../../src/shell/', import.meta.url);
 const MARKER = /\/\* @pullboard-([\w-]+)-styles \*\//gu;
 const STYLESHEETS = { dashboard: 'dashboard', 'items-row': 'item-rows', stage: 'stage' };
 

@@ -1,8 +1,9 @@
 /** Pure Dashboard model behavior on seeded summary/history input; no board, Git, HTTP or browser [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
-import { dashboardData, releasedDashboardData } from './view-data.js';
+import { dashboardModel } from '../../src/shell/view/dashboard-model.js';
+import { dashboardData } from '../../../../test/cockpit/view-data.js';
+import { releasedDashboardData } from '../../../../test/cockpit/view-data.js';
 
 test('Dashboard uses summary leases, history and queue input without I/O [N26]', () => {
   const input = dashboardData();
