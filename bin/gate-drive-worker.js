@@ -22,7 +22,7 @@ export function gateDriveWorkerEntry() { return ENTRY; }
 if (process.argv[1] && resolve(process.argv[1]) === ENTRY) {
   const [requestFile, owner] = gateDriveArguments(process.argv);
   // The board's module graph reaches the worker through the lib front door; load it once this entry runs.
-  Promise.all([import('../apps/lib/src/core/native-board.js'), import('../apps/cli/src/shell/submit-handoff-worker.js')])
+  Promise.all([import('../apps/lib/src/core/native-board.js'), import('../apps/cli/src/shell/submit-handoff-worker.js'), import('../apps/cli/index.js')])
     .then(([nativeBoard, worker]) => worker.driveSubmitHandoff(requestFile, { nativeBoard, owner }))
     // Once its result is recorded the driver exits at once: a leaked handle (a socket, a timer) or a stalled run's stage
     // must not keep it holding a handoff slot (#3108, #3661). A stopped driver's own handler frees its lease and exits.
