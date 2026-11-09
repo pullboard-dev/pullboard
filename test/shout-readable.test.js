@@ -5,9 +5,9 @@ import {
   test,
 } from 'node:test';
 import { join } from 'node:path';
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { createE2eHelpers } from "./e2e-helpers.js";
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);

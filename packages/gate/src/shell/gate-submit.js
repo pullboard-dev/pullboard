@@ -126,7 +126,9 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   }
   const testRunner = testTiers?.runner ?? namedFileRunner(config.affectedTests, crossRunTests);
   if (crossRunTests.length && !testRunner?.trim()) throw new Refused('BAD_CONFIG', 'call-adjacent work requires an affected-tests runner for cross-run tests');
-  const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunTests])].sort();
+  // A bar-named or call-adjacent file the frozen check already runs completely is not run a second time [C7].
+  const crossRunUnrun = crossRunTests.length ? testTierProofFiles({ runner: testRunner, units: crossRunTests }, check) : [];
+  const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunUnrun])].sort();
   const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
   const fullConfig = guardCommand ? { ...config, gate: `(${config.gate}) && ${guardCommand}` } : config;
   const hasFinalProof = !deferFullFallback && !deferSelection && selection.full || proofFiles.length > 0;

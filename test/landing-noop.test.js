@@ -6,10 +6,10 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import { startFixtureChild } from "../../../test/fixture-child.js";
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { createE2eHelpers } from "./e2e-helpers.js";
+import { startFixtureChild } from "./fixture-child.js";
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

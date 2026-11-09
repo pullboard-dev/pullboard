@@ -2,19 +2,19 @@
 /** The frozen check outcome travels with accepts without changing the board schema [V19,V8]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { lex } from '../../kernel/index.js';
-import { AGENT_SHELL_MARKERS } from '../../kernel/index.js';
-import { SSH_SHELL_MARKERS } from '../../kernel/index.js';
-import { styleSources } from '../../codemap/index.js';
-import { readEngineLeaves } from '../../../src/engine-numbers.js';
-import { gateJudgmentPath } from '../../verify/index.js';
+import { lex } from '../packages/kernel/index.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { SSH_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { styleSources } from '../packages/codemap/index.js';
+import { readEngineLeaves } from '../src/engine-numbers.js';
+import { gateJudgmentPath } from '../packages/verify/index.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
   runFixtureChildAsync,
   runFixtureGit,
   safeFixtureDiagnostic,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import {
   chmodSync,
   existsSync,
@@ -31,11 +31,11 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { fixtureJoin } from './testkit-fixture.js';
 
-const BIN = resolve(import.meta.dirname, "../../../bin/pullboard.js");
+const BIN = resolve(import.meta.dirname, "../bin/pullboard.js");
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
 
 /** Create a private CLI environment with isolated Git, home and board state. */
@@ -408,7 +408,7 @@ function normalized(file, source, identities = new Map()) {
 
 
 test('the store move preserves every accepted production body except relocation operands [C7,CD60,CD64]', () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '..');
   const map = JSON.parse(readFileSync(join(root, 'bin/cells-plan/path-map/store.json'), 'utf8'));
   const identities = new Map(Object.entries(map).map(([old, moved]) => [moved, old]));
   for (const [old, digest] of Object.entries(STORE_BODY_HASHES)) {
@@ -477,7 +477,7 @@ function engineRows(source){const code=lex(source).code;return [...code.matchAll
 
 
 test('store extraction preserves the accepted engine identity set and every recorded number [C7,H16]', () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '..');
   const landing = new Set(ACCEPTED_ENGINE_VALUES.filter(row => row[1] === null).map(row => row[0]));
   const placeholders = readEngineLeaves(join(root, 'src')).filter(row => row.number === undefined || row.number === null).map(row => [row.name, null]);
   const actual = [...styleSources(root).flatMap(row => engineRows(row.source)), ...placeholders]

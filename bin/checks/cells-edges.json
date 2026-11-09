@@ -85,7 +85,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/claim.js": {
-      "cells": 16,
+      "cells": 10,
       "deep": 1
     },
     "apps/cli/src/shell/cli/join.js": {
@@ -93,7 +93,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/next.js": {
-      "cells": 14,
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/src/shell/cli/project-ports.js": {
@@ -373,7 +373,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/release.js": {
-      "cells": 6,
+      "cells": 4,
       "deep": 0
     },
     "apps/cli/src/shell/commands/reopen.js": {
@@ -1038,7 +1038,7 @@
     },
     "bin/gate-drive-worker.js": {
       "cells": 1,
-      "deep": 2
+      "deep": 1
     },
     "bin/gate-slot-services.js": {
       "cells": 4,
@@ -4540,10 +4540,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/seat-ledger.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/sentinels.js": {
       "cells": 1,
       "deep": 0
@@ -4581,10 +4577,6 @@
       "deep": 0
     },
     "src/trusted-policy-read.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/untouched-claim-observation.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4825,10 +4817,6 @@
     "<-codemap": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-apps/lib": {
-      "imports": [],
-      "deepImporters": 1
     },
     "<-apps/cli": {
       "imports": [],

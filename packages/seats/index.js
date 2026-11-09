@@ -178,3 +178,5 @@ export {
   planClaimWatchdog,
   runClaimWatchdog,
 } from './src/shell/claim-watchdog.js';
+export { claimWorktreeSnapshot } from './src/shell/untouched-claim-observation.js';
+export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/shell/seat-ledger.js';

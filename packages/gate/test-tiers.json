@@ -1196,6 +1196,28 @@
       "tier": "T3",
       "packages": [
         ".",
+        "packages/config",
+        "packages/gate",
+        "packages/git",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/pin",
+        "packages/queue",
+        "packages/resources",
+        "packages/transport"
+      ],
+      "reasons": [
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/transport/src/shell/ssh.js",
+        "cross-package: imports more than one package",
+        "process: packages/config/src/core/json-output.js"
+      ]
+    },
+    {
+      "file": "test/submit-infra-cli.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
         "apps/cli",
         "apps/lib",
         "apps/runner",
@@ -1207,14 +1229,17 @@
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/flakes",
         "packages/gate",
         "packages/git",
         "packages/github",
         "packages/health",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
+        "packages/land",
         "packages/landing",
         "packages/link",
         "packages/mcp",
@@ -1223,7 +1248,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/rigor",
         "packages/roadmap",
@@ -1237,11 +1264,12 @@
         "packages/stats",
         "packages/store",
         "packages/sync",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: apps/cli/src/shell/cli-board-read.js",
-        "browser: apps/cli/src/shell/worker-scale.js",
+        "browser: apps/cli/src/shell/disk-use.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/core/next-step-words.js",
         "runner: apps/cli/src/shell/commands/test.js",
@@ -4428,6 +4456,14 @@
       ]
     },
     {
+      "file": "packages/sandbox/tests/privacy-scan-guard.test.js",
+      "tier": "T3",
+      "packages": [],
+      "reasons": [
+        "no package: no implementation import"
+      ]
+    },
+    {
       "file": "packages/runners/tests/sandbox-runner-closure.test.js",
       "tier": "T3",
       "packages": [
@@ -7063,7 +7099,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/badge.test.js",
+      "file": "test/badge.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7408,7 +7444,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/commit-metadata.test.js",
+      "file": "test/commit-metadata.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7465,7 +7501,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/item-notes.test.js",
+      "file": "test/item-notes.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7522,7 +7558,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/landing-noop.test.js",
+      "file": "test/landing-noop.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7636,7 +7672,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/shout-readable.test.js",
+      "file": "test/shout-readable.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7693,7 +7729,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/stacked-submit.test.js",
+      "file": "test/stacked-submit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7750,7 +7786,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/verdict-check.test.js",
+      "file": "test/verdict-check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7807,7 +7843,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/verify.test.js",
+      "file": "test/verify.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12878,7 +12914,7 @@
       ]
     },
     {
-      "file": "test/clarify-workflows.test.js",
+      "file": "packages/github/tests/clarify-workflows.test.js",
       "tier": "T1",
       "packages": [
         "."
@@ -21879,7 +21915,7 @@
       ]
     },
     {
-      "file": "test/fixture-progress.test.js",
+      "file": "packages/kernel/tests/fixture-progress.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -34555,14 +34591,6 @@
       ]
     },
     {
-      "file": "test/privacy-scan-guard.test.js",
-      "tier": "T3",
-      "packages": [],
-      "reasons": [
-        "no package: no implementation import"
-      ]
-    },
-    {
       "file": "packages/store/tests/private-rehome-grants.test.js",
       "tier": "T3",
       "packages": [
@@ -37348,7 +37376,7 @@
       ]
     },
     {
-      "file": "test/relay-device-http.test.js",
+      "file": "apps/relay/tests/relay-device-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -38504,7 +38532,7 @@
       ]
     },
     {
-      "file": "test/relay-page-store.test.js",
+      "file": "apps/relay/tests/relay-page-store.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -38562,7 +38590,7 @@
       ]
     },
     {
-      "file": "test/relay-pages-http.test.js",
+      "file": "apps/relay/tests/relay-pages-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -40082,7 +40110,7 @@
       ]
     },
     {
-      "file": "test/release-archive.test.js",
+      "file": "packages/git/tests/release-archive.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -57450,7 +57478,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/release-focus.test.js",
+      "file": "test/release-focus.test.js",
       "tier": "T3",
       "packages": [
         ".",

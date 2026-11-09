@@ -3,10 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertClarificationQuietPeriod } from './clarify-stale-fixture.js';
+import { assertClarificationQuietPeriod } from '../../../test/clarify-stale-fixture.js';
 
-const staleWorkflow = readFileSync(new URL('../.github/workflows/stale.yml', import.meta.url), 'utf8');
-const reopenWorkflow = readFileSync(new URL('../.github/workflows/reopen-clarify.yml', import.meta.url), 'utf8');
+const staleWorkflow = readFileSync(new URL('../../../.github/workflows/stale.yml', import.meta.url), 'utf8');
+const reopenWorkflow = readFileSync(new URL('../../../.github/workflows/reopen-clarify.yml', import.meta.url), 'utf8');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const scriptOffset = reopenWorkflow.indexOf('          script: |\n');
 assert.notEqual(scriptOffset, -1, 'the author-reopen workflow has an executable script');

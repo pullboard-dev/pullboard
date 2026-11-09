@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
+import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
 import { prepareStaleObservation } from '../../../../../packages/health/index.js';
 import { pinClaimHandoff } from '../../../../../packages/health/index.js';

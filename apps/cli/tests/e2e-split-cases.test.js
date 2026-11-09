@@ -32,7 +32,7 @@ const CASES = [
  * @returns {number}
  */
 function declarations(name, quote, caseTitle) {
-  const source = readFileSync(join(import.meta.dirname, name), 'utf8');
+  const source = readFileSync(join(import.meta.dirname, '../../../test', name), 'utf8');
   return source.split(/\n {0,2}test\(/u).slice(1).filter(rest => rest.startsWith(`${quote}${caseTitle}${quote}, `)).length;
 }
 

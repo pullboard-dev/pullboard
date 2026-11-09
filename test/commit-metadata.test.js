@@ -9,12 +9,12 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { submitFixture } from "../../../test/board-submit-fixture.js";
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
-import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
+import { createE2eHelpers } from "./e2e-helpers.js";
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { submitFixture } from "./board-submit-fixture.js";
+import { fixtureAdd } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
