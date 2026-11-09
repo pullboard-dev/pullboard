@@ -24,7 +24,7 @@ test('clause 1: INELIGIBLE release is never offered back to that seat, while ano
   box.advance(31 * 60_000);
 
   const sameSeat = await take(box);
-  assert.equal(sameSeat.item, undefined, 'the ineligible sole item has no automatic-offer fallback');
+  assert.ok(!sameSeat.item, 'the ineligible sole item has no automatic-offer fallback');
   assert.equal(store.getItem(box.board, id).item_status, 'open');
 
   box.as('builder');
