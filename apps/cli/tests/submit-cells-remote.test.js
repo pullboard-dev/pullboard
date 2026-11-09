@@ -25,9 +25,10 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     git('init', '--quiet');
     put('package.json', '{"type":"module"}\n');
     put('bin/cells-plan.json', '{"version":1,"cells":[]}\n');
-    const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }\n';
+    const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }; export function readAcceptedCells(){}; export function warmAcceptedCells(){}\n';
     put('packages/gate/index.js', trustedGate);
     put('packages/landing/index.js', 'export function withMainCheckout(){}\n');
+    put('bin/cells-inventory-cache.js', 'export {};\n');
     put('bin/cells-submit-checks.js', `export async function requireSubmitCells(root, main, source, item, services) {
       if (JSON.parse(item.item_frozen).criterion !== 'fixture' || services.readCutItems()[0].item_id !== 7 || !services.cacheEligible()
         || typeof services.parsers.importsIn !== 'function' || typeof services.parsers.commonJsIn !== 'function'
