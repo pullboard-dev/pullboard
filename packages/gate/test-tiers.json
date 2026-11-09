@@ -51854,7 +51854,7 @@
       ]
     },
     {
-      "file": "test/test-file-budget.test.js",
+      "file": "packages/landing/tests/test-file-budget.test.js",
       "tier": "T3",
       "packages": [
         ".",
