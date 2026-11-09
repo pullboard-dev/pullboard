@@ -57,13 +57,13 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { join } from 'node:path';
     import { relayRequestDevice, relayOperation, syncRelay } from ${JSON.stringify(RELAY_MODULE)};
     import { closeBoard } from ${JSON.stringify(BOARD_MODULE)};
-    import { openBoard, nativeBoardPorts } from ${JSON.stringify(NATIVE_MODULE)};
+    import { openBoard } from ${JSON.stringify(NATIVE_MODULE)};
     import { personRequestRecords, requestIntentDigest, requestStageText } from ${JSON.stringify(REQUESTS_MODULE)};
     import { loadConfig } from ${JSON.stringify(CONFIG_MODULE)};
     import { laneNames } from ${JSON.stringify(LANES_MODULE)};
+    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
     const root = process.cwd();
-    const sink = { write() {} };
-    const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {}, nativeBoardPorts };
+    const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     await syncRelay(root, io);
     const executor = await relayRequestDevice(root);
     const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
@@ -131,11 +131,10 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { readFileSync } from 'node:fs';
     import { join } from 'node:path';
     import { relayOperation, syncRelay } from ${JSON.stringify(RELAY_MODULE)};
-    import { nativeBoardPorts } from ${JSON.stringify(NATIVE_MODULE)};
     import { Refused } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/kernel/index.js')).href)};
+    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
     const root = process.cwd();
-    const sink = { write() {} };
-    const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {}, nativeBoardPorts };
+    const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     await syncRelay(root, io);
     let refusal = null;
     try {
@@ -161,10 +160,9 @@ test('a raced native request receipt returns its sender refusal and clears pendi
 
   const ordinary = await box.script(`
     import { relayOperation } from ${JSON.stringify(RELAY_MODULE)};
-    import { nativeBoardPorts } from ${JSON.stringify(NATIVE_MODULE)};
+    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
     const root = process.cwd();
-    const sink = { write() {} };
-    const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {}, nativeBoardPorts };
+    const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     const result = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'ordinary agent shout after phone race', lanes: [] }], io);
     process.stdout.write(JSON.stringify({ acknowledged: Number.isSafeInteger(result) }));
   `);
