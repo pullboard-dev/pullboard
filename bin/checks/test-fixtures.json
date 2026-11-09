@@ -289,7 +289,7 @@
   "packages/store/tests/main-red-focus.test.js": {
     "raw-board": 6
   },
-  "packages/runners/tests/cleanup-diagnostics.test.js": {
+  "apps/runner/tests/cleanup-diagnostics.test.js": {
     "tempdir": 2
   },
   "packages/runners/tests/runner-controller-generation.test.js": {
