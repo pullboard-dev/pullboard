@@ -59,7 +59,9 @@ export function endDeadGateJobs(db, lapsed, { owner, now, active }) {
     let still = null;
     try { still = typeof active === 'function' ? active(view) : null; } catch { still = null; }
     if (still === false) {
-      writeStep(db, id, 'withdrawn', { stale: true, reason: 'the item is no longer submitted at this job\'s commit', lastStep }, { now });
+      writeStep(db, id, 'withdrawn', { stale: true, reason: view.kind === GATE_DRIVE_KIND
+        ? 'its hand-off ended, another replaced it, or its item left the claim the hand-off serves'
+        : 'its item is no longer submitted at the head its hand-off submitted', lastStep }, { now });
       finishJob(db, id, owner, { now });
       ended.push({ id, ended: 'stale', lastStep });
     } else if (view.kind === 'gate' && now - (last?.at ?? view.created ?? now) >= GATE_JOB_NO_PROGRESS_MS) {

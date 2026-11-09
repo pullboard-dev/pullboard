@@ -149,3 +149,34 @@ test('#4071 clause 1: a lapsed gate-drive job is listed; one whose hand-off ende
   assert.equal(ended.steps.find(step => step.name === 'withdrawn').payload.stale, true);
   assert.notEqual(view('gate-drive:live-handoff').step, 'done', 'a gate-drive job still serving its hand-off is left to its worker');
 });
+
+test('a submitted item is current at the head its hand-off submitted, not at a gate job\'s composed candidate; such a job is never ended stale [C7]', async t => {
+  const helpers = createE2eHelpers();
+  const isolated = helpers.sandbox();
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
+  let box;
+  try { box = helpers.project('true', isolated); }
+  catch (error) { helpers.cleanup(); throw error; }
+  t.after(() => helpers.cleanup());
+  const boardFile = fixtureHandoffPolicy(box, JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')));
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Submitted gate', '--specs', 'G1', '--criterion', 'Passes.', '--check', 'true', '--wait', '--json');
+  assert.equal(added.code, 0, `${added.err}\n${added.out}`);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'done\n', 'feat(web): submitted candidate [G1]').status, 0);
+  assert.equal(JSON.parse(box.run(box.web, 'submit', String(id), '--no-next', '--json').out).queued, true);
+  const status = () => withFixtureBoard(boardFile, board => board.db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id).item_status);
+  await helpers.waitFor(() => status() === 'submitted', 'the gate submitted the item', 120000); // budget: real gate ceiling, no timing assertion.
+  const handoff = handoffState(boardFile, id);
+  // @pullboard-board-file journey: a lapsed gate job whose candidate is the composed merge, not the submitted head.
+  withFixtureBoard(boardFile, board => {
+    createJob(board.db, { id: 'handoff-drive-composed', kind: 'gate', item: id, candidate: 'd'.repeat(40), now: Date.now() - 60_000 });
+    writeStep(board.db, 'handoff-drive-composed', 'shard.started', { shard: 's1' }, { now: Date.now() - 60_000 });
+    takeJob(board.db, 'handoff-drive-composed', 'fallback:next:1', { now: Date.now() - 600_000, leaseMs: 120_000 });
+  });
+  assert.notEqual('d'.repeat(40), handoff.commit, 'the job candidate differs from the submitted head');
+  assert.equal(box.run(box.web, 'next', '--json').code, 0);
+  // @pullboard-board-file journey: read the job the fallback pass judged.
+  const job = withFixtureBoard(boardFile, board => jobView(board.db, 'handoff-drive-composed'));
+  assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a job for an item submitted at its hand-off head is not stale');
+});
