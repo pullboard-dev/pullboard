@@ -1,17 +1,31 @@
 /** A dead gate worker is swept the moment it exits, the sweep reaches it fast, and a locked board never kills a driver [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureBoard, temporaryDirectory } from './board-fixture.js';
-import { createJob, takeJob, jobView } from '../packages/jobs/index.js';
-import { recordJobRow } from '../packages/drive/index.js';
-import { drainHandoffQueue, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
-import { capturedLaunchUnseen, sweepOrder } from '../apps/cli/src/shell/submit-handoff.js';
-import { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from '../packages/resources/index.js';
-import { recordTicketSafely } from '../apps/cli/src/shell/submit-handoff-worker.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { takeJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { recordJobRow } from '../../../packages/drive/index.js';
+import { drainHandoffQueue } from '../../../packages/resources/index.js';
+import { exitedWithoutResult } from '../../../packages/resources/index.js';
+import { HANDOFF_SWEEP_EVERY_MS } from '../../../packages/resources/index.js';
+import { queueHandoffLaunch } from '../../../packages/resources/index.js';
+import { reserveHandoffTicket } from '../../../packages/resources/index.js';
+import { capturedLaunchUnseen } from '../src/shell/submit-handoff.js';
+import { sweepOrder } from '../src/shell/submit-handoff.js';
+import { queuedElsewhere } from '../../../packages/resources/index.js';
+import { recordHandoffQueue } from '../../../packages/resources/index.js';
+import { replaceLostTicketOnce } from '../../../packages/resources/index.js';
+import { recordTicketSafely } from '../src/shell/submit-handoff-worker.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A worker that dies at once with no result, as a crashed gate driver does. */
 const DYING_WORKER = 'process.exit(1);\n';

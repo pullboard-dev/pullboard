@@ -2850,7 +2850,7 @@
   "test/release-clears-claim.test.js": {
     "model": 1
   },
-  "test/release-focus.test.js": {
+  "packages/store/tests/release-focus.test.js": {
     "raw-board": 15
   },
   "test/release-producer-cases.js": {
@@ -3324,7 +3324,7 @@
     "hand-policy": 4,
     "env-spread": 2
   },
-  "test/seal-selection.test.js": {
+  "apps/cli/tests/seal-selection.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/seals.test.js": {
@@ -3611,7 +3611,7 @@
   "test/submit-replaces-gate.test.js": {
     "raw-board": 1
   },
-  "test/submit-runner-plan.test.js": {
+  "apps/cli/tests/submit-runner-plan.test.js": {
     "tempdir": 2
   },
   "test/submit-spec-row-proof.test.js": {

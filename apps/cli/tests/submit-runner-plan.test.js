@@ -12,14 +12,14 @@ import {
   acceptRunnerPlan,
   gateWithRunnerPlan,
   runSubmitGateWithRunnerPlan,
-} from '../apps/cli/src/shell/submit-remote-gate.js';
+} from '../src/shell/submit-remote-gate.js';
 import {
   runSubmitGate,
   submitGateAdmission,
   submitGatePlan,
-} from '../packages/gate/index.js';
-import { executionServices } from './gate-execution-fixture.js';
-import { runFixtureGit } from './fixture-child.js';
+} from '../../../packages/gate/index.js';
+import { executionServices } from '../../../test/gate-execution-fixture.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const main = 'a'.repeat(40);
 const source = 'b'.repeat(40);

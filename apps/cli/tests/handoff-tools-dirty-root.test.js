@@ -1,12 +1,17 @@
 /** A submit from a dirty seat worktree still runs from the shared committed tools snapshot, never a private copy [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
-import { toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
+import { toolsSnapshot } from '../src/shell/submit-handoff.js';
 
 /** Run git in a folder with no user config. */
 function git(cwd, ...args) {
