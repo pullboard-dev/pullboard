@@ -8,6 +8,10 @@ import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
+import { forgetRuntimeHeld } from './runner-runtime-held.js';
+import { recordRuntimeHeld } from './runner-runtime-held.js';
+import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -78,7 +82,7 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
@@ -91,8 +95,10 @@ export function runOnRunner(root, command, options) {
 /** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  // The dispatch span starts before the tooling export, so the export is attributed, not a gap after admission [C7].
+  const dispatchStart = Date.now();
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
@@ -122,9 +128,17 @@ export async function runOnRunnerAsync(root, command, options) {
   child.on('error', caught => { error ??= caught; });
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
+  // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
+  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
+  const spawned = Date.now();
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
-    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
+    return result;
+  } catch (failure) {
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
+    throw failure;
   } finally { signal?.removeEventListener('abort', abort); }
   } finally { installation?.cleanup(); }
 }
@@ -220,14 +234,72 @@ export async function serveRunnerController(ports) {
   } finally { stopWatching(); custody.close(); }
 }
 
+/**
+ * The refusal of a job whose runner went unavailable while it waited for READY. Its diagnostic's reason is
+ * runner-unavailable: the gate requeues it as cleanup-unverified, and recordRunnerFailure keeps the runner's existing
+ * quarantine instead of writing a second one, so one drop is one quarantine (#3698) [C7].
+ *
+ * @param {{ runner: { host: string }, spec: { id: string } }} request
+ * @param {{ host: string, reason: string }} unavailable - The runner's lease observation.
+ * @returns {Refused}
+ */
+export function runnerUnavailableRefusal(request, unavailable) {
+  const error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
+  error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
+    unavailable, remoteCleanup: 'unknown' };
+  return error;
+}
+
+/**
+ * The time by which this dispatch's worker must print READY: the lease's queue deadline, or a full startup budget
+ * from this dispatch's own start when the lease names one and that ends later. Null means no READY bound.
+ * Why: the lease's deadline is when its queue wait ends, fixed at admission. A gate ran doctrine for 177 s on its
+ * lease and then sent proof batches with that deadline long past, so each batch was cut off before its worker could
+ * answer and logged a missed READY on a healthy runner; 15 of 36 gates did so, one 127 times (#3563, 8 Nov) [C7].
+ *
+ * @param {{ runnerWaitDeadline?: number, runnerStartupMs?: number }} options
+ * @param {number} startedAt - When this dispatch began connecting.
+ * @returns {number|null}
+ */
+export function startupDeadline(options, startedAt) {
+  if (!Number.isSafeInteger(options.runnerWaitDeadline)) return null;
+  if (!Number.isSafeInteger(options.runnerStartupMs) || options.runnerStartupMs <= 0) return options.runnerWaitDeadline;
+  return Math.max(options.runnerWaitDeadline, startedAt + options.runnerStartupMs);
+}
+
+/** How long a gate's run may execute after READY with no result when its request names no timeout of its own. */
+export const RUN_CEILING_MS = 20 * 60_000;
+
+/**
+ * The longest this run may execute after READY before the controller ends it as hung, or null when the run carries
+ * its own timeout (a landing or trusted check) or is a main comparison, whose files may legitimately run longer.
+ * PULLBOARD_RUNNER_RUN_CEILING_MS overrides the ceiling; 0 turns it off.
+ * Why: a gate's item check had no run budget, so a hanging test held #2828's gate and its runner slot for 55 minutes
+ * and other gates' for 9 and 11 hours, its heartbeats keeping every watch satisfied (9 Nov) [C7].
+ *
+ * @param {{ timeoutMs?: number, trustedMode?: { timeoutMs?: number }, landing?: boolean, kind?: string }} spec
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number|null}
+ */
+export function runCeilingMs(spec, env = process.env) {
+  if (spec.timeoutMs || spec.trustedMode?.timeoutMs || spec.landing === true || spec.kind === 'main-red') return null;
+  const configured = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
+  if (configured === undefined || configured === '') return RUN_CEILING_MS;
+  const ms = Number(configured);
+  return Number.isSafeInteger(ms) && ms > 0 ? ms : null;
+}
+
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
+  // When the controller began preparing the request and when it was ready, so the source scans before connecting are spans [C7].
+  const preparing = Date.now();
   const request = await requestFor(root, command, options, ports);
+  const prepared = Date.now();
   const deadline = ports.controllerCustody;
   deadline?.job?.(request.spec.recovery);
   let removeAbort = () => {};
-  let runnerWaitTimer;
+  let runnerWaitTimer, runCeilingTimer;
   let jobWatch, heartbeatWatch, transport, receiptSeen = false, receiptTimer;
   const jobCancellation = new AbortController();
   let rawFd = null;
@@ -236,7 +308,8 @@ async function runInController(root, command, options, ports) {
     /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
-    const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    Object.assign(request.phaseAt, { prepare: preparing, prepared });
+    const child = spawnSsh(request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '', cleanupDetails = null;
@@ -253,9 +326,7 @@ async function runInController(root, command, options, ports) {
         try {
           const unavailable = deadline.unavailable();
           if (unavailable?.host === request.runner.host) {
-            error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
-            error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
-              unavailable, remoteCleanup: 'unknown' };
+            error = runnerUnavailableRefusal(request, unavailable);
             transport.stop();
           }
         } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
@@ -283,10 +354,11 @@ async function runInController(root, command, options, ports) {
     };
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
-    if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
+    const readyDeadline = startupDeadline(options, request.phaseAt.start);
+    if (readyDeadline !== null) runnerWaitTimer = setTimeout(() => {
       request.admissionDeadlineExceeded = true;
       abort();
-    }, Math.max(0, options.runnerWaitDeadline - Date.now()));
+    }, Math.max(0, readyDeadline - Date.now()));
     options.signal?.addEventListener('abort', abort, { once: true });
     removeAbort = () => options.signal?.removeEventListener('abort', abort);
     if (options.signal?.aborted) abort();
@@ -322,6 +394,15 @@ async function runInController(root, command, options, ports) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
         if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
           mark('ready'); heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
+          recordRuntimeHeld(request.runner?.host, request.spec.tooling?.sha256); // Its next launch sends no runtime bytes (#4140).
+          const ceiling = runCeilingMs(request.spec);
+          if (ceiling !== null) runCeilingTimer = setTimeout(() => {
+            if (receiptSeen || error) return;
+            const last = Buffer.concat(output).toString('utf8').trimEnd().split('\n').slice(-5).join('\n').slice(-600);
+            error = new Refused('RUNNER_RUN_TIMEOUT', `the run on ${request.runner.host} passed its ${Math.round(ceiling / 60_000)}-minute ceiling with no result, so a test hangs; it was stopped and is not retried. Its last output:\n${last || '(none)'}\nFind the hanging test, make it finish, commit, and submit again`);
+            error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'run-ceiling').diagnostic;
+            transport.stop();
+          }, ceiling);
           try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
           catch (failure) { error ??= failure; abort(); }
         }
@@ -366,6 +447,8 @@ async function runInController(root, command, options, ports) {
     child.once('error', failure => { error ??= failure; });
     child.stdin.write(request.frame);
     const waited = await transport.wait();
+    // A reused runtime that never reached READY may be gone or changed: the next launch sends the full capsule (#4140).
+    if (request.reusedRuntime && request.phase !== 'ready') forgetRuntimeHeld(request.runner?.host, request.spec.tooling?.sha256);
     let status = waited.status;
     const signal = waited.signal;
     clearTimeout(receiptTimer);
@@ -379,7 +462,7 @@ async function runInController(root, command, options, ports) {
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally {
-    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
   }
 }

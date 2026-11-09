@@ -1,4 +1,4 @@
-import { REVIEWS_FIRST_ENGINE } from '../../../../src/reviews-first-engine.js';
+import { REVIEWS_FIRST_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { lineSettings } from '../../../state/index.js';
 import { reviewOffer as capacityReviewOffer } from "../../../seats/index.js";

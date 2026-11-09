@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Project-scoped view privacy checks against the real local server and Chrome [N26,P5]. */
 import assert from 'node:assert/strict';
@@ -114,6 +115,7 @@ test('[N26,P5] a one-project view never reveals the others [N26,P5]', { timeout:
 
     chrome = await openSnapshotChrome(executable, scopedView.link.href, profile);
     await chrome.waitFor(`data?.projects?.length === 1 && data.projects[0]?.root === ${JSON.stringify(visible.repo)} && document.querySelector('[data-root]')`);
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor(`document.body.innerText.includes(${JSON.stringify(visibleName)}) && document.body.innerText.includes('Visible Item 583')`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const links = [...document.querySelectorAll('a[href]')].map(link => new URL(link.href, location.href).pathname);

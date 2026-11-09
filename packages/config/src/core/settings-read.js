@@ -17,6 +17,25 @@ export function declaredMachineSlots() {
   return { gate: value?.gateSlots !== undefined, browser: value?.browserSlots !== undefined };
 }
 
+/**
+ * The optional spend ceiling: an object holding only dailyUsd and/or totalUsd, each a positive dollar amount. Off
+ * when unset, so a machine with no budget spends without a ceiling [N2].
+ *
+ * @param {unknown} budget the budget value from the machine settings file
+ * @param {string} file the settings file named in any refusal
+ */
+function validateBudget(budget, file) {
+  if (budget === undefined) return;
+  if (!budget || typeof budget !== 'object' || Array.isArray(budget) || Object.keys(budget).some(key => key !== 'dailyUsd' && key !== 'totalUsd')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `budget in ${file} must be an object with dailyUsd and/or totalUsd; remove it to turn the spend ceiling off`);
+  }
+  for (const key of ['dailyUsd', 'totalUsd']) {
+    if (budget[key] !== undefined && (typeof budget[key] !== 'number' || !Number.isFinite(budget[key]) || budget[key] <= 0)) {
+      throw new Refused('BAD_MACHINE_SETTINGS', `budget.${key} in ${file} must be a positive dollar amount; remove it to turn that ceiling off`);
+    }
+  }
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -63,6 +82,7 @@ export function loadMachineSettings() {
   }
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
+  validateBudget(value.budget, file);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `view in ${file} must be an object whose background is true or false; fix it before running Pullboard`);
@@ -74,9 +94,10 @@ export function loadMachineSettings() {
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
   const workerBudget = value.workers?.budget;
   if (workerBudget !== undefined && (!workerBudget || typeof workerBudget !== 'object' || Array.isArray(workerBudget)
-    || !(typeof workerBudget.seatHours === 'number' && Number.isFinite(workerBudget.seatHours) && workerBudget.seatHours >= 0)
-    || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['seatHours', 'window'].includes(key)))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be seat-hours over a day or week; run pullboard settings workers.budget 40/day`);
+    || !(typeof (workerBudget.spend ?? workerBudget.seatHours) === 'number' && Number.isFinite(workerBudget.spend ?? workerBudget.seatHours) && (workerBudget.spend ?? workerBudget.seatHours) >= 0)
+    || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['spend', 'seatHours', 'window'].includes(key))
+    || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
   }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);

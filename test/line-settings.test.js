@@ -9,8 +9,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { settingsInventory } from '../packages/config/index.js';
@@ -21,8 +21,8 @@ import {
   DEFAULT_VIEW_PORT,
 } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { LAND_COLLISION_ENGINE } from '../src/landing-collision-engine.js';
-import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
+import { LAND_COLLISION_ENGINE } from '../packages/state/core.js';
+import { BAR_CHECK_ENGINE } from '../packages/state/core.js';
 import { LINE_SETTING_DEFINITIONS } from '../packages/queue/index.js';
 
 /** A private SQLite board with coordinator and builder identities. */

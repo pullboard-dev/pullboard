@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit shouts checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -6,7 +7,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { register, shout as shoutOnBoard } from '../../src/board.js';
+import { register, shout as shoutOnBoard } from '../../packages/store/index.js';
 import { nativeBoardPorts } from '../../apps/lib/index.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, project, build, startView, styleOf, element, storage, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, earlier, shoutsAt, press, pressedInto } from './fixture.js';

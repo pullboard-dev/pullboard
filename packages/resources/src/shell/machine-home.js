@@ -9,7 +9,7 @@ import { Refused } from '../../../kernel/index.js';
 
 /**
  * Use the OS account home unless a caller explicitly selects a private machine pool. A test run substitutes its own
- * account home (PULLBOARD_ACCOUNT_HOME, src/test-isolation.js) so a test never reads the machine it runs on. A process
+ * account home (PULLBOARD_ACCOUNT_HOME, packages/gate/src/shell/test-isolation.js) so a test never reads the machine it runs on. A process
  * inside a test run that has lost both, as a fixture building its own environment can, still gets a private pool under
  * the run's temporary directory: a fixture must never queue for the real machine's runners or browser slots [C7].
  */

@@ -9,12 +9,12 @@ import {
   logEvent,
 } from "./board.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../src/submit-proof-reuse-engine.js';
-import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
+import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../state/core.js';
+import { PROOF_RUN_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 import { agentParent } from "../../../seats/index.js";
-import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
+import { SHADOW_TIER1_ENGINE } from "../../../state/core.js";
+import { QUARANTINE_VERDICT_ENGINE } from "../../../state/core.js";
 import { randomUUID } from 'node:crypto';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */

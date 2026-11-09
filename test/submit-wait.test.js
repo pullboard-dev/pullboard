@@ -5,7 +5,7 @@ import { dispatchHealth } from '../packages/sentinels/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
@@ -15,7 +15,7 @@ import { context } from '../apps/cli/index.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
-import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
+import { REJECTED_WORK_RETURN_ENGINE } from '../packages/state/core.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -91,9 +91,10 @@ test('submit --wait ends at its gate, and a later unclaimed reject returns with 
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', nextPath, 'main');
   const nextActor = onBoard(box, board => store.register(board, { lane: 'web', path: nextPath }));
   const config = loadConfig(box.repo);
+  // The window waits only for a builder who can come back; a gone seat's window ends at once (18a0128eb0, #3447).
+  onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
   assert.throws(() => onBoard(box, board => store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 }), clock),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER', 'another builder cannot steal the original first refusal early');
-  onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
   const before = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   assert.ok(!before.stuck.some(finding => finding.item === 1 && finding.cause === 'REWORK_UNCLAIMED'),
     'the ten-minute boundary is not rounded down');

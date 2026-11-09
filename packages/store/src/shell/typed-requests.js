@@ -4,7 +4,7 @@ import { getItem as itemById } from "./board.js";
 import { listAgents } from "./board.js";
 import { logEvent } from "./board.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { TYPED_REQUESTS_ENGINE } from "../../../../src/typed-requests-engine.js";
+import { TYPED_REQUESTS_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 
 export const TYPED_REQUEST_CAUSES=Object.freeze(['routing-assignment','bar-ambiguity','proof-red-tests','design-choice','conflicting-rulings','person-authority','tool-defect']);

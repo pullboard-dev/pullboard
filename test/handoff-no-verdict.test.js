@@ -5,12 +5,13 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { noVerdictHandoff } from '../apps/cli/src/shell/submit-handoff.js';
 import { getItem } from '../packages/store/index.js';
 import { itemsInStatus } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -39,8 +40,9 @@ function endWithoutVerdict(box, id) {
   const board = openBoard(box.boardFile);
   try {
     const job = submitHandoff(board, id);
-    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?')
-      .run(JSON.stringify({ ...job, state: 'submitted', gateGreen: false }), `submit_handoff:${id}`);
+    const ended = { ...job, state: 'submitted', gateGreen: false };
+    // The gate job holds the record submitHandoff() reads (#3474, #3476).
+    recordSubmitHandoff(board.db, id, ended);
   } finally { board.db.close(); }
 }
 

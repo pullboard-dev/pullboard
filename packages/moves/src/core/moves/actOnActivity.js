@@ -1,5 +1,5 @@
 /** Recipient-owned interrupt receipts use the existing authenticated ordered move protocol [H2,H16,N26]. */
-import { ACTIVITY_DELIVERY_ENGINE } from "../../../../../src/activity-delivery-engine.js";
+import { ACTIVITY_DELIVERY_ENGINE } from "../../../../state/core.js";
 /** Never let an older replica silently omit a delivery or acknowledgement. */
 function minimumEngine() { return ACTIVITY_DELIVERY_ENGINE; }
 /** Use the actual recipient argument, never a transport-selected alias. */

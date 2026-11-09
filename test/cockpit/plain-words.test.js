@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Plain presentation over real native events, preserving quoted words and action identities [N26]. */
 import assert from 'node:assert/strict';
@@ -5,15 +6,15 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { recordGateRun } from '../../apps/lib/index.js';
-import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
+import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../packages/state/index.js';
 import { activityWords } from '../../apps/view/index.js';
 import { runGate } from '../../packages/gate/index.js';
-import { runnerExecutionServices } from '../../src/runners.js';
-import { landingExecutionServices } from '../../src/landing-shards.js';
-import { readGateReceipt, receiptStore } from '../../src/gate-run-receipt.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
+import { readGateReceipt, receiptStore } from '../../packages/gate/index.js';
 import { machine, project, build, sendBack, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 /** Seed authoritative health transitions through the normal ordered receiver, never fabricated event rows. */
@@ -33,9 +34,9 @@ async function tab(chrome, name) {
 /** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
 async function seedBookkeeping(box, alpha) {
   box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
-  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2');
-  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1');
+  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
+  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
   box.run(alpha.web, 'claim', '3');
   const source = box.git(alpha.web, 'rev-parse', 'HEAD');
   const patch = join(box.dir, 'plain-native.patch');
@@ -77,7 +78,7 @@ async function seedBookkeeping(box, alpha) {
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
+    store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
     for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
       assert.ok(kinds.has(kind), 'private native history genuinely contains ' + kind);
@@ -93,7 +94,7 @@ test('only typed native words are translated while user quotations keep their co
   assert.equal(activityWords({ kind: 'proof-run' }).label, 'ran the proof');
 });
 
-test('native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
+test('clause 1: native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the visible plain-words scanner.');
   const box = machine(), alpha = project(box, 'plain-words');

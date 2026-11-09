@@ -1,5 +1,5 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/src/core/native-board.js';
 import { request as boardLinkRequest } from '../packages/link/index.js';
 import {
   personSigningCase,
@@ -53,7 +53,7 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import {
   fixtureBoard,
 } from './board-fixture.js';
@@ -147,9 +147,7 @@ import {
 import {
   checkoutSessionFile,
 } from '../packages/seats/index.js';
-import {
-  repoInfo,
-} from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import {
   privateBoardMoves,
 } from './private-board-move-fixture.js';

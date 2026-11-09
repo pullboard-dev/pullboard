@@ -7,6 +7,7 @@ import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { installRunnerPackage } from './runner-package-install.js';
+import { REUSE_CAPSULE } from './runner-runtime-held.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { captureRunnerTooling } from './runner-tooling-snapshot.js';
@@ -27,19 +28,19 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
-
-/** True in the commit-time hooks, which are short-lived and never dispatch or serve a runner (#2505). */
-const COMMIT_HOOK = process.argv[2] === 'hook' && ['pre-commit', 'commit-msg'].includes(process.argv[3]);
+// When this module loaded: bytes written after it do not belong to this controller, even though the capture waits for first use.
+const LOAD_INSTANT = Date.now();
 
 /** Whether any runners.js instance has pinned the loaded tooling in this process. */
 export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
 
-/** Pin one runners.js instance's controller generation on its first runner operation, before that dispatch. */
-export function pinRunnerTooling() {
-  let captured;
-  const generation = COMMIT_HOOK
-    ? { get loaded() { return captured ??= loadedTooling(); } }
-    : { loaded: loadedTooling() };
+/**
+ * Pin one runners.js instance's controller generation when it loads; the closure capture waits for first use.
+ * Why: parsing the package at import cost every command ~0.8 s; the load instant still bounds which bytes count.
+ */
+export function pinRunnerTooling(since = LOAD_INSTANT) {
+  let loaded;
+  const generation = { get loaded() { return loaded === undefined ? (loaded = loadedTooling(since)) : loaded; } };
   LOADED_TOOLING ??= generation;
   return generation;
 }
@@ -52,9 +53,9 @@ export function inRunnerGeneration(generation, operation) {
   return GENERATION.run(generation, operation);
 }
 
-/** Pin the actual derived runtime and controller generation before any later dispatch. */
-function loadedTooling() {
-  try { return captureRunnerTooling(TOOL_ROOT); }
+/** Capture the derived runtime and controller generation once, refusing bytes written after the instance loaded. */
+function loadedTooling(since) {
+  try { return captureRunnerTooling(TOOL_ROOT, { since }); }
   catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 
@@ -72,7 +73,10 @@ export function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-/** Share the loaded generation guard; async callers leave the closure scan to their fresh controller. */
+/**
+ * Guard the full pinned controller policy graph before dispatching a fresh controller.
+ * This tracked step changes with the new pin, fencing generations loaded before graph fingerprinting existed.
+ */
 export function loadedToolingFiles({ rescan = true } = {}) {
   return currentRunnerTooling(TOOL_ROOT, (GENERATION.getStore() ?? LOADED_TOOLING)?.loaded ?? null, { rescan });
 }
@@ -112,7 +116,7 @@ function committedToolingMatches(root, commit, files) {
 
 /** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
 export function trustedTooling() {
-  const installation = committedRunnerController(TOOL_ROOT);
+  const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
   const { entry, files } = installation ? runnerPackage(root) : loadedToolingFiles();
@@ -142,7 +146,7 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound stays 1 MiB. */
+/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound is 8 MiB. */
 export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
 
 /**
@@ -183,9 +187,13 @@ export function readCapsuleFromStdin() {
  *
  * @returns {{ command: string, input: Buffer }} The remote command and the stdin bytes to write before any other.
  */
-export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null) {
+export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null, { reuse = false } = {}) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
-  const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  // The transfer bound protects what crosses the wire, the gzipped capsule; the raw bundle is ratcheted on main (#4140).
+  const full = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  if (Buffer.byteLength(full) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
+  // A runner that holds this runtime by digest gets an empty capsule and re-hashes its installed copy.
+  const payload = reuse ? REUSE_CAPSULE : full;
   if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
   const installer = `import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -193,8 +201,10 @@ import { mkdtempSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';

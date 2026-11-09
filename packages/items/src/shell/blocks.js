@@ -1,8 +1,12 @@
 /** The block ledger: refusals that stopped someone's command. Not in refused.js, which the browser loads [C6]. */
 import {
   appendFileSync,
+  closeSync,
   existsSync,
-  readFileSync,
+  fstatSync,
+  openSync,
+  readSync,
+  statSync,
 } from 'node:fs';
 import {
   join,
@@ -37,21 +41,110 @@ export function recordBlock(commonDir, block) {
   return true;
 }
 
+/** Lines this far older than `since` prove the tail read has reached back far enough despite clock skew. */
+const TAIL_SLACK_MS = 3_600_000;
+
+/**
+ * The ledger text from `offset` to the end. A read that starts mid-file drops its first partial line.
+ *
+ * @param {string} file
+ * @param {number} offset
+ * @returns {string}
+ */
+function readFrom(file, offset) {
+  const fd = openSync(file, 'r');
+  try {
+    const bytes = Buffer.alloc(fstatSync(fd).size - offset);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = readSync(fd, bytes, length, bytes.length - length, offset + length);
+      if (count === 0) break;
+      length += count;
+    }
+    const text = bytes.subarray(0, length).toString('utf8');
+    return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
+  } finally { closeSync(fd); }
+}
+
+/**
+ * Whether the text holds a block recorded before the bound, so nothing inside the window lies further back.
+ *
+ * @param {string} text
+ * @param {number} bound
+ * @returns {boolean}
+ */
+function reachesBefore(text, bound) {
+  for (const line of text.split('\n')) if (stampOf(line) < bound) return true;
+  return false;
+}
+
+/**
+ * The ledger lines, in order, that name one of the words, and every clear without move keys, found by searching the
+ * text rather than splitting all of it.
+ *
+ * @param {string} text
+ * @param {string[]} words
+ * @returns {string[]}
+ */
+function linesNaming(text, words) {
+  const starts = new Set();
+  const lineAt = start => { const end = text.indexOf('\n', start); return text.slice(start, end < 0 ? text.length : end); };
+  for (const word of words) {
+    for (let at = text.indexOf(word); at >= 0; at = text.indexOf(word, at + word.length)) starts.add(text.lastIndexOf('\n', at) + 1);
+  }
+  const clear = '"kind":"clear"';
+  for (let at = text.indexOf(clear); at >= 0; at = text.indexOf(clear, at + clear.length)) {
+    const start = text.lastIndexOf('\n', at) + 1;
+    if (!lineAt(start).includes('"moveKeys"')) starts.add(start);
+  }
+  return [...starts].sort((a, b) => a - b).map(lineAt);
+}
+
+/**
+ * The time a ledger line was recorded, read from its own `"at"` field by a string scan, never a JSON parse, so a line
+ * can be placed before or after a bound without parsing it. NaN for a torn or foreign line, which proves nothing about time.
+ *
+ * @param {string} line
+ * @returns {number}
+ */
+function stampOf(line) {
+  const found = /"at":"([^"]*)"/u.exec(line);
+  return found ? Date.parse(found[1]) : NaN;
+}
+
 /**
  * The blocks recorded at or after `since`, oldest first. A torn last line from a crash is skipped.
+ * With `since`, only the tail of the ledger is read, doubling backward until it holds a line older than the
+ * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
+ * cannot change a block inside the window [C7].
+ *
+ * With `mentioning`, only blocks naming one of those strings are returned, and the only lines split out and parsed are
+ * those naming one, plus any clear without move keys: the clear after every successful command split and parsed a
+ * whole 29 MB ledger of 35,000 lines [C7]. A clear names the keys it completes, so one naming none of the words can
+ * only drop another key from a returned block's pending keys, never the block itself.
  *
  * @param {string} commonDir
- * @param {{ since?: Date }} [options]
+ * @param {{ since?: Date, mentioning?: string[] }} [options]
  * @returns {any[]}
  */
-export function readBlocks(commonDir, { since } = {}) {
+export function readBlocks(commonDir, { since, mentioning } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
+  const size = statSync(file).size;
+  let text;
+  for (let window = 262_144; ; window *= 2) {
+    const offset = Math.max(0, size - window);
+    text = readFrom(file, offset);
+    if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
+  }
+  if (mentioning && !mentioning.some(word => text.includes(word))) return [];
   const blocks = new Map();
   let legacy = 0;
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of mentioning ? linesNaming(text, mentioning) : text.split('\n')) {
     if (!line.trim()) continue;
+    // A line recorded before the bound cannot change a block inside the window, so it is skipped unparsed.
+    if (since && stampOf(line) < from) continue;
     let block;
     try { block = JSON.parse(line); } catch { continue; /* A torn line from an interrupted append carries no block. */ }
     if (block?.kind === 'clear' && Array.isArray(block.ids)) {
@@ -150,7 +243,8 @@ export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.cloc
   if (info.isMain) owners.add('coordinator');
   try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
   try {
-    const ids = readBlocks(info.commonDir).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
+    // A move key is a hex digest, so a block naming it holds it verbatim in its line.
+    const ids = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
       && owners.has(block.owner) && Date.parse(block.at) <= now.getTime()).map(block => block.id);
     if (!ids.length) return;
     appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');
@@ -163,9 +257,35 @@ export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.cloc
  *
  * @param {string} commonDir
  * @param {Date} now
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}} [budget] a budgetState result, shown as one budget line
  */
-export function personBlockWords(commonDir, now) {
-  return readBlocks(commonDir, { since: new Date(now.getTime() - 86_400_000) })
-    .filter(block => block.audience === 'person')
-    .map(({ at, code, command, audience, reason, step }) => ({ at, code, command, audience, reason, step }));
+export function personBlockWords(commonDir, now, budget) {
+  return [
+    ...readBlocks(commonDir, { since: new Date(now.getTime() - 86_400_000) })
+      .filter(block => block.audience === 'person')
+      .map(({ at, code, command, audience, reason, step }) => ({ at, code, command, audience, reason, step })),
+    ...budgetWords(budget, now),
+  ];
+}
+
+/**
+ * The one budget line Needs you shows once spend reaches 80 percent of a limit, naming spend and limit;
+ * an ok state, or no budget set, shows none [N2]. A line rather than a block, so nothing is written to the ledger.
+ *
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}|undefined} budget a budgetState result
+ * @param {Date} now
+ * @returns {Array<{at: string, code: string, command: string, audience: string, reason: string, step: string}>}
+ */
+export function budgetWords(budget, now) {
+  if (!budget || budget.limit === null || (budget.state !== 'warn' && budget.state !== 'stop')) return [];
+  const stop = budget.state === 'stop';
+  const period = budget.which === 'dailyUsd' ? 'daily' : 'total';
+  return [{
+    at: now.toISOString(),
+    code: stop ? 'BUDGET_STOP' : 'BUDGET_WARN',
+    command: 'pullboard settings budget',
+    audience: 'person',
+    reason: `Spend is $${budget.spend.toFixed(2)} of the $${budget.limit.toFixed(2)} ${period} budget${stop ? ': the limit is reached' : ''}.`,
+    step: 'Raise the budget in the machine settings, or let the seats idle until the period ends.',
+  }];
 }

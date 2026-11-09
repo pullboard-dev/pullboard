@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit roadmap checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -7,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { generateStressBoard, removeStressBoard } from './perf/generate.mjs';
+import { joinFixtureSeat } from '../testkit-fixture.js';
 import { BIN, tapTarget, SPEC, machine, project, build, sendBack, fetchLive, fetchPage, startView, target, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, proofShot, pickProject, chooseFilter } from './fixture.js';
 
 
@@ -414,7 +416,7 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Work not filed yet.');
   box.run(alpha.repo, 'milestone', 'move', 'Later', '--before', '0.1');
   box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
-  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3');
+  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
   const shippedCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const other = project(box, 'other-releases');
   box.run(other.repo, 'add', 'web', 'Other next page', '--specs', 'G1', '--criterion', 'renders');
@@ -553,7 +555,7 @@ test('the roadmap keeps every upcoming release open [N26]', {
   box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued next.', '--reason', 'Arrange fixture release', '--items', '4');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'No work filed yet.');
   box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
-  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3');
+  box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3', '--as', 'person', '--reason', 'Arrange fixture release'); // a second ship is the person's past the coordinator-actions ratchet
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-all-upcoming-open-chrome-'));
   let chrome;
@@ -895,7 +897,7 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   box.run(alpha.repo,'milestone','add','State summary','--reason', 'Arrange fixture release', '--items','10,5,9,8,7,6,11');
   box.run(alpha.repo,'milestone','ship','Shipped release','--next','State summary');
   box.run(alpha.repo,'milestone','add','Empty shipped');
-  box.run(alpha.repo,'milestone','ship','Empty shipped','--next','State summary');
+  box.run(alpha.repo,'milestone','ship','Empty shipped','--next','State summary','--as','person','--reason','Arrange fixture release');
   const shipped=box.git(alpha.repo,'rev-parse','HEAD');
   const rawRoadmap=JSON.parse(box.run(alpha.repo,'roadmap','--json'));
   assert.equal(rawRoadmap.milestones.find(m=>m.name==='State summary').total,6,'649: the milestone total leaves the withdrawn member out, like the summary');
@@ -1001,7 +1003,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   box.run(alpha.web, 'claim', '6');
   const second = join(box.dir, 'second-builder');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/second');
-  box.run(second, 'join', 'web'); box.run(second, 'claim', '1');
+  joinFixtureSeat(box, second, 'web'); box.run(second, 'claim', '1');
   const other = project(box, 'blocked-roadmap-other');
   box.run(other.repo, 'add', 'web', 'Remote base', '--specs', 'G1', '--criterion', 'Ready.');
   box.run(other.repo, 'add', 'web', 'Remote sent-back work', '--specs', 'G1', '--criterion', 'Remote renders.');
@@ -1140,7 +1142,6 @@ test('the expanded row keeps send-backs short and names agents plainly [N26]', {
     const capped = await chrome.stable(`${row('#2')}.parentElement.querySelector('.roadmap-return').textContent`);
     assert.equal(capped.replace(/^.*?by coordinator: /u, ''), long.slice(0, 160).trimEnd() + '…', 'a sentence longer than 160 characters is cut there, with an ellipsis');
     const panel = await opened('#1');
-    // The fixture seat joins as Fixture Model since cbf0597aec (joinFixtureSeat), no longer the env's Test Model.
     assert.match(panel, /Agents.*web-1 \(Fixture Model\) built/u, 'an agent with a known model keeps the model after its name');
     assert.doesNotMatch(panel, /\(unknown\)/u, 'the coordinator, whose model is unknown, is named alone with no placeholder');
     const times = JSON.parse(await chrome.stable(`JSON.stringify([...${row('#1')}.parentElement.querySelectorAll('.roadmap-history time')].map(t=>[t.getAttribute('datetime'),t.textContent]))`));
@@ -1236,7 +1237,8 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   let chrome;
   /** Each visible release head: its chevron's centre against the centre of its title's first line of text. */
   const offsets = async () => JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#roadmap-list .milestone-head')].filter((head) => head.getClientRects().length).map((head) => {
-    const caret = head.querySelector('h2 > .caret'), title = head.querySelector('h2');
+    // A release with a shared header (0ab202b994) carries its chevron beside the header, not inside the title.
+    const caret = head.querySelector('h2 > .caret') || head.querySelector(':scope > .caret'), title = head.querySelector('h2');
     const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT, { acceptNode: (node) => node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
     const text = walker.nextNode(), range = document.createRange();
     range.selectNodeContents(text);
@@ -1260,7 +1262,7 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
           assert.ok(Math.abs(head.offset) <= 2, `${width} ${pass} ${head.key} (${head.open}): the chevron centres on the title's first line: ${head.offset}px`);
         }
         // Flip every head, inner ones first so a folding Shipped never hides one still to press; each is measured both ways.
-        for (const key of heads.map((head) => head.key).reverse()) await press(chrome, `document.querySelector('[data-key=${JSON.stringify(key)}] > .milestone-head')`);
+        for (const key of heads.map((head) => head.key).reverse()) await press(chrome, `document.querySelector('[data-roadmap-key=${JSON.stringify(key)}].milestone-head')`); // a shared-header release nests its head in .release-header
         await chrome.waitFor(`[...document.querySelectorAll('#roadmap-list .milestone-head')].filter((head) => head.getClientRects().length).length >= 3`);
       }
     }

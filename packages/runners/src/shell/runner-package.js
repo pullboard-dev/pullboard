@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -72,7 +73,10 @@ export function runnerPackageReader(root, entry = 'src/runner-worker.js') {
   };
 }
 
-/** Return all actual worker dependencies plus the real manifest, with stable path-bound bytes and a fixed 1MiB ceiling. */
+/**
+ * Return all actual worker dependencies plus the real manifest, with stable path-bound bytes. The transfer bound applies to
+ * the gzipped capsule that carries them (remoteWorkerLaunch), and the raw size is ratcheted by bin/checks/worker-bundle.json (#4140).
+ */
 export function runnerPackage(root, entry = 'src/runner-worker.js') {
   return runnerPackageReader(root, entry)();
 }
@@ -86,7 +90,6 @@ function derivePackage(root, entry, previous, parse) {
     manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   } catch (error) { unavailable('package.json', error.message); }
   const files = {};
-  let serializedBytes = 2; // The empty JSON object includes both braces.
   const analyses = new Map();
   let pending = [entry, 'package.json'];
   while (pending.length) {
@@ -98,10 +101,6 @@ function derivePackage(root, entry, previous, parse) {
       files[file] = readFileSync(join(root, file), 'utf8');
       const count = Object.keys(files).length;
       if (count > 4096) unavailable(file, 'the import closure exceeds its file-count bound');
-      // Only own entries enter JSON; preserve the plain object's inherited-key behavior.
-      if (Object.hasOwn(files, file)) serializedBytes += Buffer.byteLength(JSON.stringify(file))
-        + 1 + Buffer.byteLength(JSON.stringify(files[file])) + (count > 1 ? 1 : 0);
-      if (serializedBytes > 1_048_576) unavailable(file, 'the import closure exceeds the 1 MiB transfer bound');
     }
     const modules = level.filter(file => /\.[cm]?js$/u.test(file));
     const changed = modules.filter(file => previous.get(file)?.source !== files[file]);
@@ -128,4 +127,50 @@ function derivePackage(root, entry, previous, parse) {
     }
   }
   return { runtime: { entry, files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))) }, analyses };
+}
+
+
+/** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140). */
+export function workerBundleBytes(root, entry = 'src/runner-worker.js') {
+  return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry).files));
+}
+
+/** The gate-policy loader the runner controller loads; it and its static imports are fingerprinted for a warmed controller (#1510). */
+const POLICY_ROOT = 'packages/gate/src/core/gate-policy-load.js';
+
+/**
+ * Fingerprint the gate-policy modules a warmed controller has loaded: the policy loader and every module it statically
+ * imports. These bytes never enter the worker transfer payload. A module whose imports cannot be read statically (a
+ * computed import) is still fingerprinted; only the walk past it stops, so one dynamic module never disables the guard.
+ */
+export function controllerPolicyFingerprints(root) {
+  const allowed = new Set(packageFiles(root));
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const fingerprints = new Map();
+  const parser = createRunnerModuleParser();
+  let bytes = 0;
+  let pending = allowed.has(POLICY_ROOT) ? [POLICY_ROOT] : [];
+  try {
+    while (pending.length) {
+      const level = [...new Set(pending)].filter(file => !fingerprints.has(file)).sort();
+      pending = [];
+      for (const file of level) {
+        if (!allowed.has(file)) unavailable(file, 'the gate policy import leaves package.json files');
+        const source = readFileSync(join(root, file));
+        bytes += source.length;
+        // This is a bounded local fingerprint, independent of the unchanged 1 MiB worker capsule ceiling.
+        if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local policy fingerprint exceeds its source bound');
+        fingerprints.set(file, createHash('sha256').update(source).digest('hex'));
+        if (!/\.[cm]?js$/u.test(file)) continue;
+        let imports;
+        try { [imports] = importsIn([source.toString('utf8')], parseWithPaths(parser.parse, [join(root, file)])); }
+        catch { continue; } // computed or opaque imports end the walk at this module
+        for (const specifier of imports) {
+          const target = dependency(file, specifier, manifest);
+          if (target !== null) pending.push(target);
+        }
+      }
+    }
+    return Object.freeze(Object.fromEntries([...fingerprints].sort(([a], [b]) => a.localeCompare(b))));
+  } finally { parser.close(); }
 }

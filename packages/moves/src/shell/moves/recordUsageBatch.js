@@ -1,5 +1,5 @@
 /** Batched numeric summaries retain one authenticated actor and their own replay floor [N2,H16]. */
-import { USAGE_BATCH_ENGINE } from "../../../../../src/usage-batch-engine.js";
+import { USAGE_BATCH_ENGINE } from "../../../../state/core.js";
 
 function minimumEngine() { return USAGE_BATCH_ENGINE; }
 function actor(move) { return move.args[0]?.agentId ?? null; }

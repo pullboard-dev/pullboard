@@ -22,18 +22,50 @@ import {
   gitPath,
 } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { keepRunnerStderr } from './runner-stderr.js';
 import { privateCheckEnvelope } from '../../../runner/index.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
+
+const TRUSTED_RESULT = 'PULLBOARD_TRUSTED_RESULT ';
+
+/** The sentence tail that points a reader at the kept stderr, or an empty string when none was kept. */
+export function stderrNote(file) {
+  return file ? `; runner stderr is in ${file}` : '';
+}
+
+/** The refusal payload from a runner's authenticated stdout, or null when the step printed none. */
+export function trustedRefusalIn(text) {
+  for (const line of String(text).split(/\r?\n/u)) {
+    if (!line.startsWith(TRUSTED_RESULT)) continue;
+    try {
+      const refusal = JSON.parse(line.slice(TRUSTED_RESULT.length))?.refusal;
+      if (refusal && typeof refusal.code === 'string' && typeof refusal.message === 'string') return refusal;
+    } catch { /* not a refusal line */ }
+  }
+  return null;
+}
+
+/**
+ * Throw a runner's refusal as the Mac would raise it: retryable becomes the infrastructure error the queue reruns
+ * on the same candidate, anything else is that refusal code.
+ */
+export function throwTrustedRefusal(refusal) {
+  if (refusal.retryable === true) {
+    throw Object.assign(new Error(refusal.message), { name: 'CellsInventoryInfrastructureError', code: refusal.code, retryable: true });
+  }
+  throw new Refused(refusal.code, refusal.message);
+}
 
 /** Accept only a complete authenticated response for the same source, policy and board snapshot. */
 export async function remoteSubmitCells(root, main, source, item, lease, readCutItems, artifactDirectory, { collectMachinery = false } = {}) {
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') {
     throw new Refused('RUNNER_SOURCE', 'cell analysis needs its admitted remote runner');
   }
-  const inventory = await submitCellsInventory(root, main, source);
+  // The coordinator ships an inventory only when it already holds every accepted one; otherwise the runner produces them in its own cache (#3662).
+  const { inventory, produce } = await runnerCellsInventory(root, main, source);
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion;
   const cutRows = readCutItems();
-  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, inventory: inventory?.descriptor ?? null, node: lease.runner.node ?? 'node', collectMachinery });
+  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, inventory: inventory?.descriptor ?? null, produceInventory: produce, node: lease.runner.node ?? 'node', collectMachinery });
   const tree = git(root, ['rev-parse', `${source}^{tree}`]).trim();
   const checkedSource = { commit: source, tree };
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell,
@@ -42,13 +74,14 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'analysis-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, {
-    runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline,
+    runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs,
     browser: lease.browser, checkedSource, privateCheck: policy,
     ...(inventory ? { analysisArtifact: { file: inventory.file, bytes: inventory.bytes.length, sha256: inventory.digest, context: policy.sha256 } } : {}),
     metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal,
   });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
+  const kept = keepRunnerStderr(directory, result);
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
@@ -56,12 +89,14 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
-    throw new Refused('CELLS_SUBMIT', `remote cell analysis did not return a complete pinned result; inspect ${directory}`);
+    throw new Refused('CELLS_SUBMIT', `remote cell analysis did not return a complete pinned result; inspect ${directory}${stderrNote(kept)}`);
   }
   const bytes = readFileSync(result.rawOutputPath);
   if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
     throw new Refused('RUNNER_RESULT_INVALID', 'remote cell analysis output does not match its authenticated receipt');
   }
+  const refusal = trustedRefusalIn(bytes.toString('utf8'));
+  if (refusal) throwTrustedRefusal(refusal);
   const rows = bytes.toString('utf8').split(/\r?\n/u).filter(line => line.startsWith('PULLBOARD_CELLS_RESULT '));
   let value;
   try { if (rows.length === 1) value = JSON.parse(rows[0].slice('PULLBOARD_CELLS_RESULT '.length)); } catch { /* refused below */ }
@@ -73,13 +108,20 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
 }
 
 /** Construct a data-only request to run the accepted-main checker in a private runner checkout. */
-export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, inventory = null, node = 'node', collectMachinery = false }) {
+export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, inventory = null, produceInventory = [], node = 'node', collectMachinery = false }) {
   if (![main, source].every(value => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value))
     || main.length !== source.length || typeof criterion !== 'string' || !Array.isArray(cutRows) || typeof node !== 'string' || !node) {
     throw new TypeError('cell analysis needs pinned commits, criterion and cut rows');
   }
-  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, collectMachinery })).toString('base64');
-  const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => { console.error(error?.stack ?? String(error)); process.exitCode = 1; });`;
+  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, produceInventory, collectMachinery })).toString('base64');
+  // A coded refusal is a result, not a crash: print it as a trusted line and exit 0; only a codeless error exits 1 [C7].
+  const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => {
+  if (typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(error.code) && (error.name === 'Refused' || error.retryable === true)) {
+    process.stdout.write('${TRUSTED_RESULT}' + JSON.stringify({ refusal: { code: error.code, message: String(error.message ?? ''), retryable: error.retryable === true } }) + '\\n');
+    return;
+  }
+  console.error(error?.stack ?? String(error)); process.exitCode = 1;
+});`;
   return `${shellWord(node)} --input-type=module -e ${shellWord(script)}`;
 }
 
@@ -128,12 +170,31 @@ import {
   commonJsIn,
   withImportParseCache,
   foreignNodeOptions,
+  readAcceptedCells,
+  warmAcceptedCells,
 } from './packages/gate/index.js';
 import { withMainCheckout } from './packages/landing/index.js';
 import * as cellsCache from './bin/cells-inventory-cache.js';
 import { readFileSync } from 'node:fs';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
-const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+// The coordinator held no inventory for these accepted commits: produce each here, once per runner cache (#3662).
+if (!artifacts && Array.isArray(input.produceInventory) && input.produceInventory.length) {
+  const pending = (commit, message) => Object.assign(new Error('accepted cells inventory was not produced on the runner: ' + message), { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
+  const made = new Map();
+  for (const commit of input.produceInventory) {
+    let found = readAcceptedCells(process.argv[3], commit);
+    if (!found.available) {
+      const { withFileLock } = await import('./packages/outbox/index.js');
+      try { await warmAcceptedCells(process.argv[3], commit, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: input.main }); }
+      catch (error) { throw pending(commit, String(error?.message ?? error)); }
+      found = readAcceptedCells(process.argv[3], commit);
+    }
+    if (!found.available) throw pending(commit, commit.slice(0, 12) + ' is unreadable after production (' + found.cause + ')');
+    made.set(commit, found);
+  }
+  artifacts = made;
+}
 const artifact = artifacts?.get(input.main);
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
   { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
@@ -147,17 +208,49 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
 }
 
 /**
- * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
- * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ * The accepted commits whose cells inventory a submit's cell analysis reads: main, plus the candidate's merge base
+ * when main changed a file that needs a full census since that base. Empty when main has no cells plan.
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} main - The pinned accepted main.
+ * @param {string} [source] - The pinned candidate.
+ * @returns {string[]}
  */
-export async function submitCellsInventory(root, main, source) {
-  if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return null;
+export function inventoryCommits(root, main, source) {
+  if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return [];
   const commits = [main];
   if (source) {
     const base = git(root, ['merge-base', main, source]).trim();
     const changed = base !== main ? git(root, ['diff', '--no-renames', '--name-only', '-z', main, base]).split('\0').filter(Boolean) : [];
     if (needsFullCensus(changed)) commits.push(base);
   }
+  return commits;
+}
+
+/**
+ * The inventory a runner analysis carries: the bundle when this machine already holds every accepted inventory, else
+ * none, with the commits the runner produces itself.
+ * Why: producing a main commit's inventory took a checkout and 70-110 s of this machine's CPU on every new main, the
+ * heaviest gate stage left on the coordinator (6 Nov); a runner produces it once and keeps it in its own cache (#2535).
+ *
+ * @param {string} root - Absolute repository root.
+ * @param {string} main - The pinned accepted main.
+ * @param {string} [source] - The pinned candidate.
+ * @returns {Promise<{ inventory: Awaited<ReturnType<typeof submitCellsInventory>>, produce: string[] }>}
+ */
+export async function runnerCellsInventory(root, main, source) {
+  const commits = inventoryCommits(root, main, source);
+  if (commits.every(commit => readAcceptedCells(root, commit).available)) return { inventory: await submitCellsInventory(root, main, source), produce: [] };
+  return { inventory: null, produce: commits };
+}
+
+/**
+ * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
+ * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ */
+export async function submitCellsInventory(root, main, source) {
+  const commits = inventoryCommits(root, main, source);
+  if (!commits.length) return null;
   const sources = [], artifacts = [];
   let directory;
   for (const commit of commits) {

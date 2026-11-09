@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-loads test/relay-client-fixture.js */
 /** Cockpit prose checks, using the shared real-board fixtures [N26]. */
@@ -11,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { PULLBOARD_COMMANDS } from '../../apps/cli/index.js';
-import { HELP } from '../../src/cli.js';
+import { cli$HELP as HELP } from '../../apps/cli/index.js';
 import { fetchFresh } from '../http-fixture.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
 import { openShoutConversation, machine, project, startView, openPage, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';

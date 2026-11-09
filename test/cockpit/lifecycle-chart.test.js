@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The approved chart preserves move totals while keeping Activity a feed by default [N26]. */
 import assert from 'node:assert/strict';
@@ -5,7 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { MACHINE } from '../../packages/state/index.js';
 import { seedNativeOrdinary } from './lifecycle-ordinary-seed.js';
@@ -50,7 +51,7 @@ test('Activity starts on its feed and remembers the plain lifecycle toggle in Ch
   const box = machine();
   const demo = project(box, 'lifecycle-chart');
   const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Lifecycle reviewer fixture', '--json')).path;
-  for (let id = 1; id <= 7; id++) box.run(demo.repo, 'add', 'web', 'Lifecycle item ' + id, '--specs', 'G1', '--criterion', 'The page greets the visitor.');
+  for (let id = 1; id <= 7; id++) box.run(demo.repo, 'add', 'web', 'Lifecycle item ' + id, '--specs', 'G1', '--route', 'strong', '--criterion', 'The page greets the visitor.');
   build(box, demo, 1, 'passed.txt');
   box.git(reviewer, 'switch', '-q', '--detach', demo.itemBranches.get(`${demo.baseBranch}:1`));
   box.run(reviewer, 'verify', '1', 'accept', '--no-next', '--note', 'The page greets the visitor.');

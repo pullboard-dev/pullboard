@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { writeBoardCommand } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

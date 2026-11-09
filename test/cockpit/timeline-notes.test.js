@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native long-note expansion and full-hash copy in Timeline, Needs you, and Items [N26]. */
@@ -53,8 +54,14 @@ test('long timeline notes expand in place and hashes show twelve characters with
     const href = new URL(view.link.href);
     href.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, href.href, join(box.dir, 'timeline-notes-chrome'));
-    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail .tl-note")');
-    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"] .tl-note';
+    await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\')');
+    await chrome.click(`document.querySelector('[data-tab="items"]')`);
+    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
+    await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
+    await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
+    await chrome.stable(`(document.querySelector('#detail [data-item-panel-history]')?.click(), true)`);
+    // The timeline lists newest first, so the long note is the last note row.
+    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:not(:has(~ .tl-fact[data-timeline-kind="note"])) .tl-note';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');
@@ -62,7 +69,8 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await press(chrome, `document.querySelector(${JSON.stringify(noteSelector + ' [data-timeline-more]')})`);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector)}).classList.contains('expanded')`), true);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' .tl-body')}).textContent`), /Line 8: the complete note remains available after expansion/u);
-    const timelineHash = '#detail .tl button.hash-copy';
+    // The history lists other hashes too (claim base, frozen bar); this journey checks the one for the submitted commit.
+    const timelineHash = `#detail .tl button.hash-copy[data-copy="${commit}"]`;
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
@@ -82,7 +90,8 @@ test('long timeline notes expand in place and hashes show twelve characters with
 
     await chrome.send('Page.navigate', { url: href.href });
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
-    const itemHash = '#detail .stack [data-copy]';
+    // The item panel's header names the submitted commit beside the item's status.
+    const itemHash = '#detail .item-panel-status .item-head-hash [data-copy]';
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);

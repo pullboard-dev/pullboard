@@ -8,7 +8,7 @@ import { insertItem } from './board-add-item.js';
 import { setItem } from './board.js';
 import { validateItemAddition } from './board-add-item.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { ITEM_SLICE_ENGINE } from '../../../../src/item-slice-engine.js';
+import { ITEM_SLICE_ENGINE } from '../../../state/core.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Serialize authorization, frozen-parent validation, child creation and provenance. */

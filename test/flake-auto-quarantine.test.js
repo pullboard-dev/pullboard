@@ -7,11 +7,11 @@ import { test } from 'node:test';
 import { flakyProject, TITLE } from '../packages/git/tests/flakes-fixture.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
-import { openBoard, flakeQuarantines, gateRuns } from '../apps/lib/index.js';
-import * as store from '../src/board.js';
+import { openBoard, flakeQuarantines, gateRuns } from '../apps/lib/src/core/native-board.js';
+import * as store from '../packages/store/index.js';
 import { recordGateRun, requireSubmitDiagnosticAdmission, submitFlakePairs } from '../packages/flakes/index.js';
 import { recordGateRun as recordGateRunMove } from '../packages/moves/index.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/core.js';
 import { proofRunReceipt } from '../packages/store/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 

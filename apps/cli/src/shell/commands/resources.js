@@ -13,6 +13,9 @@ import {
   loadMachineSettings,
   memoryFloorMB,
 } from '../../../../../packages/config/index.js';
+import { isCoordinatorMachine } from '../../../../../packages/gate/index.js';
+import { testProcesses } from '../../../../../packages/gate/index.js';
+import { spawnSync } from 'node:child_process';
 import {
   agentDisplayName,
   context,
@@ -35,7 +38,10 @@ export async function run(io) {
   const runners = runnerResourceStatus(loadMachineSettings().runners ?? []);
   const queue = gateQueueSettings();
   const shortSlots = gateShortSlots();
-  io.result?.({ resources, runners, browserSlots, queue, memory, shortSlots });
+  // A test process on the coordinator is a fault: tests belong on runners, and one local suite stalls every gate (#3899).
+  const testFaults = isCoordinatorMachine(loadMachineSettings) ? testProcesses(spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' }).stdout ?? '') : [];
+  io.result?.({ resources, runners, browserSlots, queue, memory, shortSlots, faults: testFaults.map(row => ({ kind: 'test-on-coordinator', ...row })) });
+  for (const row of testFaults) io.say(`fault: test process ${row.pid} runs on the coordinator: ${row.command.slice(0, 160)}; tests belong on runners (pullboard test <file>)`);
   io.say(`browserSlots (machine setting): ${browserSlots}`);
   io.say(`machine queue order (gate.queue.reviewsFirst ${queue.reviewsFirst}): ${queue.reviewsFirst ? `landing, review, submit, other; a waiting run moves up one class every ${queue.agingMinutes} minutes` : 'landings first, then arrival'}`);
   if (shortSlots) io.say(`gate.shortSlots (machine setting): ${shortSlots}; runs that name their test files may use them while every gate slot is busy`);

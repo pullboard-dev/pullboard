@@ -12,9 +12,9 @@ import { itemPatches } from "./item-patch-state.js";
 import { itemPatchDigest } from "./item-patch-state.js";
 import { composeItemPatches } from "./item-patch-compose.js";
 import { validateItemPatchInput } from "./item-patch-review.js";
-import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../src/item-patch-submit-engine.js";
+import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
-import { claimedItemRoot } from '../../../../src/item-folder-identity.js';
+import { claimedItemRoot } from './item-folder-claim.js';
 
 /** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
 export { claimedItemRoot };

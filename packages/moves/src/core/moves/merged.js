@@ -1,10 +1,10 @@
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
-import { FLAKE_RATCHET_ENGINE } from '../../../../../src/flake-ratchet-engine.js';
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
+import { FLAKE_RATCHET_ENGINE } from '../../../../state/core.js';
 /** Routing metadata owned by merged, discovered without a shared registry edit [C7,V4,H16]. */
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/core.js";
 import { outsideSource } from "../../../../items/core.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

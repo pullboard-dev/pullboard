@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { cadenceDeferral, landingCadenceStatus } from '../packages/landing/index.js';
 import { acceptedVerdict } from '../packages/verify/index.js';

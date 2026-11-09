@@ -11,9 +11,9 @@ import {
   listAgents,
   logEvent,
 } from "../../../store/index.js";
-import { CI_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
-import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
-import { LEDGER_QUARANTINE_ENGINE } from "../../../../src/ledger-quarantine-engine.js";
+import { CI_FLAKE_ENGINE } from "../../../state/core.js";
+import { NATIVE_FLAKE_ENGINE } from "../../../state/core.js";
+import { LEDGER_QUARANTINE_ENGINE } from "../../../state/core.js";
 import { flakeQuarantines } from "./quarantine.js";
 import { warmFlakeHistory } from "./quarantine.js";
 import { eventHistory } from "./event-history.js";

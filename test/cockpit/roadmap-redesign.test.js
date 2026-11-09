@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Prove the approved Roadmap release, row, wait and shipping presentation in real Chrome [N26]. */
 import assert from 'node:assert/strict';

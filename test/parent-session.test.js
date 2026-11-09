@@ -1,6 +1,6 @@
-import * as queueStore from '../src/board.js';
+import * as queueStore from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { roadmap } from '../src/board-milestones.js';
+import { roadmap } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import {
   runtimeParentSession,
   runtimeSessionIdentity,
 } from '../packages/items/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { workQueue } from '../packages/items/index.js';

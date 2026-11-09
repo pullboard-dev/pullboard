@@ -1779,7 +1779,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-no-nested-shards.test.js",
+      "file": "packages/landing/tests/landing-no-nested-shards.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1821,7 +1821,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-stage-composition.test.js",
+      "file": "packages/landing/tests/landing-stage-composition.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1929,7 +1929,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/runner-closure.test.js",
+      "file": "packages/runners/tests/runner-closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2091,6 +2091,53 @@
         "process: apps/cli/src/core/next-step-words.js",
         "runner: apps/cli/src/shell/commands/test.js",
         "unresolved: apps/cli/src/shell/commands/index.js"
+      ]
+    },
+    {
+      "file": "packages/health/tests/claim-watchdog-sweep.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/health",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/landing",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/receipt",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/runners",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
+        "cross-package: imports more than one package",
+        "process: bin/cells-data-reads.js",
+        "runner: bin/run-tests.js",
+        "unresolved: bin/run-tests.js"
       ]
     },
     {
@@ -7496,7 +7543,7 @@
       ]
     },
     {
-      "file": "test/affected-graph-cache.test.js",
+      "file": "packages/gate/tests/affected-graph-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -7538,7 +7585,7 @@
       ]
     },
     {
-      "file": "test/affected-source-loads.test.js",
+      "file": "packages/gate/tests/affected-source-loads.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8037,7 +8084,7 @@
       ]
     },
     {
-      "file": "test/attach-submit-eligibility.test.js",
+      "file": "packages/kernel/tests/attach-submit-eligibility.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8094,7 +8141,7 @@
       ]
     },
     {
-      "file": "test/automatic-landing-main-worker.test.js",
+      "file": "packages/landing/tests/automatic-landing-main-worker.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8193,7 +8240,7 @@
       ]
     },
     {
-      "file": "test/automatic-landing-wake.test.js",
+      "file": "packages/landing/tests/automatic-landing-wake.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8406,7 +8453,7 @@
       ]
     },
     {
-      "file": "test/bar-coverage.test.js",
+      "file": "packages/gate/tests/bar-coverage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8961,7 +9008,7 @@
       ]
     },
     {
-      "file": "test/board-in-memory.test.js",
+      "file": "packages/kernel/tests/board-in-memory.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9133,7 +9180,7 @@
       ]
     },
     {
-      "file": "test/board-lock-hold.test.js",
+      "file": "apps/lib/tests/board-lock-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9532,90 +9579,6 @@
       ]
     },
     {
-      "file": "test/browser-barrel-admission.test.js",
-      "tier": "T3",
-      "packages": [
-        ".",
-        "apps/cli",
-        "packages/activity",
-        "packages/codemap",
-        "packages/commits",
-        "packages/config",
-        "packages/doctrine",
-        "packages/gate",
-        "packages/git",
-        "packages/items",
-        "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/merge",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
-        "packages/queue",
-        "packages/resources",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
-        "packages/seats",
-        "packages/spec",
-        "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/verify"
-      ],
-      "reasons": [
-        "board: packages/config/src/shell/settings-inventory.js",
-        "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
-        "runner: bin/run-tests.js",
-        "unresolved: bin/run-tests.js"
-      ]
-    },
-    {
-      "file": "test/browser-source-files.test.js",
-      "tier": "T3",
-      "packages": [
-        ".",
-        "apps/cli",
-        "packages/activity",
-        "packages/codemap",
-        "packages/commits",
-        "packages/config",
-        "packages/doctrine",
-        "packages/gate",
-        "packages/git",
-        "packages/items",
-        "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/merge",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
-        "packages/queue",
-        "packages/resources",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
-        "packages/seats",
-        "packages/spec",
-        "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/verify"
-      ],
-      "reasons": [
-        "board: packages/config/src/shell/settings-inventory.js",
-        "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
-        "runner: bin/run-tests.js",
-        "unresolved: bin/run-tests.js"
-      ]
-    },
-    {
       "file": "test/capacity-cache.test.js",
       "tier": "T3",
       "packages": [
@@ -9673,7 +9636,7 @@
       ]
     },
     {
-      "file": "test/capacity-counter.test.js",
+      "file": "packages/stats/tests/capacity-counter.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9715,7 +9678,7 @@
       ]
     },
     {
-      "file": "test/capacity-model.test.js",
+      "file": "packages/stats/tests/capacity-model.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10055,7 +10018,7 @@
       ]
     },
     {
-      "file": "test/cell-parser.test.js",
+      "file": "packages/gate/tests/cell-parser.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10421,7 +10384,7 @@
       ]
     },
     {
-      "file": "test/cells-plan-cache.test.js",
+      "file": "packages/codemap/tests/cells-plan-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10491,7 +10454,7 @@
       ]
     },
     {
-      "file": "test/cells-plan-trunk-read.test.js",
+      "file": "packages/items/tests/cells-plan-trunk-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10915,7 +10878,7 @@
       ]
     },
     {
-      "file": "test/cells-shards.test.js",
+      "file": "packages/codemap/tests/cells-shards.test.js",
       "tier": "T3",
       "packages": [
         "packages/codemap",
@@ -11195,7 +11158,7 @@
       ]
     },
     {
-      "file": "test/check-accept.test.js",
+      "file": "apps/lib/tests/check-accept.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -11261,7 +11224,7 @@
       ]
     },
     {
-      "file": "test/check-proves-nothing.test.js",
+      "file": "apps/lib/tests/check-proves-nothing.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11484,7 +11447,7 @@
       ]
     },
     {
-      "file": "test/chrome-clone-cleanup.test.js",
+      "file": "apps/runner/tests/chrome-clone-cleanup.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -11497,7 +11460,7 @@
       ]
     },
     {
-      "file": "test/chrome-fixture.test.js",
+      "file": "packages/gate/tests/chrome-fixture.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12061,46 +12024,26 @@
       ]
     },
     {
-      "file": "test/claim-watchdog.test.js",
+      "file": "packages/seats/tests/claim-watchdog.test.js",
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
-        "packages/activity",
-        "packages/codemap",
-        "packages/commits",
         "packages/config",
-        "packages/doctrine",
-        "packages/gate",
         "packages/git",
-        "packages/health",
-        "packages/items",
+        "packages/jobs",
         "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/merge",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
+        "packages/pin",
         "packages/queue",
         "packages/resources",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
         "packages/seats",
-        "packages/spec",
         "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/verify"
+        "packages/transport"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/transport/src/shell/ssh.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
-        "runner: bin/run-tests.js",
-        "unresolved: bin/run-tests.js"
+        "process: packages/config/src/core/json-output.js"
       ]
     },
     {
@@ -12226,7 +12169,7 @@
       ]
     },
     {
-      "file": "test/cli-io-gate-wait-default.test.js",
+      "file": "apps/cli/tests/cli-io-gate-wait-default.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12397,7 +12340,7 @@
       ]
     },
     {
-      "file": "test/cockpit/activity-codegen.test.js",
+      "file": "apps/view/tests/cockpit/activity-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12560,7 +12503,7 @@
       ]
     },
     {
-      "file": "test/cockpit/activity-sentences.test.js",
+      "file": "apps/view/tests/cockpit/activity-sentences.test.js",
       "tier": "T3",
       "packages": [
         "apps/view"
@@ -12742,7 +12685,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agent-floor.test.js",
+      "file": "apps/view/tests/cockpit/agent-floor.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -12807,7 +12750,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agents-panel-codegen.test.js",
+      "file": "apps/view/tests/cockpit/agents-panel-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12856,7 +12799,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agents-panel-pure.test.js",
+      "file": "apps/view/tests/cockpit/agents-panel-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13036,7 +12979,7 @@
       ]
     },
     {
-      "file": "test/cockpit/auxiliary-pure.test.js",
+      "file": "apps/view/tests/cockpit/auxiliary-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13101,7 +13044,7 @@
       ]
     },
     {
-      "file": "test/cockpit/claim-overlap-pure.test.js",
+      "file": "apps/view/tests/cockpit/claim-overlap-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -13435,7 +13378,7 @@
       ]
     },
     {
-      "file": "test/cockpit/dashboard-holds.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-holds.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13443,7 +13386,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/dashboard-model.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-model.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13525,7 +13468,7 @@
       ]
     },
     {
-      "file": "test/cockpit/dashboard-runtime.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-runtime.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -14250,7 +14193,7 @@
       ]
     },
     {
-      "file": "test/cockpit/group-pure.test.js",
+      "file": "apps/view/tests/cockpit/group-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -14258,7 +14201,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/home-capacity-pure.test.js",
+      "file": "apps/view/tests/cockpit/home-capacity-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -14942,7 +14885,7 @@
       ]
     },
     {
-      "file": "test/cockpit/lifecycle-chart-pure.test.js",
+      "file": "apps/view/tests/cockpit/lifecycle-chart-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -15064,7 +15007,7 @@
       ]
     },
     {
-      "file": "test/cockpit/live-headline.test.js",
+      "file": "apps/view/tests/cockpit/live-headline.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -15358,7 +15301,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-actions-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-actions-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -15378,7 +15321,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-focus-approval-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-focus-approval-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -15484,7 +15427,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-revision-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-revision-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -17089,7 +17032,7 @@
       ]
     },
     {
-      "file": "test/cockpit/roadmap-pure.test.js",
+      "file": "apps/view/tests/cockpit/roadmap-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -17268,7 +17211,7 @@
       ]
     },
     {
-      "file": "test/cockpit/row-component-pure.test.js",
+      "file": "apps/view/tests/cockpit/row-component-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -17504,7 +17447,7 @@
       ]
     },
     {
-      "file": "test/cockpit/segmented-control-pure.test.js",
+      "file": "apps/view/tests/cockpit/segmented-control-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -18629,7 +18572,7 @@
       ]
     },
     {
-      "file": "test/cockpit/verdict-pure.test.js",
+      "file": "apps/view/tests/cockpit/verdict-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -18637,7 +18580,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/view-pure.test.js",
+      "file": "apps/view/tests/cockpit/view-pure.test.js",
       "tier": "T3",
       "packages": [
         "apps/view",
@@ -19219,7 +19162,7 @@
       ]
     },
     {
-      "file": "test/companion-three-way.test.js",
+      "file": "packages/items/tests/companion-three-way.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -19318,7 +19261,7 @@
       ]
     },
     {
-      "file": "test/controller-registration-diagnostics.test.js",
+      "file": "packages/resources/tests/controller-registration-diagnostics.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -19332,7 +19275,7 @@
       ]
     },
     {
-      "file": "test/coordinator-resume.test.js",
+      "file": "apps/lib/tests/coordinator-resume.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -19882,7 +19825,7 @@
       ]
     },
     {
-      "file": "test/doctrine-count-follows-moves.test.js",
+      "file": "packages/doctrine/tests/doctrine-count-follows-moves.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -19924,7 +19867,7 @@
       ]
     },
     {
-      "file": "test/doctrine-diff-only.test.js",
+      "file": "packages/doctrine/tests/doctrine-diff-only.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -19966,7 +19909,7 @@
       ]
     },
     {
-      "file": "test/doctrine-hold-composed.test.js",
+      "file": "packages/doctrine/tests/doctrine-hold-composed.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20008,7 +19951,7 @@
       ]
     },
     {
-      "file": "test/doctrine-measured-baseline.test.js",
+      "file": "packages/doctrine/tests/doctrine-measured-baseline.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20940,7 +20883,7 @@
       ]
     },
     {
-      "file": "test/fixture-child-ignored.test.js",
+      "file": "packages/gate/tests/fixture-child-ignored.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -20949,7 +20892,7 @@
       ]
     },
     {
-      "file": "test/fixture-child.test.js",
+      "file": "packages/gate/tests/fixture-child.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -21178,7 +21121,7 @@
       ]
     },
     {
-      "file": "test/flake-history-before-lock.test.js",
+      "file": "packages/flakes/tests/flake-history-before-lock.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -21279,7 +21222,7 @@
       ]
     },
     {
-      "file": "test/flake-ratchet-busy-board.test.js",
+      "file": "packages/flakes/tests/flake-ratchet-busy-board.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -21792,7 +21735,7 @@
       ]
     },
     {
-      "file": "test/gate-admission-wait.test.js",
+      "file": "packages/gate/tests/gate-admission-wait.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -21843,7 +21786,7 @@
       ]
     },
     {
-      "file": "test/gate-async.test.js",
+      "file": "packages/gate/tests/gate-async.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22170,7 +22113,7 @@
       ]
     },
     {
-      "file": "test/gate-red-names-failures.test.js",
+      "file": "packages/gate/tests/gate-red-names-failures.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22383,7 +22326,7 @@
       ]
     },
     {
-      "file": "test/git-adapter.test.js",
+      "file": "packages/git/tests/git-adapter.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -22509,7 +22452,7 @@
       ]
     },
     {
-      "file": "test/git-sync-lock.test.js",
+      "file": "packages/sync/tests/git-sync-lock.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22610,7 +22553,7 @@
       ]
     },
     {
-      "file": "test/github-move-exports.test.js",
+      "file": "packages/github/tests/github-move-exports.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22653,7 +22596,7 @@
       ]
     },
     {
-      "file": "test/guard-revert-port.test.js",
+      "file": "packages/commits/tests/guard-revert-port.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22794,7 +22737,7 @@
       ]
     },
     {
-      "file": "test/handoff-cap-runner-slots.test.js",
+      "file": "packages/resources/tests/handoff-cap-runner-slots.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -22866,7 +22809,7 @@
       ]
     },
     {
-      "file": "test/handoff-urgent-first.test.js",
+      "file": "packages/kernel/tests/handoff-urgent-first.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22923,7 +22866,7 @@
       ]
     },
     {
-      "file": "test/handoff-worker-cap.test.js",
+      "file": "packages/resources/tests/handoff-worker-cap.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -22938,7 +22881,7 @@
       ]
     },
     {
-      "file": "test/handoff-workers-shrink.test.js",
+      "file": "packages/resources/tests/handoff-workers-shrink.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -23809,7 +23752,7 @@
       ]
     },
     {
-      "file": "test/infra-code-set.test.js",
+      "file": "packages/store/tests/infra-code-set.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24551,7 +24494,7 @@
       ]
     },
     {
-      "file": "test/item-list-retained-claim.test.js",
+      "file": "packages/kernel/tests/item-list-retained-claim.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24722,7 +24665,7 @@
       ]
     },
     {
-      "file": "test/item-patch-compose.test.js",
+      "file": "packages/items/tests/item-patch-compose.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24992,7 +24935,7 @@
       ]
     },
     {
-      "file": "test/item-session-port.test.js",
+      "file": "packages/items/tests/item-session-port.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -25834,7 +25777,7 @@
       ]
     },
     {
-      "file": "test/known-main-red-match.test.js",
+      "file": "packages/landing/tests/known-main-red-match.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -25876,7 +25819,7 @@
       ]
     },
     {
-      "file": "test/known-main-reworks.test.js",
+      "file": "packages/store/tests/known-main-reworks.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -25975,7 +25918,7 @@
       ]
     },
     {
-      "file": "test/known-main-signature-normalize.test.js",
+      "file": "packages/landing/tests/known-main-signature-normalize.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26017,7 +25960,7 @@
       ]
     },
     {
-      "file": "test/known-main-untouched-file.test.js",
+      "file": "packages/landing/tests/known-main-untouched-file.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26494,7 +26437,7 @@
       ]
     },
     {
-      "file": "test/landing-adaptive-batch.test.js",
+      "file": "packages/store/tests/landing-adaptive-batch.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26836,7 +26779,7 @@
       ]
     },
     {
-      "file": "test/landing-audit-only.test.js",
+      "file": "packages/landing/tests/landing-audit-only.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26935,7 +26878,7 @@
       ]
     },
     {
-      "file": "test/landing-bisect-base-red.test.js",
+      "file": "packages/store/tests/landing-bisect-base-red.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26992,7 +26935,7 @@
       ]
     },
     {
-      "file": "test/landing-bisects-unaccounted.test.js",
+      "file": "packages/store/tests/landing-bisects-unaccounted.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27163,7 +27106,7 @@
       ]
     },
     {
-      "file": "test/landing-controller-placement.test.js",
+      "file": "packages/gate/tests/landing-controller-placement.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27433,7 +27376,7 @@
       ]
     },
     {
-      "file": "test/landing-history-plan.test.js",
+      "file": "packages/kernel/tests/landing-history-plan.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27631,7 +27574,7 @@
       ]
     },
     {
-      "file": "test/landing-lease.test.js",
+      "file": "packages/state/tests/landing-lease.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27745,7 +27688,7 @@
       ]
     },
     {
-      "file": "test/landing-main-red-by-case.test.js",
+      "file": "packages/landing/tests/landing-main-red-by-case.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27844,7 +27787,7 @@
       ]
     },
     {
-      "file": "test/landing-merge-attribution.test.js",
+      "file": "packages/landing/tests/landing-merge-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27928,7 +27871,7 @@
       ]
     },
     {
-      "file": "test/landing-new-test-file-bisects.test.js",
+      "file": "packages/landing/tests/landing-new-test-file-bisects.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28297,7 +28240,7 @@
       ]
     },
     {
-      "file": "test/landing-reschedules-itself.test.js",
+      "file": "apps/cli/tests/landing-reschedules-itself.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28354,7 +28297,7 @@
       ]
     },
     {
-      "file": "test/landing-runner-path-attribution.test.js",
+      "file": "packages/landing/tests/landing-runner-path-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28396,7 +28339,7 @@
       ]
     },
     {
-      "file": "test/landing-runner-source-hold.test.js",
+      "file": "packages/items/tests/landing-runner-source-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28510,7 +28453,7 @@
       ]
     },
     {
-      "file": "test/landing-selection-complete.test.js",
+      "file": "packages/gate/tests/landing-selection-complete.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28695,7 +28638,7 @@
       ]
     },
     {
-      "file": "test/landing-unclassified-bisects.test.js",
+      "file": "packages/landing/tests/landing-unclassified-bisects.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28737,7 +28680,7 @@
       ]
     },
     {
-      "file": "test/landing-wake-log.test.js",
+      "file": "packages/gate/tests/landing-wake-log.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28779,7 +28722,7 @@
       ]
     },
     {
-      "file": "test/landing-watchdog-stopped.test.js",
+      "file": "packages/landing/tests/landing-watchdog-stopped.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28822,48 +28765,6 @@
     },
     {
       "file": "test/landing-worker-capacity.test.js",
-      "tier": "T3",
-      "packages": [
-        ".",
-        "apps/cli",
-        "packages/activity",
-        "packages/codemap",
-        "packages/commits",
-        "packages/config",
-        "packages/doctrine",
-        "packages/gate",
-        "packages/git",
-        "packages/items",
-        "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/merge",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
-        "packages/queue",
-        "packages/resources",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
-        "packages/seats",
-        "packages/spec",
-        "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/verify"
-      ],
-      "reasons": [
-        "board: packages/config/src/shell/settings-inventory.js",
-        "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
-        "runner: bin/run-tests.js",
-        "unresolved: bin/run-tests.js"
-      ]
-    },
-    {
-      "file": "test/landing-worker-stderr.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29142,7 +29043,7 @@
       ]
     },
     {
-      "file": "test/legacy-watchdog.test.js",
+      "file": "packages/gate/tests/legacy-watchdog.test.js",
       "tier": "T3",
       "packages": [
         "packages/gate"
@@ -29152,7 +29053,7 @@
       ]
     },
     {
-      "file": "test/lib-move-exports.test.js",
+      "file": "apps/lib/tests/lib-move-exports.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29448,7 +29349,7 @@
       ]
     },
     {
-      "file": "test/machine-generator.test.js",
+      "file": "packages/gate/tests/machine-generator.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29604,7 +29505,7 @@
       ]
     },
     {
-      "file": "test/main-audit-attribution.test.js",
+      "file": "apps/lib/tests/main-audit-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29718,7 +29619,7 @@
       ]
     },
     {
-      "file": "test/main-audit-plain-commit.test.js",
+      "file": "apps/lib/tests/main-audit-plain-commit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29775,7 +29676,7 @@
       ]
     },
     {
-      "file": "test/main-audit-receipt.test.js",
+      "file": "packages/gate/tests/main-audit-receipt.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29859,7 +29760,7 @@
       ]
     },
     {
-      "file": "test/main-compare-knows-main.test.js",
+      "file": "packages/landing/tests/main-compare-knows-main.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30057,7 +29958,7 @@
       ]
     },
     {
-      "file": "test/main-red-cache-lock.test.js",
+      "file": "packages/gate/tests/main-red-cache-lock.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30306,7 +30207,7 @@
       ]
     },
     {
-      "file": "test/merge-read-ports.test.js",
+      "file": "packages/kernel/tests/merge-read-ports.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30363,7 +30264,7 @@
       ]
     },
     {
-      "file": "test/merged-plan-check.test.js",
+      "file": "packages/git/tests/merged-plan-check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30519,7 +30420,7 @@
       ]
     },
     {
-      "file": "test/module-import-cache.test.js",
+      "file": "packages/gate/tests/module-import-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30774,7 +30675,7 @@
       ]
     },
     {
-      "file": "test/native-flakes.test.js",
+      "file": "packages/flakes/tests/native-flakes.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32371,7 +32272,7 @@
       ]
     },
     {
-      "file": "test/open-decisions-projection.test.js",
+      "file": "packages/kernel/tests/open-decisions-projection.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32641,7 +32542,7 @@
       ]
     },
     {
-      "file": "test/package-shim-graph.test.js",
+      "file": "packages/runners/tests/package-shim-graph.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33035,7 +32936,7 @@
       ]
     },
     {
-      "file": "test/perf-budgets.test.js",
+      "file": "packages/gate/tests/perf-budgets.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33308,7 +33209,7 @@
       ]
     },
     {
-      "file": "test/person-request.test.js",
+      "file": "packages/kernel/tests/person-request.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33464,7 +33365,7 @@
       ]
     },
     {
-      "file": "test/placement-skips-landed-release.test.js",
+      "file": "packages/roadmap/tests/placement-skips-landed-release.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33939,7 +33840,7 @@
       ]
     },
     {
-      "file": "test/precommit-lane-merged-main.test.js",
+      "file": "packages/gate/tests/precommit-lane-merged-main.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -34299,7 +34200,7 @@
       ]
     },
     {
-      "file": "test/projects.test.js",
+      "file": "packages/seats/tests/projects.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34873,7 +34774,7 @@
       ]
     },
     {
-      "file": "test/queue-settings-port.test.js",
+      "file": "packages/queue/tests/queue-settings-port.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34989,7 +34890,7 @@
       ]
     },
     {
-      "file": "test/ratchet-rename.test.js",
+      "file": "packages/doctrine/tests/ratchet-rename.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35774,7 +35675,7 @@
       ]
     },
     {
-      "file": "test/relay-auth.test.js",
+      "file": "apps/relay/tests/relay-auth.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35962,7 +35863,7 @@
       ]
     },
     {
-      "file": "test/relay-browser-deadline.test.js",
+      "file": "apps/relay/tests/relay-browser-deadline.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -36020,7 +35921,7 @@
       ]
     },
     {
-      "file": "test/relay-browser-history.test.js",
+      "file": "apps/relay/tests/relay-browser-history.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -36078,7 +35979,7 @@
       ]
     },
     {
-      "file": "test/relay-browser-stream.test.js",
+      "file": "apps/relay/tests/relay-browser-stream.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -36194,7 +36095,7 @@
       ]
     },
     {
-      "file": "test/relay-cached-access.test.js",
+      "file": "apps/relay/tests/relay-cached-access.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -36367,7 +36268,7 @@
       ]
     },
     {
-      "file": "test/relay-canary-needs.test.js",
+      "file": "packages/link/tests/relay-canary-needs.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37046,7 +36947,7 @@
       ]
     },
     {
-      "file": "test/relay-github.test.js",
+      "file": "apps/relay/tests/relay-github.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37104,7 +37005,7 @@
       ]
     },
     {
-      "file": "test/relay-http.test.js",
+      "file": "apps/relay/tests/relay-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37220,7 +37121,7 @@
       ]
     },
     {
-      "file": "test/relay-journal.test.js",
+      "file": "apps/relay/tests/relay-journal.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37566,7 +37467,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-auth.test.js",
+      "file": "packages/state/tests/relay-machine-auth.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37624,7 +37525,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-journal.test.js",
+      "file": "apps/relay/tests/relay-machine-journal.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -38550,7 +38451,7 @@
       ]
     },
     {
-      "file": "test/relay-phone-grants.test.js",
+      "file": "apps/relay/tests/relay-phone-grants.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39130,7 +39031,7 @@
       ]
     },
     {
-      "file": "test/relay-storage-quota.test.js",
+      "file": "packages/state/tests/relay-storage-quota.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39362,7 +39263,7 @@
       ]
     },
     {
-      "file": "test/relay-version.test.js",
+      "file": "packages/state/tests/relay-version.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39773,7 +39674,7 @@
       ]
     },
     {
-      "file": "test/release.test.js",
+      "file": "packages/gate/tests/release.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -40132,7 +40033,7 @@
       ]
     },
     {
-      "file": "test/resource-recovery-ports.test.js",
+      "file": "packages/resources/tests/resource-recovery-ports.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -40945,7 +40846,7 @@
       ]
     },
     {
-      "file": "test/rework-same-family.test.js",
+      "file": "packages/kernel/tests/rework-same-family.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -41389,7 +41290,7 @@
       ]
     },
     {
-      "file": "test/roadmap-queue-order.test.js",
+      "file": "packages/roadmap/tests/roadmap-queue-order.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -41788,7 +41689,7 @@
       ]
     },
     {
-      "file": "test/row-decisions-replay.test.js",
+      "file": "packages/kernel/tests/row-decisions-replay.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -41959,7 +41860,7 @@
       ]
     },
     {
-      "file": "test/run-tests-cleanup-enotempty.test.js",
+      "file": "packages/gate/tests/run-tests-cleanup-enotempty.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42157,7 +42058,7 @@
       ]
     },
     {
-      "file": "test/run-tests-options.test.js",
+      "file": "packages/gate/tests/run-tests-options.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42250,7 +42151,7 @@
       ]
     },
     {
-      "file": "test/run-tests-worker-identity.test.js",
+      "file": "packages/runners/tests/run-tests-worker-identity.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42433,7 +42334,7 @@
       ]
     },
     {
-      "file": "test/runner-background-cleanup.test.js",
+      "file": "packages/gate/tests/runner-background-cleanup.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42556,7 +42457,7 @@
       ]
     },
     {
-      "file": "test/runner-capacity-read.test.js",
+      "file": "packages/config/tests/runner-capacity-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42598,7 +42499,7 @@
       ]
     },
     {
-      "file": "test/runner-capsule-stdin.test.js",
+      "file": "packages/runners/tests/runner-capsule-stdin.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42863,7 +42764,7 @@
       ]
     },
     {
-      "file": "test/runner-custody.test.js",
+      "file": "apps/runner/tests/runner-custody.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42906,7 +42807,7 @@
       ]
     },
     {
-      "file": "test/runner-disk-floor.test.js",
+      "file": "apps/runner/tests/runner-disk-floor.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -42923,7 +42824,7 @@
       ]
     },
     {
-      "file": "test/runner-disk-sweep.test.js",
+      "file": "packages/resources/tests/runner-disk-sweep.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -42997,7 +42898,7 @@
       ]
     },
     {
-      "file": "test/runner-fetches-trunk.test.js",
+      "file": "packages/items/tests/runner-fetches-trunk.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43039,7 +42940,7 @@
       ]
     },
     {
-      "file": "test/runner-fixture-state.test.js",
+      "file": "packages/gate/tests/runner-fixture-state.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -43049,7 +42950,7 @@
       ]
     },
     {
-      "file": "test/runner-history-bound.test.js",
+      "file": "packages/config/tests/runner-history-bound.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43207,7 +43108,7 @@
       ]
     },
     {
-      "file": "test/runner-leak-heal-busy.test.js",
+      "file": "packages/resources/tests/runner-leak-heal-busy.test.js",
       "tier": "T3",
       "packages": [
         "packages/resources"
@@ -43218,7 +43119,7 @@
       ]
     },
     {
-      "file": "test/runner-leak-scan.test.js",
+      "file": "packages/commits/tests/runner-leak-scan.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43431,7 +43332,7 @@
       ]
     },
     {
-      "file": "test/runner-pid.test.js",
+      "file": "packages/gate/tests/runner-pid.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43515,7 +43416,7 @@
       ]
     },
     {
-      "file": "test/runner-quarantine-parent-chain.test.js",
+      "file": "packages/runners/tests/runner-quarantine-parent-chain.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43557,7 +43458,7 @@
       ]
     },
     {
-      "file": "test/runner-quarantine-recovers.test.js",
+      "file": "packages/resources/tests/runner-quarantine-recovers.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -43572,7 +43473,7 @@
       ]
     },
     {
-      "file": "test/runner-recovery-locked.test.js",
+      "file": "packages/resources/tests/runner-recovery-locked.test.js",
       "tier": "T3",
       "packages": [
         "packages/resources"
@@ -44036,7 +43937,7 @@
       ]
     },
     {
-      "file": "test/runner-transfer-scan.test.js",
+      "file": "packages/commits/tests/runner-transfer-scan.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -44333,7 +44234,7 @@
       ]
     },
     {
-      "file": "test/runner-worker-capacity-sync.test.js",
+      "file": "packages/resources/tests/runner-worker-capacity-sync.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -44676,7 +44577,7 @@
       ]
     },
     {
-      "file": "test/runners-check-failover.test.js",
+      "file": "packages/gate/tests/runners-check-failover.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -45867,7 +45768,7 @@
       ]
     },
     {
-      "file": "test/seals.test.js",
+      "file": "packages/gate/tests/seals.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -45967,7 +45868,7 @@
       ]
     },
     {
-      "file": "test/seat-family-indexed.test.js",
+      "file": "packages/kernel/tests/seat-family-indexed.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46081,7 +45982,7 @@
       ]
     },
     {
-      "file": "test/seat-test-slot-cap.test.js",
+      "file": "packages/resources/tests/seat-test-slot-cap.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -46113,7 +46014,7 @@
       ]
     },
     {
-      "file": "test/selection-cache.test.js",
+      "file": "packages/gate/tests/selection-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46155,7 +46056,7 @@
       ]
     },
     {
-      "file": "test/selection-fallbacks.test.js",
+      "file": "packages/gate/tests/selection-fallbacks.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46197,7 +46098,7 @@
       ]
     },
     {
-      "file": "test/selector-gap-verdict.test.js",
+      "file": "packages/kernel/tests/selector-gap-verdict.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46539,7 +46440,7 @@
       ]
     },
     {
-      "file": "test/shared-version.test.js",
+      "file": "packages/runners/tests/shared-version.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46581,7 +46482,7 @@
       ]
     },
     {
-      "file": "test/shared-wait-guard.test.js",
+      "file": "packages/gate/tests/shared-wait-guard.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -47535,7 +47436,7 @@
       ]
     },
     {
-      "file": "test/stale-cli-reclaim.test.js",
+      "file": "packages/resources/tests/stale-cli-reclaim.test.js",
       "tier": "T3",
       "packages": [
         "packages/kernel",
@@ -47605,7 +47506,7 @@
       ]
     },
     {
-      "file": "test/stale-waiter-priority.test.js",
+      "file": "packages/resources/tests/stale-waiter-priority.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -47620,7 +47521,7 @@
       ]
     },
     {
-      "file": "test/static-style.test.js",
+      "file": "packages/runners/tests/static-style.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -48316,7 +48217,7 @@
       ]
     },
     {
-      "file": "test/submit-cells-remote.test.js",
+      "file": "apps/cli/tests/submit-cells-remote.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -48846,7 +48747,7 @@
       ]
     },
     {
-      "file": "test/submit-main-moved-unrelated.test.js",
+      "file": "packages/gate/tests/submit-main-moved-unrelated.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -49239,7 +49140,7 @@
       ]
     },
     {
-      "file": "test/submit-proof-reason.test.js",
+      "file": "packages/state/tests/submit-proof-reason.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -49851,7 +49752,7 @@
       ]
     },
     {
-      "file": "test/tag-object-bodies.test.js",
+      "file": "packages/runners/tests/tag-object-bodies.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51152,7 +51053,7 @@
       ]
     },
     {
-      "file": "test/test-conversion.test.js",
+      "file": "packages/gate/tests/test-conversion.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51236,7 +51137,7 @@
       ]
     },
     {
-      "file": "test/test-isolation.test.js",
+      "file": "packages/gate/tests/test-isolation.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51547,7 +51448,7 @@
       ]
     },
     {
-      "file": "test/test-sandbox-cleanup.test.js",
+      "file": "packages/gate/tests/test-sandbox-cleanup.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51646,7 +51547,7 @@
       ]
     },
     {
-      "file": "test/test-tiers.test.js",
+      "file": "packages/gate/tests/test-tiers.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51859,7 +51760,7 @@
       ]
     },
     {
-      "file": "test/timing-outcomes-accounting.test.js",
+      "file": "packages/landing/tests/timing-outcomes-accounting.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -52669,7 +52570,7 @@
       ]
     },
     {
-      "file": "test/verdict-composes-unchanged.test.js",
+      "file": "packages/verify/tests/verdict-composes-unchanged.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -52996,7 +52897,7 @@
       ]
     },
     {
-      "file": "test/verify-known-main.test.js",
+      "file": "apps/cli/tests/verify-known-main.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53464,7 +53365,7 @@
       ]
     },
     {
-      "file": "test/wall-clock-budgets.test.js",
+      "file": "packages/gate/tests/wall-clock-budgets.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53506,7 +53407,7 @@
       ]
     },
     {
-      "file": "test/wall-limit-load-scaled.test.js",
+      "file": "packages/verify/tests/wall-limit-load-scaled.test.js",
       "tier": "T3",
       "packages": [
         ".",

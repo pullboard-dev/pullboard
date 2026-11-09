@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit search checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -162,6 +163,14 @@ async function committedRows(chrome, head) {
   await chrome.waitFor(`data?.project?.rowAgesAt?.['SPEC.md'] === ${JSON.stringify(head)} && data.project.rowAgesAt['ways.md'] === ${JSON.stringify(head)}`, 15_000); // budget: hang ceiling for the committed row-age snapshot to arrive; no throughput claim.
 }
 
+/**
+ * Read the board until both files' row ages name `head`. A view read answers the ages it already has and a worker
+ * thread refreshes them for HEAD off the request path (#3887), so a later real read carries them.
+ */
+async function readAgesAt(chrome, head) {
+  await chrome.waitFor(`refresh().then(() => data?.project?.rowAgesAt?.['SPEC.md'] === ${JSON.stringify(head)} && data.project.rowAgesAt['ways.md'] === ${JSON.stringify(head)})`, 15_000); // budget: hang ceiling for the row-age worker to finish; no throughput claim.
+}
+
 /** Observe the old and refreshed captures around real commits without replacing any Git or HTTP response. */
 test('spec rows keep newest-first order across a capture that moves [N26]', { timeout: 90_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -187,6 +196,8 @@ test('spec rows keep newest-first order across a capture that moves [N26]', { ti
     // live updates (the stream's catch-up, the fallback read) wait from the moment the board is ready (#622).
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
+    // Let the first worker finish its history reads before the wrapper is armed, so only a read at the capture trips it.
+    await readAgesAt(chrome, box.git(alpha.repo, 'rev-parse', 'HEAD'));
     await holdLive(chrome, "data?.project?.spec.some(row => row.id === 'G3') && data.project.practice.some(row => row.id === 'R1')");
     // A new HEAD invalidates the age cache; R2 is already a visible working edit, as in the CI shape.
     writeFileSync(join(alpha.repo, 'ways.md'), r1 + r2);
@@ -221,7 +232,8 @@ process.stdout.write(result.stdout ?? ''); process.stderr.write(result.stderr ??
     writeFileSync(wrapper, `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(program)} "$@"\n`);
     chmodSync(wrapper, 0o755);
     writeFileSync(armed, 'capture');
-    await chrome.stable('refresh()');
+    // The first read at the capture starts the worker whose history read moves HEAD; a later read shows its ages.
+    await readAgesAt(chrome, captured);
     const proof = JSON.parse(readFileSync(receipt, 'utf8'));
     const observed = box.git(alpha.repo, 'rev-parse', 'HEAD');
     /** Read capture refs, exact ages and rendered search order together at one browser boundary. */
@@ -250,8 +262,8 @@ process.stdout.write(result.stdout ?? ''); process.stderr.write(result.stderr ??
     for (let checkpoint = 0; checkpoint < 2; checkpoint += 1) {
       assert.deepEqual((await observe()).captured, early.captured, 'the real stale capture remains visible before the refresh');
     }
-    // Only the committed-head barrier keeps the comparison pending until this real refresh.
-    await chrome.stable('refresh()');
+    // Only the committed-head barrier keeps the comparison pending until these real reads carry the moved HEAD's ages.
+    await readAgesAt(chrome, observed);
     const latest = await comparison;
     assert.deepEqual(latest.captured, { 'SPEC.md': observed, 'ways.md': observed }, JSON.stringify(latest));
     assert.deepEqual(latest.spec.map(row => [row.id,row.added]), [['G5',1],['G3',3],['G4',2]], JSON.stringify(latest));

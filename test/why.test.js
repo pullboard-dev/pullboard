@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
+import { DECISION_ORIGIN_ENGINE } from '../packages/state/core.js';
 import { originOf } from '../packages/commits/src/core/decision-origin.js';
 import { whyFile } from '../packages/commits/index.js';
 

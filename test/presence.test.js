@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -134,7 +134,7 @@ test('live-only advice never changes authenticated setting or claim replay [B3,N
   const { fixtureBoard } = await import('./board-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove, prepareEngineMove, appliedSequence } = await import('../packages/state/index.js');
-  const { LIVE_ROUTE_ENGINE } = await import('../src/live-route-engine.js');
+  const { LIVE_ROUTE_ENGINE } = await import('../packages/state/core.js');
   const at = new Date().toISOString();
   const clock = { now: () => new Date(at) };
   const source = fixtureBoard(t, { clock });
@@ -563,7 +563,8 @@ test('a write after a heartbeat uploads once [B3,H16]', {
   assert.equal(fresh.snapshotTrace.length, 1, 'fresh presence needs only the ordered checkpoint');
   assert.equal(aged.snapshotTrace.length, 1, 'the changed aged presentation is published once before the second write');
   assert.equal(stale.snapshotTrace.length, 1, 'the ordered checkpoint includes the refreshed presence without another upload');
-  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('withItemSession')), 'the sole checkpoint comes from the ordered write');
+  // The write publishes through the command's one end-of-command sync, not through a second presence upload.
+  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('retrySync')), 'the sole checkpoint comes from the command\'s sync after the write: ' + JSON.stringify(stale.snapshotTrace[0].callers));
   const observedAt = fixtureDatabase(presenceFile, db => db.prepare('SELECT at FROM heartbeat WHERE seat=?').get(heartbeat[0].seat).at);
   assert.notEqual(observedAt, agedAt, 'the successful native write really refreshed the heartbeat');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -590,7 +591,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../packages/state/index.js');
-  const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
+  const { GONE_CLAIM_ENGINE } = await import('../packages/state/core.js');
   const { nativeBoardPorts } = await import('../apps/lib/index.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../packages/store/index.js');
@@ -691,8 +692,8 @@ test('gone maintenance leaves unknown imported holders and submitted reviews alo
 test('native and ordered gone releases retain coded evidence and historical event shape [B3,C7,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { applyEngineMove, prepareEngineMove } = await import('../packages/state/index.js');
-  const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
+  const { GONE_CLAIM_ENGINE } = await import('../packages/state/core.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../packages/state/core.js');
   for (const mode of ['native', 'ordered', 'historical']) {
     const f = goneClaimFixture(t);
     store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });

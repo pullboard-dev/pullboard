@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { landingFailures } from '../packages/landing/index.js';
@@ -13,7 +13,7 @@ import { json, onBoard } from './land-board-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
 test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   const box = landProject();
@@ -25,6 +25,8 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   submitItem(box, entry, 'RED\n');
   acceptItem(box, entry);
   delete box.env.LAND_SUPPRESS_RED;
+  // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
+  moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
   json(box, box.repo, 'land');
   const item = json(box, box.repo, 'show', String(entry.item));

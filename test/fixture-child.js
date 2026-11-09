@@ -10,7 +10,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, sep } from 'node:path';
+import { refuseTestsOnCoordinator } from '../packages/gate/src/shell/coordinator-test-guard.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { tmpdir } from 'node:os';
+
+// A bare node --test of a suite on the coordinator refuses here, before any fixture starts (#3899).
+refuseTestsOnCoordinator({ read: loadMachineSettings });
 
 /** Own a newly created private fixture root and read only files this capability actually created. */
 export function privateFixtureFiles(prefix = 'pullboard-fixture-input-') {
@@ -110,11 +115,14 @@ export function runFixtureChild(command, args = [], options = {}) {
     `elapsed: ${elapsedMs}ms`,
     `stderr: ${stderr}`,
   ].join('\n');
+  // A --json command prints its refusal on stdout and nothing on stderr, so a failed child also shows the start of its stdout.
+  const stdoutText = Buffer.isBuffer(result.stdout) ? result.stdout.toString('utf8') : (result.stdout ?? '');
+  const detail = [result.error?.message ?? '', result.status !== 0 && stdoutText ? `stdout: ${stdoutText.slice(0, 2000)}` : ''].filter(Boolean).join('\n');
   const failure = result.status === 0 && !result.signal && !result.error ? null : reportFixtureChildFailure({
     command, args, status: result.status, signal: result.signal, elapsedMs, stderr, env,
-    detail: result.error?.message ?? '',
+    detail,
   });
-  return { ...result, stderr: stderrIgnored ? null : result.stderr, command: [command, ...args], elapsedMs, context, failure };
+  return { ...result, stderr: stderrIgnored ? null : result.stderr, command: [command, ...args], elapsedMs, context: detail ? `${context}\n${safeFixtureDiagnostic(detail, env)}` : context, failure };
 }
 
 /**

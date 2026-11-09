@@ -15,14 +15,16 @@ export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.
  */
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../verify/index.js";
+import { seatFamily } from "../../../verify/index.js";
+import { routingStrictReviewProblem } from "../../../verify/index.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../items/index.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
-import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
+import { requiredReviewFamilyProblem } from "../../../verify/index.js";
 import { laneLeads } from "../../../seats/index.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
@@ -31,6 +33,7 @@ import { reviewReleasesSinceSubmit } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 import { events } from "./board-query.js";
+import { proofReceipts } from "./proof-receipts.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
@@ -49,12 +52,13 @@ import { STATES } from "../../../state/index.js";
 import { UNKNOWN_MOVE } from "../../../state/index.js";
 import { effectiveGuards } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { submitHandoff } from "./submit-handoff-read.js";
 import { itemAuthorProblem } from "../../../items/index.js";
 import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../state/core.js";
 import { factReference } from "../../../spec/index.js";
 import { landingFlakes } from "../core/board-landing-exceptions.js";
 import { landingWaiverCovers } from "../core/board-landing-exceptions.js";
@@ -96,6 +100,7 @@ import { answerDecision } from "./board-answer-decision.js";
 import { appendFact } from "./board-append-fact.js";
 import { buildOrder } from "./board-build-order.js";
 import { nextFor } from "./board-next-for.js";
+import { gateAtHead } from "./board-next-for.js";
 import { holdLane } from "./board-hold-lane.js";
 import { releaseLane } from "./board-release-lane.js";
 import { holdItem } from "./board-hold-item.js";
@@ -147,12 +152,12 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board-rehome.js";
-export { setBarReady, signBar } from "../../../verify/index.js";
+export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item-check-baseline.js";
 
 export { atomic, logEvent };
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
-export { landingTestDefects, recordLandingTestDefect } from "../core/board-landing-test-defects.js";
+export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../core/board-landing-test-defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../core/board-selector-gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../core/board-accepted-reland.js";
 export { landingLeaseMove, landingLeaseState } from "../core/board-landing-lease.js";
@@ -290,15 +295,37 @@ export { prepareMergeOnlySubmit };
 export { reviewHolder } from "./board-query.js";
 
 /** Native composition providers for the store's lower-layer family routing rule. */
-export const seatFamily = reviewRouting.seatFamily;
-export const canonicalFamily = reviewRouting.canonicalFamily;
 
 /** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
-export const reviewReleaseCooldown = (board, itemId, agentId) => reviewRouting.reviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
+export const reviewReleaseCooldown = (board, itemId, agentId) => routingReviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
 
 export { reviewQueueBreakdown } from "./board-query.js";
 
 export { reviewQueue } from "./board-query.js";
+
+/**
+ * The refusal for reviewing an item whose submitted head has a queued hand-off but no captured submit proof receipt,
+ * or null when the receipt exists or no hand-off was ever queued for it.
+ *
+ * Why: only a terminal green or submitted result with the receipt the production gate writes gives a reviewer proof;
+ * queued, running, incomplete (SUBMIT_HANDOFF_RESULT with no receipt, the #3722 case), red and infrastructure
+ * states leave nothing to review, and a reject there counts toward the send-back hold (#3737, #3744). Items with no
+ * hand-off at all (older boards, synthetic submits) stay reviewable.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @returns {Refused | null}
+ */
+export function gateReceiptProblem(board, item) {
+  if (item.item_status !== 'submitted' || !item.item_commit) return null;
+  const job = submitHandoff(board, item.item_id);
+  if (!job || (job.commit !== item.item_commit && job.submitted !== item.item_commit)) return null;
+  const captured = ['green', 'submitted'].includes(job.state) && proofReceipts(board, item.item_id).some(receipt => receipt.kind === 'submit'
+    && receipt.commit === job.executionCommit && receipt.tree === job.executionTree && receipt.seat === job.agentId
+    && receipt.frozenDigest === job.digest && receipt.sourceClean === true);
+  return captured ? null
+    : new Refused('GATE_PENDING', `the gate for #${item.item_id} has no captured proof receipt at ${String(item.item_commit).slice(0, 12)} (hand-off ${job.state}), so there is nothing to review; it becomes reviewable when its gate result and receipt exist: pullboard next --verify`);
+}
 
 /**
  * What a verifier must pass before it reviews an item, alike when it reserves the review and when
@@ -311,7 +338,7 @@ export { reviewQueue } from "./board-query.js";
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
-  const family = reviewRouting.seatFamily(board, agentId);
+  const family = seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -321,8 +348,8 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
+    familyAllows: (found) => routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
@@ -331,6 +358,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
     },
+    gateReceipt: (found) => gateReceiptProblem(board, found),
   };
 }
 
@@ -450,6 +478,7 @@ export {
   appendFact,
   buildOrder,
   nextFor,
+  gateAtHead,
   holdLane,
   releaseLane,
   holdItem,

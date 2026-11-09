@@ -6,7 +6,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { freezer } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

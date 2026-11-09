@@ -1,4 +1,4 @@
-import { isSubmitHandoffWorker } from '../submit-handoff-origin.js';
+import { isSubmitHandoffWorker } from '../../../../../packages/sandbox/index.js';
 /** Helpers for `pullboard submit`: changed files, stacked work and the submission record. Split from src/cli.js, which re-exports it [C7]. */
 import { reviewerStartup } from '../next-steps.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -7,7 +7,10 @@ import { withBoard } from '../cli-context.js';
 import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../../packages/verify/index.js';
+import { barTestFiles } from '../../../../../packages/verify/index.js';
+import { frozenRowGates } from '../../../../../packages/verify/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';
@@ -21,6 +24,53 @@ import { primaryCheckoutRoot } from './worktree.js';
  */
 export function dirtyFiles(root) {
   return tryGit(root, ['status', '--porcelain', '--untracked-files=all']).stdout.split('\n').filter(Boolean).map((line) => line.slice(3));
+}
+
+/**
+ * The test files from `candidates` that the selected gate runs: all of them when no tier plan applies, otherwise only
+ * the plan's units, since journeys are deferred to the landing batch and nothing ticks a clause for a file never run [C7].
+ *
+ * @param {Iterable<string>} candidates
+ * @param {string[] | null} units the tier plan's units, or null when the repository has no tier plan
+ * @returns {Set<string>}
+ */
+export function selectedGateFiles(candidates, units) {
+  const allowed = units ? new Set(units) : null;
+  return new Set([...candidates].filter(file => /\.test\.js$/u.test(file) && (!allowed || allowed.has(file))));
+}
+
+/**
+ * The test files the gate will run for this item: test files committed since the claim, kept to the gate's tier
+ * selection, plus every test file the frozen criterion or the brief's "Test:" list names that exists at HEAD, which
+ * submit runs whatever the selection says. A [test] clause naming one is ticked by the gate run, not by a builder fact
+ * [C7]. A selection that cannot be read names no file, so the clause stays unticked.
+ */
+export function gateTestFiles(root, item) {
+  const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
+  const named = barTestFiles(item).all.filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
+  let units = null;
+  // An unreadable selection ticks nothing from the changed files, but submit still runs the bar-named files.
+  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return selectedGateFiles(named, null); }
+  return new Set([...selectedGateFiles(changed, units), ...selectedGateFiles(named, null)]);
+}
+
+/**
+ * The tests submit runs beside its selection: the item's call-adjacent tests, each cited spec row's gate test, and every
+ * test file the frozen criterion or the brief's "Test:" list names, kept to files that exist at the commit. Why: seal and
+ * tier selection pick tests by changed cells, so a clause naming a file in another cell had no recorded run and review
+ * rejected a green gate INSUFFICIENT_EVIDENCE (#3533, #3253, #3353 on 7 Nov). Bar files are added with or without an
+ * affected-tests runner, so a project with none configured still gets its named files run: bar test files are
+ * JavaScript, and the gate runs them with Node's test runner when no runner is configured (namedFileRunner) [V4,C7].
+ *
+ * @param {string} root
+ * @param {object} item - The held item, with its frozen bar and brief.
+ * @param {string} commit - The submitted commit the files must exist at.
+ * @param {{ crossRunTests?: string[] }} [options]
+ * @returns {string[]} Sorted repo-relative test files for runSubmitGate's `crossRunTests`.
+ */
+export function namedProofTests(root, item, commit, { crossRunTests = [] } = {}) {
+  const named = [...frozenRowGates(item).map(row => row.file), ...barTestFiles(item).all];
+  return [...new Set([...crossRunTests, ...named.filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
 }
 
 /**

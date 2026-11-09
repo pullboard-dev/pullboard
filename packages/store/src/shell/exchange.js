@@ -1,7 +1,7 @@
 import { beginImmediateQueued } from './board-busy.js';
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board-store-guards.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
 import { FAMILY_RECORD_PREFIX } from "../../../items/index.js";
@@ -299,6 +299,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
   try { db.exec('PRAGMA defer_foreign_keys = ON'); beginImmediateQueued(db, Date.now(), marker); }
   catch (error) { discardBoardWriteMarker(marker); throw error; }
   const writeRecord = beginBoardWrite(db, board.writeContext, marker);
+  // A snapshot restore is its own move body, so its hold row names it instead of leaving move null (#3336).
+  writeRecord.move = 'restoreDocument';
   let released = false;
   let outcome = 'release-failed';
   try {
@@ -356,7 +358,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     db.exec('COMMIT');
     released = true;
     outcome = 'committed';
-    return { tables: names };
+    // Report the tables the document carried, so an additive table the export left out is not listed as imported [C7].
+    return { tables: names.filter((table) => !ADDITIVE_TABLES.has(table) || Object.hasOwn(document.tables, table)) };
   } catch (error) {
     db.exec('ROLLBACK');
     released = true;

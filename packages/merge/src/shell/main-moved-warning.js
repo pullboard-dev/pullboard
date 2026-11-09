@@ -1,7 +1,29 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
+import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
+
+/**
+ * The checkout that holds a claimed item's own branch: the seat's per-item folder when it exists in this repository,
+ * else the seat checkout itself. The seat checkout may sit on another branch, whose conflicts are not the item's (#3820).
+ *
+ * @param {string} seatPath - The builder's registered seat checkout.
+ * @param {number} id - Item id.
+ * @param {string} common - The repository's common git directory.
+ * @returns {string} The path whose HEAD is the item's source.
+ */
+function itemSourcePath(seatPath, id, common) {
+  const folder = join(dirname(seatPath), `${basename(seatPath)}-item-${id}`);
+  try {
+    if (existsSync(folder) && sameCommonDir(repoInfo(folder).commonDir, common)) return folder;
+  } catch { /* an unreadable folder falls back to the seat checkout */ }
+  return seatPath;
+}
 
 /** Compare each recorded submission or live registered builder HEAD with one immutable landed tip. */
 export function mainMovedWarnings({ root, board, trunk }, reads) {
@@ -17,10 +39,11 @@ export function mainMovedWarnings({ root, board, trunk }, reads) {
     if (item.item_merged_commit || !['claimed', 'submitted', 'verified'].includes(item.item_status)) continue;
     let head = item.item_status === 'verified' ? item.item_checked_commit ?? item.item_commit : item.item_commit;
     if (item.item_status === 'claimed') {
-      const path = agents.get(item.item_owner)?.agent_path;
-      if (!path) { warnings.push({ item: item.item_id, unavailable: 'builder has no registered checkout' }); continue; }
+      const seatPath = agents.get(item.item_owner)?.agent_path;
+      if (!seatPath) { warnings.push({ item: item.item_id, unavailable: 'builder has no registered checkout' }); continue; }
+      const path = itemSourcePath(seatPath, item.item_id, common);
       if (!observations.has(path)) {
-        try { observations.set(path, repoInfo(path).commonDir === common ? headCommit(path) : null); }
+        try { observations.set(path, sameCommonDir(repoInfo(path).commonDir, common) ? headCommit(path) : null); }
         catch { observations.set(path, null); }
       }
       head = observations.get(path);

@@ -1,12 +1,13 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-journey Native shout, work and sentinel events reach authenticated real Chrome [N26]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
-import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
+import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../packages/state/index.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 import { scannedBoard } from './activity-data.js';
 

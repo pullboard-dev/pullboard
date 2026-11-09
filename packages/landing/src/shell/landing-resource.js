@@ -8,12 +8,25 @@ import {
 } from '../../../../src/board-landing-lease.js';
 import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { LANDING_BACKOFF_MAX_MS } from '../core/automatic-landing-retry.js';
 import { coordinatorHolder } from '../../../seats/index.js';
-import {
-  localLandingEntry,
-  rememberLocalLanding,
-  forgetLocalLanding,
-} from '../../../../src/board-landing-local-lease.js';
+import { localLandingEntry } from '../../../store/index.js';
+import { rememberLocalLanding } from '../../../store/index.js';
+import { forgetLocalLanding } from '../../../store/index.js';
+
+/** Asks why this process's landing-lease waits stop (a reason or null); set by a lander whose loaded code may be older than main's. */
+let waitsStopped = null;
+
+/**
+ * Stop this process's landing-lease waits when `ask` returns a reason: a request waiting in line releases its place with
+ * it and refuses LAND_CODE_STALE; a held lease is untouched. Null clears it. Why: a lander running code older than main never runs
+ * the fixes main has landed, and waited behind a dead holder for 15 hours on 7 Nov (#3467).
+ *
+ * @param {(() => string | null) | null} ask - Returns why, short enough for the landing_lease event (120 characters), or null.
+ */
+export function stopLandingWaits(ask) {
+  waitsStopped = typeof ask === 'function' ? ask : null;
+}
 
 /** True when a process id no longer exists on this machine; a permission error means it still runs. */
 function processGone(pid) {
@@ -55,6 +68,9 @@ export async function renewWithBackoff(renew, { now = Date.now, pausing = pause,
 export async function takeLandingResource({ board, write, branch, onWait, onLost, refresh = async () => {} }) {
   const token = randomUUID();
   const parameters = { agentId: 'coordinator', token, branch, pid: process.pid, localHeartbeat: true };
+  // A scheduled wake that follows a back-off names it, so the lease request's event records why this landing started late [C7].
+  const backoffMs = Number(process.env.PULLBOARD_LANDING_BACKOFF_MS);
+  const backoff = Number.isSafeInteger(backoffMs) && backoffMs > 0 && backoffMs <= LANDING_BACKOFF_MAX_MS ? { backoffMs } : {};
   let generation = null;
   let timer;
   let watchdog;
@@ -105,12 +121,15 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         } else result = { holder: current.holder, position: current.line.indexOf(entry) + 1, acquired: false, generation: null };
         rememberLocalLanding(board, { ...entry, until: new Date(board.clock.now().getTime() + 30_000).toISOString() });
       } else {
-        result = await write('landingLeaseMove', [{ ...parameters, action: 'request' }]);
+        result = await write('landingLeaseMove', [{ ...parameters, action: 'request', ...backoff }]);
         const acknowledged = result.acquired ? result.holder : landingLeaseState(board).line.find(value => value.token === token);
         if (acknowledged) rememberLocalLanding(board, acknowledged);
         queued = !result.acquired;
       }
       if (result.acquired) { generation = result.generation; confirmedUntil(result.holder.until); break; }
+      // Only a wait in line stops: the place is released below with the reason, so the queue names why it left (#3467).
+      const stopped = waitsStopped?.();
+      if (stopped) throw Object.assign(new Refused('LAND_CODE_STALE', `${stopped}; a fresh lander takes over`), { leaseReason: stopped });
       await onWait?.({ holders: result.holder ? [result.holder] : [], position: result.position });
       await pause(1000);
     }
@@ -147,7 +166,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
   } catch (error) {
     clearInterval(timer);
     clearInterval(watchdog);
-    try { await write('landingLeaseMove', [{ ...parameters, action: 'release', generation }]); }
+    try { await write('landingLeaseMove', [{ ...parameters, action: 'release', generation, ...(error?.leaseReason ? { reason: error.leaseReason } : {}) }]); }
     catch { /* Preserve the admission failure; the ordered lease expires without a false grant. */ }
     throw error;
   }

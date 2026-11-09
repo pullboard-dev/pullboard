@@ -2,6 +2,7 @@ import { spawnCaptured } from '../../../sandbox/index.js';
 import { withPathMapMoves } from './doctrine-path-map.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { checkCommandDefinition } from '../../../git/index.js';
 import { cleanTree } from '../../../git/index.js';
@@ -41,6 +42,7 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { createFastPass } from './doctrine-fast.js';
 import { fastCheckScript } from './doctrine-fast.js';
+import { baseCheckouts } from './doctrine-base-checkouts.js';
 import { lex } from '../../../kernel/index.js';
 import { machineHome } from '../../../resources/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
@@ -306,21 +308,18 @@ function* checkAtCommitExecution(root, commit, command, timeoutMs) {
   }
 }
 
+/** One private base checkout of a commit for a hold to share; close removes it (#3900). */
+function openBaseCheckout(root, commit) {
+  const execution = checkAtCommitExecution(root, commit, '', 0), step = execution.next();
+  return { checkout: step.done ? null : step.value.checkout, close: () => execution.return() };
+}
+
 /** Preserve synchronous base comparisons for existing doctrine commands. */
 function runAtCommit(root, commit, command, timeoutMs) {
   const execution = checkAtCommitExecution(root, commit, command, timeoutMs);
   try {
     const step = execution.next();
     return step.done ? step.value : execution.next(runRuleCheck(step.value.checkout, command, timeoutMs)).value;
-  } finally { execution.return(); }
-}
-
-/** Retain the private base checkout until its asynchronous rule has fully exited. */
-async function runAtCommitAsync(root, commit, command, timeoutMs) {
-  const execution = checkAtCommitExecution(root, commit, command, timeoutMs);
-  try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(await runRuleCheckAsync(step.value.checkout, command, timeoutMs)).value;
   } finally { execution.return(); }
 }
 
@@ -350,7 +349,7 @@ function currentMain(root, mainCommit, commit) {
   try { tip = mainCheckout(root)?.commit ?? null; } catch { /* No primary checkout: the handed main stands. */ }
   const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
   const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
-  if (gitDir && gitDir === commonDir) tip = null;
+  if (gitDir && sameCommonDir(gitDir, commonDir)) tip = null;
   const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
   const main = tip && !(tip !== mainCommit && ancestor(tip, mainCommit)) ? tip : mainCommit;
   // Whichever main stands, the counted tree is the candidate composed with it, never a candidate missing it.
@@ -506,7 +505,7 @@ export function holdDoctrine(root, options) {
 /** Await each actual rule and base comparison without blocking other admitted work or changing ratchet decisions. */
 export async function holdDoctrineAsync(root, options) {
   const execution = doctrineHoldExecution(root, options);
-  const pass = options.fast ? createFastPass(root) : null;
+  const pass = options.fast ? createFastPass(root) : null, bases = baseCheckouts(runRuleCheckAsync, commit => openBaseCheckout(root, commit)); // One base checkout per commit serves every rule.
   try {
     let step = execution.next();
     while (!step.done) {
@@ -527,11 +526,11 @@ export async function holdDoctrineAsync(root, options) {
           run = await options.runCheck(request.commit, request.command, request.timeoutMs);
           if (!run.broken) writeCheckReceipt(root, matching, { result: run });
         }
-      } else if (!run) run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
+      } else if (!run) run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await bases.run(request.commit, request.command, request.timeoutMs);
       step = execution.next(run);
     }
     return step.value;
-  } finally { execution.return(); pass?.close(); }
+  } finally { execution.return(); pass?.close(); bases.close(); }
 }
 
 /** Reuse a complete successful hold before admitting any runner work. */

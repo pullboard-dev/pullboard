@@ -10,8 +10,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { configProblems, defaults } from '../packages/config/index.js';
 import { names, productProblems, productsOfItem, productsOfLane, productsOfRow, productSummaries } from '../packages/spec/index.js';
 import { parseSpec } from '../packages/spec/index.js';

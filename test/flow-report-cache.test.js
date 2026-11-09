@@ -7,16 +7,21 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
+import { editMilestoneItems } from '../packages/store/index.js';
+import { editMilestone } from '../packages/store/index.js';
+import { shipMilestone } from '../packages/store/index.js';
+import { removeMilestone } from '../packages/store/index.js';
+import { orderMilestoneItems } from '../packages/store/index.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
 import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };

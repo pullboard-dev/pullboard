@@ -1,7 +1,7 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
 import { apiBoardOpeners } from './board-fixture.js';
-import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
+import { REJECT_CLAUSE_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -13,21 +13,21 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../packages/state/index.js';
-import { rigorReport } from '../src/board-rigor.js';
+import { rigorReport } from '../packages/store/index.js';
 import { newRigorNotices, undraftedRigor } from '../packages/rigor/index.js';
 import { runCheckAt } from '../packages/rigor/index.js';
-import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
+import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { unpackRelease } from './release-archive.js';
 import { fixtureJoinArgv } from './testkit-fixture.js';
@@ -399,12 +399,15 @@ test('a repeated failure cause is noticed [D1,V1]', () => {
   assert.match(lines[0], /^doctrine:C3 {2}reads as work {2}never again \(the person\) {2}items #\d+$/u);
   assert.equal(lines[1], `${catalog}  reads as both  2 failures  items #${first}, #${second}`);
   assert.equal(lines[2], `refusal:UNDECLARED_REFUSAL  reads as work  2 failures  items #${third} (2 commits)`);
-  assert.equal(lines[3], '0 rejects and reopens carry no cause key; name one with --cause <key> (test:<file>::<title>, refusal:<CODE>, row:<id>, doctrine:<id>, sentinel:<name>, conflict:<file>)');
-  assert.equal(lines.length, 4, 'the single coarse verdict is not a repeat; the zero-uncaused footer remains explicit');
+  assert.equal(lines[3], '0 rejects and reopens carry no cause key; name one with --cause <key> (test:<file>::<title>, refusal:<CODE>, row:<id>, doctrine:<id>, sentinel:<name>, conflict:<file>, instruction:<kind>)');
+  // The report also ends with its coordinator-instruction line (60b2f87252: draft repeated coordinator instructions).
+  assert.equal(lines[4], 'coordinator instructions: none in 7 days; draft threshold 3');
+  assert.equal(lines.length, 5, 'the single coarse verdict is not a repeat; the zero-uncaused footer remains explicit');
 
   const help = box.run('rigor', '--help');
   assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /\nnext: pullboard status\n$/u, 'Rigor help retains interactive guidance');
+  // One command's help ends at its example with no next line (041dbbaccc, json-output.js helpSubject).
+  assert.doesNotMatch(help.stdout, /^next:/mu, 'Rigor help ends at its example');
   const draft = box.run('rigor', 'draft');
   assert.notEqual(draft.status, 0, 'an incomplete drafting command remains refused');
   assert.match(draft.stdout + draft.stderr, /(?:^|\n)next: /u, 'actionable drafting refusals retain their guidance');
@@ -444,7 +447,8 @@ test('a cause key is checked, recorded on reject and reopen, and the person alon
   }
   assert.equal(store.getItem(board.board, id).item_status, 'submitted', 'a refused reject leaves the item submitted');
   board.reject(id, 'row:G1');
-  const rejected = store.events(board.board, { itemId: id }).at(-1);
+  // A reject reopens the item at once, so the reject is no longer the last event.
+  const rejected = store.events(board.board, { itemId: id }).findLast(event => event.event_kind === 'reject');
   assert.equal(JSON.parse(rejected.event_detail).cause, 'row:G1', 'the reject records its cause key');
 
   // A sealed move that carries a cause needs the cause engine; an older envelope cannot carry it.
@@ -465,7 +469,10 @@ test('a cause key is checked, recorded on reject and reopen, and the person alon
   // The private person's acceptance permits this intentionally pre-green fixture check.
   json(box, 'check', 'accept', String(reopenItem.item_id));
   json(box, 'claim', String(reopenItem.item_id));
-  json(box, 'submit', String(reopenItem.item_id));
+  // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
+  writeFileSync(join(box.repo, 'reopen-cause.txt'), 'the work\n');
+  box.git('add', 'reopen-cause.txt'); box.git('commit', '-q', '-m', 'chore: work for the reopen cause fixture');
+  json(box, 'submit', String(reopenItem.item_id), '--wait', '--no-next');
   refused(box.run('reopen', String(reopenItem.item_id), '--note', 'wrong bar', '--cause', 'wrong bar', '--json'), 'BAD_CAUSE', 'a reopen refuses a malformed cause');
   json(box, 'reopen', String(reopenItem.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1');
   const reopened = json(box, 'log', String(reopenItem.item_id)).events.at(-1);

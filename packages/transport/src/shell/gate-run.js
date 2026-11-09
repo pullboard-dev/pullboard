@@ -1,6 +1,7 @@
 /** Run a gate's shards on the runner's shared channel: start each, then read the result files back [C7]. */
 import { Refused } from '../../../kernel/core.js';
 import { sharedTransport } from './transport.js';
+import { ensureTooling } from './tooling-send.js';
 
 // Budget: one short result read per unfinished shard each second, carried on the runner's one shared channel.
 const COLLECT_INTERVAL_MS = 1_000;
@@ -24,13 +25,18 @@ function pause(ms, signal) {
  * over the one channel every gate on that runner shares. A lost channel rejects with TRANSPORT_LOST; the shards keep
  * running there, so a rerun of the same job reads what finished instead of starting it again.
  *
+ * When a tooling pin is given, the runner is checked first and sent the tooling only if it does not hold that tree;
+ * the gate log line says how many tooling bytes were sent.
+ *
  * @param {{ runner: object, job: string, owner?: string, shards: { shard: string, command: string, cwd?: string }[],
- *   transport?: { connect: (runner: object) => object }, intervalMs?: number, signal?: AbortSignal }} gate
+ *   transport?: { connect: (runner: object) => object }, intervalMs?: number, signal?: AbortSignal,
+ *   tooling?: { tree: string, bundle: string }, log?: (line: string) => void }} gate
  * @returns {Promise<{ shard: string, status: number, output: Buffer, digest: string }[]>}
  */
-export async function runGate({ runner, job, owner, shards, transport = sharedTransport(), intervalMs = COLLECT_INTERVAL_MS, signal }) {
+export async function runGate({ runner, job, owner, shards, transport = sharedTransport(), intervalMs = COLLECT_INTERVAL_MS, signal, tooling, log }) {
   if (!Array.isArray(shards) || !shards.length) throw new Refused('TRANSPORT_GATE_SHARDS', `gate ${job} names no shards; plan at least one before running it`);
   const channel = transport.connect(runner);
+  if (tooling) await ensureTooling(channel, tooling, log);
   const start = spec => channel.startShard({ job, owner, ...spec });
   for (const spec of shards) await start(spec);
   const results = new Map(), restarts = new Map();

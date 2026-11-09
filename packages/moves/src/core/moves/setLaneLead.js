@@ -1,5 +1,5 @@
 /** Coordinator-owned lane policy is an ordered board move [B21,H16]. */
-import { LANE_LEAD_ENGINE } from "../../../../../src/lane-lead-engine.js";
+import { LANE_LEAD_ENGINE } from "../../../../state/core.js";
 /** Policy changes require every replica to understand the lead protocol. */
 function minimumEngine() { return LANE_LEAD_ENGINE; }
 /** Read the authenticated actor from the operation's sole argument. */

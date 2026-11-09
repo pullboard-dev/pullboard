@@ -1,5 +1,5 @@
-import * as queueStore from '../src/board.js';
-import { roadmap, addMilestone, orderMilestoneItems } from '../src/board-milestones.js';
+import * as queueStore from '../packages/store/index.js';
+import { roadmap, addMilestone, orderMilestoneItems } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 /** Local release completion and deterministic ordering boundaries [C7,V4]. */
@@ -9,14 +9,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { addItem, buildOrder, claim, closeBoard, getItem, nextFor, register, verify } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import {
   sayQueue,
   workQueue,
 } from '../packages/items/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';
+import { WORK_ORDER_ENGINE } from '../packages/state/core.js';
 import { runFixtureGit } from './fixture-child.js';
 import { captureReleaseQueue, localReleaseRank } from '../packages/landing/index.js';
 import { orderedWaiters } from '../packages/queue/index.js';

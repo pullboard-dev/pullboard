@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence } from '../packages/state/index.js';
@@ -28,8 +28,8 @@ import { applyRelayMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { eventCauses } from '../src/board-rigor.js';
-import { rigorReport } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
+import { rigorReport } from '../packages/store/index.js';
 import { executeSentinel } from '../packages/sentinels/index.js';
 import { runDueSentinels } from '../packages/sentinels/index.js';
 import { startServeSentinel } from '../packages/sentinels/index.js';
@@ -42,18 +42,21 @@ import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { personRequestMove, preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../packages/link/index.js';
-import { PEOPLE_ENGINE } from '../src/people-engine.js';
+import { PEOPLE_ENGINE } from '../packages/state/core.js';
 import { sentinelDraftNeeds } from '../packages/sentinels/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion } from '../packages/spec/index.js';
 import { loadSpec } from '../packages/spec/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
-import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
+import { requireSupportedEngine as requirePublished55Engine } from '../packages/kernel/tests/fixtures/engine-55-reader.js';
+
+/** The model the fixture seat registers with and joins as. */
+const FIXTURE_MODEL = 'gpt-6.1-sol';
 
 /** Isolate actual SQLite, Git, settings and subprocess files; due time is explicitly injected. */
 function fixture(t, { agentRoute } = {}) {
@@ -76,7 +79,8 @@ function fixture(t, { agentRoute } = {}) {
   const clock = { time: Date.parse('2026-10-18T03:00:00Z'), now() { return new Date(this.time); } };
   const board = openBoard(join(root, '.git/pullboard/board.sqlite'), clock);
   store.register(board, { lane: 'coordinator', path: root });
-  const agent = store.register(board, { lane: 'core', path: join(directory, 'agent'), route: agentRoute });
+  // A join on this seat's worktree must name the model it registered with, or join refuses ALREADY_JOINED.
+  const agent = store.register(board, { lane: 'core', path: join(directory, 'agent'), route: agentRoute, model: FIXTURE_MODEL });
   /** Apply the actual ordered board engine with deterministic injected receipt time. */
   const ordered = async (operation, args) => {
     const move = prepareEngineMove(board, operation, args);
@@ -160,7 +164,7 @@ console.log('explicit trunk receipt: '+value);
   runFixtureGit(['commit', '-q', '-m', 'test: committed sentinel input [N26,A6]'], { cwd: box.root, env: box.env });
   const agentRoot = join(box.directory, 'agent');
   runFixtureGit(['worktree', 'add', '--quiet', '--detach', agentRoot, 'main'], { cwd: box.root, env: box.env });
-  const joined = await box.cli(['join', 'core', '--model', 'gpt-6.1-sol', '--route', 'mid'], undefined, agentRoot);
+  const joined = await box.cli(['join', 'core', '--model', FIXTURE_MODEL, '--route', 'mid'], undefined, agentRoot);
   assert.equal(joined.code, 0, joined.error || JSON.stringify(joined.document));
   writeFileSync(join(agentRoot, 'value.txt'), 'uncommitted agent input');
   const command = `${quote(process.execPath)} trunk-check.mjs`;

@@ -16,16 +16,17 @@ export { transportText, runnerFailure, resultFrom } from "./src/shell/runner-res
 export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProbeRunnerHealth, runnerExecutionServices as healthRunnerExecutionServices } from "./src/shell/runner-health.js";
 export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, objectRecord } from "./src/shell/runner-source-scan.js";
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
-export { requestFor } from "./src/shell/runner-request.js";
+export { requestFor, queuedSource } from "./src/shell/runner-request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
 export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
-export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";
+export { runnerPackageReader, runnerPackage, workerBundleBytes } from "./src/shell/runner-package.js";
 export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-tooling-snapshot.js";
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
 export { packText, commitWork, runItems } from "./src/shell/run.js";
 /** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
+export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch, pushHostedItemBranch } from './src/shell/runner-hosted-worktree.js';
 export { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout, discardWarmCheckout } from './src/shell/warm-checkouts.js';
 export { captureSubmitTooling, prepareSubmitToolingRetry, retrySubmitTooling } from './src/shell/submit-tooling-retry.js';
 export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupProcessText } from './src/core/cleanup-diagnostics.js';

@@ -3,15 +3,15 @@ import { refuseUnreviewable } from '../packages/verify/index.js';
 /** A strict item no active seat could review is refused at submit and named by the sentinel [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../packages/items/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { refuseLiveAttach } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });

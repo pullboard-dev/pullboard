@@ -1,7 +1,7 @@
 import { frozenCheckTiming } from "../../../../items/core.js";
-import { CHECK_TIMING_ENGINE } from "../../../../../src/check-timing-engine.js";
-import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../../src/review-independence-engine.js";
-import { PRIVATE_REHOME_ENGINE } from "../../../../../src/private-rehome-engine.js";
+import { CHECK_TIMING_ENGINE } from "../../../../state/core.js";
+import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/core.js";
+import { PRIVATE_REHOME_ENGINE } from "../../../../state/core.js";
 
 /** Destination application uses the source identity as its idempotency key [H16]. */
 function minimumEngine(args) { return Math.max((args[0]?.item?.item_check_timing !== undefined || frozenCheckTiming(args[0]?.item ?? {})) ? CHECK_TIMING_ENGINE : 1, args[0]?.reviewPolicy ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE); }

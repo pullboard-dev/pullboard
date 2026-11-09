@@ -1,29 +1,29 @@
-import { MACHINE_VERDICT_ENGINE } from '../../../../../src/machine-verdict-engine.js';
-import { STRICT_RENAME_ENGINE } from '../../../../../src/strict-rename-engine.js';
-import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../../src/main-red-failure-lines-engine.js';
-import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
-import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
-import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../../src/known-main-owner-pattern-engine.js";
+import { MACHINE_VERDICT_ENGINE } from '../../../../state/core.js';
+import { STRICT_RENAME_ENGINE } from '../../../../state/core.js';
+import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../state/core.js';
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../state/core.js';
+import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../state/core.js";
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../state/core.js";
 import { ENGINE_VERSION } from "../../../../../src/engine-metadata.js";
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
-import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
+import { itemReviewPolicyEngine } from "../../../../verify/index.js";
 import { checkTimingEngine } from "../../../../items/core.js";
 import { itemPatchRecords } from "../../../../items/core.js";
-import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
-import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../../src/merge-only-verdict-engine.js";
-import { FLOW_SIZE_ENGINE } from "../../../../../src/flow-size-engine.js";
-import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../../src/known-main-reworks-engine.js";
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../../src/known-main-running-file-engine.js";
+import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
+import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/core.js";
+import { FLOW_SIZE_ENGINE } from "../../../../state/core.js";
+import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../state/core.js";
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
-import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
+import { BAR_READY_ENGINE } from "../../../../state/core.js";
 import { barReadySetting } from "../bar-ready-setting.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/core.js";
 import { outsideSource } from "../../../../items/core.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
-import { BAR_CHECK_ENGINE } from "../../../../../src/bar-check-engine.js";
-import { barCheckEnabled } from "../../../../verify/src/core/bar-check.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { BAR_CHECK_ENGINE } from "../../../../state/core.js";
+import { barCheckEnabled } from "../../../../verify/index.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../../src/move-engine-constants.js";
 import { submissionProof } from "../../../../state/src/core/submission-proof.js";
 
@@ -98,6 +98,8 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator --kind question \"please refreeze #<id>\"",
   "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
   "DIRTY": "commit your changes, then run the command again",
+  "HOSTED_BRANCH_MISMATCH": "on the runner, check out the claimed item branch in the item folder, then run pullboard submit <id> again",
+  "HOSTED_PUSH_FAILED": "on the runner, fix the push the message names (git pull origin <branch> when the coordinator branch moved), then run pullboard submit <id> again",
   "GATE_RED": "fix what the gate report names, commit, and submit again",
   "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator --kind question \"please remove .git/info/grafts\"",
   "HEAD_NOT_NEW": "commit the rework, then pullboard submit <id>",

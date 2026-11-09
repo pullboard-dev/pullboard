@@ -10,7 +10,7 @@ import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
-import { runProfiledShell } from '../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -33,6 +33,7 @@ import { changedFiles } from './landing-known-main.js';
 import { repeatedBlockedCause } from '../core/runner-source-hold.js';
 import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
 import { repeatedLandingNotice } from '../core/runner-source-hold.js';
+import { LANDING_FAULT_CODES } from '../core/automatic-landing-retry.js';
 
 /**
  * The compare port a landing reads base main through: main's receipts on the landing's board, a missing one enqueued
@@ -144,7 +145,8 @@ export async function diagnose(state, failures, gate) {
     const tiered = hasTestTiers(state.batch.root);
     const result = await withLandingGateSlot(state.batch.root, (lease) => {
       lease.testTiers = tiered;
-      return runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
+      // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
+      return runProfiledShellAsync(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
     }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
     if (tiered) requireTestTierAccount(result, [file]);
@@ -288,7 +290,7 @@ export function namedFailures(gate) {
  * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
  */
 // A locked board or slot database means the run never started, not that the batch or an item failed.
-export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
+export const LANDING_FAULTS = new Set(LANDING_FAULT_CODES);
 
 /** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
 export function landingFault(error) {

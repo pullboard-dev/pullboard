@@ -1,8 +1,8 @@
-import { TEST_ECONOMICS_ENGINE } from "../../../../../src/test-economics-engine.js";
-import { MAIN_AUDIT_ENGINE } from "../../../../../src/main-audit-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { TEST_ECONOMICS_ENGINE } from "../../../../state/core.js";
+import { MAIN_AUDIT_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by recordLandingTestDefect, discovered without a shared registry edit [C7,V4,H16]. */
-import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";
+import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {

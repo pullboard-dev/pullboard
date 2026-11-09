@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runRelaySender } from '../../../../src/relay-sender-worker.js';
+import { runRelaySender } from '../../../../packages/outbox/index.js';
 import { outboxWaiting } from '../../../../packages/outbox/index.js';
 import {
   flushOutbox,
@@ -39,15 +39,30 @@ export function launchRelaySender(root, env) {
   child.unref();
 }
 
-/** Send and pull one board under its relay lock, then run the person's waiting requests. True when nothing waits. */
-async function serve(root, file, io) {
-  const { syncRelay } = await import('../../../../packages/link/index.js');
+/**
+ * The io the machine sender gives a relay sync: the caller's streams plus every native service the sync reads.
+ * Why: one composition serves the sender and the tests that drive a sync, so neither drifts when a service is added [H21,H16,C7].
+ *
+ * @param {string} root - The board's repository root.
+ * @param {object} [io] - The caller's streams and settings, kept as given.
+ * @returns {Promise<object>}
+ */
+export async function relaySenderIo(root, io = {}) {
   const { relayOutboxSetting } = await import('../../../../src/cli.js');
   const loadNativeBoard = () => import('../core/native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
   const nativeBoard = await loadNativeBoard();
-  const boardIo = { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  return { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };;
+}
+
+/** Send and pull one board under its relay lock, then run the person's waiting requests. True when nothing waits. */
+async function serve(root, file, io) {
+  const { syncRelay } = await import('../../../../packages/link/index.js');
+  const loadNativeBoard = () => import('../core/native-board.js');
+  const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
+  const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
+  const boardIo = await relaySenderIo(root, io);
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('../../../../packages/link/index.js');
@@ -60,4 +75,16 @@ async function serve(root, file, io) {
   return !outboxWaiting(file);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === SENDER_WORKER) await runRelaySender({ serve });
+/**
+ * Start the sender loop without a top-level await. Why: serve() imports src/cli.js, whose graph reaches
+ * apps/lib/index.js and so this module; while this module's evaluation awaited the loop, that import waited on it
+ * forever and the sender hung after "serving" (#3204).
+ */
+function startSender() {
+  runRelaySender({ serve }).catch((error) => {
+    process.exitCode = 1;
+    process.stderr.write(`relay sender stopped: ${error.message}\n`);
+  });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === SENDER_WORKER) startSender();

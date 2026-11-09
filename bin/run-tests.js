@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
-/**
- * Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim.
- */
+/** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +44,8 @@ import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell
 import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
 import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
+// The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
+import { testRunPhaseClock } from '../packages/gate/src/shell/test-run-phases.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -1228,6 +1228,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
  * @returns {Promise<void>}
  */
 async function main(args) {
+  const clock = testRunPhaseClock();
   let concurrency;
   try {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
@@ -1287,7 +1288,7 @@ async function main(args) {
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
     fullSuite && !narrowsSelection(args, optionTakesValue));
-  timing.phase('selectionMs', selectionAt);
+  timing.phase('selectionMs', selectionAt); clock.mark('selection');
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
   const shardLabel = process.env[LANDING_SHARD_ENV];
@@ -1303,10 +1304,10 @@ async function main(args) {
     if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
-      timing.phase('setupMs', setupAt);
+      timing.phase('setupMs', setupAt); clock.mark('admission');
       const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
       signal = result.signal;
-      process.exitCode = result.status ?? 1;
+      process.exitCode = result.status ?? 1; clock.mark('tests');
       if (fileTimes) (await import('../src/landing-shards.js')).printShardFileTimes(fileTimes);
     } finally {
       try {
@@ -1323,24 +1324,24 @@ async function main(args) {
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
-    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
+    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1'; const ordinaryShards = process.env[LANDING_RUN_ENV] !== '1' && process.env.PULLBOARD_RUN_SHARDS !== '0';
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
-    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
-      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
-      const count = landingShardCount(process.cwd());
+    if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
+      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments, freeRunnerSlots } = await import('../packages/gate/index.js');
+      let count = ordinaryShards ? freeRunnerSlots() : landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
-      if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
+      shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
         const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
           : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
-        if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
-        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
-        const { runLandingShards } = await import('../src/landing-shards.js');
+        if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
+        if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
+        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null; const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
-        // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
+        // One read of each planned file's first-line declaration, shared by every shard [C7].
         const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
@@ -1379,9 +1380,9 @@ async function main(args) {
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
-        timing.forward();
+        timing.forward(); clock.mark('admission');
         const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
-          browser, metadata: lease.runMetadata });
+          browser, metadata: lease.runMetadata }); clock.mark('runner');
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
@@ -1415,6 +1416,8 @@ async function main(args) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
+  // No test run starts on the coordinator unless a runner job started it (#3899).
+  (await import('../packages/gate/index.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;
@@ -1468,19 +1471,18 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       && !process.env.PULLBOARD_TEST_BROWSER_OWNER_PID) {
     // The worker is announced to #589 before it can wait here; admission remains before file import/body.
     process.env.PULLBOARD_TEST_BROWSER_OWNER_PID = String(process.pid);
-    // The test body never sees the setting itself: its own fixtures classify with their own machine settings.
-    const byLaunch = process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
+    // The test body never sees the setting itself; the file's first-line declaration alone decides its lease [C7].
     delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
     const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
-    if (await testsNeedBrowser(process.cwd(), [process.argv[1]], { byLaunch })) {
+    if (await testsNeedBrowser(process.cwd(), [process.argv[1]])) {
       const { takeResource } = await import('../packages/resources/index.js');
       const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,
         capacity: Number(process.env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd() });
       // Hold through file cleanup and process exit, including abort/watchdog paths.
       process.once('exit', () => lease.release());
-      if (byLaunch) process.env.PULLBOARD_TEST_BROWSER_SLOT = 'held';
-    } else if (byLaunch) {
-      // Any browser spawn from this file or a Node child it starts is refused by name (BROWSER_SLOT_REQUIRED).
+      process.env.PULLBOARD_TEST_BROWSER_SLOT = 'held';
+    } else {
+      // Undeclared: any browser spawn from this file or a Node child it starts is refused by name (BROWSER_UNDECLARED).
       process.env.PULLBOARD_TEST_BROWSER_SLOT = 'none';
       const guard = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url);
       await import(guard.href);

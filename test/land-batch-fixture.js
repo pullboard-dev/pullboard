@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { calls, events, mergeSubjects } from './land-board-fixture.js';
 import { PHASE_LINE } from '../packages/landing/src/shell/landing-phase-timing.js';
 

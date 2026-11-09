@@ -10,10 +10,10 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { eventCauses } from '../src/board-rigor.js';
-import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
+import { eventCauses } from '../packages/store/index.js';
+import { REOPEN_CAUSE_ENGINE } from '../packages/state/core.js';
 import {
   exportBoard,
   importBoard,
@@ -26,6 +26,7 @@ import {
 import { conflictReport } from '../packages/rigor/index.js';
 import { trunkMerge } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -64,7 +65,8 @@ function submit(box, number = 1) {
   const path = number === 1 ? box.web : join(box.dir, 'builder-' + number);
   if (number !== 1) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/conflict-' + number, path, 'main');
-    json(box, path, 'join', 'web');
+    const joined = joinFixtureSeat(box, path, 'web');
+    assert.equal(joined.code, 0, joined.out + joined.err);
   }
   const added = json(box, box.repo, 'add', 'web', 'Conflict fixture ' + number, '--specs', 'G1',
     '--criterion', 'Both modules remain valid.', '--check', 'node --check ' + FILE);

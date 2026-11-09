@@ -7,11 +7,11 @@ import { repairedAt } from './ratchet-boundary.js';
 import { backfillPairs } from './ratchet-boundary.js';
 import { eventHistory } from './event-history.js';
 import { quarantinesAt } from '../core/flake-ratchet.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../state/core.js";
 import { proofReceipts } from "../../../store/index.js";
 import { nativeProofBlockingGreen } from "../../../verify/index.js";
 import { landingGateRecords } from "../../../verify/index.js";
-import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
+import { MAIN_AUDIT_ENGINE } from "../../../state/core.js";
 import { landingBatches } from "../../../landing/index.js";
 /**
  * Gate runs and flake quarantine [C7,D1]. Every real gate run leaves its tree, its failing test ids and the host load on
@@ -27,10 +27,10 @@ import {
   listAgents,
   logEvent,
 } from "../../../store/index.js";
-import { GATE_RUN_ENGINE } from "../../../../src/gate-run-engine.js";
-import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
-import { RUN_TIMING_ENGINE } from "../../../../src/run-timing-engine.js";
-import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
+import { GATE_RUN_ENGINE } from "../../../state/core.js";
+import { LANDING_ENVIRONMENT_ENGINE } from "../../../state/core.js";
+import { RUN_TIMING_ENGINE } from "../../../state/core.js";
+import { SHADOW_TIER1_ENGINE } from "../../../state/core.js";
 import {
   boardReceiptStore,
   receiptBinds,
@@ -41,8 +41,8 @@ import { flakeLedger } from "./flakes.js";
 import { flakeEvents } from "./flakes.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { QUARANTINE_CORE_ENGINE } from "../../../../src/quarantine-core-engine.js";
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
+import { QUARANTINE_CORE_ENGINE } from "../../../state/core.js";
+import { QUARANTINE_VERDICT_ENGINE } from "../../../state/core.js";
 import { quarantineVerdictFields } from "../../../verify/index.js";
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
@@ -149,7 +149,12 @@ function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLe
   const released = row => latest.get(testKey(row.file, row.name))?.status === 'lifted' && latest.get(testKey(row.file, row.name)).since >= row.lastEventId;
   const current = ledger.filter(row => !released(row));
   const observations = [...current, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
-  return flakeRatchet({ previous, eventId, observations, quarantines });
+  const result = flakeRatchet({ previous, eventId, observations, quarantines });
+  // The snapshot hides other connections' writes; a write through this connection mid-capture would mix two boundaries.
+  if (board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id !== eventId) {
+    throw new Refused('BOARD_BUSY', 'the board changed while capturing the flake ratchet; retry from its current state');
+  }
+  return result;
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */

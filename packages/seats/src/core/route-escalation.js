@@ -1,7 +1,7 @@
 /** Model route policy and rejection receipts for automatic escalation [B13,B15,H16]. */
 import { COORDINATOR } from '../../../queue/core.js';
-import { AUTO_ESCALATE_ENGINE } from '../../../../src/auto-escalate-engine.js';
-import { STRONG_REJECTION_NOTICE_ENGINE } from '../../../../src/strong-rejection-notice-engine.js';
+import { AUTO_ESCALATE_ENGINE } from '../../../state/core.js';
+import { STRONG_REJECTION_NOTICE_ENGINE } from '../../../state/core.js';
 import { verdictRows } from './verdict-rows.js';
 
 /**
@@ -20,6 +20,16 @@ export const ROUTES = ['light', 'mid', 'strong'];
  * @returns {boolean}
  */
 export const canTake = (agentRoute, itemRoute) => ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute);
+
+/**
+ * The lower of a seat's joined route and a session's cap, so the model running in a seat narrows what it takes [#3678].
+ * Why narrowing only: a claim the cap allows is one the stored route allows too, so replaying the event log agrees.
+ *
+ * @param {string} route
+ * @param {string | null | undefined} cap
+ * @returns {string}
+ */
+export const cappedRoute = (route, cap) => ROUTES.includes(cap) && ROUTES.indexOf(cap) < ROUTES.indexOf(route) ? cap : route;
 
 /** Return rejected verdict receipts since the item's most recent route change [B15,B13].
  *
