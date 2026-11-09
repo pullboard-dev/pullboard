@@ -3,10 +3,10 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkoutHead } from '../packages/git/index.js';
-import { gitExecFileSync } from '../packages/git/index.js';
-import { statusPaths } from '../packages/git/index.js';
-import { worktreeStatus } from '../packages/git/index.js';
+import { checkoutHead } from '../../../git/index.js';
+import { gitExecFileSync } from '../../../git/index.js';
+import { statusPaths } from '../../../git/index.js';
+import { worktreeStatus } from '../../../git/index.js';
 
 /**
  * Freeze a Git worktree's content; failure is unknown, never evidence of no work. The status is the command's shared
