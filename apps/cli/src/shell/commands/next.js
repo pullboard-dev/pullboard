@@ -64,6 +64,8 @@ import {
 } from '../next-say.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
+import { deliverOwnTestRuns } from '../../../../../packages/gate/index.js';
+import { deliverTestRunsWhenReady } from '../../../../../packages/gate/index.js';
 
 /** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
 function inboxReasons(ctx) {
@@ -199,6 +201,8 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
+  // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
+  const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -231,6 +235,8 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    // A waiting next wakes on the board file, so a queued test run that finishes meanwhile comes back at once [C7].
+    if (minutes > 0 && testRuns.pending.length && deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI }).delivered) return 0;
     if (!values.verify) {
       const ownerQueue = withBoardRead(ctx, board => {
         const me = whoAmI(ctx, board);
@@ -365,6 +371,8 @@ async function nextWithProgress(io, values, progress) {
       lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+      // Nothing else to build: the board holds this next until the seat's own queued test run comes back [C7].
+      if (testRuns.pending.length && await deliverWhenReady(io, ctx)) return 0;
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
         io.result?.({ item: null, idleReason, reasons: found.reasons });
         io.say(found.reasons[0]);
@@ -415,6 +423,11 @@ async function nextWithProgress(io, values, progress) {
       wakeVersion = wake.version();
     }
   } } finally { wake?.close(); }
+}
+
+/** Hold an idle next on the board file until the seat's queued test run comes back; true when one did [C7]. */
+function deliverWhenReady(io, ctx) {
+  return deliverTestRunsWhenReady(io, ctx, { withBoard, withBoardRead, whoAmI }, () => fileChangeWaiter([ctx.file, ctx.file + '-wal']));
 }
 
 /** Run `pullboard next` and return its exit code. */

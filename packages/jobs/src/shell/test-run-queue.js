@@ -184,6 +184,32 @@ export function deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI }
 }
 
 /**
+ * Hold an idle `next` until one of the seat's queued test runs finishes or is lost, then hand it back. Returns true
+ * when a run came back, false when none is pending. Why: a seat with no other item would otherwise end its turn and
+ * never hear the result; a lost worker stops renewing its lease, so this ends within 2 minutes of a dead run.
+ *
+ * @param {any} io
+ * @param {any} ctx
+ * @param {{ withBoard: Function, withBoardRead: Function, whoAmI: Function }} services
+ * @param {() => { version: () => number, wait: (options: { after: number, deadline: number }) => Promise<unknown>, close: () => void }} watch - A waiter on the board file.
+ * @param {{ rearmMs?: number }} [options]
+ * @returns {Promise<boolean>}
+ */
+export async function deliverTestRunsWhenReady(io, ctx, services, watch, { rearmMs = 15_000 } = {}) {
+  const wake = watch();
+  try {
+    for (;;) {
+      const version = wake.version();
+      const runs = deliverOwnTestRuns(io, ctx, services);
+      if (runs.delivered) return true;
+      if (!runs.pending.length) return false;
+      // The deadline rereads lease state, so a worker that died without writing is reported lost.
+      await wake.wait({ after: version, deadline: Date.now() + rearmMs });
+    }
+  } finally { wake.close(); }
+}
+
+/**
  * The lines `next` prints for one finished or lost run: the outcome, each failing test, the log.
  *
  * @param {NonNullable<ReturnType<typeof testRunState>>} run
