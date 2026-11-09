@@ -293,7 +293,6 @@
     "packages/sandbox/tests/trusted-policy-ancestry.test.js": "imports test/fixture-child.js, outside its own cell sandbox; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/sandbox/tests/trusted-policy.test.js": "imports test/e2e-helpers.js, outside its own cell sandbox; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/checkout-writers.test.js": "imports test/e2e-helpers.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/seats/tests/claim-watchdog.test.js": "imports packages/health/index.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/projects.test.js": "imports test/fixture-child.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/sentinels/tests/waits.test.js": "imports test/board-fixture.js, outside its own cell sentinels; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/spec/tests/doctrine-rulings.test.js": "imports test/e2e-helpers.js, outside its own cell spec; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
