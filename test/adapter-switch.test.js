@@ -77,7 +77,7 @@ test('scheduled production audit runs Git real [C7]', { timeout: 180_000 }, asyn
   await box.startWorker({ scheduled: true }).finish();
   const job = JSON.parse(readFileSync(join(box.directory, `${box.key}.json`), 'utf8'));
   const receipt = box.readGateReceipt(box.receiptStore(box.repo), job.receiptId);
-  if (!receipt) { const gp = join(box.repo, '.git', 'pullboard'); assert.fail('DBG ' + JSON.stringify(job) + ' || ' + readdirSync(gp).join(',') + ' || ' + readdirSync(box.directory).join(',')); }
+  if (!receipt) { const gp = join(box.repo, '.git', 'pullboard'); assert.fail('DBG ' + JSON.stringify([process.env.NODE_OPTIONS, process.env.PULLBOARD_RUNNER_PRELOAD, box.env.NODE_OPTIONS, box.env.PULLBOARD_RUNNER_PRELOAD]) + ' || ' + readdirSync(gp).join(',') + ' || ' + readdirSync(box.directory).join(',')); }
   assert.ok(receipt.collection.files.includes('test/c.test.js'));
   assert.equal(readFileSync(box.marker, 'utf8'), 'ran');
   assert.ok(!receipt.failures.some(failure => failure.name === 'audit uses real Git'), JSON.stringify(receipt.failures));
