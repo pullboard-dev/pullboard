@@ -22,7 +22,7 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   shipMilestone,
@@ -83,7 +83,7 @@ function fixture(t) {
   git('commit', '-q', '-m', 'chore: initialize fixture');
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, rows: [] }), digest: 'digest:tracked' });
   /** File an item and take it to the named state: open, accepted or landed. */
@@ -268,7 +268,7 @@ test('[N26,H16] an older-engine client cannot add work after a milestone ships',
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-milestone-legacy-'));
   const board = openBoard(join(dir, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
-  store.ensureCoordinator(board, dir);
+  store.board_ensureCoordinator(board, dir);
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Still owed',
     criterion: 'An obligation remains recorded', specIds: [] });
   addMilestone(board, { agentId: 'coordinator', name: 'A', items: [] });

@@ -26,7 +26,7 @@ function landOnce(box, { defect }) {
   const url = path => JSON.stringify(pathToFileURL(join(import.meta.dirname, path)).href);
   const source = [
     `import { openBoard } from ${url('../../../apps/lib/index.js')};`,
-    `import * as store from ${url('../../../src/board.js')};`,
+    `import * as store from ${url('../../store/index.js')};`,
     `import { writeBoardCommand } from ${url('../../store/index.js')};`,
     `import { loadConfig } from ${url('../../../packages/config/index.js')};`,
     `import { runLandingBatch } from ${url('../index.js')};`,
