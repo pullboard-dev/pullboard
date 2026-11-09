@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/machine.js */
+/** @pullboard-test-loads packages/state/src/shell/machine.js */
 /** Two items adding different commands, or different engines, merge without conflict even at the same sorted spot [C7,V4]. */
 import assert from 'node:assert/strict';
 import {
@@ -74,8 +74,8 @@ test('clause 1: two engines added at the same sorted spot merge without conflict
   const engineFiles = ['machine.js', 'engine-metadata.js', 'discovery.js', 'engine-numbers.js', ...readdirSync(SOURCE).filter((file) => /-engine\.js$|^machine-(?:move-.+|shared)\.js$/u.test(file))];
   const engine = (name, number) => ({ name, files: { [`${name}-engine.js`]: `/** An independent private engine. */\nexport const ${name.toUpperCase().replace(/-/gu, '_')}_ENGINE = ${number};\n` } });
   const repo = mergeTwo(t, { files: engineFiles, complete: true, additions: [engine('check-alpha', 63), engine('check-beta', 64)] });
-  const { discoverEngines } = await import(pathToFileURL(join(repo.root, 'src/machine.js')).href);
-  assert.equal(typeof discoverEngines, 'function', 'src/machine.js discovers its engines');
+  const { discoverEngines } = await import(pathToFileURL(join(repo.root, 'packages/state/index.js')).href);
+  assert.equal(typeof discoverEngines, 'function', 'the state front door discovers its engines');
   const found = discoverEngines(pathToFileURL(join(repo.root, 'src/')));
   assert.equal(found['check-alpha'], 63);
   assert.equal(found['check-beta'], 64);
