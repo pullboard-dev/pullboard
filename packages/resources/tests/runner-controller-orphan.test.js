@@ -1,6 +1,7 @@
 /** A dead runner controller requeues its job and leaves a healthy host in service; a failed probe still quarantines [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -9,16 +10,16 @@ import { consumeControllerDisposition } from '../src/shell/controller-dispositio
 import { initializeRunnerRecovery } from '../index.js';
 import { recordRunnerFailure } from '../index.js';
 import { recoverUnavailableRunners } from '../index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const HOST = 'orphan-host';
 const HOLDER = { pid: 4101, started: 'holder-start', controllerPid: 4102, controllerStarted: 'controller-start' };
 
 /** Open a private pool holding one runner job whose controller is registered under the fixed holder identity. */
 function pool(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const db = new DatabaseSync(join(helpers.sandbox().dir, 'resources.sqlite'));
+  const scratch = privateFixtureFiles('pullboard-orphan-pool-');
+  t.after(() => rmSync(scratch.root, { recursive: true, force: true }));
+  const db = new DatabaseSync(join(scratch.root, 'resources.sqlite'));
   db.exec(`CREATE TABLE resource(name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
     CREATE TABLE holder(token TEXT PRIMARY KEY,pid INTEGER,started TEXT,agent TEXT,repo TEXT,item TEXT,kind TEXT,runner TEXT,
       controller_identity TEXT NOT NULL DEFAULT '');

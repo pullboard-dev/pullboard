@@ -1,11 +1,11 @@
 /** Automatic landing sizes batches from recorded batches, and line.landingBatchSize overrides the size for real landing [C7,H24]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { landingBatchSize } from '../../landing/index.js';
-import { roundFailures } from '../../landing/index.js';
-import { landingMaximum } from '../../landing/index.js';
+import * as store from '../../store/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
+import { landingBatchSize } from '../index.js';
+import { roundFailures } from '../index.js';
+import { landingMaximum } from '../index.js';
 
 const landed = { state: 'trunk' };
 const blocked = { state: 'blocked' };

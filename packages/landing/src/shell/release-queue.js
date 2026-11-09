@@ -1,11 +1,10 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
 import { runnerBoardFile } from '../../../resources/index.js';
-// The event log is imported first so the store's import cycle starts where the front door starts it; entering at board-query leaves PERSON uninitialized.
-import '../../../store/src/shell/board-event-log.js';
-import { openBoardReadOnly } from '../../../store/src/shell/board-query.js';
-import { boardId } from '../../../store/src/shell/board-query.js';
-import { listItems } from '../../../store/src/shell/board-query.js';
-import { milestones } from '../../../store/src/core/board-milestones-read.js';
+// The store's board-read door: the gate-slot path ranks releases without loading the whole store (#4142).
+import { openBoardReadOnly } from '../../../store/board-read.js';
+import { boardId } from '../../../store/board-read.js';
+import { listItems } from '../../../store/board-read.js';
+import { milestones } from '../../../store/board-read.js';
 
 /**
  * Capture the item's roadmap rank once, without opening or migrating a board for writing.

@@ -9,9 +9,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { candidates } from '../../landing/index.js';
+import * as store from '../../store/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
+import { candidates } from '../index.js';
 
 /** A real scratch repo with one commit, and a real in-memory board. */
 function scratch(t) {
