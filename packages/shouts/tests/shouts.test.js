@@ -146,7 +146,7 @@ test('filters keep only the wanted kinds, item and audience, and --json prints o
 
   const toWeb = await follow(t, shouted, { to: 'web', json: true });
   const records = toWeb.lines.map(line => JSON.parse(line));
-  assert.equal(records.length, 1, 'only the shout to all reaches the web audience; the one to another seat does not');
+  assert.equal(records.length, 1, JSON.stringify([shouted.board.db.prepare('SELECT shout_from, shout_to FROM shout').all(), toWeb.lines, toWeb.notes]) + 'only the shout to all reaches the web audience; the one to another seat does not');
   assert.equal(records[0].version, 1);
   assert.match(records[0].kind, /^shout/u);
   assert.equal(records[0].to, 'all');
