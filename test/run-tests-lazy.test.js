@@ -7,7 +7,7 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
@@ -15,10 +15,8 @@ import { importsIn } from '../packages/gate/index.js';
 import { testsNeedCpuRunner } from '../packages/gate/index.js';
 import { copyPackageFiles, toolSourcePath } from '../packages/runners/index.js';
 
-const cleanups = [];
-after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
-/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
-const owner = { after: cleanup => cleanups.push(cleanup) };
+const helpers = createE2eHelpers();
+after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
@@ -84,7 +82,7 @@ function moduleObserver(box) {
 
 /** Use ordinary native admission against a private Git/SQLite board and private machine; the test supplies no live marker. */
 function fixture({ currentReleaseFirst = false } = {}) {
-  const box = cellProject(owner, { gate: 'node --test --test-reporter=tap web/plain.test.js' });
+  const box = helpers.project('node --test --test-reporter=tap web/plain.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   if (currentReleaseFirst) {
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
