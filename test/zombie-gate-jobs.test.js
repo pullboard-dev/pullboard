@@ -8,7 +8,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd, fixtureHandoffPolicy, withFixtureBoard } from './testkit-fixture.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
-import { GATE_JOB_NO_PROGRESS_MS, reclaimPass } from '../packages/drive/index.js';
+import { GATE_JOB_NO_PROGRESS_MS, lapsedGateJobs, reclaimPass } from '../packages/drive/index.js';
 
 const NOW = Date.parse('2026-11-09T08:30:00.000Z');
 
@@ -132,4 +132,20 @@ test('#4070 clause 1: a lapsed gate job serving a live pre-submit hand-off, its 
   // @pullboard-board-file journey: read the job the fallback pass left alone.
   const job = withFixtureBoard(boardFile, board => jobView(board.db, 'handoff-drive-presubmit'));
   assert.equal(job.steps.some(step => step.name === 'withdrawn'), false, 'a gate serving a claimed item under a live hand-off is not stale');
+});
+
+test('#4071 clause 1: a lapsed gate-drive job is listed; one whose hand-off ended or whose item left its serving state ends stale, and none is driven [C7]', async t => {
+  const { driven, view } = await pass(t, db => {
+    for (const [id, item] of [['gate-drive:ended-handoff', 4071], ['gate-drive:live-handoff', 4072]]) {
+      createJob(db, { id, kind: 'gate-drive', item, candidate: 'c'.repeat(40), now: NOW - 60_000 });
+      writeStep(db, id, 'admitted', { owner: 'gate-driver:x', relaunches: 0 }, { now: NOW - 60_000 });
+      assert.equal(takeJob(db, id, 'gate-driver:x', { now: NOW - 60_000, leaseMs: 30_000 }).taken, true);
+    }
+    assert.deepEqual(lapsedGateJobs(db, { now: NOW }).map(row => row.id).sort(), ['gate-drive:ended-handoff', 'gate-drive:live-handoff'], 'both lapsed gate-drive jobs are listed');
+  }, view => view.item === 4072, ['gate-drive:ended-handoff', 'gate-drive:live-handoff']);
+  assert.deepEqual(driven, [], 'the fallback never drives a gate-drive job');
+  const ended = view('gate-drive:ended-handoff');
+  assert.equal(ended.step, 'done');
+  assert.equal(ended.steps.find(step => step.name === 'withdrawn').payload.stale, true);
+  assert.notEqual(view('gate-drive:live-handoff').step, 'done', 'a gate-drive job still serving its hand-off is left to its worker');
 });
