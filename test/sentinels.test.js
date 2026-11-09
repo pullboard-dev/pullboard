@@ -53,7 +53,7 @@ import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion } from '../packages/spec/index.js';
 import { loadSpec } from '../packages/spec/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
-import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
+import { requireSupportedEngine as requirePublished55Engine } from '../packages/kernel/tests/fixtures/engine-55-reader.js';
 
 /** Isolate actual SQLite, Git, settings and subprocess files; due time is explicitly injected. */
 function fixture(t, { agentRoute } = {}) {
