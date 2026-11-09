@@ -285,7 +285,7 @@ export function frontDoorBypasses(root, plan, name, { inventory: sharedInventory
     for (const { target, acceptedWildcard } of imports) {
       if (testFile(target) || acceptedWildcard) continue;
       const lower = plan.cells.find(row => row.name === owner(target));
-      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js`) continue;
+      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js` || target === `${lower.root}/pure.js`) continue;
       rows.set(`${stable(file)}->${stable(target)}`, `${name} imports lower ${lower.name} past its front door ${lower.frontDoor}: ${file} -> ${target}`);
     }
   }
