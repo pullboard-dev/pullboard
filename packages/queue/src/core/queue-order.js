@@ -16,11 +16,11 @@ export const ARRIVAL_ORDER = Object.freeze({ reviewsFirst: false, ageMs: QUEUE_A
  * landing), then submits and item checks, then focused, diagnostic and every other run.
  *
  * @param {{ landing?: number|boolean, itemCheck?: number|boolean, diagnostic?: number|boolean, kind?: string, since?: string }} entry
- * @param {number} [now] - The clock reading to age against; injectable so tests need not wait.
+ * @param {number} now - The clock reading to age against, passed as data so this stays pure.
  * @param {number} [ageMs] - How long a waiter waits before it moves up one class.
  * @returns {{ base: number, effective: number, name: string, declared: string }}
  */
-export function queueClass(entry, now = Date.now(), ageMs = QUEUE_AGE_MS) {
+export function queueClass(entry, now, ageMs = QUEUE_AGE_MS) {
   const kind = entry.kind ?? '';
   const base = entry.landing === true || entry.landing === 1 ? 0
     : kind === 'review' ? 1

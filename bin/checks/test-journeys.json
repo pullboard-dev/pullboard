@@ -7151,17 +7151,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/queue-readiness-indexed.test.js": {
-      "cells": [
-        "items",
-        "queue",
-        "verify"
-      ],
-      "reasons": [
-        "imports past items front door (packages/items/src/core/item-files.js)",
-        "imports past queue front door (src/queue-readiness.js)"
-      ]
-    },
     "test/queued-red-returns-to-builder.test.js": {
       "cells": [
         "app:lib",
@@ -8977,7 +8966,6 @@
       ],
       "reasons": [
         "imports past doctrine front door (packages/doctrine/src/shell/doctrine.js)",
-        "imports past queue front door (src/queue-readiness.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
     },
