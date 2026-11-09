@@ -19,13 +19,13 @@ import {
   FAMILY_RECORD_PREFIX,
   seatFamily,
   withDerivedFamilies,
-} from '../index.js';
+} from '../../items/index.js';
 import {
   listAgents,
   exportBoard,
   importBoard,
   register,
-} from '../../store/index.js';
+} from '../index.js';
 
 const BUDGET_MS = 20;
 

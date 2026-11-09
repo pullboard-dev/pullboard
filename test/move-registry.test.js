@@ -167,7 +167,7 @@ test('two new board moves declared in two files need no edit to engine.js, board
   const child = `
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './packages/moves/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { NEXT_STEPS } from './src/next-step-words.js';
+import { nextStepWords$NEXT_STEPS as NEXT_STEPS } from './apps/cli/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';

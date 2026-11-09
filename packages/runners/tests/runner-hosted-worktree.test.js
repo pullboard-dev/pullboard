@@ -1,12 +1,20 @@
 /** Runner-hosted item folders: the folder, git and hooks run on the runner over SSH; the coordinator repository gets no worktree [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryRepository } from './board-submit-fixture.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { runFixtureChildAsync } from './fixture-child.js';
-import { createHostedItemFolder, hostedItemFolderPath, returnHostedBranch, runInHostedItemFolder } from '../packages/runners/index.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { createHostedItemFolder } from '../index.js';
+import { hostedItemFolderPath } from '../index.js';
+import { returnHostedBranch } from '../index.js';
+import { runInHostedItemFolder } from '../index.js';
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 

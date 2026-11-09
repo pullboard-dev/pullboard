@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/engine.js */
+/** @pullboard-test-loads packages/state/src/shell/engine.js */
 /**
  * The board's rules on an in-memory board with a hand-turned clock (B4–B7, V1, V2, V5, V6, V8, R1,
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
