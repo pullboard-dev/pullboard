@@ -23,7 +23,6 @@ import { waitBudgets } from '../index.js';
 import { waitLines } from '../index.js';
 import { waitsSnapshot } from '../index.js';
 import { startServeSentinel } from '../index.js';
-import { WAITS_AUDIT_INTERVAL_MS } from '../index.js';
 import { localCensus } from '../src/shell/wait-surfaces.js';
 import { readRunnerJobs } from '../src/shell/wait-surfaces.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
@@ -269,8 +268,7 @@ test('the view runs the wait audit every minute, one pass at a time per board [C
     run: async () => {}, runCanary: async () => {}, canary: () => ({ close: async () => {} }), recover: async () => false,
     audit: async root => { audited.push(root); } });
   const audit = timers.find(timer => timer.callback.name === 'auditTick');
-  assert.equal(audit.ms, WAITS_AUDIT_INTERVAL_MS);
-  assert.ok(WAITS_AUDIT_INTERVAL_MS <= 60_000);
+  assert.ok(audit.ms <= 60_000, 'the audit runs at least once a minute');
   await audit.callback();
   assert.deepEqual(audited, ['/one']);
   await observer.close();

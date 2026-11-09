@@ -11,7 +11,7 @@ export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
 /** A dead landing worker is replaced within two minutes, so its cheap pid check runs every minute (#2912). */
 export const LANDING_LIVENESS_INTERVAL_MS = 60_000;
 /** The wait audit runs every minute, so no hold, wait or process sits over its budget unseen for longer (C7). */
-export const WAITS_AUDIT_INTERVAL_MS = 60_000;
+const WAITS_AUDIT_INTERVAL_MS = 60_000;
 const CLI = fileURLToPath(new URL('../../../../bin/pullboard.js', import.meta.url));
 
 /** Read the board and machine off switches before starting any background child. */
