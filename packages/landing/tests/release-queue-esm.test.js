@@ -4,10 +4,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { commonJsIn, importsIn } from '../packages/gate/index.js';
-import { captureReleaseQueue } from '../packages/landing/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { importsIn } from '../../gate/index.js';
+import { captureReleaseQueue } from '../index.js';
 
-const SOURCE = readFileSync(new URL('../packages/landing/src/shell/release-queue.js', import.meta.url), 'utf8');
+const SOURCE = readFileSync(new URL('../src/shell/release-queue.js', import.meta.url), 'utf8');
 
 test('clause 1: release-queue.js has no createRequire and still declines a checkout with no board [C7]', () => {
   assert.doesNotMatch(SOURCE, /createRequire/u);

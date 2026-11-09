@@ -1,19 +1,27 @@
 /** Real private relay lifecycle storage, controlled clocks and HTTP authorization [H18]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from './fixture-child.js';
+import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';
-import { createCipheriv, randomBytes } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createCipheriv } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createRelayAuth } from '../apps/relay/index.js';
-import { createGitHubClient } from '../apps/relay/index.js';
-import { createRelayJournal } from '../apps/relay/index.js';
-import { createRelayRetention } from '../apps/relay/index.js';
-import { serveRelay } from '../apps/relay/index.js';
-import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
+import { createRelayAuth } from '../index.js';
+import { createGitHubClient } from '../index.js';
+import { createRelayJournal } from '../index.js';
+import { createRelayRetention } from '../index.js';
+import { serveRelay } from '../index.js';
+import { githubFixture } from '../../../test/relay-fixture.js';
+import { VERIFIER_STANDING_ENGINE } from '../../../packages/state/index.js';
 
 const DAY = 86_400_000;
 const A = 'a'.repeat(32);
@@ -246,9 +254,9 @@ test('[H18] a never-uploaded link expires from its original link time without ma
 test('[H18] a move holding the shared process lock refreshes activity before an expiry decision', async (t) => {
   const box = await fixture(t);
   const code = `
-    import { createRelayAuth } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
-    import { createRelayJournal } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
-    import { createRelayRetention } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
+    import { createRelayAuth } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
+    import { createRelayJournal } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
+    import { createRelayRetention } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
     const [database, directory, backupsDirectory, board, clock] = process.argv.slice(1);
     const auth = createRelayAuth({ database, github: {} });
     const now = Number(clock);

@@ -11,13 +11,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { runFixtureChild } from './fixture-child.js';
-import { completeGate } from '../packages/landing/src/shell/landing-completion.js';
-import { landingFailures } from '../packages/landing/src/shell/landing-step-failures.js';
-import { watchdogStoppedOnly } from '../packages/landing/src/shell/landing-shards.js';
+import { copyPackageFiles } from '../../runners/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { completeGate } from '../index.js';
+import { landingFailures } from '../index.js';
+import { watchdogStoppedOnly } from '../index.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../..');
 const PASSING = ['a', 'b', 'd', 'e'];
 const FILES = ['a', 'b', 'c', 'd', 'e'].map(name => `test/${name}.test.js`);
 
