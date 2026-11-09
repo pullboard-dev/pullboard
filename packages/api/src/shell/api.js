@@ -978,6 +978,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // Keep projection, global fields, event history and sequence in one SQLite read transaction.
     const built = withBoard(board.root, (currentBoard) => buildLocalBoardState(board.root, board.id, currentBoard, codeIsMain, {
       previous: fullItemRebuild ? null : cached,
+      previousHistory: cached?.comparisonHistory ?? null,
       fullItemRebuild,
       refreshVerdicts: !fullItemRebuild && JSON.stringify(cached.inputs.trunk) !== JSON.stringify(before.inputs.trunk),
       afterSequence: cached?.sequence ?? 0,
