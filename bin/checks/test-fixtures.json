@@ -2190,7 +2190,7 @@
     "raw-board": 44,
     "hand-policy": 2
   },
-  "packages/gate/tests/main-audit-attribution.test.js": {
+  "apps/lib/tests/main-audit-attribution.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 9
@@ -2202,7 +2202,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "packages/gate/tests/main-audit-plain-commit.test.js": {
+  "apps/lib/tests/main-audit-plain-commit.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 2
