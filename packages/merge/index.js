@@ -8,6 +8,6 @@ export { captureMergeOnly, deriveMergeOnly } from './src/shell/merge-only-source
 export { prepareMergeOnlySubmit } from './src/shell/merge-only-submit.js';
 export { mergeOnlyBasis, mergeOnlyProblem, mergeOnlySourceValid, mergeOnlyLandingProblem } from './src/shell/merge-only-verdict.js';
 export { MAIN_MERGE_LABEL, carriesConflict, conflictFiles, requireTrunkConflict, reopenConflict, conflictProblem, TRUNK_CONFLICT_CAUSE, conflictDetail, mainMergeFor, mainMergeLines, mainMergesFor, reopenedLine, returnedHeadNotice } from './src/shell/trunk-conflict.js';
-export { CONFLICT_ENGINE } from '../../src/trunk-conflict-engine.js';
+export { CONFLICT_ENGINE } from '../state/core.js';
 export { automaticLandingEnabled, requireManualLanding, landAcceptedItems } from './src/shell/automatic-landing.js';
 export { mergeSubmissionMain } from './src/shell/submit-auto-merge.js';

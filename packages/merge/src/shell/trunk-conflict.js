@@ -16,8 +16,8 @@ import { Refused } from '../../../kernel/index.js';
 import { conflictNote } from '../../../kernel/src/core/registry-guards.js';
 import { shownPaths } from '../../../kernel/src/core/registry-guards.js';
 
-import { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';
-export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';
+import { CONFLICT_ENGINE } from '../../../state/core.js';
+export { CONFLICT_ENGINE } from '../../../state/core.js';
 
 /** The label an item carries from a conflict reopen until its next verdict. */
 export const MAIN_MERGE_LABEL = 'needs main merge';

@@ -6,8 +6,8 @@
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { HEALTH_SENTINEL_ENGINE } from "./board-health-receipts.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
-import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../state/core.js";
+import { NATIVE_FLAKE_ENGINE } from "../../../state/core.js";
 import {
   historyPathMap,
   mappedCause,

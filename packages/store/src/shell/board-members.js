@@ -6,7 +6,7 @@ import {
   logEvent,
 } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { BOARD_MEMBERS_ENGINE } from "../../../../src/board-members-engine.js";
+import { BOARD_MEMBERS_ENGINE } from "../../../state/core.js";
 
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/u;
 

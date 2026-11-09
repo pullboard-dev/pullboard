@@ -16,8 +16,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';
-import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
-import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../src/patch-author-identity-engine.js';
+import { ITEM_PATCH_ENGINE } from '../packages/state/core.js';
+import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../packages/state/core.js';
 import { retainedVerifierIdentityProblem } from '../packages/items/index.js';
 import {
   itemPatches, itemPatchAuthors,

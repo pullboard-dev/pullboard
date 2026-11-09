@@ -1,5 +1,5 @@
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 /** Declared models replay with their recorded engine and survive board exchange [O8,O3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -14,7 +14,7 @@ import {
   VERIFIER_STANDING_ENGINE,
 } from '../packages/state/index.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
-import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../packages/sentinels/index.js';
 import { RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';

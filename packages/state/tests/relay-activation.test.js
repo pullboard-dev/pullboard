@@ -11,8 +11,8 @@ import {
   openBoardForRead,
 } from '../../../apps/lib/index.js';
 import { agentGrantMinimum } from '../src/core/agent-grant.js';
-import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
-import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../src/rigor-instructions-engine.js';
+import { AGENT_GRANT_ENGINE } from '../src/core/engines/agent-grant-engine.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../src/core/engines/rigor-instructions-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { applyEngineMove } from '../src/shell/engine.js';
 import { prepareEngineMove } from '../src/shell/engine.js';

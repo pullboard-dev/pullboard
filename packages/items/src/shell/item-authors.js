@@ -1,9 +1,9 @@
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { HISTORICAL_AUTHORS_ENGINE } from "../../../../src/historical-authors-engine.js";
+import { HISTORICAL_AUTHORS_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
-import { PARENT_SESSION_ENGINE } from "../../../../src/parent-session-engine.js";
-import { PATCH_AUTHOR_IDENTITY_ENGINE } from "../../../../src/patch-author-identity-engine.js";
+import { PARENT_SESSION_ENGINE } from "../../../state/core.js";
+import { PATCH_AUTHOR_IDENTITY_ENGINE } from "../../../state/core.js";
 import { effectiveAgentParent } from "../../../seats/index.js";
 import { standingProblem } from "../../../seats/index.js";
 

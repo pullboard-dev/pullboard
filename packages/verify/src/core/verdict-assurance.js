@@ -4,7 +4,7 @@ import { committedItemAuthors } from '../shell/review-independence.js';
 import { twoTierReviews } from '../shell/review-independence.js';
 /** Immutable verdict assurance distinguishes recorded parent independence from procedural review [V1,B3]. */
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { PARENT_SESSION_ENGINE } from '../../../../src/parent-session-engine.js';
+import { PARENT_SESSION_ENGINE } from '../../../state/core.js';
 import { itemAuthors } from '../../../items/index.js';
 import { agentParent } from '../../../seats/index.js';
 

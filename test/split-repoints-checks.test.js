@@ -39,9 +39,9 @@ test('clause 1: a future client replays move floors while refusal guidance loads
 
   const featureEngine = ENGINE_REGISTRY['train-check-repoint'];
   const futureEngineNumber = Math.max(ENGINE_VERSION, featureEngine) + 1;
-  writeFileSync(join(futureClient, 'src/train-check-repoint-engine.js'),
+  writeFileSync(join(futureClient, 'packages/state/src/core/engines/train-check-repoint-engine.js'),
     `/** The original landing-assigned feature floor. */\nexport const TRAIN_CHECK_REPOINT_ENGINE = ${featureEngine};\n`);
-  writeFileSync(join(futureClient, 'src/future-engine.js'),
+  writeFileSync(join(futureClient, 'packages/state/src/core/engines/future-engine.js'),
     `/** A later engine added only to this private replay fixture. */\nexport const FUTURE_ENGINE = ${futureEngineNumber};\n`);
 
   const oldClientUrl = pathToFileURL(join(oldClient, 'src/'));

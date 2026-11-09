@@ -20,7 +20,7 @@ import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { compareFlowWindows } from '../src/core/stats-flow.js';
 import { comparisonLines } from '../src/core/stats-flow-window.js';
-import { NEXT_IDLE_ENGINE } from '../../../src/next-idle-engine.js';
+import { NEXT_IDLE_ENGINE } from '../../state/core.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const BASE = Date.parse('2026-10-10T00:00:00Z');

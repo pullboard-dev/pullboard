@@ -1,5 +1,5 @@
 import { reviewRequestClause } from '../core/review-request.js';
-import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
+import { REVIEW_REQUEST_ENGINE } from '../../../state/core.js';
 import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
 import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../state/index.js';
 import { restatesBoardState } from '../../../roadmap/index.js';
@@ -9,7 +9,7 @@ import { activityNewsFlag } from "../core/board-activity-news.js";
 import { getShout } from "./board-read-auxiliary.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
-import { ITEM_SHOUT_ENGINE } from "../../../../src/item-shout-engine.js";
+import { ITEM_SHOUT_ENGINE } from "../../../state/core.js";
 import { COORDINATION_SHOUT } from "../core/board-shout-audience.js";
 import { checkEvidence } from "../core/board-shout-audience.js";
 import { itemShoutTarget } from "../core/board-shout-audience.js";
@@ -19,7 +19,7 @@ import { logEvent } from "./board-event-log.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
+import { PROOF_RUN_ENGINE } from "../../../state/core.js";
 import { refuseLongShout } from "./proof-receipts.js";
 
 /**

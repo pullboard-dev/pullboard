@@ -25,7 +25,7 @@ import { appliedSequence } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { prepareTrainLanding } from '../packages/landing/index.js';
-import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
+import { TRAIN_LANDING_ENGINE } from '../packages/state/core.js';
 import { nativePushReceiptProblems as evaluateNativePushReceipts } from '../packages/git/index.js';
 import { pushedFirstParentCommits } from '../packages/git/index.js';
 import { runFixtureChild } from './fixture-child.js';

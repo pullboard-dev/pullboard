@@ -5,8 +5,8 @@ export const EXPORT_ONLY_CEILINGS = 'packages/gate/export-only-ceilings.json';
 
 /** A cell's own front door, the one place a file of only exports belongs. */
 const FRONT_DOOR = /^(?:packages|apps)\/[^/]+\/index\.js$/u;
-/** An engine-floor leaf: one constant per file by design, so two items adding engines never conflict [V4]. */
-const ENGINE_LEAF = /^src\/[a-z0-9]+(?:-[a-z0-9]+)*-engine\.js$/u;
+/** An engine-floor leaf in the state cell's engines folder: one constant per file so two items adding engines never conflict [V4]. */
+const ENGINE_LEAF = /^packages\/state\/src\/core\/engines\/[a-z0-9]+(?:-[a-z0-9]+)*-engine\.js$/u;
 
 /**
  * Whether a source is export-only: once comments are gone, one or two code lines, every statement an export.

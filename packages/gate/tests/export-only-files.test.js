@@ -13,7 +13,8 @@ test('a file of one or two export lines is export-only; a front door, an engine 
   assert.equal(exportOnly('packages/a/src/core/b.js', 'export const B = 1;\nexport const C = 2;\nexport const D = 3;\n'), false);
   assert.equal(exportOnly('packages/a/src/core/b.js', "import { a } from './a.js';\nexport const B = a;\n"), false);
   assert.equal(exportOnly('packages/a/index.js', "export { a } from './src/core/a.js';\n"), false);
-  assert.equal(exportOnly('src/item-notes-engine.js', 'export const ITEM_NOTES_ENGINE = 112;\n'), false);
+  assert.equal(exportOnly('packages/state/src/core/engines/item-notes-engine.js', 'export const ITEM_NOTES_ENGINE = 112;\n'), false);
+  assert.equal(exportOnly('src/item-notes-engine.js', 'export const ITEM_NOTES_ENGINE = 112;\n'), true, 'no engine leaf comes back to src/');
 });
 
 test('a new export-only file is refused and a listed one passes [C7]', () => {

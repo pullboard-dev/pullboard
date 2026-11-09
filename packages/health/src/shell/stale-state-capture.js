@@ -26,7 +26,7 @@ import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
 import { PINNED_CLAIM_RELEASE_MS } from '../../../store/index.js';
-import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../src/pinned-claim-lapse-engine.js';
+import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../state/core.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {

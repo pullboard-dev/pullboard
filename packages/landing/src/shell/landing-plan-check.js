@@ -10,6 +10,9 @@ import { ENGINE_CANDIDATE } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { landingPlanProblems } from '../../../../bin/cells-object-snapshots.js';
 
+/** The folder the engine leaves live in; landing numbers only the placeholders there [V4]. */
+const ENGINE_FOLDER = 'packages/state/src/core/engines';
+
 /** Recognize the canonical placeholder declaration automatic landing numbers, without executing candidate code. */
 function unnumberedEngine(source) {
   const lines = source.split('\n');
@@ -74,12 +77,13 @@ function checkInScratchTree(root, commit, env) {
  */
 export function requireLandingPlanCheck(root, commit) {
   const env = cleanGitEnvironment();
-  const listed = gitSpawnSync(['ls-tree', '-r', '-z', commit, '--', 'bin/cells-plan.json', 'src/'], { cwd: root, env, encoding: 'utf8' });
+  const listed = gitSpawnSync(['ls-tree', '-r', '-z', commit, '--', 'bin/cells-plan.json', `${ENGINE_FOLDER}/`], { cwd: root, env, encoding: 'utf8' });
   if (listed.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not read landing commit ${commit.slice(0, 12)}; restore its Git objects and retry merged`);
   const rows = listed.stdout.split('\0').filter(Boolean).map(row => /^(\d{6}) \w+ ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(row)).filter(Boolean)
     .map(match => ({ mode: match[1], object: match[2], path: match[3] }));
   const hasPlan = rows.some(row => row.path === 'bin/cells-plan.json');
-  const candidates = rows.filter(row => row.path.startsWith('src/') && !row.path.slice(4).includes('/') && ENGINE_CANDIDATE.test(row.path.slice(4)));
+  const leaf = row => row.path.slice(ENGINE_FOLDER.length + 1);
+  const candidates = rows.filter(row => row.path.startsWith(`${ENGINE_FOLDER}/`) && !leaf(row).includes('/') && ENGINE_CANDIDATE.test(leaf(row)));
   if (!hasPlan && !candidates.length) return;
   const pending = candidates.filter(row => {
     if (!/^100(?:644|755)$/u.test(row.mode)) throw new Refused('LAND_PLAN_CHECK', `engine leaf ${row.path} must be a regular source file before recording merged`);

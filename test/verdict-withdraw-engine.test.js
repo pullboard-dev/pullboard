@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { moveArgs } from '../packages/person/index.js';
-import { VERDICT_WITHDRAW_ENGINE } from '../src/verdict-withdraw-engine.js';
+import { VERDICT_WITHDRAW_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';

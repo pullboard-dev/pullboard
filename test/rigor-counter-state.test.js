@@ -10,8 +10,8 @@ import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../packages/store/index.js';
 import { automaticRigorSource } from '../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
-import { BOARD_SENTINEL_ENGINE } from '../src/sentinel-engine.js';
-import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
+import { BOARD_SENTINEL_ENGINE } from '../packages/state/core.js';
+import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
 
 /** Produce a real typed row source; an ordinary prose note must never suppress a repeat. */
 function source(key) {

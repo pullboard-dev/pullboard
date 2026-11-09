@@ -6,7 +6,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { derivedFamily } from '../packages/items/index.js';
 import { seatFamily } from '../packages/items/index.js';
 import { withDerivedFamilies } from '../packages/items/index.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 
 /** Seed historical rows without executing a registration whose modern guards would forbid that history. */
 function seat(board, id, family, session = null) {

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../packages/store/index.js';
-import { NEXT_IDLE_ENGINE } from '../../src/next-idle-engine.js';
+import { NEXT_IDLE_ENGINE } from '../../packages/state/src/core/engines/next-idle-engine.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 /** Import ordered native event-shaped fixture records, leaving mutable items visibly open. */

@@ -18,7 +18,7 @@ import { addMilestone } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from '../packages/state/core.js';
 import { Refused } from '../packages/kernel/core.js';
 import { repoInfo } from '../packages/git/index.js';
 import { bindLocalSession } from '../packages/seats/index.js';

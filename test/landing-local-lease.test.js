@@ -12,7 +12,7 @@ import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } f
 import { assertLandingLease } from '../packages/store/index.js';
 import { LANDING_LOCAL_PREFIX, localLandingEntry } from '../packages/store/index.js';
 import { takeLandingResource } from '../packages/landing/index.js';
-import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
+import { LANDING_LEASE_ENGINE } from '../packages/state/core.js';
 
 /** Give each test two physical boards and a private receipt clock, never a live coordinator credential. */
 function fixture(t) {

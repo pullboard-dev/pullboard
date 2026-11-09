@@ -52,7 +52,7 @@ test('conflict shim preserves the accepted main move closure and the broad index
     return sources.get(file);
   };
   const identities = new Map([...readPathMap(ROOT)].map(([old, moved]) => [moved, old]));
-  const movedExport = "export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';";
+  const movedExport = "export { CONFLICT_ENGINE } from '../../../state/core.js';";
   assert.ok(read(MOVED).includes(movedExport), 'the moved body re-exports the same engine leaf');
   const before = closure(file => file === MOVED ? read(MOVED).replace(movedExport, 'export { CONFLICT_ENGINE };') : read(file), identities);
   const after = closure(read, identities);

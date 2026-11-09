@@ -6,7 +6,7 @@ import { appendReportCounter } from '../../../stats/index.js';
 import { emptyReportCounter } from '../../../stats/index.js';
 import { reportEvent } from '../../../stats/index.js';
 import { newReportPolicy } from '../../../stats/index.js';
-import { NATIVE_FLAKE_ENGINE } from '../../../../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../../../state/core.js';
 /** Rebuildable, local proof projections maintained with the event that produced them [R1,R2]. */
 import { moveFlowItem } from '../../../stats/index.js';
 import { roleOf } from '../../../stats/index.js';

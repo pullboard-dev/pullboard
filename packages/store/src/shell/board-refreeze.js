@@ -1,6 +1,6 @@
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 import { SPEC_REFREEZE } from "../../../spec/index.js";
-import { UNCHANGED_REFREEZE_ENGINE } from "../../../../src/unchanged-refreeze-engine.js";
+import { UNCHANGED_REFREEZE_ENGINE } from "../../../state/core.js";
 import { pendingRefreeze } from "./board-read-auxiliary.js";
 import { barReadyProblem } from "../../../verify/index.js";
 import { isHeld } from "./board-query.js";

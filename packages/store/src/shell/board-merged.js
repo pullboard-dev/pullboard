@@ -6,7 +6,7 @@ import { Refused } from "../../../kernel/index.js";
 import { coordinatorOnly } from "./board.js";
 import { setItem } from "./board.js";
 import { withdraw } from "./board-withdraw.js";
-import { FORCED_MERGE_ENGINE } from "../../../../src/forced-merge-engine.js";
+import { FORCED_MERGE_ENGINE } from "../../../state/index.js";
 
 /**
  * Record the commit a verified item landed as on the main line, e.g. after a squash merge.
