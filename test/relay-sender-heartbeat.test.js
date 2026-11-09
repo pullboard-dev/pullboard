@@ -19,6 +19,7 @@ const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const LOCAL_FIRST = new URL('../packages/link/index.js', import.meta.url).href;
 const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
+const OPENERS = new URL('./board-fixture.js', import.meta.url).href;
 // Budget: each real reply waits below the unchanged production ten-second per-request deadline.
 const RESPONSE_HOLD_MS = 5000;
 const MOVES = 26; // Twenty-six genuine queued moves keep one flush awaiting I/O beyond the real two-minute claim window.
@@ -160,7 +161,8 @@ async function queueMoves(box) {
   const source = `
     const { relayOperation } = await import(${JSON.stringify(RELAY)});
     const { relayOutboxSetting } = await import(${JSON.stringify(POLICY)});
-    const io = { err() {}, relayOutbox: () => relayOutboxSetting(process.cwd()) };
+    const { apiBoardOpeners } = await import(${JSON.stringify(OPENERS)});
+    const io = { ...apiBoardOpeners, err() {}, relayOutbox: () => relayOutboxSetting(process.cwd()) };
     for (let index = 0; index < ${MOVES}; index++) await relayOperation(process.cwd(), 'shout',
       [{ from: 'coordinator', to: 'all', lanes: [], text: 'Slow real sender move ' + index }], io);
     process.stdout.write(JSON.stringify({ queued: ${MOVES} }));
