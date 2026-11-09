@@ -489,9 +489,6 @@
   "packages/store/tests/milestone-placement.test.js": {
     "raw-board": 4
   },
-  "packages/store/tests/queue-fairness.test.js": {
-    "raw-board": 3
-  },
   "packages/store/tests/review-family-relaxation.test.js": {
     "raw-board": 2
   },
@@ -2578,6 +2575,9 @@
     "env-spread": 1,
     "model": 1,
     "hand-policy": 2
+  },
+  "test/queue-fairness.test.js": {
+    "raw-board": 3
   },
   "test/queue-order.test.js": {
     "tempdir": 2,
