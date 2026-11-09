@@ -1,13 +1,21 @@
 /** The hand-off worker-gone sweep survives a replaced agent and keeps sweeping every drain [C7,#3450]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { temporaryDirectory } from './board-fixture.js';
-import { Refused } from '../packages/kernel/index.js';
-import { drainHandoffQueue, handoffDispatcherLog, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
-import { sweepDeadSubmitHandoffs } from '../apps/cli/src/shell/submit-handoff.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { Refused } from '../../../packages/kernel/index.js';
+import { drainHandoffQueue } from '../../../packages/resources/index.js';
+import { handoffDispatcherLog } from '../../../packages/resources/index.js';
+import { queueHandoffLaunch } from '../../../packages/resources/index.js';
+import { reserveHandoffTicket } from '../../../packages/resources/index.js';
+import { sweepDeadSubmitHandoffs } from '../src/shell/submit-handoff.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker that stays running until its release file appears, so the drain it belongs to lasts. */
 const WORKER = `const { existsSync } = require('node:fs');
