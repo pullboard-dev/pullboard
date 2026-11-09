@@ -13,7 +13,7 @@ import { minimumMoveEngine } from '../packages/moves/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import * as store from '../packages/store/index.js';
-import { MACHINE_VERDICT_ENGINE } from '../src/machine-verdict-engine.js';
+import { MACHINE_VERDICT_ENGINE } from '../packages/state/core.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Keep failures visible without interpreting a nonzero CLI result as a successful board read. */

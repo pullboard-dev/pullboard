@@ -21,7 +21,7 @@ import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };

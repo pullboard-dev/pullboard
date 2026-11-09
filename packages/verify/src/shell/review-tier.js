@@ -1,8 +1,9 @@
-import { STRICT_RENAME_ENGINE } from '../../../../src/strict-rename-engine.js';
+import { STRICT_RENAME_ENGINE } from '../../../state/core.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
-import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
-import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
+import { REVIEW_DEFAULT_ENGINE } from '../../../state/core.js';
+import { REVIEW_TIER_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { readFileSync } from 'node:fs';
 import { itemPatches } from '../../../items/core.js';
 import { itemPatchPaths } from '../../../items/core.js';
 import { outsideSource } from '../../../items/core.js';
@@ -82,29 +83,9 @@ const SOURCE_FILES = new Set([
 ]);
 // An old Standard body keeps its tier after moving under a cell the area rule would otherwise raise to Strict (#1574).
 const STANDARD_MOVED = new Set(['packages/link/src/shell/command-phase.js']);
-const GUARD_TESTS = new Set([
-  'packages/store/tests/verdict-check.test.js',
-  // Exact moved gate guard tests retain their Strict classification (#1577).
-  'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/gate/tests/landing-stage-composition.test.js',
-  'test/flakes.test.js', 'test/flakes-ledger.test.js', 'test/affected-tests.test.js', 'test/affected-source-loads.test.js',
-  'test/selection-fallbacks.test.js', 'test/run-tests.test.js', 'test/run-tests-worker-identity.test.js',
-  'test/gate.test.js', 'test/gate-admission.test.js', 'test/gui-admission.test.js',
-  'test/check.test.js', 'test/check-baseline.test.js', 'test/known-main-red-match.test.js',
-  'test/review-tier.test.js', 'test/review-eligibility.test.js', 'test/review-reservation.test.js',
-  'test/verdict-check.test.js', 'test/verdict-assurance.test.js', 'test/verdict-trunk.test.js',
-  'test/machine.test.js', 'test/engine.test.js', 'test/engine-replay.test.js',
-  'test/person.test.js', 'packages/kernel/tests/person-request.test.js', 'test/person-credential-vault.test.js', 'test/seal.test.js',
-  'test/relay-auth-expired.test.js', 'packages/state/tests/relay-machine-auth.test.js', 'test/relay-agent.test.js',
-  'test/relay-outbox-format.test.js', 'packages/outbox/tests/relay-outbox-format.test.js', 'test/relay-parity.test.js', 'test/relay-parity-clock.test.js',
-  'test/relay-sealed.test.js', 'test/relay-key.test.js', 'test/relay-device-keys.test.js', 'test/relay-phone-crypto.test.js',
-  // Exact moved link guard bodies retain their Strict classification (#1574).
-  'packages/link/tests/relay-device-keys.test.js', 'packages/link/tests/relay-phone-crypto.test.js',
-  'test/landing-shards.test.js', 'test/landing-lease.test.js', 'test/landing-local-lease.test.js',
-  'test/landing-waiver-replay.test.js', 'test/landing-stage-composition.test.js',
-  'test/train-mechanical-merge.test.js', 'test/pre-push-receipts.test.js', 'test/land.test.js',
-  'test/runner-policy.test.js', 'test/runner-invalid-spec.test.js', 'test/runner-transport-lost.test.js',
-  'test/runner-stage.test.js', 'test/runner-wait-deadline.test.js',
-]);
+const GUARD_LIST = JSON.parse(readFileSync(new URL('../../guard-tests.json', import.meta.url), 'utf8'));
+// A moved guard test keeps its class under its old path too, so a replay of older work reads the same tier.
+const GUARD_TESTS = new Set([...GUARD_LIST.paths, ...Object.keys(GUARD_LIST.moved)]);
 
 /** Match only the ruled source areas, exact judgment modules and named guard tests; other work uses the manual mark. */
 export function gateJudgmentPath(path) {

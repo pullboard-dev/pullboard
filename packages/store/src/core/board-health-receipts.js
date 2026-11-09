@@ -1,14 +1,14 @@
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 /** Durable work-health observations, separate from the person's decisions [A6,H16]. */
 import { Refused } from "../../../kernel/core.js";
-import { CPU_SENTINEL_ENGINE } from "../../../../src/cpu-sentinel-engine.js";
+import { CPU_SENTINEL_ENGINE } from "../../../state/core.js";
 
 /** The allocated engine for ordered sentinel observations; earlier moves keep their meaning. */
-import { HEALTH_SENTINEL_ENGINE } from "../../../../src/health-sentinel-engine.js";
-export { HEALTH_SENTINEL_ENGINE } from "../../../../src/health-sentinel-engine.js";
+import { HEALTH_SENTINEL_ENGINE } from "../../../state/core.js";
+export { HEALTH_SENTINEL_ENGINE } from "../../../state/core.js";
 
-import { HEALTH_CAP_ENGINE } from "../../../../src/health-cap-engine.js";
-export { HEALTH_CAP_ENGINE } from "../../../../src/health-cap-engine.js";
+import { HEALTH_CAP_ENGINE } from "../../../state/core.js";
+export { HEALTH_CAP_ENGINE } from "../../../state/core.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;

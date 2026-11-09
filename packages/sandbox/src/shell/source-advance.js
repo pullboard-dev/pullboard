@@ -1,9 +1,5 @@
-import {
-  boardWriteSnapshot,
-} from '../../../../src/board-write-preparation.js';
-import {
-  requireBoardWriteSnapshot,
-} from '../../../../src/board-write-preparation.js';
+import { boardWriteSnapshot } from '../../../store/index.js';
+import { requireBoardWriteSnapshot } from '../../../store/index.js';
 /** Ordered exact-source completion never changes the original submission or its review [C7,V4,H16]. */
 import {
   sourceAdvanceReviewEpisode,
@@ -28,7 +24,7 @@ import {
 } from '../../../../src/engine-metadata.js';
 import {
   SOURCE_ADVANCE_ENGINE,
-} from '../../../../src/source-advance-engine.js';
+} from '../../../state/core.js';
 import {
   sourceAdvanceChain,
 } from '../../../verify/index.js';

@@ -1,4 +1,4 @@
-import { isSubmitHandoffWorker } from '../submit-handoff-origin.js';
+import { isSubmitHandoffWorker } from '../../../../../packages/sandbox/index.js';
 /** Helpers for `pullboard submit`: changed files, stacked work and the submission record. Split from src/cli.js, which re-exports it [C7]. */
 import { reviewerStartup } from '../next-steps.js';
 import * as store from '../../../../../packages/store/index.js';

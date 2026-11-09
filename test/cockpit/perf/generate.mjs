@@ -9,14 +9,14 @@ import { loadDoctrine } from '../../../packages/doctrine/index.js';
 import { STATUSES, frozenCriterion, loadSpec } from '../../../packages/spec/index.js';
 import {
   ACCEPT_REASON, addItem, allShouts, appendFact, atomic, claim, closeBoard,
-  ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
+  board_ensureCoordinator as ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
   register, reopen, shout, verify, withdraw,
-} from '../../../src/board.js';
+} from '../../../packages/store/index.js';
 import { addMilestone } from '../../../src/board-milestones.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { submitFixture } from '../../board-submit-fixture.js';
 import { appliedSequence, applyEngineMove } from '../../../src/engine.js';
-import { PROOF_RUN_ENGINE } from '../../../src/proof-run-engine.js';
+import { PROOF_RUN_ENGINE } from '../../../packages/state/src/core/engines/proof-run-engine.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const BIN = join(ROOT, 'bin', 'pullboard.js');

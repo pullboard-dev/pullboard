@@ -11,11 +11,11 @@ import { reviewerChecks } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
 import { confirmFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { sweepLapsedReviews } from './board-review-lease.js';
 import { holdReviewLease } from './board-review-lease.js';
-import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../src/review-gate-receipt-engine.js';
+import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../state/core.js';
 import { gateReceiptProblem } from './board.js';
 
 /**

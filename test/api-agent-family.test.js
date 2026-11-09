@@ -13,7 +13,7 @@ import { main } from './native-cli-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { seatFamily } from '../packages/items/index.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 
 test('agents API returns canonical declared and historically derived families [A1,V4,B26]', async t => {
   const helpers = createE2eHelpers();

@@ -8,7 +8,7 @@ import { briefSections } from '../packages/spec/index.js';
 import * as store from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { REFERENCE_ENGINE } from '../src/reference-engine.js';
+import { REFERENCE_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';

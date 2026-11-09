@@ -1,6 +1,6 @@
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
-import { ACTIVITY_NEWS_ENGINE } from "../../../../src/activity-news-engine.js";
+import { ACTIVITY_NEWS_ENGINE } from "../../../state/core.js";
 
 /** Validate explicitly marked board-wide news without weakening any existing message audience. */
 export function activityNewsFlag(message, engine) {

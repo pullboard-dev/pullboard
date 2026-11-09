@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { recordGateRun } from '../packages/flakes/index.js';
 import { receiptFields, tier1Shadow, tier1ShadowFields } from '../packages/verify/index.js';
-import { SHADOW_TIER1_ENGINE } from '../src/shadow-tier1-engine.js';
+import { SHADOW_TIER1_ENGINE } from '../packages/state/core.js';
 import { fixtureBoard } from './board-fixture.js';
 
 const SHA = 'a'.repeat(40);

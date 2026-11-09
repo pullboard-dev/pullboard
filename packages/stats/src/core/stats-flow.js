@@ -8,6 +8,7 @@ import { recordReport } from './stats-flow-report.js';
 import { recordReportPolicy } from './stats-flow-report.js';
 import { projectReport } from './stats-flow-report.js';
 import { projectReportWindows } from './stats-flow-report.js';
+import { safeReportPolicy } from './stats-flow-report.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 import {
   newWindowTrace,
@@ -189,38 +190,51 @@ function recommendation(stage, { activeAgents, queues, openByLane, accepted, cou
   return accepted.length ? `land the accepted items: ${named}${more}` : 'land the accepted items (none waiting)';
 }
 
-/** Compile immutable lifecycle facts once so API cache hits only need a time-specific projection. */
-export function prepareFlowHistory(history, { window: traceWindow = false, comparisonWindows, agentIds } = {}) {
-  const items = new Map();
-  const actors = new Map();
-  const dailyEvents = [];
-  const reportPolicy = newReportPolicy();
-  for (const event of history) {
-    const detail = proofEventDetail(event);
-    const at = Date.parse(event.event_at);
-    const id = event.event_by;
-    if (agentIds ? agentIds.has(id) : !['board', 'person', 'clock'].includes(id)) {
-      if (!actors.has(id)) actors.set(id, { id, lane: 'unknown', role: 'unknown', lastAt: at });
-      const actor = actors.get(id);
-      if (event.event_kind === 'join' && detail.lane) actor.lane = detail.lane;
-      actor.role = id === 'coordinator' ? 'coordinator' : roleOf(event.event_kind, detail) ?? actor.role;
-      actor.lastAt = at;
-    }
-    const reporting = reportEvent(event, detail);
-    for (const id of reporting ? affectedReportItems(reportPolicy, event, detail) : []) {
-      const affected = items.get(id);
-      if (affected) advanceReport(affected, reportPolicy, at, comparisonWindows);
-    }
-    if (reporting) recordReportPolicy(reportPolicy, event, detail, items.get(event.item_id));
-    if (event.item_id === null || event.item_id === undefined) continue;
-    if (!items.has(event.item_id)) items.set(event.item_id, { id: event.item_id, lane: 'unknown', ...(traceWindow ? { windowTrace: newWindowTrace() } : {}) });
-    const item = items.get(event.item_id);
-    if (event.event_kind === 'add') dailyEvents.push({ at, kind: 'added' });
-    if (event.event_kind === 'merged' && item.mergeAt === undefined) dailyEvents.push({ at, kind: 'merged' });
-    if (reporting) { advanceReport(item, reportPolicy, at, comparisonWindows); prepareReportMove(item, event, detail); }
-    if (reporting) moveFlowItem(item, event, detail, at);
-    if (reporting) { recordReport(item, event, detail); indexReportItem(reportPolicy, item); }
+/** An empty lifecycle fold: the state prepareFlowHistory accumulates event by event. */
+function newFlowFold(traceWindow, agentIds) {
+  return { items: new Map(), actors: new Map(), dailyEvents: [], reportPolicy: newReportPolicy(), traceWindow, agentIds };
+}
+
+/** Fold one event into the lifecycle state, in event order. */
+function foldFlowEvent(fold, event, comparisonWindows) {
+  const { items, actors, dailyEvents, reportPolicy, traceWindow, agentIds } = fold;
+  const detail = proofEventDetail(event);
+  const at = Date.parse(event.event_at);
+  const id = event.event_by;
+  if (agentIds ? agentIds.has(id) : !['board', 'person', 'clock'].includes(id)) {
+    if (!actors.has(id)) actors.set(id, { id, lane: 'unknown', role: 'unknown', lastAt: at });
+    const actor = actors.get(id);
+    if (event.event_kind === 'join' && detail.lane) actor.lane = detail.lane;
+    actor.role = id === 'coordinator' ? 'coordinator' : roleOf(event.event_kind, detail) ?? actor.role;
+    actor.lastAt = at;
   }
+  const reporting = reportEvent(event, detail);
+  for (const id of reporting ? affectedReportItems(reportPolicy, event, detail) : []) {
+    const affected = items.get(id);
+    if (affected) advanceReport(affected, reportPolicy, at, comparisonWindows);
+  }
+  if (reporting) recordReportPolicy(reportPolicy, event, detail, items.get(event.item_id));
+  if (event.item_id === null || event.item_id === undefined) return;
+  if (!items.has(event.item_id)) items.set(event.item_id, { id: event.item_id, lane: 'unknown', ...(traceWindow ? { windowTrace: newWindowTrace() } : {}) });
+  const item = items.get(event.item_id);
+  if (event.event_kind === 'add') dailyEvents.push({ at, kind: 'added' });
+  if (event.event_kind === 'merged' && item.mergeAt === undefined) dailyEvents.push({ at, kind: 'merged' });
+  if (reporting) { advanceReport(item, reportPolicy, at, comparisonWindows); prepareReportMove(item, event, detail); }
+  if (reporting) moveFlowItem(item, event, detail, at);
+  if (reporting) { recordReport(item, event, detail); indexReportItem(reportPolicy, item); }
+}
+
+/** A deep copy of a fold, so a kept fold can be extended or replayed further without changing it. */
+function copiedFold(fold) {
+  const { traceWindow, agentIds, ...state } = fold;
+  const copy = structuredClone(state);
+  safeReportPolicy(copy.reportPolicy);
+  return { ...copy, traceWindow, agentIds };
+}
+
+/** The immutable prepared lifecycle a fold describes; the fold itself is left as it was. */
+function frozenFold(fold) {
+  const { items, actors, dailyEvents, reportPolicy } = copiedFold(fold);
   const frozenItems = [...items.values()].map((item) => Object.freeze({
     ...item,
     ...(item.report ? { report: frozenReport(item.report) } : {}),
@@ -232,15 +246,88 @@ export function prepareFlowHistory(history, { window: traceWindow = false, compa
   return Object.freeze({ reportPolicy: frozenReport(reportPolicy), items: Object.freeze(frozenItems), actors: Object.freeze(frozenActors), dailyEvents: Object.freeze(frozenDailyEvents) });
 }
 
-/** Compare one complete native event prefix at an explicit observation clock; absent history is not fabricated. */
+/** Each history's kept folds, by its first event row: why a build that only appended events folds only those [C7]. */
+const keptFolds = new WeakMap();
+
+/**
+ * The kept fold of a history under one option set, when the fold's rows are still this history's prefix, or a new
+ * empty one. A history's rows never change once recorded, so folding the rows after the kept ones is folding it all.
+ */
+function keptFold(history, key, make) {
+  const first = history[0];
+  if (!first) return { fold: make(), position: 0, maxAt: -Infinity, last: null, key };
+  const kept = keptFolds.get(first) ?? [];
+  let entry = kept.find(candidate => candidate.key === key && candidate.position <= history.length
+    && (candidate.position === 0 || history[candidate.position - 1] === candidate.last));
+  if (!entry) {
+    entry = { fold: make(), position: 0, maxAt: -Infinity, last: null, key };
+    kept.unshift(entry);
+    while (kept.length > 4) kept.pop();
+    keptFolds.set(first, kept);
+  }
+  return entry;
+}
+
+/** Compile immutable lifecycle facts once so API cache hits only need a time-specific projection. */
+export function prepareFlowHistory(history, { window: traceWindow = false, comparisonWindows, agentIds } = {}) {
+  if (comparisonWindows) {
+    const fold = newFlowFold(traceWindow, agentIds);
+    for (const event of history) foldFlowEvent(fold, event, comparisonWindows);
+    return frozenFold(fold);
+  }
+  const key = `prepared:${traceWindow}:${agentIds ? [...agentIds].sort().join('\0') : '*'}`;
+  const entry = keptFold(history, key, () => newFlowFold(traceWindow, agentIds));
+  for (; entry.position < history.length; entry.position++) foldFlowEvent(entry.fold, history[entry.position], undefined);
+  entry.last = history.at(-1) ?? null;
+  return frozenFold(entry.fold);
+}
+
+/** Whether a history is in strictly increasing event id order, as the board records it. */
+function inEventOrder(history) {
+  for (let index = 1; index < history.length; index++) if (!(history[index - 1].event_id < history[index].event_id)) return false;
+  return true;
+}
+
+/**
+ * Compare one complete native event prefix at an explicit observation clock; absent history is not fabricated.
+ *
+ * A history in event order keeps a fold of its events up to the earliest window's start: those events charge no
+ * window time, so each comparison replays only the events since, onto a copy of that fold [C7].
+ */
 export function compareFlowWindows(history, { now, windowMinutes, complete } = {}) {
   const bounds = comparisonBounds(windowMinutes, now);
   if (complete !== true) return { version: 1, available: false, reason: 'complete event history is required for comparison' };
-  const selected = history.filter(event => Number.isFinite(Date.parse(event.event_at)) && Date.parse(event.event_at) <= now)
-    .sort((a, b) => a.event_id - b.event_id);
-  const prepared = prepareFlowHistory(selected, { comparisonWindows: bounds });
-  const reports = projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds);
-  return projectWindowComparison(selected, prepared, bounds, reports);
+  const start = Math.min(...bounds.map(range => range.start));
+  if (!inEventOrder(history) || !Number.isFinite(start)) {
+    const selected = history.filter(event => Number.isFinite(Date.parse(event.event_at)) && Date.parse(event.event_at) <= now)
+      .sort((a, b) => a.event_id - b.event_id);
+    const prepared = prepareFlowHistory(selected, { comparisonWindows: bounds });
+    return projectWindowComparison(selected, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds));
+  }
+  let entry = keptFold(history, 'compare', () => newFlowFold(false, undefined));
+  if (entry.maxAt > start) {
+    keptFolds.get(history[0]).splice(keptFolds.get(history[0]).indexOf(entry), 1);
+    entry = keptFold(history, 'compare', () => newFlowFold(false, undefined));
+  }
+  for (; entry.position < history.length; entry.position++) {
+    const event = history[entry.position];
+    const at = Date.parse(event.event_at);
+    if (Number.isFinite(at)) {
+      if (at > start) break;
+      foldFlowEvent(entry.fold, event, undefined);
+      entry.maxAt = Math.max(entry.maxAt, at);
+    }
+    entry.last = event;
+  }
+  const fold = copiedFold(entry.fold);
+  for (let position = entry.position; position < history.length; position++) {
+    const event = history[position];
+    const at = Date.parse(event.event_at);
+    if (Number.isFinite(at) && at <= now) foldFlowEvent(fold, event, bounds);
+  }
+  const prepared = frozenFold(fold);
+  // The window projections skip events past each window's end, so the whole history stands for the selected one.
+  return projectWindowComparison(history, prepared, bounds, projectReportWindows(prepared.items, prepared.reportPolicy, now, bounds));
 }
 
 /** Project current queues and time windows from compiled facts without mutating the cached snapshot. */

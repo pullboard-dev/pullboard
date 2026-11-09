@@ -1,5 +1,5 @@
 /** Atomic corrections carry the frozen bar in the same ordered move [V2,H16]. */
-import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../src/automatic-dispatch-engine.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from './engines/automatic-dispatch-engine.js';
 import { engineAtLeast } from './engine-at-least.js';
 import { Refused } from '../../../kernel/index.js';
 

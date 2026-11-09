@@ -23,11 +23,11 @@ import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
-import { ROUTE_CALIBRATION_ENGINE } from '../src/route-calibration-engine.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
+import { ROUTE_CALIBRATION_ENGINE } from '../packages/state/core.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
 import { verifyLegacyUnknownFamily, familyFreeze } from './review-family-fixture.js';
 
 const HOUR = 3_600_000;

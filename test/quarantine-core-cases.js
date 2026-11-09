@@ -59,7 +59,7 @@ import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './packages/landing/index.js';
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
-import {QUARANTINE_CORE_ENGINE} from './src/quarantine-core-engine.js';
+import {QUARANTINE_CORE_ENGINE} from './packages/state/src/core/engines/quarantine-core-engine.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
 import {proofCounts} from './packages/verify/index.js';
 import * as store from './src/board.js';

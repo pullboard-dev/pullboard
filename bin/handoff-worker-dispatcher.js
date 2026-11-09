@@ -2,15 +2,14 @@
 /** Keep machine handoff admission separate from the gate's exact process-identity provider [C7]. */
 import { exactStart } from '../packages/gate/index.js';
 import { finishAwaitingVerdicts } from '../packages/gate/index.js';
-import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, finishRunningWorkers, handoffDispatcherLog, handoffQueueDirectory, handoffTicketsWaiting, handoffWorkerCapacityDetail, handoffDispatcherMayBeDead, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
+import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, ensureHandoffDispatcher, finishRunningWorkers, handoffDispatcherLog, handoffQueueDirectory, handoffTicketsWaiting, handoffWorkerCapacityDetail, handoffDispatcherMayBeDead, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
 import { createGateAdmission, gateDispatcherRow, mainOwnedVerdictPorts } from '../packages/drive/index.js';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
-import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
-import { currentToolsName, ensureRepositoryDispatcher, toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
-import { Refused } from '../packages/kernel/index.js';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -127,28 +126,35 @@ function waitingLaunches() {
   return launches;
 }
 
+/** A shared tools snapshot's folder name: one per tooling tree. */
+const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
+
+/** The commit a tool root's HEAD names, or null when it has none. */
+function toolRootHead(root) {
+  const run = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  return run.status === 0 && /^[0-9a-f]{40}$/u.test(run.stdout.trim()) ? run.stdout.trim() : null;
+}
+
 /**
- * The current tools this dispatcher should hand over to, or null while it runs them. A dispatcher running a shared
- * tools snapshot reads the tool root a waiting launch's request names; when that root's HEAD runs a different
- * snapshot, the snapshot is built and named. A dispatcher run from a checkout, or with nothing waiting, never hands over.
+ * The current tools this dispatcher should hand over to, or null while it runs them. The newest waiting launch whose
+ * request was captured at its tool root's current HEAD names the current tooling snapshot; a dispatcher running a
+ * different shared snapshot hands over to it. A dispatcher run from a checkout, or with no launch captured at the
+ * current HEAD, never hands over.
  *
  * Why: on 8 Nov a dispatcher started from submit-time tools kept launching gates on code main had fixed (no
  * PROOF_MAX_SHARDS), and one gate opened 18 runner controllers; one live dispatcher must run main's tooling (DJ16).
  *
- * @param {{ own?: string, launches?: () => { directory: string, job: string, commonDir: string }[], name?: typeof currentToolsName, snapshot?: typeof toolsSnapshot }} [ports]
+ * @param {{ own?: string, launches?: () => { directory: string, tools: string }[], head?: (root: string) => string | null }} [ports]
  * @returns {string | null} The current tools folder to hand over to.
  */
-export function staleDispatcherTools({ own = OWN_TOOLS, launches = waitingLaunches, name = currentToolsName, snapshot = toolsSnapshot } = {}) {
-  if (!/^pullboard-handoff-tools-[0-9a-f]{40}$/u.test(basename(own))) return null;
-  for (const launch of launches()) {
+export function staleDispatcherTools({ own = OWN_TOOLS, launches = waitingLaunches, head = toolRootHead } = {}) {
+  if (!SHARED_TOOLS.test(basename(own))) return null;
+  for (const launch of [...launches()].reverse()) {
     let request;
     try { request = JSON.parse(readFileSync(join(launch.directory, 'request.json'), 'utf8')); } catch { continue; }
-    if (typeof request.toolRoot !== 'string') continue;
-    let current;
-    try { current = name(request.toolRoot); } catch { continue; }
-    if (!current) continue;
-    if (current === basename(own)) return null;
-    try { return snapshot(request.toolRoot, launch.job, launch.commonDir); } catch { return null; }
+    if (typeof request.toolRoot !== 'string' || typeof launch.tools !== 'string' || !SHARED_TOOLS.test(basename(launch.tools))) continue;
+    if (!existsSync(launch.tools) || request.toolsCommit !== head(request.toolRoot)) continue;
+    try { return realpathSync(launch.tools) === realpathSync(own) ? null : launch.tools; } catch { return null; }
   }
   return null;
 }
@@ -171,12 +177,12 @@ export function dispatcherPass(row, { now = Date.now, finish = finishAwaitingVer
   let toolsAt = 0;
   return () => {
     // Another dispatcher took the row: stop launching at once and leave the machine to it (DJ16).
-    if (row.renew() === false) throw Object.assign(new Refused('DISPATCHER_REPLACED', 'another dispatcher holds the dispatcher row'), { tools: null, handOver: true });
+    if (row.renew() === false) throw Object.assign(new Error('another dispatcher holds the dispatcher row'), { code: 'DISPATCHER_REPLACED', tools: null, handOver: true });
     if (now() - toolsAt >= TOOLS_CHECK_MS) {
       toolsAt = now();
       const tools = stale();
       // Stop launching: the drain frees the machine's lock on the way out, and runDispatcher hands over to these tools.
-      if (tools) throw Object.assign(new Refused('DISPATCHER_TOOLS_STALE', `this dispatcher runs ${OWN_TOOLS}; current tooling is ${tools}`), { tools, handOver: true });
+      if (tools) throw Object.assign(new Error(`this dispatcher runs ${OWN_TOOLS}; current tooling is ${tools}`), { code: 'DISPATCHER_TOOLS_STALE', tools, handOver: true });
     }
     if (now() - lookedAt < VERDICT_PASS_MS) return;
     lookedAt = now();
@@ -217,7 +223,7 @@ export async function runDispatcher({ row = dispatcherRow(process.cwd(), process
     let drained;
     try { drained = await drain({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission, onPass, running }); }
     catch (error) {
-      if (error?.handOver) { await handOver(error.tools, row, exit, { running }); return; }
+      if (error?.handOver) { await handOver(error.tools, exit, { running }); return; }
       if (TRANSIENT_DRAIN_ERRORS.has(error?.code)) {
         reportDispatcherRetry(error, backoff);
         await new Promise(resolve => setTimeout(resolve, backoff));
@@ -239,22 +245,21 @@ export async function runDispatcher({ row = dispatcherRow(process.cwd(), process
 }
 
 /**
- * Hand the machine over, then exit once the gates this dispatcher started have finished. With current tools, free
- * this dispatcher's row and launch one from them in this directory; with none, another dispatcher already took the
- * row. Either way this one launches nothing more and frees each of its workers' slots as they exit (DJ16).
+ * Hand the machine over, then exit once the gates this dispatcher started have finished. With current tools, launch
+ * one from them in this directory under this dispatcher's own row owner, so the successor holds the row it renewed;
+ * with none, another dispatcher already took the row. Either way this one launches nothing more and frees each of
+ * its workers' slots as they exit (DJ16).
  *
  * @param {string | null} tools - The current tools folder, or null when another dispatcher took over.
- * @param {{ release: () => void }} row - This dispatcher's job row.
  * @param {(code: number) => void} exit
- * @param {{ launch?: typeof ensureRepositoryDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers }} [ports]
+ * @param {{ launch?: typeof ensureHandoffDispatcher, running?: Map<unknown, object>, finish?: typeof finishRunningWorkers, owner?: string }} [ports]
  */
-export async function handOver(tools, row, exit, { launch = ensureRepositoryDispatcher, running = new Map(), finish = finishRunningWorkers } = {}) {
+export async function handOver(tools, exit, { launch = ensureHandoffDispatcher, running = new Map(), finish = finishRunningWorkers, owner = process.env[HANDOFF_DISPATCHER_OWNER_ENV] } = {}) {
   const line = tools ? `dispatcher on ${OWN_TOOLS} hands over to current tooling ${tools}` : `dispatcher on ${OWN_TOOLS} stops: another dispatcher took the row`;
   // The dispatcher's stderr is its log, so the hand-over is recorded there.
   process.stderr.write(`${new Date().toISOString()} ${line}\n`);
   if (tools) {
-    try { row.release(); } catch { /* a board that cannot be written lets the row lapse in 2 minutes */ }
-    try { await launch(tools, process.cwd()); }
+    try { await launch(tools, process.cwd(), { startOf: exactStart, ...(owner ? { owner } : {}) }); }
     catch (error) { process.stderr.write(`hand-over launch failed: ${error.message}; the next submit launches a dispatcher\n`); }
   }
   await finish(running);

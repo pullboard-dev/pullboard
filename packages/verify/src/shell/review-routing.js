@@ -1,15 +1,15 @@
-import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
-import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../state/core.js';
+import { VENDOR_FAMILY_ENGINE } from '../../../state/core.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from '../../../items/index.js';
-import { FAMILY_DECLARE_ENGINE } from '../../../../src/family-declare-engine.js';
+import { FAMILY_DECLARE_ENGINE } from '../../../state/core.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
 export { seatFamily };
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { FAMILY_ALIAS_ENGINE } from '../../../../src/family-alias-engine.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
+import { FAMILY_ALIAS_ENGINE } from '../../../state/core.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../../../state/core.js';
 import { familyName } from '../core/review-policy.js';
 import { sameFamilyProblem } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';

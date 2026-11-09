@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { QUEUE_FAIRNESS_ENGINE } from '../src/queue-fairness-engine.js';
+import { QUEUE_FAIRNESS_ENGINE } from '../packages/state/core.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Give all observations a recorded clock and configure only a disposable board. */

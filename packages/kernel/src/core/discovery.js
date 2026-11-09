@@ -11,7 +11,7 @@ export const COMMAND_CANDIDATE = /^(?!index\.js$)[^/]+\.js$/u;
 /** A command file name the registry accepts: letters, digits, underscores and hyphens. */
 export const COMMAND_FILE = /^[\w-]+\.js$/u;
 
-/** Every file in src/ ending in -engine.js is an engine candidate. */
+/** Every file in the engines folder (packages/state/src/core/engines) ending in -engine.js is an engine candidate. */
 export const ENGINE_CANDIDATE = /^[^/]*-engine\.js$/u;
 
 /** An engine file name machine.js accepts: letters, digits, underscores and hyphens before -engine.js. */

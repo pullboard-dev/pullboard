@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { DEFAULT_NEXT_STEPS } from '../apps/cli/src/core/next-step-defaults.js';
+import { DEFAULT_NEXT_STEPS } from '../packages/state/index.js';
 import { NEXT_STEPS } from '../apps/cli/src/core/next-step-words.js';
 import { successfulNext } from '../packages/config/src/core/json-output.js';
 import { requireManualLanding } from '../packages/merge/index.js';

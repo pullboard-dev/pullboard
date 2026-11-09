@@ -1,4 +1,4 @@
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../state/core.js';
 
 /** A frozen threshold fences every newly ordered selection or reservation that may use it [H16]. */
 export function frozenRelaxationEngine(board, itemId) {

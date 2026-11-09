@@ -20,7 +20,7 @@ import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
-import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
+import { PR_BRIDGE_ENGINE } from '../packages/state/core.js';
 import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../packages/github/index.js';
 import { withGitFacts } from '../packages/git/index.js';

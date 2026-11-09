@@ -27,13 +27,14 @@ import {
   bindSubmitHandoffOrigin,
   submitHandoffRoot,
   isSubmitHandoffWorker,
-} from '../../../../src/submit-handoff-origin.js';
-import { submitHandoff } from '../../../../src/submit-handoff-read.js';
+} from '../../../../packages/sandbox/index.js';
+import { submitHandoff } from '../../../../packages/store/index.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { closeGateSpans } from '../../../../packages/resources/index.js';
 import { gateSpanCause } from '../../../../packages/resources/index.js';
+import { onDispatcherLifelineEnd } from '../../../../packages/resources/index.js';
 import { gateSpanFolder } from '../../../../packages/jobs/index.js';
 import { openGateSpans } from '../../../../packages/resources/index.js';
 import { recordGateSpan } from '../../../../packages/resources/index.js';
@@ -406,6 +407,9 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
   };
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
+  // The dispatcher that started this driver holds its stdin; when the dispatcher exits the pipe ends and the driver
+  // stops as on SIGTERM, so no worker outlives its dispatcher and the sweep requeues the gate (#3899).
+  onDispatcherLifelineEnd(terminate('the end of its dispatcher lifeline'));
   let stalled = false;
   let queuedAt = NaN;
   try {

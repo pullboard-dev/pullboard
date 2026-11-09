@@ -1,4 +1,4 @@
-import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../packages/state/core.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { healthyExecutor } from '../../../../apps/lib/index.js';
 import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
@@ -31,8 +31,6 @@ import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -63,7 +61,10 @@ import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { submitHandoffRoot } from '../../../../packages/sandbox/index.js';
+import { advanceIdleToolTree } from './tools-snapshot-advance.js';
+import { keepToolsIndex } from './tools-snapshot-advance.js';
+import { checkoutCommittedTools } from './tools-snapshot-advance.js';
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
 export function copyTools(toolRoot, target) {
@@ -72,13 +73,12 @@ export function copyTools(toolRoot, target) {
 }
 
 /**
- * Copy the tool root's committed HEAD tree, never its working tree, into `target`. Why: a seat runs Pullboard from its
- * own item worktree, which is usually dirty, and an uncommitted edit must never leak into a snapshot other gates share [C7].
+ * Write the tool root's committed tree, never its working tree, into `target`, with the index a later tooling commit
+ * moves it by (#3663). Why: a seat runs Pullboard from its own item worktree, which is usually dirty, and an
+ * uncommitted edit must never leak into a snapshot other gates share [C7].
  */
 export function copyCommittedTools(toolRoot, target, commit = 'HEAD') {
-  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', toolRoot, target, commit],
-    { encoding: 'utf8', env: cleanGitEnvironment() });
-  if (run.status !== 0) throw new Error(`tools snapshot of the committed tree failed: ${String(run.stderr ?? '').slice(0, 500)}`);
+  if (!checkoutCommittedTools(toolRoot, target, commit)) throw new Error(`tools snapshot of the committed tree ${commit} failed`);
 }
 
 /**
@@ -120,20 +120,6 @@ export function currentHandoffTools(request, job, commonDir) {
   return { tools: toolsSnapshot(root, job, commonDir), toolsCommit: head.stdout };
 }
 
-/**
- * The shared snapshot folder name a clean tool root's HEAD runs from, or null when the root is not a clean checkout.
- * Why: a dispatcher compares its own folder with this name to learn, without copying anything, that main moved (8 Nov stale tools).
- *
- * @param {string} toolRoot
- * @returns {string | null}
- */
-export function currentToolsName(toolRoot) {
-  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
-  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout) || top.status !== 0 || realpathSync(top.stdout) !== realpathSync(toolRoot)) return null;
-  return `pullboard-handoff-tools-${toolingDigest(toolRoot)}`;
-}
-
 /** The refresh a retry preparation calls: current tools for the retry's job, from the stopped request's tool root. */
 function retryTools(ctx) { return (id, request) => currentHandoffTools(request, id, ctx.info.commonDir); }
 
@@ -160,10 +146,10 @@ function toolingDigest(toolRoot) {
  * @param {string} toolRoot
  * @param {string} job
  * @param {string} [commonDir]
- * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string } }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716)
+ * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string }, advance?: typeof advanceIdleToolTree }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716); advance moves an idle snapshot instead of a whole copy (#3663)
  * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild } = {}) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild, advance = advanceIdleToolTree } = {}) {
   copy ??= copyTools;
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
@@ -176,15 +162,21 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
     return shared;
   }
-  assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   if (!clean) {
+    assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copy(toolRoot, tools);
     return tools;
   }
-  const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
+  const commit = rebuild?.commit ?? head.stdout;
+  // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
+  const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
+  if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
+  else assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
+  const staging = advanced?.path ?? mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copyCommitted(toolRoot, staging, rebuild?.commit);
+    if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -255,15 +247,6 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
-
-/**
- * Launch a dispatcher from `tools` for the repository whose Git common directory this is, under its board's row.
- *
- * @param {string} tools
- * @param {string} commonDir
- * @returns {Promise<boolean>} True when a dispatcher was launched.
- */
-export function ensureRepositoryDispatcher(tools, commonDir) { return ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir); }
 
 /** The board file of the repository whose Git common directory this is. */
 function boardFileOf(commonDir) { return join(commonDir, 'pullboard', 'board.sqlite'); }
