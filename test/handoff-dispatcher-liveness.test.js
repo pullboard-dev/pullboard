@@ -10,6 +10,8 @@ import { join } from 'node:path';
 import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { drainHandoffQueue, dropHandoffTicket, ensureHandoffDispatcher, handoffQueueDirectory, listResources, queueHandoffLaunch, recoverHandoffDispatcher, reserveHandoffTicket, takeResource } from '../packages/resources/index.js';
+import { recoverQueuedHandoffs } from '../apps/cli/src/shell/cli-main/handoff-recovery.js';
+import { wakesHandoffRecovery } from '../apps/cli/src/shell/cli-main/run-main.js';
 import { waitForCondition } from './runner-fixture-state.js';
 import { privateFixtureFiles } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -50,7 +52,7 @@ async function withHome(action) {
   process.env.HOME = user;
   chmodSync(sentinel, 0o000);
   try {
-    const result = await action({ dir, checkout });
+    const result = await action(dir, checkout);
     chmodSync(sentinel, 0o700);
     assert.deepEqual(treeState(sentinel), before, 'nothing under the account ~/.pullboard was written');
     return result;
@@ -87,7 +89,7 @@ test('clause 1: a loop-driven lock heartbeat moves only when the loop renews it,
   } finally { lock.release(); mock.timers.reset(); }
 }));
 
-test('clause 2: an error out of the drain loop releases the dispatcher lock and exits, and the next submit starts a fresh dispatcher at once [C7]', t => withHome(async ({ checkout }) => {
+test('clause 2: an error out of the drain loop releases the dispatcher lock and exits, and the next submit starts a fresh dispatcher at once [C7]', t => withHome(async (dir, checkout) => {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
   writeFileSync(join(handoffQueueDirectory(), '0001-broken.json'), '{ not json');
   const entry = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
@@ -107,7 +109,7 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
   await waitForCondition(() => gone(pid), 'the fresh dispatcher exited', { signal: t.signal });
 }));
 
-test('clause 1: every machine path of the dispatcher runs stays inside the temp home, and ~/.pullboard is never read or written [C7]', t => withHome(async ({ dir, checkout }) => {
+test('clause 1: every machine path of the dispatcher runs stays inside the temp home, and ~/.pullboard is never read or written [C7]', t => withHome(async (dir, checkout) => {
   const entry = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
   const run = spawnSync(process.execPath, [entry], { cwd: checkout, env: process.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(run.status, 0, run.stderr);
@@ -120,7 +122,7 @@ test('clause 1: every machine path of the dispatcher runs stays inside the temp 
   assert.ok(listResources({ scope: 'machine' }).some(row => row.name === 'submit-handoff-dispatcher'), 'the dispatcher lock lives in the temp home\'s store');
 }));
 
-test('clause 2: a dispatcher sweeps only boards that queued in its own machine home, never the checkout it started in [C7]', () => withHome(async ({ dir, checkout }) => {
+test('clause 2: a dispatcher sweeps only boards that queued in its own machine home, never the checkout it started in [C7]', () => withHome(async (dir, checkout) => {
   const swept = [];
   const sweep = commonDir => { swept.push(commonDir); };
   await drainHandoffQueue({ capacity: 1, pollMs: 20, sweep });
@@ -156,3 +158,40 @@ test('clause 2: with the launch lock held, a queued-launch recovery from a board
   assert.ok(Date.now() - started < 1000, 'recovery does not queue behind the launcher that holds the lock'); // budget: declared by clause 2 of #3838 as under 1 s; a queued recovery would hang for the whole lock hold.
   assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'recovery launched nothing');
 })));
+
+/** Run one command line's recovery step as run-main does, against a private board, recording each detached check it starts. */
+async function recoveryStep(dir, positionals) {
+  const commonDir = join(dir, 'repo.git');
+  mkdirSync(join(commonDir, 'pullboard'), { recursive: true });
+  writeFileSync(join(commonDir, 'pullboard', 'board.sqlite'), '');
+  const starts = [];
+  if (wakesHandoffRecovery(positionals)) {
+    await recoverQueuedHandoffs({ cwd: dir, err() {} }, { repoInfo: () => ({ commonDir }) }, { start: (entry, options) => starts.push({ entry, options }) });
+  }
+  return starts;
+}
+
+/** Queue one captured launch file, as a submit does. */
+function queueLaunch() {
+  mkdirSync(handoffQueueDirectory(), { recursive: true });
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('..', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+}
+
+test('#3839 clause 1: heartbeat, inbox and hook commit-msg never call recoverQueuedHandoffs, and leave a queued launch queued [C7]', () => withHome(async dir => {
+  queueLaunch();
+  for (const command of [['heartbeat'], ['inbox'], ['hook', 'commit-msg']]) {
+    assert.deepEqual(await recoveryStep(dir, command), [], `${command.join(' ')} starts no recovery`);
+  }
+  assert.ok(existsSync(join(handoffQueueDirectory(), '0001-queued.json')), 'the launch stays queued');
+  assert.ok(!existsSync(join(handoffQueueDirectory(), 'recovery-woken')), 'no command claimed a recovery turn');
+}));
+
+for (const command of [['next'], ['submit', '12']]) {
+  test(`#3839 clause 1: ${command[0]} runs no recovery inline and hands it to the background job [C7]`, () => withHome(async dir => {
+    queueLaunch();
+    const starts = await recoveryStep(dir, command);
+    assert.equal(starts.length, 1, `${command[0]} starts one recovery check`);
+    assert.deepEqual(starts[0].options.args, ['--recover']);
+    assert.equal(starts[0].entry, fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url)));
+  }));
+}
