@@ -112,7 +112,7 @@ const CAUGHT = {
   '../packages/store/src/shell/board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
   '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
-  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/src/core/board-rigor.js#causeProblem'],
+  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
   '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
   '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],

@@ -1,12 +1,12 @@
 /** Sufficient per-cause state for resume, without retaining or replaying raw history [D1,N19]. */
-import { causeProblem } from '../../../../src/board-rigor.js';
-import { causeReading } from '../../../../src/board-rigor.js';
-import { eventCauses } from '../../../../src/board-rigor.js';
-import { isMergeConflict } from '../../../../src/board-rigor.js';
+import { causeProblem } from '../../../store/index.js';
+import { causeReading } from '../../../store/index.js';
+import { eventCauses } from '../../../store/index.js';
+import { isMergeConflict } from '../../../store/index.js';
 import { parseSpec } from '../../../spec/index.js';
-import { readRigorSource } from '../../../../src/board-rigor-source.js';
-import { automaticSourceFromText } from '../../../../src/board-rigor-auto-source.js';
-import { readAutomaticRigorSource } from '../../../../src/board-rigor-auto-source.js';
+import { readRigorSource } from '../../../store/index.js';
+import { automaticSourceFromText } from '../../../store/index.js';
+import { readAutomaticRigorSource } from '../../../store/index.js';
 
 /** Match the legacy notice reader's typed person decline, including old row-shaped metadata. */
 function declineKey(event, detail, person) {
