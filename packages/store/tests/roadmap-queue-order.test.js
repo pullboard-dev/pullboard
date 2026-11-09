@@ -1,20 +1,22 @@
 /** The roadmap lists a milestone's open items in pullboard queue order, with queue positions [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import * as store from '../index.js';
+import { apiBoardOpeners } from '../../../test/board-fixture.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 import {
   addMilestone,
   orderMilestoneItems,
   roadmap,
-} from '../../store/index.js';
+} from '../index.js';
 import { eligibilityProblem } from '../../verify/index.js';
-import { milestoneRoadmap } from '../index.js';
+import { milestoneRoadmap } from '../../roadmap/index.js';
 import { workQueue } from '../../items/index.js';
 
+const { openBoard } = apiBoardOpeners;
+
 test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
-  const board = openBoard(':memory:');
-  t.after(() => store.closeBoard(board));
+  const board = fixtureBoard(t);
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   store.register(board, { lane: 'core', path: '/strong', route: 'strong' });
   const add = (title) => store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong' });
