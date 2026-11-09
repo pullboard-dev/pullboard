@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { drainHandoffQueue, dropHandoffTicket, ensureHandoffDispatcher, handoffQueueDirectory, listResources, queueHandoffLaunch, reserveHandoffTicket, takeResource } from '../packages/resources/index.js';
+import { drainHandoffQueue, dropHandoffTicket, ensureHandoffDispatcher, handoffQueueDirectory, listResources, queueHandoffLaunch, recoverHandoffDispatcher, reserveHandoffTicket, takeResource } from '../packages/resources/index.js';
 import { waitForCondition } from './runner-fixture-state.js';
 import { privateFixtureFiles } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -133,3 +133,26 @@ test('clause 2: a dispatcher sweeps only boards that queued in its own machine h
   assert.deepEqual(swept, [queued], 'the board that queued in this home is swept, and only it');
   assert.ok(swept.every(path => path.startsWith(checkout)), 'no recovery resolves a board other than the one that queued here');
 }));
+
+/** Hold the launch lock as a second launcher would, for the length of an action. */
+async function whileLaunchLockHeld(action) {
+  const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'other-launcher' });
+  try { return await action(); } finally { lock.release(); }
+}
+
+test('clause 1: while another process holds the launch lock, ensureHandoffDispatcher returns false at once [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
+  const started = Date.now();
+  const launched = await ensureHandoffDispatcher(fileURLToPath(new URL('..', import.meta.url)), process.cwd());
+  assert.equal(launched, false, 'a second launcher never queues behind the first');
+  assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'it launched nothing');
+  assert.ok(Date.now() - started < 1000, 'it did not wait for the lock'); // budget: hang ceiling; a wait would run for the whole lock hold, which this test never ends.
+})));
+
+test('clause 2: with the launch lock held, a queued-launch recovery from a board command returns in under 1 s [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
+  mkdirSync(handoffQueueDirectory(), { recursive: true });
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('..', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+  const started = Date.now();
+  await recoverHandoffDispatcher({ loadStartOf: async () => () => '' });
+  assert.ok(Date.now() - started < 1000, 'recovery does not queue behind the launcher that holds the lock'); // budget: declared by clause 2 of #3838 as under 1 s; a queued recovery would hang for the whole lock hold.
+  assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'recovery launched nothing');
+})));
