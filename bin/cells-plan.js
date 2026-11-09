@@ -282,12 +282,30 @@ export function stalePlanRows(root, plan) {
 }
 
 /**
+ * Cut edges that name a path with no plan row, active or retired. Why: importCuts throws on such an edge, and the
+ * submit gate turns that into CELLS_SUBMIT for every item (#4706 deleted src/serve.js and left three edges naming it).
+ */
+export function orphanCutEdges(plan) {
+  const known = new Set([...plan.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...(plan.retired ?? []).map(entry => entry.row[0])]);
+  return [...new Set(plan.cells.flatMap(cell => cell.cuts.flatMap(link => link.edges)).filter(edge => edge.split('->').some(path => !known.has(path))))];
+}
+
+/**
  * Retire one stale planned path: its row moves to the plan's retired list, which keeps its provenance and refuses
  * it ever coming back or being imported, and the shim and cut edges that only existed for it leave the cell.
  */
 export function retirePath(root, file) {
   const plan = readPlan(root);
   const stale = stalePlanRows(root, plan).find(entry => entry.row[0] === file);
+  if (!stale && orphanCutEdges(plan).some(edge => edge.split('->').includes(file))) {
+    // A shim item already dropped the row by hand: only its cut edges are left, so drop those and keep the rest.
+    for (const entry of plan.cells) {
+      entry.cuts = entry.cuts.map(link => ({ ...link, edges: link.edges.filter(edge => !edge.split('->').includes(file)) }))
+        .filter(link => link.edges.length).map(link => ({ ...link, imports: link.edges.length }));
+    }
+    writePlan(root, plan);
+    return { cell: null, file: PLAN_FILE, row: [file] };
+  }
   if (!stale) {
     const active = plan.cells.some(cell => cell.paths.some(([from]) => from === file));
     throw new Refused('CELLS_PLAN_RETIRE', active
@@ -573,7 +591,12 @@ function main(argv) {
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
-    return missing.length || stale.length || entries.length ? 1 : 0;
+    const orphans = orphanCutEdges(plan);
+    for (const edge of orphans) {
+      const gone = edge.split('->').find(path => !plan.cells.some(cell => cell.paths.some(([from]) => from === path)) && !(plan.retired ?? []).some(entry => entry.row[0] === path));
+      console.error(`cut edge ${edge} names ${gone}, which has no plan row; drop its cut edges: node bin/cells-plan.js --retire ${gone}`);
+    }
+    return missing.length || stale.length || entries.length || orphans.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
