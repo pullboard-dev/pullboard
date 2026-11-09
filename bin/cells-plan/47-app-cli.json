@@ -284,11 +284,9 @@
   "src/cli-context.js",
   "src/cli-main.js",
   "src/cli-read-context.js",
-  "src/cli.js",
   "src/cockpit.js",
   "src/commands/index.js",
   "src/help.js",
-  "src/next-step-words.js",
   "src/next-steps.js"
  ],
  "imports": [

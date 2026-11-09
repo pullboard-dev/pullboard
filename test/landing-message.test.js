@@ -9,16 +9,16 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { shellWord } from '../../runners/index.js';
+import { shellWord } from '../packages/runners/index.js';
 import {
   after,
   test,
 } from 'node:test';
-import { parseCommitMessage } from "../src/core/commit-message.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+import { parseCommitMessage } from '../packages/commits/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
-import { waitForCondition } from '../../../test/runner-fixture-state.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { waitForCondition } from './runner-fixture-state.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 const projects = [];
@@ -153,7 +153,7 @@ test('a docs-only item lands green after both selected shard files complete with
   const log = join(box.dir, 'completed-docs-shard');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../bin/run-tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
+  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../bin/run-tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
   config.lanes.web.owns = ['docs/'];
   writeFileSync(configFile, JSON.stringify(config));
   mkdirSync(join(box.repo, 'test'), { recursive: true });

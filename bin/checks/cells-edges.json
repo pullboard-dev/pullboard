@@ -257,8 +257,8 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/hook.js": {
-      "cells": 12,
-      "deep": 2
+      "cells": 7,
+      "deep": 0
     },
     "apps/cli/src/shell/commands/hooks.js": {
       "cells": 3,
@@ -1409,8 +1409,8 @@
       "deep": 0
     },
     "packages/gate/src/shell/browser-admission.js": {
-      "cells": 4,
-      "deep": 2
+      "cells": 2,
+      "deep": 1
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -1994,7 +1994,7 @@
     },
     "packages/landing/src/core/landing-message.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/landing/src/core/landing-waivers.js": {
       "cells": 1,
@@ -2363,10 +2363,6 @@
     "packages/moves/src/core/moves/applyRehomeItem.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/moves/src/core/moves/applyRowDecisions.js": {
-      "cells": 1,
-      "deep": 1
     },
     "packages/moves/src/core/moves/attachItemPatch.js": {
       "cells": 2,
@@ -3069,7 +3065,7 @@
       "deep": 0
     },
     "packages/spec/src/shell/spec.js": {
-      "cells": 3,
+      "cells": 2,
       "deep": 0
     },
     "packages/state/src/core/agent-grant.js": {
@@ -3765,8 +3761,8 @@
       "deep": 0
     },
     "packages/sync/src/shell/sync.js": {
-      "cells": 6,
-      "deep": 1
+      "cells": 5,
+      "deep": 0
     },
     "packages/transport/src/core/pull-token.js": {
       "cells": 1,
@@ -4304,10 +4300,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/cli.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/cockpit.js": {
       "cells": 1,
       "deep": 0
@@ -4424,10 +4416,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/engine.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/exit-rules-continuation.js": {
       "cells": 1,
       "deep": 0
@@ -4473,10 +4461,6 @@
       "deep": 0
     },
     "src/landing-failure-report.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-shards.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4567,10 +4551,6 @@
     "src/module-imports.js": {
       "cells": 1,
       "deep": 1
-    },
-    "src/next-step-words.js": {
-      "cells": 1,
-      "deep": 0
     },
     "src/outside-store.js": {
       "cells": 1,
@@ -4803,7 +4783,7 @@
     },
     "<-commits": {
       "imports": [],
-      "deepImporters": 4
+      "deepImporters": 1
     },
     "<-landing": {
       "imports": [],

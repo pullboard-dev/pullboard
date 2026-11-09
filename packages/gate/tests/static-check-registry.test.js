@@ -6,9 +6,9 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CHECKS } from '../packages/gate/index.js';
+import { STATIC_CHECKS } from '../index.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
 test('clause 1: one registry lists every static check class with a function that runs it, and submit reads the registry instead of an inline list [C7]', () => {
   const names = STATIC_CHECKS.map(check => check.name);
@@ -17,18 +17,18 @@ test('clause 1: one registry lists every static check class with a function that
     assert.ok(names.includes(expected), expected);
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
-  const tree = readFileSync(new URL('../bin/checks/static-tree-registry.js', import.meta.url), 'utf8');
+  const tree = readFileSync(new URL('../../../bin/checks/static-tree-registry.js', import.meta.url), 'utf8');
   for (const expected of ['test-waits', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
     assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
   }
   for (const expected of ['cells', 'cell-lints', 'spec-ids']) {
     assert.ok(tree.includes(`name: '${expected}'`), `stage class ${expected}`);
   }
-  const entry = readFileSync(new URL('../bin/static-style-checks.js', import.meta.url), 'utf8');
+  const entry = readFileSync(new URL('../../../bin/static-style-checks.js', import.meta.url), 'utf8');
   assert.match(entry, /runStaticTreeRegistry\(/u);
   assert.doesNotMatch(entry, /doctrineReport|viewPureGate|boardWriteIoProblems/u, 'the submit static command reads the registry, not an inline list');
   // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
-  const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+  const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
 const root = ${JSON.stringify(ROOT)};
 const context = { root, files: [], staged: false, text: file => (file.endsWith('.json') ? '{}' : ''), previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
 const bad = { ...context, sources: [{ file: 'src/x.js', source: "import { a, b } from './y.js';\\n" }] };
@@ -42,7 +42,7 @@ process.stdout.write(JSON.stringify({ empty: runStaticRegistry(context), bad: ru
   assert.equal(result.bad.length, 1);
   assert.match(result.bad[0], /src\/x\.js:1: one import binding per line \(2 bindings\)/u);
   assert.deepEqual(result.self, [], 'the registry file itself is clean');
-  const reader = readFileSync(new URL('../packages/gate/src/shell/changed-static.js', import.meta.url), 'utf8');
+  const reader = readFileSync(new URL('../src/shell/changed-static.js', import.meta.url), 'utf8');
   assert.match(reader, /runStaticRegistry\(/u);
   assert.doesNotMatch(reader, /relayBoundaryProblems|importStyleViolations|emptyCatchProblems/u, 'the inline list is gone');
 });
