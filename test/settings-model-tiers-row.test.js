@@ -5,7 +5,7 @@ import { describeSetting, settingsInventory } from '../packages/config/index.js'
 import { SETTING_DESCRIPTIONS } from '../packages/config/index.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { performanceCores } from '../packages/gate/index.js';
-import { cellProject } from './cell-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Read the production inventory in the fixture's own machine home, restoring the caller's environment. */
 function inventory(box) {
@@ -23,7 +23,9 @@ test('clause 1: the description list has a modelTiers row and the settings API r
   assert.ok(described, 'the description list has a modelTiers row');
   for (const field of ['label', 'description', 'group', 'unit']) assert.ok(typeof described[field] === 'string' && described[field].trim(), `modelTiers has a ${field}`);
   assert.deepEqual(describeSetting('modelTiers'), described);
-  const box = cellProject(t, { gate: 'true' });
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  t.after(() => helpers.cleanup());
   const row = inventory(box).find(entry => entry.key === 'modelTiers');
   assert.ok(row, 'the settings inventory serves a modelTiers row');
   assert.deepEqual([row.label, row.description, row.group, row.unit], [described.label, described.description, described.group, described.unit],
