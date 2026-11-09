@@ -22,7 +22,8 @@ export function itemStage(item, handoff, landed, at) {
   try { job = typeof handoff === 'string' ? JSON.parse(handoff) : handoff ?? null; } catch { job = null; }
   const state = job?.state;
   if (item.item_status === 'verified') return landed ? 'landed' : 'accepted';
-  if (item.item_status === 'withdrawn') return 'withdrawn';
+  // A withdrawn item with a merged event was recorded by a forced merge: hand-landed work counts as landed.
+  if (item.item_status === 'withdrawn') return landed ? 'landed' : 'withdrawn';
   if (item.item_status === 'submitted') return 'in review';
   const sameBar = !job?.digest || job.digest === item.item_frozen_digest;
   const red = state === 'red' && sameBar;
