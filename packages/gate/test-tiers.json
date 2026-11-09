@@ -24638,7 +24638,7 @@
       ]
     },
     {
-      "file": "test/item-patch-compose.test.js",
+      "file": "packages/items/tests/item-patch-compose.test.js",
       "tier": "T3",
       "packages": [
         ".",
