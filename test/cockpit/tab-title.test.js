@@ -57,7 +57,7 @@ test('clause 2: refreshing each tab three times shows the same title every time,
       assert.deepEqual(titles, Array(3).fill(titles[0]), tab + ': the same title across three refreshes');
       assert.equal(page.run('titleWrites.length'), before, tab + ': a refresh that changes nothing writes no title');
       seen[tab] = titles[0];
-      if (tab === 'roadmap') seen.roadmapContext = page.run('JSON.stringify({tab:view.tab,root:view.root,selectedGroup:data.groups.find(group=>group.key===view.root)?.key ?? null,projectRoot:data.project?.root,milestones:data.project?.milestones?.map(milestone=>milestone.name) ?? null})');
+      if (tab === 'roadmap') seen.roadmapContext = page.run('JSON.stringify({tab:view.tab,group:Boolean(data.groups.find(group=>group.key===view.root)),project:Boolean(data.project),milestoneCount:data.project?.milestones?.length ?? null})');
     }
     assert.match(seen.roadmap, /^\(\d+ remaining\) tab-title · Roadmap · Pullboard$/u, `Roadmap carries its remaining count: ${JSON.stringify({title:seen.roadmap,context:seen.roadmapContext})}`);
     assert.equal(seen.cost, 'tab-title · Cost · Pullboard', 'Cost carries the Cost label');
