@@ -97,13 +97,15 @@ function closureRerun({ detail, proof, baseTree, base, tree, tooling, landed, tr
  *   mainOwned?: Array<{ file: string, name: string }> }}
  */
 export function landingReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated = [], changedPaths = () => null, verdictOf, closure = null }) {
-  if (items.length !== 1) return { reuse: false, code: 'BATCH_OF_MANY' };
+  if (items.length !== 1 && !closure) return { reuse: false, code: 'BATCH_OF_MANY' };
+  if (items.length !== 1) return batchReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated, changedPaths, verdictOf, closure });
   const [entry] = items;
   const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
   let detail;
   try { detail = event ? JSON.parse(event.event_detail) : null; } catch { detail = null; }
   const proof = detail?.submissionProof;
-  if (!detail || detail.commit !== entry.commit || detail.gateGreen !== true || !proof) return { reuse: false, code: 'NO_RECEIPT' };
+  // A submit admitted on main-owned reds records gateGreen false; the owned check below decides whether it proves [C7].
+  if (!detail || detail.commit !== entry.commit || !(detail.gateGreen === true || detail.gateGreen === false && proof?.knownMainFailures) || !proof) return { reuse: false, code: 'NO_RECEIPT' };
   if ((proof.deferred && !closure) || detail.companion) return { reuse: false, code: 'NOT_GREEN' };
   const mainOwned = mainOwnedCases(verdictOf, entry.id, detail.commit);
   const owned = row => mainOwned?.some(cell => cell.file === row?.file && cell.name === row?.name);
@@ -124,6 +126,46 @@ export function landingReceiptReuse({ items, readEvents, tree, base, tooling, fu
   const proved = new Set([...(proof.files ?? []), ...(mainOwned ?? []).map(cell => cell.file)]);
   if (full ? proof.full !== true : proof.full !== true && !files.every(file => proved.has(file))) return { reuse: false, code: 'PLAN_WIDER' };
   return reused;
+}
+
+/**
+ * A batch of several items lands on their submit receipts together: each item's receipt must reuse as a one-item
+ * batch would, with the other items' changed paths allowed in its drift, and the gate reruns the union of the items'
+ * own reruns plus every candidate test whose import closure reaches the changes of two or more items. A test reaching
+ * one item's change only runs the bytes that item's submit proved. Any item that cannot reuse refuses the batch's
+ * reuse with its code, and the batch's plan runs as before.
+ * Why: a batch of many reused nothing, so runners-only landing went one item at a time, six an hour (9 Nov) [C7].
+ *
+ * @param {Parameters<typeof landingReceiptReuse>[0]} input
+ * @returns {ReturnType<typeof landingReceiptReuse>}
+ */
+function batchReceiptReuse({ items, readEvents, tree, base, tooling, treeOf, generated, changedPaths, verdictOf, closure }) {
+  const own = new Map();
+  for (const entry of items) {
+    const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
+    let detail;
+    try { detail = event ? JSON.parse(event.event_detail) : null; } catch { detail = null; }
+    const baseTree = detail?.policyCommit ? treeOf(detail.policyCommit) : null;
+    const paths = movedPaths(baseTree, detail?.tree, changedPaths);
+    if (!paths) return { reuse: false, code: 'NO_RECEIPT', item: entry.id };
+    own.set(entry.id, new Set(paths));
+  }
+  const rerun = new Set(), mainOwned = [];
+  for (const entry of items) {
+    // The other items' paths are theirs to prove, as the landing's own writes are; a test reaching both is an interaction.
+    const others = new Set(items.filter(other => other.id !== entry.id).flatMap(other => [...own.get(other.id)]));
+    const verdict = landingReceiptReuse({ items: [entry], readEvents, tree, base, tooling, full: false, files: [], treeOf,
+      generated: [...generated, ...others], changedPaths, verdictOf, closure });
+    if (!verdict.reuse) return { reuse: false, code: verdict.code, item: entry.id };
+    for (const file of verdict.rerun ?? []) rerun.add(file);
+    mainOwned.push(...(verdict.mainOwned ?? []));
+  }
+  for (const file of closure.candidates()) {
+    const reached = items.filter(entry => closure.closureChanged(file, own.get(entry.id))).length;
+    if (reached >= 2) rerun.add(file);
+  }
+  return { reuse: true, code: null, item: items[0].id, items: items.map(entry => entry.id), commit: items[0].commit, tree, rerun: [...rerun].sort(),
+    ...(mainOwned.length ? { mainOwned } : {}) };
 }
 
 /**

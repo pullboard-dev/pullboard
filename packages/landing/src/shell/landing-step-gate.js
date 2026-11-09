@@ -375,16 +375,17 @@ async function runGateGroup(state, label, options) {
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
   const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
     generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
+  const receipts = reuse.items?.length > 1 ? `#${reuse.items.join(', #')}'s submit receipts` : `#${reuse.item}'s submit receipt`;
   if (reuse.reuse && reuse.rerun?.length) {
     // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].
-    state.say(`gate ${label}: reused #${reuse.item}'s submit receipt; rerunning ${reuse.rerun.length} file(s) whose import closure changed since the submit: ${reuse.rerun.join(', ')}`);
+    state.say(`gate ${label}: reused ${receipts}; rerunning ${reuse.rerun.length} file(s) whose import closure changed since the submit: ${reuse.rerun.join(', ')}`);
     files = reuse.rerun;
     config = { ...state.config, gate: `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`, [VALUE_GATE]: true };
   } else if (reuse.reuse) {
-    state.say(`gate ${label}: reused #${reuse.item}'s submit receipt for tree ${tree.slice(0, 12)}; no test run started`);
+    state.say(`gate ${label}: reused ${receipts} for tree ${tree.slice(0, 12)}; no test run started`);
     // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
     if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
-    const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
+    const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.items?.length > 1 ? { items: reuse.items } : {}), ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
     state.gates.set(tree, reused);
     return reused;
   }
