@@ -133,7 +133,6 @@
     "src/cli-help.js": 1,
     "src/cli-identity.js": 1,
     "src/cli-main.js": 1,
-    "src/cli-presence.js": 1,
     "src/cli-read-context.js": 1,
     "src/cli-resource-display.js": 1,
     "src/cli-support.js": 1,
