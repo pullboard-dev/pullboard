@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/lib/src/shell/submit-handoff-worker.js */
+/** @pullboard-module-loads apps/cli/src/shell/submit-handoff-worker.js */
 /** CLI-owned composition and process launch for the machine relay sender [H21,H16,C7]. */
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -51,7 +51,7 @@ export async function relaySenderIo(root, io = {}) {
   const { relayOutboxSetting } = await import('../../../../src/cli.js');
   const loadNativeBoard = () => import('../core/native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
-  const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
+  const submitHandoffWorker = fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url));
   const nativeBoard = await loadNativeBoard();
   return { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };;
 }
@@ -61,7 +61,7 @@ async function serve(root, file, io) {
   const { syncRelay } = await import('../../../../packages/link/index.js');
   const loadNativeBoard = () => import('../core/native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
-  const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
+  const submitHandoffWorker = fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url));
   const boardIo = await relaySenderIo(root, io);
   await syncRelay(root, boardIo);
   try {

@@ -66,19 +66,22 @@
     "repo-read": 2,
     "hex64": 1
   },
-  "packages/blueprints/tests/blueprint-fixture.js": {
+  "packages/blueprints/tests/bundled-blueprints.test.js": {
+    "repo-read": 1
+  },
+  "test/blueprint-cli-fixture.js": {
     "repo-read": 2,
     "tempdir": 2,
     "model": 1
   },
-  "packages/blueprints/tests/blueprint-part-2.test.js": {
-    "repo-read": 2,
+  "test/blueprint-cli-part-2.test.js": {
+    "repo-read": 1,
     "hand-policy": 1
   },
-  "packages/blueprints/tests/blueprint-part-4.test.js": {
+  "test/blueprint-cli-part-4.test.js": {
     "hand-policy": 2
   },
-  "packages/blueprints/tests/blueprint.test.js": {
+  "test/blueprint-cli.test.js": {
     "model": 1,
     "tempdir": 1,
     "hand-policy": 2
@@ -320,14 +323,6 @@
   "packages/sandbox/tests/trusted-policy.test.js": {
     "hand-policy": 1
   },
-  "packages/spec/tests/doctrine-rulings.test.js": {
-    "model": 1
-  },
-  "packages/spec/tests/signoff.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 5
-  },
   "packages/state/tests/bar-corrections.test.js": {
     "tempdir": 2,
     "env-spread": 1,
@@ -493,6 +488,9 @@
   },
   "packages/store/tests/landing-noop.test.js": {
     "raw-board": 1
+  },
+  "packages/store/tests/milestone-placement.test.js": {
+    "raw-board": 4
   },
   "packages/store/tests/review-family-relaxation.test.js": {
     "raw-board": 2
@@ -1441,6 +1439,9 @@
     "tempdir": 1,
     "hand-policy": 3
   },
+  "test/doctrine-rulings.test.js": {
+    "model": 1
+  },
   "test/doctrine.test.js": {
     "tempdir": 1,
     "repo-read": 2,
@@ -1884,7 +1885,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "test/item-stage.test.js": {
+  "packages/store/tests/item-stage.test.js": {
     "raw-board": 2
   },
   "test/item-withdrawn-reason.test.js": {
@@ -2289,9 +2290,6 @@
   },
   "packages/landing/tests/merged-plan-check.test.js": {
     "tempdir": 6
-  },
-  "test/milestone-placement.test.js": {
-    "raw-board": 4
   },
   "test/mixed-mode-drill-fixture.js": {
     "model": 1
@@ -3462,6 +3460,11 @@
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 2
+  },
+  "test/signoff.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "hand-policy": 5
   },
   "test/skills.test.js": {
     "tempdir": 2,

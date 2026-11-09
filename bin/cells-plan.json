@@ -1529,6 +1529,14 @@
         "packages/gate/tests/landing-stage-composition.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2003,6 +2011,9 @@
     "sandbox->state",
     "commits->kernel",
     "rigor->store",
-    "(root)->store"
+    "(root)->store",
+    "(root)->doctrine",
+    "person->doctrine",
+    "blueprints->doctrine"
   ]
 }

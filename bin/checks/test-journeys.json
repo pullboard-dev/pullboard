@@ -801,16 +801,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/clause-tick-from-test-run.test.js": {
-      "cells": [
-        "app:cli",
-        "state"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/shell/commands/check.js)",
-        "runs the CLI (test/clause-tick-from-test-run.test.js)"
-      ]
-    },
     "test/cli-in-process-fixture.js": {
       "cells": [
         "app:cli",
@@ -5077,19 +5067,6 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/shell/commands/land.js)",
         "imports past landing front door (packages/landing/src/shell/landing-step-publish.js)"
-      ]
-    },
-    "test/landing-cli-smoke-error.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "landing",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "runs the CLI (test/landing-cli-smoke-error.test.js)"
       ]
     },
     "test/landing-cli-smoke.test.js": {

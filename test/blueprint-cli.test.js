@@ -8,25 +8,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { bundledBlueprints } from '../index.js';
-import { readBlueprint } from '../index.js';
-import { validateBlueprint } from '../index.js';
-import { parseSpec } from '../../spec/index.js';
-import { assertArchitectureBlueprintCoverage } from '../../../test/blueprint-architecture-coverage.js';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
-import { PUBLISHED } from './blueprint-fixture.js';
-import { LEGACY_FRAMEWORK } from './blueprint-fixture.js';
-import { DIRS } from './blueprint-fixture.js';
-import { freshBoard } from './blueprint-fixture.js';
-import { json } from './blueprint-fixture.js';
-import { GALLERY } from './blueprint-fixture.js';
-import { UNSAFE_CHECK } from './blueprint-fixture.js';
-import { SOURCED } from './blueprint-fixture.js';
-import { emptyRepo } from './blueprint-fixture.js';
-import { bundled } from './blueprint-fixture.js';
-import { ok } from './blueprint-fixture.js';
-import { refusal } from './blueprint-fixture.js';
+import { runFixtureChild } from './fixture-child.js';
+import { bundledBlueprints } from '../packages/blueprints/index.js';
+import { readBlueprint } from '../packages/blueprints/index.js';
+import { validateBlueprint } from '../packages/blueprints/index.js';
+import { parseSpec } from '../packages/spec/index.js';
+import { assertArchitectureBlueprintCoverage } from './blueprint-architecture-coverage.js';
+import { fixtureJoin } from './testkit-fixture.js';
+import { PUBLISHED } from './blueprint-cli-fixture.js';
+import { LEGACY_FRAMEWORK } from './blueprint-cli-fixture.js';
+import { DIRS } from './blueprint-cli-fixture.js';
+import { freshBoard } from './blueprint-cli-fixture.js';
+import { json } from './blueprint-cli-fixture.js';
+import { SOURCED } from './blueprint-cli-fixture.js';
+import { emptyRepo } from './blueprint-cli-fixture.js';
+import { bundled } from './blueprint-cli-fixture.js';
+import { ok } from './blueprint-cli-fixture.js';
+import { refusal } from './blueprint-cli-fixture.js';
 
 test('blueprint add files a blueprint as drafts [S1,I1]', () => {
   // A fresh board: one new section, rules as drafts with reasons, questions as pending rows with defaults.
@@ -151,35 +149,7 @@ test('blueprint add files a blueprint as drafts or nothing at all [S1,I1]', () =
   assert.equal(added.items.length, 3);
 });
 
-test('every gallery blueprint is bundled and valid [S1]', () => {
-  assert.deepEqual(bundledBlueprints(), Object.keys(GALLERY).sort(), 'the bundled blueprints are exactly the gallery cards');
-  for (const [name, card] of Object.entries(GALLERY)) {
-    const blueprint = readBlueprint(name, process.cwd());
-    assert.equal(blueprint.name, name);
-    assert.equal(blueprint.title, card.title, `${name} carries its card's title`);
-    assert.equal(blueprint.by, 'Pullboard', `${name} is made by Pullboard, not a client or private project`);
-    const texts = blueprint.rules.map((rule) => rule.text);
-    for (const rule of card.rules) assert.ok(texts.includes(rule), `${name} holds its card's rule word for word: ${rule}`);
-    for (const rule of blueprint.rules) assert.ok(rule.why.trim().length > 10, `${name} ${rule.key} gives a reason`);
-    assert.ok(blueprint.questions.length >= card.asks, `${name} asks at least what its card says it asks`);
-  }
-});
-
-test('every bundled starter item carries a criterion and a check [S1,I1]', () => {
-  // Every bundled blueprint files at least one starter, and each carries a criterion and a check.
-  for (const name of bundledBlueprints()) {
-    const blueprint = readBlueprint(name, process.cwd());
-    assert.ok(blueprint.items.length >= 1, `${name} files at least one starter item`);
-    for (const item of blueprint.items) {
-      assert.ok(item.criterion.trim(), `${name} starter ${item.key} carries a criterion`);
-      assert.ok(String(item.check ?? '').trim(), `${name} starter ${item.key} carries a check`);
-      assert.doesNotMatch(item.check, UNSAFE_CHECK, `${name} starter ${item.key} only runs the project's own tests`);
-    }
-  }
-  const flaky = readBlueprint('test-reliability', process.cwd()).items;
-  assert.ok(flaky.some((item) => /flaky/u.test(item.title) && /repeated runs/u.test(item.criterion) && /deterministic/u.test(item.title)),
-    'test-reliability files one: find a flaky test by repeated runs, then make it deterministic');
-
+test('bundled starters file with their criterion and check, stored and never run [S1,I1]', () => {
   // blueprint add files every bundled starter with its criterion and check, stored and never run.
   // A board takes one product and one architecture blueprint (#720), so each goes to the first
   // board that has room for its kind.
