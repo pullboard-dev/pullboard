@@ -287,7 +287,7 @@
   "packages/resources/tests/runner-admission-idle-runner.test.js": {
     "hand-policy": 1
   },
-  "packages/roadmap/tests/main-red-focus.test.js": {
+  "packages/store/tests/main-red-focus.test.js": {
     "raw-board": 6
   },
   "packages/runners/tests/cleanup-diagnostics.test.js": {
@@ -3063,8 +3063,8 @@
     "model": 7,
     "raw-board": 21
   },
-  "packages/roadmap/tests/roadmap-queue-order.test.js": {
-    "raw-board": 4
+  "packages/store/tests/roadmap-queue-order.test.js": {
+    "raw-board": 3
   },
   "test/roadmap.test.js": {
     "tempdir": 4,
