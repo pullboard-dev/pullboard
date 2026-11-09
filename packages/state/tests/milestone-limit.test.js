@@ -20,7 +20,7 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   editMilestoneItems,
@@ -76,7 +76,7 @@ function fixture(t) {
   git('commit', '-q', '-m', 'chore: initialize fixture');
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   const freeze = () => ({ text: 'Tracked work', digest: 'digest:tracked' });
   /** File an item and take it to the named state: open, accepted or landed. */

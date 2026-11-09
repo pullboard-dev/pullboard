@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import {
   openBoard,
   openBoardForRead,
@@ -225,7 +225,7 @@ test('owning open upgrades an old indexless board once without changing native d
   let document;
   let version;
   try {
-    store.ensureCoordinator(board, dir);
+    store.board_ensureCoordinator(board, dir);
     const legacy = { ...prepareEngineMove(board, 'shout', [{ from: 'coordinator', to: 'all', text: 'Legacy receipt', lanes: ['web'] }]), engine: LEGACY };
     assert.equal(applyEngineMove(board, legacy, { sequence: 1, at: AT }).error, undefined);
     document = exportBoard(board);
