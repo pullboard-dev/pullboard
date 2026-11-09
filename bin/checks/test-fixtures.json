@@ -2326,9 +2326,6 @@
   "test/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
-  "test/next-light-reserve.test.js": {
-    "raw-board": 2
-  },
   "test/next-no-review-for-builder.test.js": {
     "raw-board": 1
   },
@@ -3871,6 +3868,9 @@
   },
   "packages/moves/tests/liveness-reviews.test.js": {
     "raw-board": 1
+  },
+  "packages/moves/tests/next-light-reserve.test.js": {
+    "raw-board": 2
   },
   "test/webkit-fixture.js": {
     "tempdir": 1
