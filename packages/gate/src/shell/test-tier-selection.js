@@ -142,7 +142,17 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
+  // Cells the test-cell check records as sealed (bin/checks/test-cells.json): their tests conform, so the plan names them [C7].
+  const sealedCells = sealedTestCells(root, commit);
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/** The cells the committed test-cell listing at `commit` records as sealed; none when it is absent or unreadable. */
+function sealedTestCells(root, commit) {
+  try {
+    const listing = JSON.parse(sourceGit(root, ['show', `${commit}:bin/checks/test-cells.json`]));
+    return Array.isArray(listing.sealed) ? listing.sealed.filter(name => typeof name === 'string').sort() : [];
+  } catch { return []; }
 }
 
 /**
@@ -241,7 +251,8 @@ export function testTierReport(plan, { names = true } = {}) {
   const units = names ? `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}` : `T1 unit tests: ${plan.units.length} ran; the failing cases follow, the rest are in the full log`;
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}`;
+  const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}`;
 }
 
 /** A green exit with no observed test account cannot prove a selected unit or journey. */
