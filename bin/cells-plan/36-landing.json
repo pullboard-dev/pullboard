@@ -24,7 +24,6 @@
   ["src/landing-shards.js","packages/landing/src/shell/landing-shards.js","seed"],
   ["src/landing-test-policy.js","packages/landing/src/shell/landing-test-policy.js","rule"],
   ["src/landing-waivers.js","packages/landing/src/core/landing-waivers.js","seed"],
-  ["src/landing-worker-identity.js","packages/landing/src/core/landing-worker-identity.js","seed"],
   ["src/landing-worker.js","packages/landing/src/shell/landing-worker.js","seed"],
   ["src/landing-worktree-prune.js","packages/landing/src/shell/landing-worktree-prune.js","seed"],
   ["src/main-failure-matches.js","packages/landing/src/shell/main-failure-matches.js","seed"],
@@ -57,8 +56,7 @@
  "reexports": [
   "src/landing-failure-report.js",
   "src/landing-shards.js",
-  "src/landing-test-policy.js",
-  "src/landing-worker-identity.js"
+  "src/landing-test-policy.js"
  ],
  "cuts": [
   {"cell":"gate","imports":2,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js","src/test-run.js->src/main-failure-matches.js"]}

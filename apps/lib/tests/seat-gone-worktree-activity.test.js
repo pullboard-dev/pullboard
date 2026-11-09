@@ -1,13 +1,17 @@
 /** Native claim maintenance distinguishes a silent editor from an abandoned item folder [B4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBoard } from '../apps/lib/index.js';
-import * as store from '../packages/store/index.js';
-import { captureLapsedClaims } from '../packages/health/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import { openBoard } from '../index.js';
+import * as store from '../../../packages/store/index.js';
+import { captureLapsedClaims } from '../../../packages/health/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Real item worktree and SQLite board, with baseline timestamps older than the activity window. */
 function fixture(t) {

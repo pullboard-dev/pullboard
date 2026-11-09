@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 const HOLDERS = 40;
@@ -14,9 +14,7 @@ const REQUESTS = 20;
  * every holder's identity with its own ps inside the write transaction, so a fresh line of 20 took about 10 s here.
  */
 async function measuredLine(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project();
+  const box = cellProject(t);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   const index = JSON.stringify(new URL('../index.js', import.meta.url).href);

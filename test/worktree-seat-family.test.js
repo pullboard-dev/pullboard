@@ -47,7 +47,7 @@ test('clause 2: a submit without usage lists reviewers by the builder seat famil
     store.register(board, { id: 'core-3', lane: 'core', path: join(box.dir, 'other-family'), family: 'vendor-b', model: 'fixture model' });
     const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Declared review family', criterion: 'Prove family eligibility' });
     store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
-      freeze: () => ({ text: JSON.stringify({ policy: { verify: { policy: 'any', family: 'require' } } }), digest: 'f'.repeat(64) }) });
+      freeze: () => ({ text: JSON.stringify({ policy: { verify: { policy: 'any' } } }), digest: 'f'.repeat(64) }) });
     submitFixture(board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
     assert.equal(store.getItem(board, id).item_builder_family, null, 'the synthetic submit has no usage-family snapshot');
     store.register(board, { id: 'core-1', lane: 'core', path: join(box.dir, 'builder'), family: 'vendor-a', model: 'fixture model' });

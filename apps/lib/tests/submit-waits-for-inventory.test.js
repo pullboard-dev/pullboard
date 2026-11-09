@@ -7,13 +7,14 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 import {
   acceptedCellsIdentity,
   waitForAcceptedCells,
-} from '../packages/gate/index.js';
-import { acceptedInventoryKey } from '../packages/codemap/index.js';
-import { submitUntilSettled } from '../apps/lib/index.js';
+} from '../../../packages/gate/index.js';
+import { acceptedInventoryKey } from '../../../packages/codemap/index.js';
+import { submitUntilSettled } from '../index.js';
 
 const COMMIT = 'a'.repeat(40);
 
