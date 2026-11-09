@@ -1,19 +1,19 @@
 /** Event statistics attribute only recorded actor-family evidence, never current declarations [R1,R2]. */
-import { events as readStatsEvents } from '../../store/index.js';
-import { counterProofStats as readStatsCounter } from '../../verify/index.js';
+import { events as readStatsEvents } from '../../../packages/store/index.js';
+import { counterProofStats as readStatsCounter } from '../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem } from '../../store/index.js';
-import { claim } from '../../store/index.js';
-import { closeBoard } from '../../store/index.js';
-import { events } from '../../store/index.js';
-import { register } from '../../store/index.js';
-import { release } from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { exportBoard } from '../../store/index.js';
-import { importBoard } from '../../store/index.js';
-import { eventCounts } from '../src/shell/stats.js';
-import { proofStats } from '../src/shell/stats.js';
+import { addItem } from '../../../packages/store/index.js';
+import { claim } from '../../../packages/store/index.js';
+import { closeBoard } from '../../../packages/store/index.js';
+import { events } from '../../../packages/store/index.js';
+import { register } from '../../../packages/store/index.js';
+import { release } from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { eventCounts } from '../../../packages/stats/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };

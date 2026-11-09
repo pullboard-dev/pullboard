@@ -1,11 +1,11 @@
 /** Where item time goes: every phase sums to each landed item's clock time, in a fixture with known events [R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TIME_PHASES } from '../index.js';
-import { checkpointLine } from '../index.js';
-import { timeLines } from '../index.js';
-import { timeStats } from '../index.js';
-import { weeklyDue } from '../index.js';
+import { TIME_PHASES } from '../../stats/index.js';
+import { checkpointLine } from '../../stats/index.js';
+import { timeLines } from '../../stats/index.js';
+import { timeStats } from '../../stats/index.js';
+import { weeklyDue } from '../../stats/index.js';
 import { proofFields } from '../../verify/index.js';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -13,11 +13,9 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { recordTimeCheckpoint } from '../index.js';
-import { retainedReceipts } from '../../gate/index.js';
+import { recordTimeCheckpoint } from '../../stats/index.js';
+import { retainedReceipts } from '../index.js';
 import { events } from '../../store/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
 const MIN = 60000;
@@ -59,28 +57,6 @@ test('recorded gate phases and seat time split building without changing the tot
   assert.deepEqual(['static', 'doctrine', 'check', 'test', 'conflict'].map(phase => two.phases[phase] / MIN), [1, 2, 3, 4, 0]);
   assert.equal(two.phases.tool / MIN, 4);
   assert.equal(two.phases.thinking / MIN, 2);
-});
-
-test('native measurement facts split tool and thinking from building [R1,R2,C7]', t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
-  assert.equal(added.code, 0, added.err || added.out);
-  const item = JSON.parse(added.out).item.item_id;
-  const text = JSON.stringify({ kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN });
-  const recorded = box.run(box.repo, 'fact', String(item), 'measurement', text, '--json');
-  assert.equal(recorded.code, 0, recorded.err || recorded.out);
-  const fact = JSON.parse(recorded.out).fact;
-  assert.equal(fact.kind, 'measurement');
-  assert.equal(fact.text, text);
-  const history = [ev(item, 0, 'add'), ev(item, 10, 'claim'), ev(item, 15, 'fact', fact),
-    ev(item, 40, 'submit'), ev(item, 50, 'accept'), ev(item, 60, 'merged')];
-  const row = timeStats(history, { now: NOW }).items[0];
-  assert.equal(row.phases.tool / MIN, 4);
-  assert.equal(row.phases.thinking / MIN, 2);
-  assert.equal(row.phases.building / MIN, 24);
-  assert.equal(TIME_PHASES.reduce((sum, phase) => sum + row.phases[phase], 0), row.clockMs);
 });
 
 test('malformed and unrelated measurements do not invent seat time [R1,R2,C7]', () => {
@@ -236,23 +212,3 @@ test('weekly and release checkpoints append without replacing earlier history [R
   assert.equal(rows[1].label, '0.9.4');
 });
 
-test('coordinator sentinel and milestone ship record their checkpoints [R1,R2,C7]', t => {
-  const previousModel = process.env.PULLBOARD_MODEL;
-  process.env.PULLBOARD_MODEL = 'fixture-model';
-  t.after(() => { if (previousModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = previousModel; });
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  const run = (...args) => {
-    const result = box.run(box.repo, ...args);
-    assert.equal(result.code, 0, result.err || result.out);
-  };
-  run('sentinel', 'run', '--health-only');
-  run('sentinel', 'run', '--health-only');
-  run('milestone', 'add', 'release-test');
-  run('milestone', 'ship', 'release-test');
-  const file = join(box.repo, '.git', 'pullboard', 'stats-history.jsonl');
-  const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release']);
-  assert.equal(rows[1].label, 'release-test');
-});

@@ -1,21 +1,21 @@
 /** Hand-computed synthetic histories exercise real Git/SQLite statistics and each recommendation [R1,R2]. */
-import { events as readStatsEvents } from '../../store/index.js';
-import { counterProofStats as readStatsCounter } from '../../verify/index.js';
+import { events as readStatsEvents } from '../../../packages/store/index.js';
+import { counterProofStats as readStatsCounter } from '../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { exportBoard } from '../../store/index.js';
-import { importBoard } from '../../store/index.js';
-import { proofStats } from '../src/shell/stats.js';
-import { flowLines } from '../src/core/stats-flow.js';
-import { flowStats } from '../src/core/stats-flow.js';
-import { prepareFlowHistory } from '../src/core/stats-flow.js';
-import { projectFlowStats } from '../src/core/stats-flow.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
+import { flowLines } from '../../../packages/stats/index.js';
+import { flowStats } from '../../../packages/stats/index.js';
+import { prepareFlowHistory } from '../../../packages/stats/index.js';
+import { projectFlowStats } from '../../../packages/stats/index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */

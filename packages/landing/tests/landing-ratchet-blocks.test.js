@@ -1,15 +1,17 @@
 /** A refused flake ratchet ends the landing as a recorded block, so a restart never gates the batch again [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boardFixture } from './next-order-fixture.js';
-import { prepareFlakeLanding } from '../packages/landing/src/shell/landing-step-publish.js';
-import * as store from '../packages/store/index.js';
-import { flakeRatchetBeforeGate, flakeRatchetOrBlock } from '../packages/landing/src/shell/landing-step-trunk.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
+import { prepareFlakeLanding } from '../src/shell/landing-step-publish.js';
+import * as store from '../../store/index.js';
+import { flakeRatchetBeforeGate } from '../src/shell/landing-step-trunk.js';
+import { flakeRatchetOrBlock } from '../src/shell/landing-step-trunk.js';
 
 /** A gating batch on a real board whose ratchet port answers as the test asks. */
 function gating(t, ratchet) {
-  const { board } = boardFixture();
-  t.after(() => store.closeBoard(board));
+  const board = cellBoard(t, ':memory:');
+  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
   const said = [];
   const state = { board, say: text => said.push(text), landingPorts: { landingFlakeRatchet: () => ratchet },
     write: async (operation, args) => store[operation](board, ...args), batch: null };
