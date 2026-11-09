@@ -1880,6 +1880,7 @@
     "apps/cli->apps/runner",
     "apps/cli->apps/lib",
     "apps/cli->pin",
+    "apps/cli->drive",
     "api->git",
     "api->store",
     "apps/lib->store",
