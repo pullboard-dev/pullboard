@@ -38,6 +38,8 @@ async function plannedProject(t, { companionLanes = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
+  // The runner's own preload is not foreign to a submit child; the env scrub drops its proof and the inventory identity refuses without it.
+  if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   const marker = join(box.dir, 'check-ran');
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, (process.argv[2] ?? 'proof') + '\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
