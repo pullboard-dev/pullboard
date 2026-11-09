@@ -1049,6 +1049,10 @@
     {
       "path": "src/move-history/250.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/test-cells.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
