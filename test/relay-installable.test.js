@@ -75,7 +75,9 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
     const chrome = await startChrome();
     try {
       await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-        source: `window.setInterval = () => 0;
+        // A fresh page opens on the Dashboard, and the item list is drawn only on the Items tab, so ask for that tab as the phone tests do.
+        source: `localStorage.setItem('pb.tab', 'items');
+          window.setInterval = () => 0;
           window.pairingPersistenceCalls = 0;
           Object.defineProperty(navigator.storage, 'persist', { value: async () => {
             window.pairingPersistenceCalls += 1;
@@ -92,16 +94,7 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
       await chrome.waitFor('navigator.serviceWorker.controller !== null', undefined, 'the served worker controls the hosted page');
       assert.equal(await chrome.evaluate('navigator.serviceWorker.controller.scriptURL'), box.origin + '/service-worker.js');
       await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
-      try { await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')'); }
-      catch (error) {
-        const seen = await chrome.evaluate("JSON.stringify({ href: location.href.replace(/key=[^&]*/u, 'key=_'), notice: document.querySelector('#relay-notice')?.textContent, chain: document.querySelector('#chain')?.innerHTML.slice(0, 600), tab: localStorage.getItem('pb.tab'), panes: Array.from(document.querySelectorAll('[data-pane]'), pane => pane.dataset.pane + ':' + pane.hidden), body: document.body.innerText.slice(0, 600) })");
-        const relay = await fetch(box.origin + '/api/v2/boards/' + link.board + '/state', { headers: { authorization: 'Bearer ' + link.agentTokens.coordinator.token } });
-        const relayText = (await relay.text()).slice(0, 300);
-        await chrome.navigate(box.origin + '/');
-        let afterReload = 'absent';
-        try { await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')', Math.round(relayWorkBudgetMs() / 4)); afterReload = 'present'; } catch { /* diagnosis only */ }
-        throw new Error(error.message + ' DIAG ' + seen + ' RELAY ' + relay.status + ' ' + relayText + ' AFTER_RELOAD ' + afterReload, { cause: error });
-      }
+      await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
       assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 1,
         'successful pairing asks the browser to retain its storage');
       const warning = await chrome.evaluate("document.querySelector('#pairing-storage-notice')?.textContent");
