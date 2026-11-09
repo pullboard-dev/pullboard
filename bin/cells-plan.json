@@ -1989,6 +1989,7 @@
     "moves->spec",
     "moves->store",
     "moves->verify",
+    "moves->health",
     "rigor->state",
     "sandbox->state",
     "commits->kernel"
