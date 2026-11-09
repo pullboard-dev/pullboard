@@ -709,7 +709,7 @@
     "env-spread": 1,
     "model": 1
   },
-  "test/brief-quoted-check-path.test.js": {
+  "packages/store/tests/brief-quoted-check-path.test.js": {
     "raw-board": 1
   },
   "test/browser-admission-runners.test.js": {
@@ -1477,9 +1477,6 @@
   "apps/lib/tests/durable-jobs-2.test.js": {
     "raw-board": 1
   },
-  "test/durable-jobs-3.test.js": {
-    "raw-board": 2
-  },
   "apps/lib/tests/durable-jobs-4.test.js": {
     "raw-board": 1
   },
@@ -1880,10 +1877,6 @@
   },
   "test/item-size-budget.test.js": {
     "hand-policy": 2
-  },
-  "test/item-slice-create.test.js": {
-    "model": 1,
-    "raw-board": 1
   },
   "packages/store/tests/item-stage.test.js": {
     "raw-board": 2
@@ -3575,8 +3568,8 @@
     "tempdir": 2,
     "model": 2
   },
-  "test/submit-derived-family.test.js": {
-    "model": 11,
+  "packages/store/tests/submit-derived-family.test.js": {
+    "model": 7,
     "raw-board": 8
   },
   "test/submit-foreground-main-move.test.js": {
