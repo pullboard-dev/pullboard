@@ -10185,7 +10185,7 @@
       ]
     },
     {
-      "file": "test/capacity-cache.test.js",
+      "file": "apps/lib/tests/capacity-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12546,7 +12546,7 @@
       ]
     },
     {
-      "file": "test/claim-release-reason.test.js",
+      "file": "apps/lib/tests/claim-release-reason.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12603,7 +12603,7 @@
       ]
     },
     {
-      "file": "test/claim-reopen.test.js",
+      "file": "apps/lib/tests/claim-reopen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -23322,7 +23322,7 @@
       ]
     },
     {
-      "file": "test/gui-runner-stage.test.js",
+      "file": "apps/lib/tests/gui-runner-stage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35064,7 +35064,7 @@
       ]
     },
     {
-      "file": "test/queue-fairness.test.js",
+      "file": "apps/lib/tests/queue-fairness.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42025,7 +42025,7 @@
       ]
     },
     {
-      "file": "test/route-capacity.test.js",
+      "file": "apps/lib/tests/route-capacity.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -54891,7 +54891,7 @@
       ]
     },
     {
-      "file": "test/next-lapsed-gated-claim.test.js",
+      "file": "apps/lib/tests/next-lapsed-gated-claim.test.js",
       "tier": "T3",
       "packages": [
         ".",

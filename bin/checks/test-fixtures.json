@@ -710,11 +710,11 @@
     "tempdir": 3,
     "hand-policy": 1
   },
-  "test/builder-family-required.test.js": {
+  "apps/lib/tests/builder-family-required.test.js": {
     "hand-policy": 1,
     "raw-board": 5
   },
-  "test/capacity-cache.test.js": {
+  "apps/lib/tests/capacity-cache.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -857,10 +857,10 @@
   "test/claim-progress-static.test.js": {
     "hand-policy": 1
   },
-  "test/claim-release-reason.test.js": {
+  "apps/lib/tests/claim-release-reason.test.js": {
     "raw-board": 1
   },
-  "test/claim-reopen.test.js": {
+  "apps/lib/tests/claim-reopen.test.js": {
     "tempdir": 1,
     "raw-board": 21
   },
@@ -1691,7 +1691,7 @@
     "tempdir": 3,
     "repo-read": 1
   },
-  "test/gui-runner-stage.test.js": {
+  "apps/lib/tests/gui-runner-stage.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 1
@@ -2323,7 +2323,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "test/next-lapsed-gated-claim.test.js": {
+  "apps/lib/tests/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
   "test/next-no-review-for-builder.test.js": {
@@ -2555,7 +2555,7 @@
     "model": 1,
     "hand-policy": 2
   },
-  "test/queue-fairness.test.js": {
+  "apps/lib/tests/queue-fairness.test.js": {
     "raw-board": 3
   },
   "test/queue-order.test.js": {
@@ -3045,7 +3045,7 @@
   "test/route-calibration.test.js": {
     "model": 1
   },
-  "test/route-capacity.test.js": {
+  "apps/lib/tests/route-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 5
