@@ -15,7 +15,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { gateJudgmentPath } from '../packages/verify/index.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
-import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
+import { REVIEW_TIER_ENGINE } from '../packages/state/core.js';
 import {
   prepareEngineMove,
   applyEngineMove,

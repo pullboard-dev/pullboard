@@ -30,8 +30,8 @@ import {
   importBoard,
 } from '../../store/index.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
-import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../src/quoted-landing-failure-engine.js';
-import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
+import { QUOTED_LANDING_FAILURE_ENGINE } from '../src/core/engines/quoted-landing-failure-engine.js';
+import { AGENT_GRANT_ENGINE } from '../src/core/engines/agent-grant-engine.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runCliInProcess } from '../../../test/cli-in-process-fixture.js';
 import { safeFixtureDiagnostic } from '../../../test/fixture-child.js';

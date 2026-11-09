@@ -11,7 +11,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readGateReceipt, receiptFields, receiptStore } from '../packages/gate/index.js';
 import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX, timingAccountingStages } from '../packages/gate/index.js';
-import { RUN_TIMING_ENGINE } from '../src/run-timing-engine.js';
+import { RUN_TIMING_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';

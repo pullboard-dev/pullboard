@@ -22,8 +22,8 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
-import { ITEM_PATCH_SUBMIT_ENGINE } from '../src/item-patch-submit-engine.js';
+import { ITEM_PATCH_ENGINE } from '../packages/state/core.js';
+import { ITEM_PATCH_SUBMIT_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureJoin } from './testkit-fixture.js';
 

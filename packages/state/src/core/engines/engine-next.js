@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import {
   nextEngineNumber,
   readEngineLeaves,
-} from './engine-numbers.js';
+} from '../../../../../src/engine-numbers.js';
 
 /**
  * One above the highest landed engine among this directory's leaves; the landing merge writes the real number.

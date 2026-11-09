@@ -8,7 +8,7 @@ import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { lineCapacitySnapshot } from '../packages/seats/index.js';
-import { LINE_CAPACITY_ENGINE } from '../src/line-capacity-engine.js';
+import { LINE_CAPACITY_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence } from '../packages/state/index.js';

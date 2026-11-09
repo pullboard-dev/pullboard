@@ -1,4 +1,4 @@
-import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../packages/state/core.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { healthyExecutor } from '../../../../apps/lib/index.js';
 import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';

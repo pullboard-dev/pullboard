@@ -14,7 +14,7 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { PATCH_FOLLOW_ENGINE } from '../src/patch-follow-engine.js';
+import { PATCH_FOLLOW_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Require the real CLI result, preserving setup refusal diagnostics. */

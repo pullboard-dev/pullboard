@@ -16,8 +16,8 @@ import {
   exportBoard,
   importBoard,
 } from '../packages/store/index.js';
-import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
-import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
+import { LANE_LEAD_ENGINE } from '../packages/state/core.js';
+import { DECISION_ORIGIN_ENGINE } from '../packages/state/core.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';

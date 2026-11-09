@@ -1,8 +1,21 @@
-# Pullboard local
+# Spec
 
-The local-first core of Pullboard: a work board, lanes, a spec and git hooks that live in the repo. No account, no network. This file is the spec, in the format `pullboard spec check` lints.
+Pullboard's local core: board, lanes, spec and git hooks, all in the repo.
 
-Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · wont = won't build, decided and kept · retired = no longer applies, kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
+New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
+
+- **This file:** the spec, linted by `pullboard spec check`.
+- **Ids:** permanent; never delete or renumber.
+- **Tiers:** must · aim.
+
+| Status | Means |
+|---|---|
+| approved | decided |
+| draft | proposed |
+| pending | open question |
+| fact | true today |
+| wont | declined, kept |
+| retired | no longer applies, kept |
 
 ## P · Principles
 - P1 [approved, must] Nothing ships until a second agent verifies it. | gate: test/board.test.js

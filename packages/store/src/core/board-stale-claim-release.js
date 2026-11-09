@@ -1,9 +1,9 @@
 /** Captured coordinator stale-claim authority, independent of replica-local Git and heartbeat state [B4,H16]. */
 import { Refused } from "../../../kernel/core.js";
-import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
-import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
+import { LEASE_LAPSE_ENGINE } from "../../../state/core.js";
+import { STALE_STATE_ENGINE } from "../../../state/core.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { SEAT_GONE_RELEASE_ENGINE } from "../../../../src/seat-gone-release-engine.js";
+import { SEAT_GONE_RELEASE_ENGINE } from "../../../state/core.js";
 import {
   staleInstant,
   staleReleaseNote,

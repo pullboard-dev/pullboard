@@ -42,7 +42,7 @@ import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { personRequestMove, preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../packages/link/index.js';
-import { PEOPLE_ENGINE } from '../src/people-engine.js';
+import { PEOPLE_ENGINE } from '../packages/state/core.js';
 import { sentinelDraftNeeds } from '../packages/sentinels/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';

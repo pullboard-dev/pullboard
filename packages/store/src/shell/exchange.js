@@ -1,7 +1,7 @@
 import { beginImmediateQueued } from './board-busy.js';
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board-store-guards.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
 import { FAMILY_RECORD_PREFIX } from "../../../items/index.js";

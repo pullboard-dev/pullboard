@@ -77,26 +77,26 @@ test('the scratch checkout is gone after the check, pass or fail [C7]', () => {
 });
 
 
-test('landing checks refuse a placed but unnumbered engine leaf [C7]', () => {
+test('landing checks refuse an unnumbered engine leaf in the engines folder [C7]', () => {
   const root = fixture();
   const bad = commit(root, {
-    'src/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
-    'src/engine-next.js': 'export function unassignedEngine() { return 999; }\n',
-    'bin/cells-plan.json': '{"placed":["src/new-rule-engine.js","src/engine-next.js"]}\n',
+    'packages/state/src/core/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
+    'packages/state/src/core/engines/engine-next.js': 'export function unassignedEngine() { return 999; }\n',
+    'bin/cells-plan.json': '{"placed":[]}\n',
   }, 'placed but unnumbered engine leaf');
-  assert.throws(() => requireLandingPlanCheck(root, bad), error => /src\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
+  assert.throws(() => requireLandingPlanCheck(root, bad), error => /engines\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
 });
 
 test('landing checks read the recorded numbered leaf despite dirty working bytes [C7]', () => {
   const root = fixture();
   const good = commit(root, {
-    'src/new-rule-engine.js': 'export const NEW_RULE_ENGINE = 1;\n',
-    'bin/cells-plan.json': '{"placed":["src/new-rule-engine.js"]}\n',
+    'packages/state/src/core/engines/new-rule-engine.js': 'export const NEW_RULE_ENGINE = 1;\n',
+    'bin/cells-plan.json': '{"placed":[]}\n',
   }, 'numbered engine leaf');
   const dirty = "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n";
-  writeFileSync(join(root, 'src/new-rule-engine.js'), dirty);
+  writeFileSync(join(root, 'packages/state/src/core/engines/new-rule-engine.js'), dirty);
   assert.doesNotThrow(() => requireLandingPlanCheck(root, good));
-  assert.equal(readFileSync(join(root, 'src/new-rule-engine.js'), 'utf8'), dirty, 'the guard never numbers or rewrites the active checkout');
+  assert.equal(readFileSync(join(root, 'packages/state/src/core/engines/new-rule-engine.js'), 'utf8'), dirty, 'the guard never numbers or rewrites the active checkout');
   assert.equal(git(root, 'rev-parse', 'HEAD'), good);
   assert.equal(git(root, 'worktree', 'list').split('\n').length, 1);
 });
@@ -106,9 +106,9 @@ test('an unnumbered engine is refused even without a placement plan [C7]', () =>
   roots.push(root);
   git(root, 'init', '-q', '-b', 'main');
   const bad = commit(root, {
-    'src/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
+    'packages/state/src/core/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
   }, 'unnumbered with no plan');
   assert.throws(() => requireLandingPlanCheck(root, bad), error => error.code === 'LAND_ENGINE_UNNUMBERED'
-    && /src\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
+    && /engines\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
   assert.equal(git(root, 'worktree', 'list').split('\n').length, 1, 'a refused engine leaves no scratch checkout');
 });

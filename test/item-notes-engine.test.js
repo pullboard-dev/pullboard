@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { ITEM_NOTES_ENGINE } from '../src/item-notes-engine.js';
+import { ITEM_NOTES_ENGINE } from '../packages/state/core.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { fixtureBoard } from './board-fixture.js';
 

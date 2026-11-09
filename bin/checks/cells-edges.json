@@ -661,7 +661,7 @@
       "deep": 0
     },
     "apps/lib/src/core/native-board.js": {
-      "cells": 17,
+      "cells": 18,
       "deep": 0
     },
     "apps/lib/src/shell/cli-hook-work.js": {
@@ -1713,7 +1713,7 @@
       "deep": 0
     },
     "packages/items/src/core/caught.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 1
     },
     "packages/items/src/core/check-timing.js": {
@@ -1781,7 +1781,7 @@
       "deep": 0
     },
     "packages/items/src/core/item-routing.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 1
     },
     "packages/items/src/core/outside-sensitive.js": {
@@ -2857,7 +2857,7 @@
       "deep": 0
     },
     "packages/seats/src/core/lane-lead.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/seats/src/core/lane-of.js": {
@@ -2881,7 +2881,7 @@
       "deep": 0
     },
     "packages/seats/src/core/route-escalation.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/seats/src/core/routing-presence.js": {
@@ -3193,7 +3193,7 @@
       "deep": 0
     },
     "packages/stats/src/core/stats-flow-window.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 1
     },
     "packages/stats/src/core/stats-flow.js": {
@@ -3241,11 +3241,11 @@
       "deep": 0
     },
     "packages/stats/src/shell/cost-usage-batch.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/stats/src/shell/cost.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/stats/src/shell/stats.js": {
@@ -3265,11 +3265,11 @@
       "deep": 0
     },
     "packages/store/src/core/board-activity-news.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/store/src/core/board-conditional-holds.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/board-escalate.js": {
@@ -3277,7 +3277,7 @@
       "deep": 0
     },
     "packages/store/src/core/board-health-receipts.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/board-inbox-store.js": {
@@ -3289,7 +3289,7 @@
       "deep": 0
     },
     "packages/store/src/core/board-item-read.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/board-landing-lease.js": {
@@ -3325,7 +3325,7 @@
       "deep": 0
     },
     "packages/store/src/core/board-rigor.js": {
-      "cells": 4,
+      "cells": 5,
       "deep": 0
     },
     "packages/store/src/core/board-selector-gap.js": {
@@ -3337,7 +3337,7 @@
       "deep": 1
     },
     "packages/store/src/core/board-stale-claim-release.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/board-stale-state-policy.js": {
@@ -3349,7 +3349,7 @@
       "deep": 0
     },
     "packages/store/src/core/board-stats.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/exit-rules-continuation.js": {
@@ -3365,7 +3365,7 @@
       "deep": 0
     },
     "packages/store/src/core/known-main-autofile.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/store/src/core/known-main-reworks.js": {
@@ -3513,7 +3513,7 @@
       "deep": 0
     },
     "packages/store/src/shell/board-merged.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/store/src/shell/board-milestones.js": {
@@ -3821,7 +3821,7 @@
       "deep": 1
     },
     "packages/verify/src/core/required-review-family.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/verify/src/core/review-eligibility.js": {
@@ -3829,7 +3829,7 @@
       "deep": 0
     },
     "packages/verify/src/core/review-policy.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/verify/src/core/review-reachability.js": {
@@ -3869,7 +3869,7 @@
       "deep": 0
     },
     "packages/verify/src/shell/check-widen.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/verify/src/shell/comparison-worker.js": {
@@ -3889,15 +3889,15 @@
       "deep": 2
     },
     "packages/verify/src/shell/proof-counters.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "packages/verify/src/shell/reject-clause.js": {
       "cells": 2,
       "deep": 0
     },
+    "packages/verify/src/shell/reject-clause.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "packages/verify/src/shell/review-composition.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/review-independence.js": {
@@ -3909,11 +3909,11 @@
       "deep": 0
     },
     "packages/verify/src/shell/review-routing.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/verify/src/shell/review-tier.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/rule-proof-counts.js": {
@@ -3941,7 +3941,7 @@
       "deep": 0
     },
     "packages/verify/src/shell/verdict-withdrawal.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/verify-compare.js": {
@@ -4823,6 +4823,38 @@
     "src/view/test-roles.js": {
       "cells": 1,
       "deep": 0
+    },
+    "packages/items/core.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/items/src/shell/family-declaration.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/seats/src/core/review-routing-enabled.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/index.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/core/board-rigor-source.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/store/src/core/red-return-lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/shell/review-default.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "src/engine-metadata.js": {
+      "cells": 1,
+      "deep": 0
     }
   },
   "cells": {
@@ -4913,6 +4945,7 @@
         "kernel",
         "landing",
         "link",
+        "moves",
         "outbox",
         "person",
         "resources",

@@ -27,7 +27,7 @@ import { draftConflictSplits } from '../packages/rigor/index.js';
 import { proposeDoctrine } from '../packages/doctrine/index.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { conflictNoteFiles, conflictReport } from '../packages/rigor/index.js';
-import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
+import { RIGOR_AUTO_ENGINE } from '../packages/state/core.js';
 import {
   breachLine,
   changeRange,

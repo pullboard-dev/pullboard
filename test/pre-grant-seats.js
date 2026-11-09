@@ -1,6 +1,6 @@
 /** Seats registered as history from before agent grants (#348), for replays of older engines [E21,H16]. */
 import * as store from '../packages/store/index.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import assert from 'node:assert/strict';
 import { applyEngineMove } from '../packages/state/index.js';
 import { appliedSequence } from '../packages/state/index.js';

@@ -173,7 +173,8 @@ test('new format declarations and move files are discovered without a shared reg
   copyPackageSubset(resolve(import.meta.dirname, '..'), root,
     [...packageFiles(resolve(import.meta.dirname, '..')).filter(file => file.startsWith('packages/state/src/shell/formats/')),
       'packages/config/src/core/json.js', 'packages/spec/src/shell/spec.js', 'packages/store/src/shell/board-schema-source.js'].map(path => ({ path, as: path })));
-  writeFileSync(join(root, 'src', 'fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');
+  mkdirSync(join(root, 'packages', 'state', 'src', 'core', 'engines'), { recursive: true });
+  writeFileSync(join(root, 'packages', 'state', 'src', 'core', 'engines', 'fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');
   const original = discoverFormats(root);
   assert.equal(original.length, 5);
   writeFileSync(join(root, 'packages', 'state', 'src', 'shell', 'formats', 'fixture.json'), JSON.stringify({ name: 'fixture', order: 60,

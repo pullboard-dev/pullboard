@@ -19,7 +19,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { nextReview } from '../packages/verify/index.js';
 import { mainRedReviewItems } from '../packages/landing/index.js';
 import { Refused } from '../packages/kernel/core.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import {
   appliedSequence,
   applyEngineMove,
