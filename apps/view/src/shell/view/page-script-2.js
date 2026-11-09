@@ -20,7 +20,7 @@ import { lifecycleDiagramHtml } from "../../core/view/lifecycle-diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../core/view/timeline-render.js";
 import { timelineBodyHtml } from "../../core/view/timeline-body.js";
 /**
- * Part 2 of the hosted page's script, verbatim from src/cockpit.js lines 332-1298 (#745): its
+ * Part 2 of the hosted page's script, verbatim from apps/cli/src/shell/cockpit.js lines 332-1298 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
  *
  * @param {Record<string, any>} scope - The values cockpitPage passes for the names this part interpolates.

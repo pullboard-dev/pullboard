@@ -4,7 +4,7 @@ import * as store from '../../../../packages/store/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { projectRowDecisions } from '../../../../packages/spec/index.js';
 import { loadSpec } from '../../../../packages/spec/index.js';
-import { loadDoctrine } from '../../../../packages/doctrine/src/shell/doctrine.js';
+import { loadDoctrine } from '../../../../packages/doctrine/index.js';
 import { rigorDraftNeeds } from '../../../../packages/rigor/index.js';
 import { personBlockWords } from '../../../../packages/items/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';

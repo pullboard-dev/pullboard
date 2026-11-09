@@ -1,6 +1,6 @@
 /**
  * The hosted page's release facts for its update note (N26): which releases have shipped, and
- * how far a local install trails the release the page was built from. Kept out of src/cockpit.js
+ * how far a local install trails the release the page was built from. Kept out of apps/cli/src/shell/cockpit.js
  * so the page module stays under its line cap; the page embeds hostedReleaseDistance as source.
  */
 import { readFileSync } from 'node:fs';
@@ -83,7 +83,7 @@ export function hostedReleaseInfo(version = HOSTED_RELEASE, versions = null, hos
 
 /**
  * Put the hosted page's one-line update note before the board and return the function that draws it.
- * Why here: src/cockpit.js stays inside its line budget, and the page embeds this source, so the
+ * Why here: apps/cli/src/shell/cockpit.js stays inside its line budget, and the page embeds this source, so the
  * function reads nothing outside itself; the page hands in what it knows through `page`.
  *
  * @param {{version: string, versions: string[]}} release - The page's release and the shipped releases.
