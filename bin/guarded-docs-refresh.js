@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GENERATED_DOC_PATHS } from '../packages/merge/core.js';
-import { DEFAULT_FILE_WALL_MS } from '../packages/verify/index.js';
+import { DEFAULT_FILE_WALL_MS } from '../packages/drive/core.js';
 
 const root = process.cwd();
 const directory = mkdtempSync(join(tmpdir(), 'pullboard-docs-refresh-'));
