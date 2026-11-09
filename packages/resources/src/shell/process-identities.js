@@ -4,6 +4,7 @@
  * past the 3 s cache spawned its own ps. A waiter's cache always expired during its wait, so on 8 Nov each turn spent
  * about 430 ms of its 470 ms on 36 ps spawns, and a line of 70 turns put a runner admission 35 s after its request.
  */
+import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { platformIdentity } from './holder-liveness.js';
 
@@ -20,16 +21,25 @@ function readIdentity(pid) {
   return identities.get(pid).identity;
 }
 
+/** The ps arguments and environment every reader uses, so one format reaches the cache whichever reader filled it. */
+const PS_ARGS = pids => ['-o', 'pid=', '-o', 'lstart=', '-o', 'stat=', '-p', pids.join(',')];
+const PS_ENV = { TZ: 'UTC', LC_ALL: 'C', LANG: 'C' };
+
 /** Read the listed PIDs with one ps call and cache each; a PID ps does not list is read by the platform reader. */
 function readIdentities(pids) {
   let output = '';
   if (process.platform !== 'win32') {
     try {
-      output = execFileSync('/bin/ps', ['-o', 'pid=', '-o', 'lstart=', '-o', 'stat=', '-p', pids.join(',')], {
-        encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' }, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5_000,
+      output = execFileSync('/bin/ps', PS_ARGS(pids), {
+        encoding: 'utf8', env: { ...process.env, ...PS_ENV }, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5_000,
       });
     } catch (error) { output = typeof error?.stdout === 'string' ? error.stdout : ''; }
   }
+  rememberOutput(pids, output);
+}
+
+/** Cache one ps answer for these PIDs; a PID the answer does not list is read by the platform reader. */
+function rememberOutput(pids, output) {
   const listed = new Map();
   for (const line of output.split('\n')) {
     const fields = line.trim().split(/\s+/u);
@@ -37,6 +47,15 @@ function readIdentities(pids) {
     if (Number.isSafeInteger(pid) && fields.length >= 2) listed.set(pid, parsedIdentity(fields));
   }
   for (const pid of pids) remember(pid, listed.has(pid) ? listed.get(pid) : platformIdentity(pid));
+}
+
+/** Run ps for these PIDs as a child process without blocking the event loop; what it printed, or nothing when it failed. */
+function psOutputAsync(pids) {
+  return new Promise(resolve => {
+    if (process.platform === 'win32') return resolve('');
+    execFile('/bin/ps', PS_ARGS(pids), { encoding: 'utf8', env: { ...process.env, ...PS_ENV }, timeout: 5_000 },
+      (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
+  });
 }
 
 /** Turn ps lstart and stat fields into an identity; the start keeps the single-spaced form leases record. */
@@ -88,6 +107,23 @@ export function refreshIdentities(pids) {
   const stale = [...new Set(pids)].filter(pid => Number.isSafeInteger(pid) && pid > 0
     && !(now - (identities.get(pid)?.checkedAt ?? -Infinity) < CACHE_MS));
   if (stale.length) readIdentities(stale);
+}
+
+/**
+ * The same refresh as refreshIdentities, run as a child process that never blocks the event loop. A caller that can
+ * wait calls this before it queues, so the synchronous refresh inside the queue finds every identity current and
+ * spawns nothing. Why: a synchronous ps froze a gate worker's timers for as long as ps took, 6-26 s at Mac load 25-33
+ * (#3837, 8 Nov).
+ *
+ * @param {Iterable<number>} pids
+ * @param {{ read?: (pids: number[]) => Promise<string> }} [options] - A replacement ps, for tests.
+ * @returns {Promise<void>}
+ */
+export async function refreshIdentitiesAsync(pids, { read = psOutputAsync } = {}) {
+  const now = Date.now();
+  const stale = [...new Set(pids)].filter(pid => Number.isSafeInteger(pid) && pid > 0
+    && !(now - (identities.get(pid)?.checkedAt ?? -Infinity) < CACHE_MS));
+  if (stale.length) rememberOutput(stale, await read(stale));
 }
 
 /** Run the liveness sweep of a write turn with identities answered from the cache only. */

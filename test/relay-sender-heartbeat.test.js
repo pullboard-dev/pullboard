@@ -41,7 +41,8 @@ function commitDefault(root, env) {
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   writeFileSync(join(env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: root, env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): keep the production sender default'], { cwd: root, env });
+  // --allow-empty: a project whose committed config already has no relay.outbox changes nothing, and that is the default being kept.
+  runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'chore(config): keep the production sender default'], { cwd: root, env });
 }
 
 /** Run the real CLI during unlinked setup without enabling the sender before both boards are ready. */

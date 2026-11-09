@@ -2,16 +2,16 @@
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
 import { staleStateSnapshot } from '../packages/health/src/shell/stale-state-snapshot.js';
-import { planStaleState } from '../src/board-stale-state-maintenance.js';
+import { planStaleState } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';

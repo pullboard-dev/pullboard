@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { repoInfo } from '../../src/git.js';
+import { repoInfo } from '../../packages/git/index.js';
 import { machineHome } from '../../packages/resources/index.js';
 import { Refused } from '../../packages/kernel/core.js';
 

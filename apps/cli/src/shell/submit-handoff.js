@@ -7,6 +7,9 @@ import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { dropHandoffTicket } from '../../../../packages/resources/index.js';
+import { queuedElsewhere } from '../../../../packages/resources/index.js';
+import { recordHandoffQueue } from '../../../../packages/resources/index.js';
+import { replaceLostTicketOnce } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
@@ -96,6 +99,43 @@ export function rebuildCapturedTools(directory) {
   try { toolsSnapshot(toolRoot, request.job, request.commonDir, { rebuild: { tools, commit: toolsCommit } }); } catch { /* The retry then retains the evidence. */ }
   return existsSync(tools);
 }
+
+/**
+ * The tools a retried, recovered or relaunched gate runs: a snapshot of its tool root's current HEAD and that commit,
+ * or null when the tool root is gone or has no commit, so the caller keeps the captured tools.
+ *
+ * Why: the gate's source is the submitted commit, but its machinery (drive, proof shards, resources, runners) must be
+ * current; on 8 Nov retries reran submit-time tools for hours after main fixed them (8 Nov stale tools).
+ *
+ * @param {{ toolRoot?: string }} request - The captured request naming the Pullboard checkout that submitted.
+ * @param {string} job - The job the tools are for, naming a private copy when the tool root is not a clean checkout.
+ * @param {string} commonDir
+ * @returns {{ tools: string, toolsCommit: string } | null}
+ */
+export function currentHandoffTools(request, job, commonDir) {
+  const root = request?.toolRoot;
+  if (typeof root !== 'string' || !existsSync(root)) return null;
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout)) return null;
+  return { tools: toolsSnapshot(root, job, commonDir), toolsCommit: head.stdout };
+}
+
+/**
+ * The shared snapshot folder name a clean tool root's HEAD runs from, or null when the root is not a clean checkout.
+ * Why: a dispatcher compares its own folder with this name to learn, without copying anything, that main moved (8 Nov stale tools).
+ *
+ * @param {string} toolRoot
+ * @returns {string | null}
+ */
+export function currentToolsName(toolRoot) {
+  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
+  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
+  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout) || top.status !== 0 || realpathSync(top.stdout) !== realpathSync(toolRoot)) return null;
+  return `pullboard-handoff-tools-${toolingDigest(toolRoot)}`;
+}
+
+/** The refresh a retry preparation calls: current tools for the retry's job, from the stopped request's tool root. */
+function retryTools(ctx) { return (id, request) => currentHandoffTools(request, id, ctx.info.commonDir); }
 
 /** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
 const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
@@ -211,9 +251,19 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
  */
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
   const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart, urgent: true });
+  recordHandoffQueue(directory);
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
+
+/**
+ * Launch a dispatcher from `tools` for the repository whose Git common directory this is, under its board's row.
+ *
+ * @param {string} tools
+ * @param {string} commonDir
+ * @returns {Promise<boolean>} True when a dispatcher was launched.
+ */
+export function ensureRepositoryDispatcher(tools, commonDir) { return ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir); }
 
 /** The board file of the repository whose Git common directory this is. */
 function boardFileOf(commonDir) { return join(commonDir, 'pullboard', 'board.sqlite'); }
@@ -338,6 +388,8 @@ export function sweepOrder(jobs) {
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
   // The gate's driver record is its drive job on the board, never a file beside the hand-off [C7].
   const readWorker = () => withBoardRead(ctx, board => readWorkerRecord(board, observed));
+  // A queued job placed in another machine queue is that queue's dispatcher's to judge; this one cannot see its ticket.
+  if (observed.state === 'queued' && queuedElsewhere(directory)) return;
   const workerRecord = readWorker();
   if (!workerRecord && observed.state === 'queued' && capturedLaunchUnseen(directory, observed.id)) {
     const unlaunched = await withHandoffQueueOrder(() => {
@@ -372,9 +424,9 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
     // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
     if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
-    // A lost place in line ends as infrastructure rather than relaunching: nothing records how often it was lost (#3153).
-    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST') throw new Refused('SUBMIT_HANDOFF_RECOVERY', worker.unstarted.message);
-    if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
+    // A lost place in line is re-placed once, at once; the marker counts it, so a second loss ends as infrastructure (#3153).
+    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST' && !replaceLostTicketOnce(directory)) throw new Refused('SUBMIT_HANDOFF_RECOVERY', `${worker.unstarted.message}, again after it was re-placed`);
+    if (worker.unstarted?.code !== 'HANDOFF_TICKET_LOST' && worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
       || !handoffToolsAllowed(request.tools, current.id)
@@ -390,7 +442,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const gone = goneHandoff(current);
     let retry = null;
     if (owned && (current.state === 'running' || gone) && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
-      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory, { refresh: retryTools(ctx) }); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
@@ -598,7 +650,7 @@ export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExec
       if (!current) return;
       let retry;
       try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
-        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0 }); }
+        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0, refresh: retryTools(ctx) }); }
       catch (error) {
         ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
         await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));

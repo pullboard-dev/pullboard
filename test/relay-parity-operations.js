@@ -3,12 +3,12 @@ import { seedStaleState } from '../packages/health/tests/relay-parity-stale-stat
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as rawStore from '../src/board.js';
+import * as rawStore from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { draftSpecRow } from '../apps/lib/index.js';
 import { recordRowVerification } from '../apps/lib/index.js';
 import { decideSpecRevisions } from '../apps/lib/index.js';
-import * as milestones from '../src/board-milestones.js';
+import * as milestones from '../packages/store/index.js';
 import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { publishLatestCheckpoint } from '../packages/link/index.js';
 import { checkpointPublisher } from '../packages/outbox/index.js';

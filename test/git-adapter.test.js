@@ -16,14 +16,12 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import {
-  currentGitAdapter,
-  gitExecFileSync,
-  gitSpawn,
-  gitSpawnSync,
-  realGitAdapter,
-  withGitContractAdapter as withGitAdapter,
-} from '../src/git-adapter.js';
+import { currentGitAdapter } from '../packages/git/index.js';
+import { gitExecFileSync } from '../packages/git/index.js';
+import { gitSpawn } from '../packages/git/index.js';
+import { gitSpawnSync } from '../packages/git/index.js';
+import { realGitAdapter } from '../packages/git/index.js';
+import { withGitContractAdapter as withGitAdapter } from '../packages/git/index.js';
 import { createMemoryGitAdapter } from '../packages/git/index.js';
 import {
   gitLaunches,
@@ -31,18 +29,16 @@ import {
   gitLaunchReport,
   loweredGitLaunchBaseline,
 } from '../packages/git/index.js';
-import {
-  cleanGitEnvironment,
-  contains,
-  git,
-  gitConfig,
-  headCommit,
-  headTree,
-  patchId,
-  tryGit,
-  withGitFacts,
-  withGitReadFacts,
-} from '../src/git.js';
+import { cleanGitEnvironment } from '../packages/git/index.js';
+import { contains } from '../packages/git/index.js';
+import { git } from '../packages/git/index.js';
+import { gitConfig } from '../packages/git/index.js';
+import { headCommit } from '../packages/git/index.js';
+import { headTree } from '../packages/git/index.js';
+import { patchId } from '../packages/git/index.js';
+import { tryGit } from '../packages/git/index.js';
+import { withGitFacts } from '../packages/git/index.js';
+import { withGitReadFacts } from '../packages/git/index.js';
 import { runFixtureExecFile } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
