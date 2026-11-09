@@ -1,13 +1,16 @@
 /** A tools folder a stopped gate still needs survives the sweep, and a retry rebuilds tools that are gone [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync, utimesSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { prepareDeadHandoffRetry, sweepToolTrees } from '../packages/items/index.js';
-import { rebuildCapturedTools } from '../apps/cli/src/shell/submit-handoff.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { prepareDeadHandoffRetry } from '../../../packages/items/index.js';
+import { sweepToolTrees } from '../../../packages/items/index.js';
+import { rebuildCapturedTools } from '../src/shell/submit-handoff.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 /** Run git in a folder and return its trimmed stdout. */
 function git(cwd, ...args) {
