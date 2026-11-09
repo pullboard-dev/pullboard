@@ -250,7 +250,7 @@ function expectedRuntime(files, times, root, key) {
 }
 
 /**
- * Split proof files into the queue's shards (proofShardCount), balanced by recorded file times through the landing
+ * Split proof files into the queue's shards (proofShardCount), balanced by recorded file times through the gate shard
  * planner and heaviest first, so the longest shards start soonest and no lane is left with a long tail.
  *
  * @param {string[]} files
@@ -261,7 +261,7 @@ function expectedRuntime(files, times, root, key) {
  * @returns {Promise<string[][]>}
  */
 export async function proofBatches(files, times = {}, root = null, batchFiles = null, lanes = PROOF_MAX_SHARDS) {
-  const { planFreeSlotShards, fileKey } = await import('../../../landing/index.js');
+  const { planFreeSlotShards, fileKey } = await import('./test-shards.js');
   const count = proofShardCount(files.length, { lanes, batchFiles, expectedMs: expectedRuntime(files, times, root, fileKey) });
   const { shards } = planFreeSlotShards(files, count, times, root);
   return shards.sort((a, b) => b.weight - a.weight).map(shard => shard.files);

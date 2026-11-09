@@ -123,7 +123,7 @@ import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/packages/gate/index.js';
 import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
-import {closeBoard} from './.tooling/src/board.js';
+import {closeBoard} from './.tooling/packages/store/index.js';
 import {openBoard} from './.tooling/apps/lib/index.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);

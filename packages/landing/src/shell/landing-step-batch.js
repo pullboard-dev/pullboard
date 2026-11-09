@@ -24,7 +24,7 @@ import { repoInfo } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { takeLandingResource } from './landing-resource.js';
 import { landingSpan } from '../../../resources/index.js';
-import { requireConfirmedLanding } from '../../../../src/board-landing-lease.js';
+import { requireConfirmedLanding } from '../../../store/index.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';

@@ -48,7 +48,7 @@ test('review655 a registered runner honors the same live person waiver at landin
   writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node tooling/bin/run-tests.js --test-concurrency=1 ' + failing }) + '\n');
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
-  const store = await import('../src/board.js');
+  const store = await import('../packages/store/index.js');
   // @pullboard-board-file persistence: the registered runner reads this committed board's live person waiver.
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   let waiver;

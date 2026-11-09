@@ -5,8 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
-import { declaredSourceLoads } from '../src/affected-tests.js';
-import { declaredSourcePatterns } from '../src/affected-tests.js';
+import { declaredSourceLoads } from '../packages/gate/index.js';
+import { declaredSourcePatterns } from '../packages/gate/index.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
@@ -285,7 +285,7 @@ export function frontDoorBypasses(root, plan, name, { inventory: sharedInventory
     for (const { target, acceptedWildcard } of imports) {
       if (testFile(target) || acceptedWildcard) continue;
       const lower = plan.cells.find(row => row.name === owner(target));
-      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js`) continue;
+      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js` || target === `${lower.root}/pure.js`) continue;
       rows.set(`${stable(file)}->${stable(target)}`, `${name} imports lower ${lower.name} past its front door ${lower.frontDoor}: ${file} -> ${target}`);
     }
   }

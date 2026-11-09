@@ -1,7 +1,7 @@
 import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { withDerivedFamily } from "../../../../src/family-declaration.js";
-import { withDerivedFamilies } from "../../../../src/family-declaration.js";
+import { withDerivedFamily } from "../../../items/core.js";
+import { withDerivedFamilies } from "../../../items/core.js";
 import { effectiveItemHead } from "../../../verify/index.js";
 import { agentParent } from "../../../seats/index.js";
 export { agentParent } from "../../../seats/index.js";

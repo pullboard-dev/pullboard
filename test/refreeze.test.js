@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { UNCHANGED_REFREEZE_ENGINE } from '../packages/state/core.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -32,7 +32,7 @@ function fixture(t, { legacy = false } = {}) {
   const board = fixtureBoard(t, { clock: { now: () => new Date(now) } });
   if (legacy) board.executionEngineVersion = UNCHANGED_REFREEZE_ENGINE - 1;
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  store.ensureCoordinator(board, root);
+  store.board_ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), model: 'Refreeze fixture builder' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Repeat a refreeze', criterion: 'Original promise' });
   store.claim(board, id, { agentId: builder, lane: 'core', head, leaseMs: 60_000, freeze: () => frozen() });

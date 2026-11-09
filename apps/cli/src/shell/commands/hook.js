@@ -24,14 +24,14 @@ import { rowDecisions } from '../../../../../packages/spec/index.js';
 import { checkLoosening } from '../../../../../packages/doctrine/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
-import { gitBoardDataPush } from '../../../../../packages/commits/src/core/board-format.js';
+import { gitBoardDataPush } from '../../../../../packages/commits/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { pendingCommitSignoffProblem } from '../../../../../packages/commits/index.js';
 import { prepareCommitMetadata } from '../../../../../packages/commits/index.js';
 import { landingBatchItemsAtRoot } from '../../../../../packages/landing/index.js';
 import { landingBatchOwnsRoot } from '../../../../../packages/landing/index.js';
 import { fixStagedImportBindings } from '../../../../../packages/commits/index.js';
-import { landingRows } from '../../../../../packages/commits/src/core/landing-rows.js';
+import { landingRows } from '../../../../../packages/commits/index.js';
 import {
   hookRead,
   readStdin,

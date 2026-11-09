@@ -1,7 +1,7 @@
 // pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js src/api.js src/cli.js apps/cli/index.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js apps/cli/index.js */
 import { viewApiPorts } from '../../apps/view/index.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -855,8 +855,8 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const { cli$main: cliMain } = await import(pathToFileURL(join(linked, 'apps/cli/index.js')).href);
   /** Compose the linked command with its own actual native engine. */
   const main = (argv, streams) => cliMain(argv, { ...streams,
-    hookWorker: join(linked, 'apps/lib/src/shell/cli-hook-work.js'), submitHandoffWorker: join(linked, 'apps/lib/src/shell/submit-handoff-worker.js'),
-    launchRelaySender: (root, env) => { void import(pathToFileURL(join(linked, 'apps/lib/index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); },
+    hookWorker: join(linked, 'apps/cli/src/shell/cli-hook-work.js'), submitHandoffWorker: join(linked, 'apps/cli/src/shell/submit-handoff-worker.js'),
+    launchRelaySender: (root, env) => { void import(pathToFileURL(join(linked, 'apps/cli/index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); },
     loadNativeBoard: () => import(pathToFileURL(join(linked, 'apps/lib/index.js')).href) });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead }, refusalDocument, port: 0, projects: () => projects, runCommand: main });
   /** Require the public API to retain the refusal and the healthy project together. */

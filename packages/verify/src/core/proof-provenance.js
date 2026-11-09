@@ -1,6 +1,6 @@
 /** Normalize execution facts without inventing missing runtime identities or test counts [C7,H16]. */
 import { createHash } from 'node:crypto';
-import { environmentProblem } from '../../../config/src/shell/config.js';
+import { environmentProblem } from '../../../config/core.js';
 import { testOutcomeFields } from '../../core.js';
 import { quarantineVerdictFields } from './quarantine-verdict.js';
 import { tier1ShadowFields } from './tier1-shadow.js';

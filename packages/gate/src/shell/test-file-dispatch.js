@@ -37,7 +37,7 @@ import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
   bindTestRuntime,
   testRuntimeImport,
-} from '../../../sandbox/src/shell/execution-environment.js';
+} from '../../../sandbox/core.js';
 
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {

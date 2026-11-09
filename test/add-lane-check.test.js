@@ -39,7 +39,7 @@ function fixture() {
   git(repo, 'init', '-q', '-b', 'main');
   assert.equal(run(repo, 'init').code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
-    lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
+    lanes: { web: { owns: ['web/', 'bin/run-tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   mkdirSync(join(repo, 'web'));
   writeFileSync(join(repo, 'web', 'shared.txt'), 'base\n');
