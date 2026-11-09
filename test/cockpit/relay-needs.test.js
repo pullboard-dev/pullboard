@@ -121,7 +121,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     await chrome.click(`document.querySelector('#chain [data-item]')`);
     await chrome.waitFor("document.querySelector('#detail [data-shout]') !== null");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
-    await chrome.waitFor("document.querySelector('[data-release]') !== null && !!document.querySelector('#feed [data-shout-thread="none"]')");
+    await chrome.waitFor("document.querySelector('[data-release]') !== null && !!document.querySelector('#feed [data-shout-thread=\"none\"]')");
     // Read-only Shouts never renders the decision's Answer button (3a98fbee36), so open its no-item conversation and find none.
     await chrome.click(`document.querySelector('#feed [data-shout-thread="none"]')`);
     await chrome.waitFor("!!document.querySelector('#feed .conversation-heading') && document.querySelector('#feed').textContent.includes('Should the read-only fixture ship?')");
