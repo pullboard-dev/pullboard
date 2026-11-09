@@ -403,7 +403,7 @@ test('a verdict from the agent session that built the item is refused under any 
   const error = JSON.parse(own.stdout).error;
   assert.equal(error.code, 'SELF_SESSION_VERIFY');
   assert.match(error.message, /this agent session built or submitted #1/u);
-  assert.match(error.next, /another agent session/u);
+  assert.match(error.next, /start the review in a separate process or session: run pullboard next --verify from a different agent session/u);
   assert.deepEqual(boardSnapshot(box.boardFile), before, 'the refused verdict records nothing');
   assertNoRawSession(box, box.web, [builder], 'CODEX_THREAD_ID');
   const ledger = readFileSync(resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'item-sessions.jsonl'), 'utf8');
