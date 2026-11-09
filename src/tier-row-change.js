@@ -35,3 +35,42 @@ export function tierRowChange(path, { before, after, ownsFile }) {
     return { allowed: false, problem: `${path} cannot be proved as own-lane tier rows` };
   }
 }
+
+/** The per-file ceiling baselines whose rows follow the lane that owns each test file. */
+export const BASELINE_TABLES = ['bin/checks/test-fixtures.json', 'bin/checks/test-waits-baseline.json'];
+
+/**
+ * Prove a staged change to a ceiling baseline only adds, renames or lowers rows of files this lane owns, and never
+ * raises a ceiling: a file already listed may not raise any rule, and the rows of newly listed files (a split's new
+ * files) may total no more, per rule, than this change removed or lowered. Why: every view-lane test split was refused
+ * because the rows were core's, though a split only moves ceilings and never adds to them [L3,C7].
+ *
+ * @param {string} path
+ * @param {{ before: (path: string) => any, after: (path: string) => any, ownsFile: (file: string) => boolean }} reads
+ * @returns {{ allowed: boolean, problem: string | null }}
+ */
+export function baselineRowChange(path, { before, after, ownsFile }) {
+  if (!BASELINE_TABLES.includes(path)) return { allowed: false, problem: null };
+  try {
+    const old = json(before(path)), next = json(after(path));
+    const freed = {}, added = {};
+    for (const file of new Set([...Object.keys(old), ...Object.keys(next)])) {
+      if (JSON.stringify(old[file]) === JSON.stringify(next[file])) continue;
+      if (!ownsFile(file)) return { allowed: false, problem: `baseline row for ${file} is outside this lane` };
+      const was = old[file], now = next[file] ?? {};
+      for (const rule of new Set([...Object.keys(was ?? {}), ...Object.keys(now)])) {
+        const delta = (now[rule] ?? 0) - (was?.[rule] ?? 0);
+        if (typeof delta !== 'number' || Number.isNaN(delta)) throw Error('row is not a count');
+        if (delta < 0) freed[rule] = (freed[rule] ?? 0) - delta;
+        else if (delta > 0 && was) return { allowed: false, problem: `baseline row ${file} ${rule} would rise; a ceiling is never raised` };
+        else if (delta > 0) added[rule] = (added[rule] ?? 0) + delta;
+      }
+    }
+    for (const rule of Object.keys(added)) {
+      if (added[rule] > (freed[rule] ?? 0)) return { allowed: false, problem: `new baseline rows for ${rule} total ${added[rule]}, more than the ${freed[rule] ?? 0} this change removed` };
+    }
+    return { allowed: true, problem: null };
+  } catch {
+    return { allowed: false, problem: `${path} cannot be proved as own-lane baseline rows` };
+  }
+}
