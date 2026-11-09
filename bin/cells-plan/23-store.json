@@ -153,9 +153,7 @@
   ["src/submit-handoff-read.js","packages/store/src/shell/submit-handoff-read.js","rule"],
   ["src/rework-family-routing.js","packages/store/src/core/rework-family-routing.js","rule"]
  ],
- "reexports": [
-  "src/board.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":33,"before":true},
   {"cell":"git","imports":5,"before":true},
