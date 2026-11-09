@@ -17,12 +17,12 @@ import {
   repeatedLandingHoldCleared,
   repeatedLandingNotice,
   REPEATED_LANDING_HOLD,
-} from '../../landing/index.js';
+} from '../index.js';
 import {
   applyItemHold,
   applyItemHoldRelease,
-} from '../index.js';
-import { candidates } from '../../landing/index.js';
+} from '../../items/index.js';
+import { candidates } from '../index.js';
 
 const ITEM = { item_id: 2601, item_commit: 'a'.repeat(40) };
 const BASE = 'b'.repeat(40);
