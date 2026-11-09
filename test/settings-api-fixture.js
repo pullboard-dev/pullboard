@@ -22,7 +22,7 @@ import { refusalDocument } from '../apps/cli/index.js';
 import { performanceCores } from '../packages/gate/index.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { defaults } from '../packages/config/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
