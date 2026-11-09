@@ -245,7 +245,7 @@ A declared move is in `MOVES`; an undeclared one is a code path the declaration 
 |---|---|---|---|---|---|---|---|---|
 | `add` (undeclared) | (new) | `open` | agent, coordinator | pullboard add | `insertItem` in `packages/store/src/shell/board-add-item.js` | machine_item_start trigger (UNDECLARED_MOVE) | add | `test/machine.test.js` |
 | `claim` | `open`, `claimed` | `claimed` | agent, coordinator | pullboard claim, next, next --take | `claim` in `packages/store/src/shell/board-claim.js` | NOT_CLAIMABLE, HELD, ITEM_HELD, LANE_HELD, BLOCKED, WRONG_LANE, ROUTE, ITEM_BUILD_BUDGET, ONE_CLAIM, REOPEN_HELD_FOR_BUILDER, PENDING_REFREEZE, LINE_WIP_LIMIT | claim or renew | `test/claim-snapshot-race.test.js` |
-| `release` | `open`, `claimed` | `open` | agent, coordinator | pullboard release; stale and idle maintenance | `releaseClaim` in `packages/store/src/core/board-release-claim.js` | NOT_YOURS, RELEASE_REASON, ENGINE_VERSION | release (+hold_item after a second release) | `test/release-twice-hold.test.js` |
+| `release` | `open`, `claimed` | `open` | agent, coordinator | pullboard release; stale and idle maintenance | `releaseClaim` in `packages/store/src/core/board-release-claim.js` | NOT_YOURS, RELEASE_REASON, ENGINE_VERSION | release (+hold_item after a second release) | `apps/lib/tests/release-twice-hold.test.js` |
 | `lapse` | `claimed` | `open` | clock | a claim lease runs out; written only by an edit of an expired claim or by stale maintenance as a release | `applyStaleState` in `packages/store/src/core/board-stale-state-store.js` | caller checks STALE_STATE_CHANGED; the move's state check is passed as null | release {expiredClaim} and stale_maintenance; never a lapse event | `test/lease-lapse.test.js` |
 | `submit` | `claimed` | `submitted` | agent, coordinator | pullboard submit, after its queued gate is green | `submit` in `packages/store/src/shell/board-submit.js` | NOT_YOURS, PENDING_REFREEZE, BAR_NOT_READY, CLAUSE_UNTICKED, SUBMISSION_PROOF, CHILDREN_OPEN, HEAD_NOT_NEW; CLI: DIRTY, OUTSIDE_LANE, GATE_RED | submit | `test/submit-handoff.test.js` |
 | `submit-merge` | `claimed` | `verified` | agent, coordinator | pullboard submit of a carried acceptance | `submit` in `packages/store/src/shell/board-submit.js` | the submit guards, MERGE_ONLY_PROOF, SELF_VERIFY, PROOF_REQUIRED | merge-only-accept, submit | `test/machine.test.js` |
@@ -393,7 +393,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 - **States:** `select`, `compose`, `prove`, `merge`, `record`, `publish`, `done`. Terminal: `done`.
 - **Lease:** taken or renewed between steps; LAND_PROOF_NOT_GREEN and JOB_LEASED leave the lease to lapse with no done.
 - **Ends when its item moves on:** partial, at `landMerged` in `packages/land/src/shell/landing-runs.js`: the batch steps check items; landMerged relies on its caller's check
-- **Harness:** `test/durable-land-finish-done.test.js`.
+- **Harness:** `apps/lib/tests/durable-land-finish-done.test.js`.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
@@ -471,7 +471,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | sentinels | board sentinels run under an activeRun deadline of timeout + 10 s; no job row | `beginSentinelRun` in `packages/sentinels/src/shell/sentinels.js` | no item | NONE |
 | seat heartbeat | a heartbeat row every 60 s; proves the seat alive and never selects or claims | `heartbeatSeat` in `packages/store/src/shell/seat-presence.js` | the seat | `test/heartbeat-presence-only.test.js` |
 | claim heartbeat | re-claims or re-reserves at half the lease while a queued gate runs; stops with ITEM_LEASE_LOST when the item is no longer claimed or submitted by this seat at its digest and commit | `createQueuedItemLease` in `packages/git/src/shell/queued-item-lease.js` | item claimed or submitted by this seat | `test/lease-holds-during-gate.test.js` |
-| landing lease | board_meta landing_lease, 120 s, renewed every 5 s by the lander | `landingLeaseMove` in `packages/store/src/core/board-landing-lease.js` | one lander per board | `test/landing-local-lease.test.js` |
+| landing lease | board_meta landing_lease, 120 s, renewed every 5 s by the lander | `landingLeaseMove` in `packages/store/src/core/board-landing-lease.js` | one lander per board | `apps/lib/tests/landing-local-lease.test.js` |
 | automatic landing scheduler | a pending.json record; a crashed lander is recovered by the next command, sentinel or view | `recoverAutomaticLanding` in `packages/landing/src/shell/automatic-landing-scheduler.js` | verified, unmerged items | `test/landing-crash-drill.test.js` |
 
 ### 3. What `next` hands out
@@ -529,10 +529,10 @@ Every build claim and every review reservation is checked in one write transacti
 | seat runs a stale CLI | a worktree runs the main checkout's current CLI | same | `test/worktree-runs-current-cli.test.js` |
 | another machine's dispatcher sweeps this home | it never recovers this home's gates | same | `test/harnesses/pipeline/foreign-sweep.harness.js` |
 | landing crash | killing the lander at any stage lets the next accept land both items without manual recovery | same | `test/landing-crash-drill.test.js` |
-| two landers | the board landing lease admits one; a stalled relay cannot block the holder's heartbeat | same | `test/landing-local-lease.test.js` |
+| two landers | the board landing lease admits one; a stalled relay cannot block the holder's heartbeat | same | `apps/lib/tests/landing-local-lease.test.js` |
 | a reject or reopen during landing | every landing step re-checks verified at the commit, so the item drops out of the batch | same, proven between select and merge | NONE |
 | withdrawal mid-gate | the hand-off record ends withdrawn and its ticket is dropped, but a running driver is not stopped and runs to its verdict | the driver ends at its next renewal tick | `test/withdraw-ends-handoff.test.js` |
-| reopen or reject mid-gate | next skips a gate older than the reopen; the driver keeps running | the driver ends at its next renewal tick | `test/next-reopen-voids-gate.test.js` |
+| reopen or reject mid-gate | next skips a gate older than the reopen; the driver keeps running | the driver ends at its next renewal tick | `packages/store/tests/next-reopen-voids-gate.test.js` |
 | new head submitted while a gate runs | the old worker is signalled, its slot freed and the new head queued | same | `test/submit-replaces-gate.test.js` |
 | lapsed gate job whose item moved on (zombie) | a fallback pass ends legacy kind gate rows; kind gate-drive is never listed | every job kind ends at once when its item leaves its serving state | `test/zombie-gate-jobs.test.js` |
 | review held on an item that was withdrawn or verified | the review job is not released; a heartbeating reviewer keeps extending it | a verdict, withdraw or reopen releases it in the same transaction | NONE |
