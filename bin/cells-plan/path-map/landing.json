@@ -18,7 +18,6 @@
   "src/landing-shards.js": "packages/landing/src/shell/landing-shards.js",
   "src/landing-test-policy.js": "packages/landing/src/shell/landing-test-policy.js",
   "src/landing-waivers.js": "packages/landing/src/core/landing-waivers.js",
-  "src/landing-worker-identity.js": "packages/landing/src/core/landing-worker-identity.js",
   "src/landing-worker.js": "packages/landing/src/shell/landing-worker.js",
   "src/landing-worktree-prune.js": "packages/landing/src/shell/landing-worktree-prune.js",
   "src/main-failure-matches.js": "packages/landing/src/shell/main-failure-matches.js",

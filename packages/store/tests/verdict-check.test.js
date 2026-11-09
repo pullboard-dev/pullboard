@@ -32,7 +32,7 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../apps/lib/index.js";
+import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, "../../../bin/pullboard.js");

@@ -269,7 +269,7 @@ test('a clean public export renders offline with public work and no write path [
     assert.equal(landingBatches(board).find(batch => batch.id === batchId).state, 'landed');
   } finally { closeBoard(board); }
 
-  box.run(alpha.repo, 'milestone', 'add', 'Public milestone', '--items', '1,2');
+  box.run(alpha.repo, 'milestone', 'add', 'Public milestone', '--items', '1,2', '--reason', 'Arrange fixture release');
   box.run(alpha.web, 'shout', 'web', 'Public progress');
   box.run(alpha.repo, 'shout', 'all', 'Internal notice');
   const fact = JSON.parse(box.run(alpha.repo, 'fact', '1', 'measurement', 'Public export fixture observation', '--json')).fact;

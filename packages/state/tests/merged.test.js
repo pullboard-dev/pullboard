@@ -24,7 +24,7 @@ import {
   test,
 } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyEngineMove,
@@ -83,7 +83,7 @@ async function fixture(t) {
   assert.equal(joined.code, 0, `${joined.stdout}${joined.stderr}`);
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const agentId = store.listAgents(board).find((agent) => agent.agent_lane === 'web').agent_id;
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Tracked work', criterion: 'The item change is retained.', specIds: ['G1'] });
   const frozen = JSON.stringify({ criterion: 'The item change is retained.' });

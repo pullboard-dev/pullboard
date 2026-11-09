@@ -100,8 +100,8 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     }))`);
     const normalEntries = JSON.parse(await readNeedEntries());
     assert.deepEqual(normalEntries.map((row) => row[0]), ['G3', '#' + await chrome.stable('data.project.decisions[0].shout_id'), 'web', null], 'the normal Needs-you list contains the decision, pending row, held lane, and draft summary');
-    assert.match(normalEntries[1][2], /^Asked by coordinator \(unknown\) @[^ ]+$/, 'the API-provided decision timestamp is shown as an age');
-    assert.match(normalEntries[2][2], /^lane held by coordinator \(unknown\) @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
+    assert.match(normalEntries[1][2], /^Asked by coordinator @[^ ]+$/, 'the API-provided decision timestamp is shown as an age; a seat with no declared model shows its bare id (5665f8678a)');
+    assert.match(normalEntries[2][2], /^lane held by coordinator @[^ ]+$/, 'the holder and API-provided hold timestamp are shown as an age');
     await chrome.click(`document.querySelector('#needs .needs-drafts [data-go="tab:spec"]')`);
     await chrome.waitFor('view.tab === "spec"');
     assert.equal(await chrome.stable('data.project.spec.some(row => row.id === "G4" && row.status === "draft")'), true,
@@ -121,8 +121,12 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     await chrome.click(`document.querySelector('#chain [data-item]')`);
     await chrome.waitFor("document.querySelector('#detail [data-shout]') !== null");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
-    await chrome.waitFor("document.querySelector('[data-release]') !== null && document.querySelector('[data-go^=\"decide:\"]') !== null");
-    const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
+    await chrome.waitFor("document.querySelector('[data-release]') !== null && !!document.querySelector('#feed [data-shout-thread=\"none\"]')");
+    // Read-only Shouts never renders the decision's Answer button (3a98fbee36), so open its no-item conversation and find none.
+    await chrome.click(`document.querySelector('#feed [data-shout-thread="none"]')`);
+    await chrome.waitFor("!!document.querySelector('#feed .conversation-heading') && document.querySelector('#feed').textContent.includes('Should the read-only fixture ship?')");
+    assert.equal(await chrome.stable(`document.querySelectorAll('[data-go^="decide:"]').length`), 0, 'the open read-only decision conversation renders no Answer control');
+    const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]'];
     const actionMatches = JSON.parse(await chrome.stable(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
     assert.ok(actionMatches.every((entry) => entry.count > 0), 'the seeded item, decision and hold exercise every action selector');
     assert.deepEqual(actionMatches.filter((entry) => entry.visible).map((entry) => entry.selector), [], 'read-only mode hides every match for every action control');
@@ -137,7 +141,9 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     await chrome.stable(`window.__samePage = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })`);
     box.run(app.repo, 'add', 'web', 'Transport refresh item', '--specs', 'G1', '--criterion', 'appears after a transport update');
     await chrome.stable('window.__transportUpdate()');
-    assert.equal(await chrome.stable("data?.project?.items.some((item) => item.title === 'Transport refresh item') && window.__samePage === true"), true, 'onUpdate refreshes state in the same page without relying on the poll');
+    const refreshed = JSON.parse(await chrome.stable("JSON.stringify({ samePage: window.__samePage === true, titles: (data?.project?.items || []).map((item) => item.title), live: document.querySelector('#live').textContent, calls: window.__transportCalls.slice(-4) })"));
+    assert.equal(refreshed.samePage, true, 'onUpdate refreshes in the same page');
+    assert.ok(refreshed.titles.includes('Transport refresh item'), 'onUpdate refreshes state in the same page without relying on the poll: ' + JSON.stringify(refreshed));
     assert.ok(forwarded.every((method) => method === 'GET'), 'transport update refreshed through reads only');
 
   } finally {

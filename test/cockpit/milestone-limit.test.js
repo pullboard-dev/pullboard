@@ -27,11 +27,13 @@ test('the view names a milestone limit only near capacity, including empty and s
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("document.querySelector('[data-tab=roadmap]')");
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-    await chrome.waitFor("document.querySelector('[data-key=\"m:Active\"] .milestone-limit')");
+    // Active has work left, so its card opens with the shared release header, which carries no total-and-limit line (0ab202b994).
+    await chrome.waitFor("document.querySelector('[data-key=\"m:Active\"] .release-header') && document.querySelector('[data-key=\"m:Empty\"] .milestone-limit')");
     for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       const labels = JSON.parse(await chrome.stable(`JSON.stringify(['Active','Empty','Shipped','Unlimited'].map(name => document.querySelector('[data-key="m:'+name+'"] .milestone-limit')?.textContent ?? null))`));
-      assert.deepEqual(labels, ['1 item', '0 items · limit 0', '0 items · limit 0', null], String(width));
+      assert.deepEqual(labels, [null, '0 items · limit 0', '0 items · limit 0', null], String(width));
+      assert.doesNotMatch(await chrome.stable(`document.querySelector('[data-key="m:Active"]').textContent`), /limit 2/u, `${width}: one item of a limit of 2 is not near capacity`);
     }
     assert.deepEqual(chrome.exceptions, []);
   } finally {
