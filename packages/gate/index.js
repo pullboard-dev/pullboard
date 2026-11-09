@@ -5,6 +5,7 @@ export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.j
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
+export { CLI_FRONT_DOORS, packageCliReach, newPackageCliReach } from "./src/core/package-cli-reach.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/shell/browser-admission.js";
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/shell/browser-slot-guard.js";
@@ -24,7 +25,7 @@ export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, r
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/shell/gate-slot.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
-export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, namedFileRunner } from "./src/shell/gate-submit.js";
+export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/shell/gate.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/shell/gui-admission.js";
@@ -51,6 +52,7 @@ export { testValueCosts, journeyReason, placeTest, placementReport, testsAtStage
 export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFileOptions, optionTakesValue, knownNodeOption, legacyFileMode, legacyNativeFileRun } from "./src/shell/test-file-dispatch.js";
 export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/shell/test-file-pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/shell/test-isolation.js";
+export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/shell/coordinator-test-guard.js";
 export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/shell/test-outcomes.js";
 export { refreshTestPlacement } from "./src/shell/test-placement-report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/shell/test-placement.js";
@@ -69,12 +71,13 @@ export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } f
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/shell/prove-once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/shell/red-gate-report.js';
-export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
+export { requireTestTierAccount, requireSealedSkips, hasTestTiers, generateTestTiersAt, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 export { testRunPhaseClock } from './src/shell/test-run-phases.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 
 export { runGateStages } from "./src/core/gate-stages.js";
+export { GATE_PROGRESS_MS, withGateProgress, reportGateProgress, progressingWait, whileGateRuns } from "./src/shell/gate-progress.js";
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
 
 export { privateCheckAdmission } from './src/shell/private-check-admission.js';
@@ -91,3 +94,9 @@ export { STATIC_CHECKS, runStaticRegistry } from './src/shell/static-check-regis
 export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
+export { freeRunnerSlots } from "./src/shell/proof-shards.js";
+export { keepClaimsAlive } from "./src/shell/seat-keepalive.js";
+export { gateHealthLines } from "./src/core/gate-health.js";
+export { gateHealthReport } from "./src/shell/gate-health.js";
+export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
+export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';

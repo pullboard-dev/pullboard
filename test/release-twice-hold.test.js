@@ -4,10 +4,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { RELEASE_TWICE_HOLD_ENGINE } from '../src/release-twice-hold-engine.js';
-import { RELEASE_TWICE_ROUTE_ENGINE } from '../src/release-twice-route-engine.js';
+import { RELEASE_TWICE_HOLD_ENGINE } from '../packages/state/core.js';
+import { RELEASE_TWICE_ROUTE_ENGINE } from '../packages/state/core.js';
 
 const commit = 'a'.repeat(40);
 test('two releases hold the item until coordinator lifts it [C7,H16]', t => {

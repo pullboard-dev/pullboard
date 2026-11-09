@@ -30,8 +30,8 @@ import { recordSchemaStamp } from "../../../store/index.js";
 import { SCHEMA_DIGEST } from "../../../store/index.js";
 import { SCHEMA_VERSION } from "../../../store/index.js";
 
-import { AUTHORITY } from "../../../../src/board-person-authority-schema.js";
-import { AUTHORITY_TRIGGERS } from "../../../../src/board-person-authority-schema.js";
+import { AUTHORITY } from "../../../store/index.js";
+import { AUTHORITY_TRIGGERS } from "../../../store/index.js";
 
 const PROPOSALS = 'person_proposals';
 const PROPOSAL_MS = 10 * 60_000;
@@ -323,4 +323,4 @@ export function guardRestore(db, document) {
 }
 
 /** The store's export filter stays the one source a raw {db} export and the native root share [E22]. */
-export { exportedMeta } from "../../../../src/board-person-authority-schema.js";
+export { exportedMeta } from "../../../store/index.js";

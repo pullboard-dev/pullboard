@@ -1,7 +1,7 @@
 import { checkTimingEngine } from "../../../../items/core.js";
 /** An autonomous trusted worker records a proved main merge without manufacturing a review [C7,V4,H16]. */
-import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.js";
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
+import { SOURCE_ADVANCE_ENGINE } from "../../../../state/core.js";
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
 /** The feature must be understood by every replay receiver. */
 function minimumEngine(args, board) { return Math.max(SOURCE_ADVANCE_ENGINE, checkTimingEngine(board, args[0]),
   args[1]?.proof?.phases?.some(phase => Object.hasOwn(phase.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1); }

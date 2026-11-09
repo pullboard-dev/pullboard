@@ -1,6 +1,6 @@
 /** Recipient-owned interrupt receipts use the existing authenticated ordered move protocol [H2,H16,N26]. */
-import { BOARD_PROGRESS_ENGINE } from '../../../../../src/board-progress-engine.js';
-import { ACTIVITY_DELIVERY_ENGINE } from "../../../../../src/activity-delivery-engine.js";
+import { BOARD_PROGRESS_ENGINE } from '../../../../state/core.js';
+import { ACTIVITY_DELIVERY_ENGINE } from "../../../../state/core.js";
 /** Never let an older replica silently omit a delivery or acknowledgement. */
 function minimumEngine(args) {
   return args[0]?.interrupts?.some?.(entry => ['stalled', 'unblocked'].includes(entry?.reason))

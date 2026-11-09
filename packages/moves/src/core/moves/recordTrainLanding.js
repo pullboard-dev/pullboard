@@ -1,8 +1,8 @@
-import { FLAKE_RATCHET_ENGINE } from '../../../../../src/flake-ratchet-engine.js';
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
+import { FLAKE_RATCHET_ENGINE } from '../../../../state/core.js';
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
 /** A train landing seals its native gate and uses the ordinary batch finishing writer [C7,H16]. */
-import { TRAIN_LANDING_ENGINE } from "../../../../../src/train-landing-engine.js";
-import { TRAIN_CHECK_REPOINT_ENGINE } from "../../../../../src/train-check-repoint-engine.js";
+import { TRAIN_LANDING_ENGINE } from "../../../../state/core.js";
+import { TRAIN_CHECK_REPOINT_ENGINE } from "../../../../state/core.js";
 
 /** The sealed receipt payload has no interpretation on an older replay engine. */
 function minimumEngine(args) { return Math.max(TRAIN_LANDING_ENGINE, args[0]?.batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1,

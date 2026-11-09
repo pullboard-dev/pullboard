@@ -14,7 +14,7 @@ import { landingExecutionServices } from '../packages/landing/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
 import { receiptStore } from '../packages/gate/index.js';
 import { prepareTrainLanding } from '../packages/landing/index.js';
-import { invalidateGitFacts } from '../src/git.js';
+import { invalidateGitFacts } from '../packages/git/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { runFixtureGit } from './fixture-child.js';
 

@@ -10,7 +10,7 @@ import { withdraw } from '../packages/store/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
 import { flakeQuarantines } from '../packages/flakes/index.js';
 import { landingFlakeRatchet } from '../packages/flakes/index.js';
-import { LEDGER_QUARANTINE_ENGINE } from '../src/ledger-quarantine-engine.js';
+import { LEDGER_QUARANTINE_ENGINE } from '../packages/state/core.js';
 import { boardFixture } from './next-order-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 

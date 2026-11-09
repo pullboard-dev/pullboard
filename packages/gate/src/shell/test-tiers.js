@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import { posix } from 'node:path';
 import { isBuiltin } from 'node:module';
 import { cellInventory } from '../../../codemap/index.js';
+import { withCellSourceSnapshots } from '../../../codemap/index.js';
 import { repositoryImport } from '../../../codemap/index.js';
 import { importsIn } from './module-imports.js';
 import { commonJsIn } from './module-imports.js';
@@ -155,6 +156,17 @@ export function generateTestTiers(root, { onInventory, onReach } = {}) {
     });
     return { version: 1, files: rows };
   });
+}
+
+/**
+ * The testing tiers recomputed from a sealed commit snapshot alone, equal to generating them in a checkout of that commit.
+ *
+ * @param {{ root: string }} snapshot a sealed source from commitSourceSnapshot
+ * @param {{ onInventory?: Function, onReach?: Function }} [hooks] the same observers generateTestTiers takes
+ * @returns {{ version: number, files: object[] }}
+ */
+export function generateTestTiersFrom(snapshot, hooks) {
+  return withCellSourceSnapshots(snapshot, () => generateTestTiers(snapshot.root, hooks));
 }
 
 /** Keep one test per line so a changed classification produces a small, readable diff. */

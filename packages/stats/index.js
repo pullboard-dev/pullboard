@@ -132,6 +132,7 @@ export {
   sanitizedUsage,
   recordUsage,
   costTotals,
+  budgetState,
   storedSeatUsage,
 } from './src/shell/cost.js';
 export {
@@ -174,3 +175,7 @@ export { buildCalibration } from './src/core/build-calibration.js';
 export { isProofAgent, proofAgentIds } from './src/shell/stats.js';
 
 export { idleSkipMinutes } from './src/core/idle-skip-minutes.js';
+export { LEDGER_HOPS, LEDGER_VERSION, itemLedger, ledgerLines, pipelineLedger, tile } from './src/core/pipeline-ledger.js';
+export { foldText, newFold } from './src/core/session-activity.js';
+export { readSessions } from './src/shell/session-logs.js';
+export { readPipelineLedger } from './src/shell/pipeline-ledger-read.js';

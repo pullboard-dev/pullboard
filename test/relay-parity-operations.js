@@ -1,14 +1,14 @@
-import { seedStaleState } from './relay-parity-stale-state.js';
+import { seedStaleState } from '../packages/health/tests/relay-parity-stale-state.js';
 /** Exercise every declared native operation through the complete current reader oracle [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as rawStore from '../src/board.js';
+import * as rawStore from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { draftSpecRow } from '../apps/lib/index.js';
 import { recordRowVerification } from '../apps/lib/index.js';
 import { decideSpecRevisions } from '../apps/lib/index.js';
-import * as milestones from '../src/board-milestones.js';
+import { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from '../packages/store/index.js';
 import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { publishLatestCheckpoint } from '../packages/link/index.js';
 import { checkpointPublisher } from '../packages/outbox/index.js';
@@ -28,7 +28,10 @@ import { seedSelectorGap, seedAcceptedReland } from './relay-parity-selector-rel
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 /** The fixture root supplies canonical native operations to the unchanged lower recipes. */
-const store = Object.freeze({ ...rawStore, openBoard, draftSpecRow, recordRowVerification, decideSpecRevisions });
+const store = Object.freeze({ ...rawStore, ensureCoordinator: rawStore.board_ensureCoordinator, recordNextIdle: rawStore.board_recordNextIdle,
+  openBoard, draftSpecRow, recordRowVerification, decideSpecRevisions });
+/** The milestone writers the recipes exercise, as the old milestones module named them. */
+const milestones = Object.freeze({ addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap });
 
 /** Run inside the existing private fixture's genuine environment, retaining one HTTP server and person session. */
 export async function exerciseOperationParity({ root, origin, token, boardId, lane, keyFile }) {

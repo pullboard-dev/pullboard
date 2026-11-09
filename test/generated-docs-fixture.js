@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cleanGitEnvironment } from '../src/git.js';
+import { cleanGitEnvironment } from '../packages/git/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 

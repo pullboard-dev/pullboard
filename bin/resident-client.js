@@ -170,14 +170,14 @@ function shortSocketFolder() {
 /**
  * Where this board's resident process for one entry listens, and its pid file: under the board's .git/pullboard,
  * or, when that path is too long for a Unix socket, under a private /tmp folder named by its hash. Null without a
- * board here.
+ * board here. Slot 0 is the first process of the pool; each further slot is a separate process with its own files.
  */
-export function residentSocket(cwd, entry) {
+export function residentSocket(cwd, entry, slot = 0) {
   const location = gitLocation(cwd);
   if (!location) return null;
   const folder = join(location.commonDir, 'pullboard');
   if (!existsSync(join(folder, 'board.sqlite'))) return null;
-  const name = createHash('sha256').update(resolve(entry)).digest('hex').slice(0, 12);
+  const name = createHash('sha256').update(resolve(entry)).digest('hex').slice(0, 12) + (slot ? `-${slot}` : '');
   const home = dirname(location.commonDir);
   const pid = join(folder, `resident-${name}.pid`);
   let socket = join(folder, `resident-${name}.sock`);
@@ -188,6 +188,31 @@ export function residentSocket(cwd, entry) {
     socket = join(short, `${createHash('sha256').update(socket).digest('hex').slice(0, 24)}.sock`);
   }
   return { socket, pid, home };
+}
+
+/**
+ * How many resident processes one board and entry may run. Why a pool: one process runs one command at a time, and
+ * on 9 Nov a single long command kept the only one busy for over 15 minutes, so every seat's show, inbox and heartbeat
+ * loaded 1,700 modules cold. PULLBOARD_RESIDENT_POOL sets it; 1 restores the single process.
+ */
+export function residentPoolSize(env) {
+  const size = Number(env.PULLBOARD_RESIDENT_POOL);
+  return Number.isSafeInteger(size) && size > 0 ? size : 4;
+}
+
+/**
+ * The pool slot a command goes to: the first whose process is not busy with a long command. A slot with no process yet
+ * is chosen like any other; the client then starts one there and runs this command in-process. Null without a board,
+ * or when every slot is busy, so the command reads the board directly.
+ */
+export function residentPlace(cwd, entry, env) {
+  for (let slot = 0; slot < residentPoolSize(env); slot += 1) {
+    const place = residentSocket(cwd, entry, slot);
+    if (!place) return null;
+    // A command already running a while would hold this one behind it; the next slot, or a direct read, answers sooner.
+    if (!residentBusy(place.pid)) return place;
+  }
+  return null;
 }
 
 /** Start the resident process detached; the command in hand still runs in-process. */
@@ -203,7 +228,7 @@ export function startResident({ socket, pid, home }, entry, version, env) {
 /**
  * Run one command through the resident process. Resolves to its exit code, or null when the entry must run it
  * in-process: no process yet (one starts), a process loaded from other code (it retires and a new one starts), or a
- * command the process hands back, a process busy with a long command, or a command not started within
+ * command the process hands back, every pool process busy with a long command, or a command not started within
  * RESIDENT_START_WAIT_MS. Once the process has started the command, its result is final.
  */
 export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
@@ -212,10 +237,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     if (!residentCommand(argv)) return Promise.resolve(null);
     code = codeVersion(entry);
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
-    place = residentSocket(cwd, entry);
+    place = residentPlace(cwd, entry, env);
     if (!place) return Promise.resolve(null);
-    // A command already running a while would hold this one behind it; reading the board directly costs about 1 s.
-    if (residentBusy(place.pid)) return Promise.resolve(null);
   } catch { return Promise.resolve(null); }
   return new Promise((done) => {
     let started = false, finished = false, buffer = '';

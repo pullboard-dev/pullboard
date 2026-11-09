@@ -19,7 +19,7 @@ import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
-import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
+import { KNOWN_MAIN_FAILURES_ENGINE } from '../packages/state/core.js';
 import { matchingMainFailures } from '../packages/landing/index.js';
 import { failureSignatures } from '../packages/landing/index.js';
 

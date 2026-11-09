@@ -1,7 +1,7 @@
 /** Real private Git/SQLite boards with a hand-turned clock; no gate receipt is fabricated. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { sentinelCommand } from '../packages/sentinels/index.js';

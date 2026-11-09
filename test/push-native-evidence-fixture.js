@@ -8,13 +8,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { git } from '../src/git.js';
+import { git } from '../packages/git/index.js';
 import { runGate } from '../packages/gate/index.js';
 import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '../packages/gate/index.js';
 import { gateRuns, recordGateRun } from '../packages/flakes/index.js';
-import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
+import { recordLandingTestDefect } from '../packages/store/index.js';
 import { nativePushReceiptProblems as evaluateNativePushReceiptProblems } from '../packages/git/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { policyAt } from '../packages/sandbox/index.js';

@@ -1,4 +1,4 @@
-import { TEST_ECONOMICS_ENGINE } from "../../../../src/test-economics-engine.js";
+import { TEST_ECONOMICS_ENGINE } from "../../../state/core.js";
 import { auditFailureItem } from "../../../items/index.js";
 import { landingTestDefects } from "./board-landing-test-defect-history.js";
 export { landingTestDefects };
@@ -11,9 +11,9 @@ import {
 } from "../shell/board.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
-import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
-import { LANDING_DEFECT_CLOSE_ENGINE } from "../../../../src/landing-defect-close-engine.js";
+import { LANDING_ENVIRONMENT_ENGINE } from "../../../state/core.js";
+import { MAIN_AUDIT_ENGINE } from "../../../state/core.js";
+import { LANDING_DEFECT_CLOSE_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/core.js";
 
 

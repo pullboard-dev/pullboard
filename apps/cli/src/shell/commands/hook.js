@@ -3,7 +3,7 @@ import { importsIn } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
 import { itemFolderPath } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
-import { submitHandoffHookActor } from '../submit-handoff-origin.js';
+import { submitHandoffHookActor } from '../../../../../packages/sandbox/index.js';
 /**
  * Claims that may stamp trailers: the live ones, or the submitted item's own claim when only its gate handoff remains,
  * so a fix commit still cites the item while the gate runs [C7,#2882].

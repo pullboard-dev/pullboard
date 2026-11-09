@@ -6,6 +6,9 @@ import { landingProgress } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { closeLandingSpans } from '../../../../../packages/resources/index.js';
+import { landingSpan } from '../../../../../packages/resources/index.js';
+import { openLandingSpans } from '../../../../../packages/resources/index.js';
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
@@ -150,11 +153,13 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   let result;
-  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: landOnce, say: line => io.err?.(line), watch });
+  // A real landing records a span per step, read back by pullboard gate-health [C7].
+  if (!values['dry-run']) openLandingSpans({ commonDir: ctx.info.commonDir });
+  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: () => landingSpan('run', landOnce), say: line => io.err?.(line), watch });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;
-  }
+  } finally { if (!values['dry-run']) closeLandingSpans(); }
   if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
   if (!values['dry-run']) await recordBatchLanding(ctx, board, io, result);
   io.result?.(result);
@@ -175,7 +180,8 @@ export const LANDING_COALESCE_MS = 0;
  * Run board-owned landing after acceptance; the caller catches this entire post-verdict effect.
  * An agent session hands landing to the board's own worker: the main checkout belongs to the coordinator's session,
  * so landing there from a reviewer's session was refused NOT_YOUR_CHECKOUT and nothing landed (#2499). The worker
- * holds no session, and one pending wake absorbs every accept made before it fires.
+ * holds no session, and one pending wake absorbs every accept made before it fires. Returns true, or the landing's
+ * result when this process ran it.
  */
 export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
@@ -200,11 +206,27 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
       },
       execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
     return { ...(landed && typeof landed === 'object' ? landed : {}), retryMs: policy.config.landing?.cadenceMs ?? LANDING_RETRY_MS,
-      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at) };
+      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at),
+      untried: untriedAfter(store.listItems(board, { all: true }), landed?.batch) };
   });
   const retryAt = landingRetryAt(result, now());
   if (retryAt) await schedule(root, retryAt, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
-  return true;
+  // The wake reads the run's outcome, so a blocked batch with untried work waiting starts the next run at once [C7].
+  return result && typeof result === 'object' ? result : true;
+}
+
+/**
+ * Whether a verified, unheld, unmerged item waits outside a batch that just ended blocked: work the next batch can take
+ * at once. Why: after each blocked batch the lander backed off 1 to 4 minutes while #3862, never tried, waited [C7].
+ *
+ * @param {object[]} items - The board's items.
+ * @param {object | undefined} batch - The batch this run ended with.
+ * @returns {boolean}
+ */
+export function untriedAfter(items, batch) {
+  if (batch?.state !== 'blocked') return false;
+  const tried = new Set((batch.items ?? batch.candidates ?? []).map(entry => entry.id));
+  return items.some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at && !tried.has(item.item_id));
 }
 
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
@@ -245,16 +267,29 @@ export function landingRetryAt(result, now) {
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
   // loops hot.
-  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  // A batch that ended blocked tried its items; the next batch takes the untried ones behind it at once [C7].
+  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0
+    || result?.batch?.state === 'blocked' && result.untried === true;
   if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
 }
 
-/** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */
+/**
+ * Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. A notice never
+ * blocks or repeats a landing: a HEALTH_SCAN_STALE refusal (the board moved between the read and the move) reads
+ * the observation again once, and any other failure is logged and dropped, as on 9 Nov [C7].
+ */
 async function recordLandingNotices(ctx, board, io) {
-  try {
-    const observation = landingFailureObservation(board);
-    if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
-  } catch (error) { io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR')); }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const observation = landingFailureObservation(board);
+      if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
+      return;
+    } catch (error) {
+      if (error?.code === 'HEALTH_SCAN_STALE' && attempt === 0) continue;
+      io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR'));
+      return;
+    }
+  }
 }

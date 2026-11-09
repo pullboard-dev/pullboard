@@ -12,7 +12,7 @@ import {
 import { createHash } from 'node:crypto';
 import { agentParent } from '../../../seats/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { BAR_READY_ENGINE } from '../../../../src/bar-ready-engine.js';
+import { BAR_READY_ENGINE } from '../../../state/core.js';
 import { Refused } from '../../../kernel/index.js';
 
 const FIELDS = ['item_title', 'item_criterion', 'item_check', 'item_brief', 'item_spec_ids', 'item_after', 'item_route'];

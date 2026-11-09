@@ -17,7 +17,7 @@ import {
   exportBoard,
   importBoard,
 } from '../../store/index.js';
-import { DECISION_QUEUE_ENGINE } from '../../../src/decision-queue-engine.js';
+import { DECISION_QUEUE_ENGINE } from '../src/core/engines/decision-queue-engine.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 /** Run an authenticated private-board CLI command and decode its public response. */

@@ -55,5 +55,7 @@ export function landingWakeTrigger(before, after) {
   if (!before || !after) return null;
   if ((after.verified ?? []).some(key => !(before.verified ?? []).includes(key))) return 'verified';
   if (Object.entries(before.held ?? {}).some(([file, blob]) => (after.held ?? {})[file] !== blob)) return 'held-file';
+  // A waiver recorded since the back-off began can release a held trunk at once; it waited out the back-off on 9 Nov [C7].
+  if (Number.isSafeInteger(before.waivers) && Number.isSafeInteger(after.waivers) && after.waivers > before.waivers) return 'waiver';
   return null;
 }

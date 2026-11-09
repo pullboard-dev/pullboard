@@ -27,8 +27,8 @@ function engineTree(t, shims) {
     writeFileSync(join(root, file), text);
   };
   put('src/move-history/legacy.json', '{}');
-  put('src/base-engine.js', 'export const BASE_ENGINE = 40;\n');
-  put('src/alpha-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
+  put('packages/state/src/core/engines/base-engine.js', 'export const BASE_ENGINE = 40;\n');
+  put('packages/state/src/core/engines/alpha-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
   put('packages/moves/src/core/moves/addThing.js', 'export default { operation: "addThing", engine: 40 };\n');
   put('packages/moves/src/shell/moves/recordThing.js', 'export default { operation: "recordThing", engine: 40 };\n');
   if (shims) {
