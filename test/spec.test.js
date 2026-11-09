@@ -387,9 +387,11 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_HOME: join(root, '.home'),
-    PULLBOARD_MACHINE_HOME: join(root, '.home'),
+    // Beside the repo, not in it: the board write log lives in the machine home and must not dirty the committed tree.
+    PULLBOARD_HOME: `${root}-home`,
+    PULLBOARD_MACHINE_HOME: `${root}-home`,
   };
+  t.after(() => rmSync(`${root}-home`, { recursive: true, force: true }));
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];

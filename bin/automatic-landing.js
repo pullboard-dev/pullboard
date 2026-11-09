@@ -22,6 +22,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { LANDING_BOARD_BUSY_MS } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,7 +79,8 @@ function landingObservation(root, ioOptions = {}) {
   invalidateGitFacts();
   const ctx = context(wakeIo(root, ioOptions));
   const trunk = mainCheckout(root);
-  const verified = withBoardRead(ctx, board => listItems(board, { all: true })
+  // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
+  const verified = !existsSync(ctx.file) ? [] : withBoardRead(ctx, board => listItems(board, { all: true })
     .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort());
   return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified,
     pending: readMainAudit(join(automaticLandingDirectory(root), 'pending.json'))?.id };
