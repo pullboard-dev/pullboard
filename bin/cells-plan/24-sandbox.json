@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/sandbox",
  "frontDoor": "packages/sandbox/index.js",
+ "lightFrontDoor": "packages/sandbox/core.js",
  "paths": [
   ["src/execution-environment.js","packages/sandbox/src/shell/execution-environment.js","seed"],
   ["src/next-take.js","packages/sandbox/src/shell/next-take.js","imports"],
