@@ -124,7 +124,7 @@ test('launched gate driver completes a native queued request without unsettled a
   assert.notEqual(result.status, 13, result.context);
   assert.equal(result.status, 0, result.context);
   assert.doesNotMatch(result.stderr, /unsettled top-level await/u);
-  assert.equal(submitHandoff(board, id).state, 'green');
+  assert.equal(submitHandoff(board, id).state, 'green', result.context);
   assert.equal(getItem(board, id).item_status, 'submitted');
   assert.equal(getItem(board, id).item_commit, commit);
   assert.equal(JSON.parse(readFileSync(join(directory, 'submission.json'), 'utf8')).commit, commit);
