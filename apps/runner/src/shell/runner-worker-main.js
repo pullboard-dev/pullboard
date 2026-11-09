@@ -28,7 +28,7 @@ import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
 import { receiveAnalysisArtifact } from '../../../../packages/resources/index.js';
-import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/execution-environment.js';
+import { captureTestRuntimes } from '../../../../packages/sandbox/core.js';
 import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
 import { Refused } from '../../../../packages/kernel/core.js';
 import { createDescendantTracker } from './runner-custody.js';
