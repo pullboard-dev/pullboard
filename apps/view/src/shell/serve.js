@@ -488,7 +488,7 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
     dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
-    dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
+    dashboardLanded: all.filter(item => item.item_merged_commit)
       .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
       .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
