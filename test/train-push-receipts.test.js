@@ -168,10 +168,17 @@ function sideCheckout(box, commit, name = 'side') {
 /** Produce a fresh native gate receipt through the actual public CLI. */
 function gate(box, red = false) {
   const prior = box.env.TRAIN_RED;
-  if (red) box.env.TRAIN_RED = '1';
+  if (red) {
+    box.env.TRAIN_RED = '1';
+    // The fixture body reads TRAIN_RED, which no test-cache key declares, so a red run must not reuse the green result.
+    box.env.PULLBOARD_TEST_REUSE = '0';
+  }
   let result;
   try { result = box.run(box.repo, 'gate', '--landing', '--receipt', '--json'); }
-  finally { if (prior === undefined) delete box.env.TRAIN_RED; else box.env.TRAIN_RED = prior; }
+  finally {
+    if (prior === undefined) delete box.env.TRAIN_RED; else box.env.TRAIN_RED = prior;
+    delete box.env.PULLBOARD_TEST_REUSE;
+  }
   assert.equal(result.code, red ? 1 : 0, `${result.out}${result.err}`);
   const value = JSON.parse(result.out);
   assert.ok(value.receiptId, result.out);
@@ -236,12 +243,15 @@ test('one real native envelope covers multiple reviewed sources and only its fir
   const options = { base: box.base, side,
     items: onBoard(box, board => ids.map(id => ({ id, commit: store.getItem(board, id).item_commit }))),
     message: `chore: retain the actual multi-item envelope\n\nPullboard-Migration: ${box.base}` };
+  // The envelope is made where a landing makes it: the primary checkout, detached at the side tip, with no board write.
+  box.git(box.repo, 'checkout', '-q', '--detach', side);
   const made = runFixtureChild(process.execPath, ['--input-type=module', '-e',
     `import {createLandingEnvelope} from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)}; console.log(JSON.stringify(createLandingEnvelope(process.cwd(),${JSON.stringify(options)})));`],
-  { cwd: sidePath, env: box.env, encoding: 'utf8' });
+  { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(made.status, 0, `${made.stdout}${made.stderr}`);
   const envelope = JSON.parse(made.stdout);
   process.stderr.write('train envelope phase: envelope created\n');
+  box.git(box.repo, 'checkout', '-q', 'main');
   box.git(box.repo, 'merge', '--ff-only', envelope.tip);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD^1').trim(), box.base);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD^2').trim(), side);
