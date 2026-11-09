@@ -28,7 +28,6 @@
   ["src/cli-support.js","apps/cli/src/shell/cli-support.js","seed"],
   ["src/cli-sync.js","apps/cli/src/shell/cli-sync.js","seed"],
   ["src/cli.js","apps/cli/src/shell/cli.js","seed"],
-  ["src/cockpit.js","apps/cli/src/shell/cockpit.js","seed"],
   ["src/commands/add.js","apps/cli/src/shell/commands/add.js","seed"],
   ["src/commands/agents.js","apps/cli/src/shell/commands/agents.js","seed"],
   ["src/commands/answer.js","apps/cli/src/shell/commands/answer.js","seed"],
@@ -284,7 +283,6 @@
   "src/cli-main.js",
   "src/cli-presence.js",
   "src/cli-read-context.js",
-  "src/cockpit.js",
   "src/commands/index.js",
   "src/help.js",
   "src/next-steps.js"

@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { locked } from '../src/shell/relay-lock.js';
-import { relayFixtureChild } from '../../../test/relay-client-fixture.js';
+import { locked } from '../packages/link/src/shell/relay-lock.js';
+import { relayFixtureChild } from './relay-client-fixture.js';
 
 /** Use only the canonical runner's private temporary home and one phase file per control. */
 function fixture(t) {
@@ -44,7 +44,7 @@ test('a real relay request held past the child deadline names relay waiting [A7,
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
-  const module = new URL('../src/shell/relay.js', import.meta.url).href;
+  const module = new URL('../packages/link/src/shell/relay.js', import.meta.url).href;
   const origin = 'http://127.0.0.1:' + server.address().port;
   // Budget: only this forcing control's HTTP bound is 60s; the unchanged zero-upload child deadline is 25s.
   const script = `import { request } from ${JSON.stringify(module)};
@@ -61,7 +61,7 @@ test('a real live relay lock held past the child deadline names lock waiting [A7
   const released = new Promise(resolve => { release = resolve; });
   const holder = locked(file, async () => { ready(); await released; });
   await acquired;
-  const module = new URL('../src/shell/relay-lock.js', import.meta.url).href;
+  const module = new URL('../packages/link/src/shell/relay-lock.js', import.meta.url).href;
   try {
     await assertStallPhase(t, box, `import { locked } from ${JSON.stringify(module)};
 await locked(${JSON.stringify(file)}, async () => {});`, 'waiting-lock');
@@ -73,11 +73,11 @@ test('a real SQLite export blocked by a private writer names local export work [
   const file = join(box.root, 'private.sqlite');
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode=DELETE; CREATE TABLE kept(value TEXT); INSERT INTO kept VALUES (\'retained\'); BEGIN EXCLUSIVE;');
-  const module = new URL('../../store/index.js', import.meta.url).href;
+  const module = new URL('../packages/store/index.js', import.meta.url).href;
   // Budget: private SQLite waits 60s so the unchanged 25s child watchdog captures the actual blocked export.
   const script = `import { DatabaseSync } from 'node:sqlite';
 import { exportBoard } from ${JSON.stringify(module)};
-import { beginCommandPhase } from ${JSON.stringify(new URL('../src/shell/command-phase.js', import.meta.url).href)};
+import { beginCommandPhase } from ${JSON.stringify(new URL('../packages/link/src/shell/command-phase.js', import.meta.url).href)};
 const db = new DatabaseSync(${JSON.stringify(file)});
 db.exec('PRAGMA busy_timeout=60000');
 exportBoard({db}, { beginCommandPhase });`;
