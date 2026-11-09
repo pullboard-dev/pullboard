@@ -664,7 +664,7 @@
       "cells": 18,
       "deep": 0
     },
-    "apps/lib/src/shell/cli-hook-work.js": {
+    "apps/cli/src/shell/cli-hook-work.js": {
       "cells": 1,
       "deep": 0
     },
@@ -680,7 +680,7 @@
       "cells": 2,
       "deep": 0
     },
-    "apps/lib/src/shell/relay-sender-main.js": {
+    "apps/cli/src/shell/relay-sender-main.js": {
       "cells": 2,
       "deep": 0
     },
@@ -758,7 +758,7 @@
     },
     "apps/relay/src/shell/browser-model.js": {
       "cells": 3,
-      "deep": 2
+      "deep": 0
     },
     "apps/relay/src/shell/browser-page.js": {
       "cells": 4,
@@ -846,7 +846,7 @@
     },
     "apps/runner/src/shell/runner-worker-command.js": {
       "cells": 2,
-      "deep": 4
+      "deep": 3
     },
     "apps/runner/src/shell/runner-worker-environment.js": {
       "cells": 2,
@@ -858,15 +858,15 @@
     },
     "apps/runner/src/shell/runner-worker-main.js": {
       "cells": 5,
-      "deep": 13
+      "deep": 12
     },
     "apps/runner/src/shell/runner-worker-receipt.js": {
       "cells": 2,
-      "deep": 3
+      "deep": 2
     },
     "apps/runner/src/shell/runner-worker-spec.js": {
       "cells": 3,
-      "deep": 3
+      "deep": 2
     },
     "apps/view/src/core/needs-summary.js": {
       "cells": 10,
@@ -1010,7 +1010,7 @@
     },
     "bin/check-signoffs.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "bin/checks/board-write-io.js": {
       "cells": 2,
@@ -1410,7 +1410,7 @@
     },
     "packages/gate/src/shell/browser-admission.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -1553,8 +1553,8 @@
       "deep": 1
     },
     "packages/gate/src/shell/test-file-dispatch.js": {
-      "cells": 3,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/gate/src/shell/test-file-pool.js": {
       "cells": 2,
@@ -2050,7 +2050,7 @@
     },
     "packages/landing/src/shell/landing-host.js": {
       "cells": 3,
-      "deep": 2
+      "deep": 0
     },
     "packages/landing/src/shell/landing-in-process.js": {
       "cells": 1,
@@ -2376,10 +2376,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/moves/src/core/moves/finishLandingBatch.js": {
-      "cells": 4,
-      "deep": 2
-    },
     "packages/moves/src/core/moves/maintainStaleState.js": {
       "cells": 1,
       "deep": 0
@@ -2395,10 +2391,6 @@
     "packages/moves/src/core/moves/recordHealthFindings.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/moves/src/core/moves/recordLandingBatch.js": {
-      "cells": 4,
-      "deep": 2
     },
     "packages/moves/src/core/moves/recordProofRun.js": {
       "cells": 1,
@@ -2750,7 +2742,7 @@
     },
     "packages/runners/src/shell/runner-policy.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
@@ -2761,8 +2753,8 @@
       "deep": 1
     },
     "packages/runners/src/shell/runner-result.js": {
-      "cells": 6,
-      "deep": 8
+      "cells": 3,
+      "deep": 6
     },
     "packages/runners/src/shell/runner-source-scan.js": {
       "cells": 4,
@@ -2793,8 +2785,8 @@
       "deep": 0
     },
     "packages/sandbox/src/shell/execution-environment.js": {
-      "cells": 2,
-      "deep": 2
+      "cells": 1,
+      "deep": 0
     },
     "packages/sandbox/src/shell/next-take.js": {
       "cells": 4,
@@ -2833,8 +2825,8 @@
       "deep": 0
     },
     "packages/sandbox/src/shell/trusted-policy-read.js": {
-      "cells": 3,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/sandbox/src/shell/trusted-policy.js": {
       "cells": 5,
@@ -3242,7 +3234,7 @@
     },
     "packages/stats/src/shell/cost-read.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/shell/cost-shared.js": {
       "cells": 2,
@@ -3826,7 +3818,7 @@
     },
     "packages/verify/src/core/proof-provenance.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/verify/src/core/required-review-family.js": {
       "cells": 3,
@@ -3956,10 +3948,6 @@
       "cells": 2,
       "deep": 0
     },
-    "src/affected-tests.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/api-http.js": {
       "cells": 1,
       "deep": 0
@@ -4085,10 +4073,6 @@
       "deep": 0
     },
     "src/board-landing-exceptions.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-landing-lease.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4256,10 +4240,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board-store.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/board-submit.js": {
       "cells": 1,
       "deep": 0
@@ -4284,27 +4264,11 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/check-timing.js": {
       "cells": 1,
       "deep": 0
     },
-    "src/cli-context.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-main.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/cli-presence.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/committed-file-reader.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4315,10 +4279,6 @@
     "src/config.js": {
       "cells": 1,
       "deep": 0
-    },
-    "src/doctrine.js": {
-      "cells": 1,
-      "deep": 1
     },
     "src/engine-move-advance-item-source.js": {
       "cells": 1,
@@ -4424,10 +4384,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/family-declaration.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/git-adapter.js": {
       "cells": 1,
       "deep": 0
@@ -4457,14 +4413,6 @@
       "deep": 0
     },
     "src/known-main-autofile.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-failure-report.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-test-policy.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4533,10 +4481,6 @@
       "deep": 0
     },
     "src/machine-shared.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/machine.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4777,10 +4721,6 @@
       "imports": [],
       "deepImporters": 29
     },
-    "<-commits": {
-      "imports": [],
-      "deepImporters": 1
-    },
     "<-landing": {
       "imports": [],
       "deepImporters": 6
@@ -4840,10 +4780,6 @@
       ],
       "deepImporters": 0
     },
-    "<-items": {
-      "imports": [],
-      "deepImporters": 1
-    },
     "apps/runner": {
       "imports": [
         "codemap",
@@ -4866,10 +4802,6 @@
     "<-gate": {
       "imports": [],
       "deepImporters": 18
-    },
-    "<-sandbox": {
-      "imports": [],
-      "deepImporters": 11
     },
     "apps/view": {
       "imports": [
@@ -5507,5 +5439,15 @@
       "imports": [],
       "deepImporters": 1
     }
+  },
+  "lightDoors": {
+    "packages/drive/core.js": 9,
+    "packages/commits/core.js": 12,
+    "packages/verify/core.js": 17,
+    "packages/store/core.js": 34,
+    "packages/doctrine/core.js": 50,
+    "packages/gate/core.js": 10,
+    "packages/sandbox/core.js": 15,
+    "packages/config/core.js": 9
   }
 }

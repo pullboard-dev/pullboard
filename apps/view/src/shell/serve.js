@@ -432,7 +432,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       asked: fields.asked,
       events: fields.events,
       dashboardNext: fields.dashboardNext,
-      dashboardPace: fields.dashboardPace,
+      // Pace windows end on exact milliseconds, so they are read at this clock and never kept with the minute-marked fields.
+      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
       dashboardLanded: fields.dashboardLanded,
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
@@ -487,7 +488,6 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
     dashboardLanded: all.filter(item => item.item_merged_commit)
       .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))

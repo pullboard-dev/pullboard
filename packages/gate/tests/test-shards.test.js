@@ -16,12 +16,12 @@ const HOSTS = [HOST, `${HOST}-second`];
 const FILES = ['test/a.test.js', 'test/b.test.js'];
 
 /**
- * A private pool of two one-slot stand-in runners and no local gate slot, so every shard must take a runner slot.
+ * A private pool of one-slot stand-in runners and no local gate slot, so every shard must take a runner slot.
  *
  * @param {import('node:test').TestContext} t
  * @returns {object} The project box.
  */
-function fixture(t) {
+function fixture(t, hosts = HOSTS) {
   const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'shards-bin'), worker = join(box.dir, 'shards-worker');
   const home = join(box.dir, 'shards-home'), machineHome = join(home, '.pullboard');
@@ -30,7 +30,7 @@ function fixture(t) {
   box.env.PATH = `${bin}:${box.env.PATH}`;
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, {
     gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnerWaitMs: 200 },
-    runners: HOSTS.map(host => ({ host, slots: 1, browser: 0, node: process.execPath })),
+    runners: hosts.map(host => ({ host, slots: 1, browser: 0, node: process.execPath })),
   });
   return box;
 }
@@ -41,10 +41,12 @@ function fixture(t) {
  *
  * @param {string} gateUrl
  * @param {string} root
+ * @param {boolean} [quarantine] Run runner-only, with every runner answer a setup refusal that quarantines its host.
  * @returns {string}
  */
-function scenario(gateUrl, root) {
+function scenario(gateUrl, root, quarantine = false) {
   return `import { runTestShards, RunnerDropped } from ${JSON.stringify(gateUrl)};
+import { Refused } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../kernel/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../kernel/src/core/process-census.js')).href)};
 ${executionServicesSource(gateUrl)}
 const calls = [], seen = { landingHost: 0, pins: 0, local: 0 }, log = [];
@@ -53,6 +55,7 @@ const both = new Promise(resolve => { open = resolve; });
 const services = {
   runners: { ...executionServices.runners, runOnRunnerAsync: async (_root, command, options) => {
     calls.push({ host: options.runner.host, command });
+    ${quarantine ? "throw new Refused('RUNNER_SETUP', 'the runner could not set up');" : ''}
     if (++arrived === ${FILES.length}) open();
     await both;
     return { isGreen: true, output: '' };
@@ -61,7 +64,7 @@ const services = {
 };
 const result = await runTestShards({ parseProcessCensus, root: ${JSON.stringify(root)}, runner: ${JSON.stringify(join(root, 'bin/run-tests.js'))},
   files: ${JSON.stringify(FILES)}, count: 2, needsBrowser: async () => false, needsGui: async () => false,
-  runnerAdmission: { runnerOnly: false }, executionServices: services, runnerKinds: { RunnerDropped }, write: text => log.push(text),
+  runnerAdmission: { runnerOnly: ${quarantine} }, executionServices: services, runnerKinds: { RunnerDropped }, write: text => log.push(text),
   pinSource: () => { seen.pins++; return { commit: 'a'.repeat(40), fingerprint: 'fixture' }; },
   runLocalShard: async () => { seen.local++; throw new Error('a runner slot must take every shard here'); } });
 console.log(JSON.stringify({ green: result.isGreen, calls, seen, shards: result.shards, log: log.join('') }));`;
@@ -98,4 +101,16 @@ catch (error) { console.log(JSON.stringify({ type: error.constructor.name, messa
   const refused = JSON.parse(refusal.stdout);
   assert.equal(refused.type, 'TypeError');
   assert.match(refused.message, /explicit runner and landing services/u);
+});
+
+test('clause 1: a runner-only shard leased a runner quarantined in this run ends as infrastructure, never a throw [C7,V4]', { timeout: 150_000 }, t => {
+  const box = fixture(t, [HOST]);
+  const gate = pathToFileURL(join(import.meta.dirname, '../index.js')).href;
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, box.repo, true)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
+  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  const measured = JSON.parse(result.stdout);
+  assert.equal(measured.green, false);
+  assert.equal(measured.seen.local, 0, 'a runner-only run never falls back to a local slot');
+  assert.ok(measured.shards.some(shard => shard.status === 'infrastructure'), JSON.stringify(measured.shards));
+  assert.match(measured.log, /runner-only landing refuses quarantined runner/u);
 });

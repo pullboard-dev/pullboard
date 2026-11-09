@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import {
   configFromSource,
-} from '../../../config/src/shell/config.js';
+} from '../../../config/core.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -23,7 +23,7 @@ import {
 } from '../../../../src/git.js';
 import {
   Refused,
-} from '../../../kernel/index.js';
+} from '../../../kernel/core.js';
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
 export function policyGit(root, args, { encoding = 'utf8' } = {}) {

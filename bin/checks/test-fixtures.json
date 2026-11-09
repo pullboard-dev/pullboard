@@ -423,41 +423,35 @@
     "raw-board": 16,
     "model": 3
   },
-  "packages/stats/tests/coordinator-actions.test.js": {
+  "apps/lib/tests/coordinator-actions.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 5
   },
   "packages/stats/tests/cost-dollars.test.js": {
-    "raw-board": 2,
     "model": 1
   },
-  "packages/stats/tests/flow-report.test.js": {
+  "test/cost-dollars-cli.test.js": {
+    "raw-board": 2
+  },
+  "apps/lib/tests/flow-report.test.js": {
     "tempdir": 2,
     "raw-board": 6
   },
-  "packages/stats/tests/stats-actors.test.js": {
+  "apps/lib/tests/stats-actors.test.js": {
     "raw-board": 3
   },
-  "packages/stats/tests/stats-build-time.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
-  },
-  "packages/stats/tests/stats-compare.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 6
-  },
-  "packages/stats/tests/stats-flow.test.js": {
+  "apps/lib/tests/stats-flow.test.js": {
     "tempdir": 2,
     "raw-board": 6
   },
-  "packages/stats/tests/stats-time.test.js": {
-    "tempdir": 2,
+  "packages/gate/tests/stats-time.test.js": {
+    "tempdir": 2
+  },
+  "test/stats-time-cli.test.js": {
     "model": 1
   },
-  "packages/stats/tests/usage-publish-batch.test.js": {
+  "test/usage-publish-batch.test.js": {
     "raw-board": 3,
     "model": 3
   },
@@ -754,7 +748,7 @@
   "test/cells-data-reads.test.js": {
     "tempdir": 2
   },
-  "test/cells-inventory-incremental.test.js": {
+  "packages/landing/tests/cells-inventory-incremental.test.js": {
     "tempdir": 1
   },
   "apps/lib/tests/checkout-authority-schema.test.js": {
@@ -797,7 +791,7 @@
   "test/cells-shims.test.js": {
     "tempdir": 1
   },
-  "test/cells-temporary-edges.test.js": {
+  "packages/gate/tests/cells-temporary-edges.test.js": {
     "tempdir": 1
   },
   "test/cells-tools.test.js": {
@@ -1500,9 +1494,6 @@
   "apps/lib/tests/durable-pull-runner-27.test.js": {
     "raw-board": 1
   },
-  "test/durable-review-24.test.js": {
-    "raw-board": 2
-  },
   "test/durable-switch-land.test.js": {
     "raw-board": 1
   },
@@ -1712,7 +1703,7 @@
   "packages/resources/tests/handoff-cap-runner-slots.test.js": {
     "tempdir": 1
   },
-  "test/handoff-cap-status-line.test.js": {
+  "packages/runners/tests/handoff-cap-status-line.test.js": {
     "hand-policy": 1
   },
   "packages/resources/tests/handoff-dispatcher-capacity.test.js": {
@@ -1749,7 +1740,7 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "test/handoff-worker-cap-runners-only.test.js": {
+  "packages/runners/tests/handoff-worker-cap-runners-only.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -1782,7 +1773,7 @@
     "raw-board": 69,
     "model": 1
   },
-  "test/held-claim-selection.test.js": {
+  "packages/store/tests/held-claim-selection.test.js": {
     "repo-read": 1
   },
   "test/help-examples.test.js": {
@@ -1805,10 +1796,10 @@
   "test/import-style-helpers.js": {
     "tempdir": 1
   },
-  "test/inbox-starts-at-join.test.js": {
-    "raw-board": 4
+  "packages/store/tests/inbox-starts-at-join.test.js": {
+    "raw-board": 3
   },
-  "test/infra-retry.test.js": {
+  "packages/gate/tests/infra-retry.test.js": {
     "hand-policy": 1
   },
   "test/init-gate.test.js": {
@@ -1938,7 +1929,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "test/land-engine-numbers.test.js": {
+  "packages/landing/tests/land-engine-numbers.test.js": {
     "tempdir": 1
   },
   "test/land-no-remote-fixture.js": {
@@ -2039,7 +2030,7 @@
   "packages/landing/tests/landing-merge-attribution.test.js": {
     "tempdir": 1
   },
-  "test/landing-move-closure.test.js": {
+  "packages/landing/tests/landing-move-closure.test.js": {
     "tempdir": 2
   },
   "packages/landing/tests/landing-new-test-file-bisects.test.js": {
@@ -2151,10 +2142,7 @@
     "tempdir": 1,
     "raw-board": 4
   },
-  "test/liveness-reviews.test.js": {
-    "raw-board": 1
-  },
-  "test/liveness-slots.test.js": {
+  "packages/gate/tests/liveness-slots.test.js": {
     "tempdir": 2
   },
   "test/lock-hold-budget-command.fixture.js": {
@@ -2342,9 +2330,6 @@
   "test/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
-  "test/next-light-reserve.test.js": {
-    "raw-board": 2
-  },
   "test/next-no-review-for-builder.test.js": {
     "raw-board": 1
   },
@@ -2500,7 +2485,7 @@
     "hand-policy": 2,
     "model": 1
   },
-  "test/precommit-static-parity.test.js": {
+  "packages/gate/tests/precommit-static-parity.test.js": {
     "hand-policy": 1
   },
   "test/presence-gone-fixture.js": {
@@ -2518,10 +2503,6 @@
     "raw-board": 4,
     "tempdir": 1,
     "model": 3
-  },
-  "test/private-rehome-grants.test.js": {
-    "raw-board": 5,
-    "model": 1
   },
   "test/products.test.js": {
     "tempdir": 2,
@@ -2598,7 +2579,7 @@
     "raw-board": 4,
     "hand-policy": 1
   },
-  "test/ratchet-against-main.test.js": {
+  "packages/landing/tests/ratchet-against-main.test.js": {
     "tempdir": 3
   },
   "packages/doctrine/tests/ratchet-rename.test.js": {
@@ -2642,9 +2623,8 @@
   "test/reject-clause.test.js": {
     "raw-board": 13
   },
-  "test/reject-reopens-to-any.test.js": {
-    "model": 1,
-    "raw-board": 6
+  "packages/store/tests/reject-reopens-to-any.test.js": {
+    "raw-board": 5
   },
   "test/rejected-work-format-fixture.js": {
     "raw-board": 2
@@ -3101,7 +3081,7 @@
   "packages/gate/tests/run-tests-cleanup-enotempty.test.js": {
     "tempdir": 2
   },
-  "test/run-tests-empty-selection.test.js": {
+  "packages/gate/tests/run-tests-empty-selection.test.js": {
     "model": 1
   },
   "test/run-tests-fixture.js": {
@@ -3165,7 +3145,7 @@
     "tempdir": 3,
     "hand-policy": 1
   },
-  "test/runner-cleanup-recovery.test.js": {
+  "packages/runners/tests/runner-cleanup-recovery.test.js": {
     "model": 1
   },
   "test/runner-controller-machine-fixture.js": {
@@ -3193,7 +3173,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/runner-exclusive-drain.test.js": {
+  "packages/resources/tests/runner-exclusive-drain.test.js": {
     "hand-policy": 1
   },
   "packages/items/tests/runner-fetches-trunk.test.js": {
@@ -3308,7 +3288,7 @@
   "test/runner-unavailable-redispatch.fixture.js": {
     "model": 1
   },
-  "test/runner-warm-pool.test.js": {
+  "packages/runners/tests/runner-warm-pool.test.js": {
     "tempdir": 1
   },
   "test/runner-warm-source.test.js": {
@@ -3564,7 +3544,7 @@
   "test/submit-auto-merge.test.js": {
     "tempdir": 2
   },
-  "test/submit-cells-incremental.test.js": {
+  "packages/landing/tests/submit-cells-incremental.test.js": {
     "tempdir": 2
   },
   "apps/cli/tests/submit-cells-remote.test.js": {
@@ -3586,9 +3566,6 @@
     "tempdir": 2,
     "env-spread": 1,
     "model": 1
-  },
-  "test/submit-gate-ticks-clause.test.js": {
-    "raw-board": 4
   },
   "test/submit-gate.test.js": {
     "repo-read": 1
@@ -3885,6 +3862,15 @@
   "packages/drive/tests/wall-limit-load-scaled.test.js": {
     "tempdir": 1
   },
+  "packages/moves/tests/durable-review-24.test.js": {
+    "raw-board": 1
+  },
+  "packages/moves/tests/liveness-reviews.test.js": {
+    "raw-board": 1
+  },
+  "packages/moves/tests/next-light-reserve.test.js": {
+    "raw-board": 2
+  },
   "test/webkit-fixture.js": {
     "tempdir": 1
   },
@@ -3942,5 +3928,18 @@
     "model": 5,
     "raw-board": 6,
     "hand-policy": 1
+  },
+  "test/stats-build-time-fixture.js": {
+    "tempdir": 2,
+    "hand-policy": 1,
+    "raw-board": 4
+  },
+  "test/stats-compare-fixture.js": {
+    "tempdir": 2,
+    "hand-policy": 1,
+    "raw-board": 6
+  },
+  "test/next-answer-first.test.js": {
+    "raw-board": 1
   }
 }

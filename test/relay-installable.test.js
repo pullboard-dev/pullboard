@@ -75,7 +75,9 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
     const chrome = await startChrome();
     try {
       await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-        source: `window.setInterval = () => 0;
+        // A fresh page opens on the Dashboard, and the item list is drawn only on the Items tab, so ask for that tab as the phone tests do.
+        source: `localStorage.setItem('pb.tab', 'items');
+          window.setInterval = () => 0;
           window.pairingPersistenceCalls = 0;
           Object.defineProperty(navigator.storage, 'persist', { value: async () => {
             window.pairingPersistenceCalls += 1;

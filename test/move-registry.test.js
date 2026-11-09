@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
+import * as store from './packages/store/index.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();
@@ -256,7 +256,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
     JSON.stringify([{ event: 7, revision: { source: 'private recorded revision fixture' } }]));
   assert.equal(minimumMoveEngine('applyRowDecisions', [{ events: [7] }], board), SPEC_REVISION_ENGINE);
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const forbidden = new Set(['src/board.js', 'src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'src/move-registry.js', 'src/git.js']);
+  const forbidden = new Set(['packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
   let pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))

@@ -64,5 +64,6 @@
   "check": "node bin/cells-plan.js --moved config",
   "after": ["kernel","git","queue","resources"]
  },
- "pureFrontDoor": "packages/config/core.js"
+ "lightFrontDoor": "packages/config/core.js",
+ "pureDoor": "packages/config/pure.js"
 }

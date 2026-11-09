@@ -76,14 +76,23 @@ function ruleIdentity(code, { changed = CHANGED_REFUSALS, rule } = {}) {
 }
 
 /**
+ * The ledger row a trial lives in: the plain code for a code on trial by itself, the code plus the rule's identity for
+ * a rule that supplies its own. Why: two gate rules may raise one code (MAIN_NOT_COMPOSED), and each must keep its own
+ * trial instead of resetting the other's.
+ */
+export function trialLedgerKey(code, options = {}) {
+  return options.rule === undefined && !Object.hasOwn(options.changed ?? CHANGED_REFUSALS, code)
+    ? code : `${code}@${ruleIdentity(code, options).slice(0, 16)}`;
+}
+
+/**
  * A refusal's mode now, and the clean gates its trial has seen: report until CLEAN_GATES_TO_ENFORCE real gates have
  * passed since its trial started (its first appearance or its last false refusal), then enforce.
  */
 export function refusalMode(root, code, options = {}) {
   if (!onTrial(code, options)) return { mode: 'enforce', clean: null };
   const ledger = readLedger(options.file ?? refusalTrialFile(root));
-  const row = ledger.codes[code];
-  const start = row?.identity === ruleIdentity(code, options) ? row.start : undefined;
+  const start = ledger.codes[trialLedgerKey(code, options)]?.start;
   const clean = start === undefined ? 0 : ledger.gates - start;
   return { mode: clean >= CLEAN_GATES_TO_ENFORCE ? 'enforce' : 'report', clean };
 }
@@ -97,8 +106,9 @@ export function trialRefusal(root, code, message, say, options = {}) {
   if (mode === 'enforce') return true;
   const file = options.file ?? refusalTrialFile(root);
   const identity = ruleIdentity(code, options);
+  const key = trialLedgerKey(code, options);
   updateLedger(file, ledger => {
-    if (ledger.codes[code]?.identity !== identity) ledger.codes[code] = { identity, start: ledger.gates, falseRefusals: 0 };
+    if (ledger.codes[key]?.identity !== identity) ledger.codes[key] = { code, identity, start: ledger.gates, falseRefusals: 0 };
   });
   say(`would refuse ${code} (report-only, ${clean}/${CLEAN_GATES_TO_ENFORCE} clean gates): ${message}`);
   return false;
@@ -146,8 +156,8 @@ export function countTrialGate(root, { file = refusalTrialFile(root), id } = {})
     if (key && Object.hasOwn(ledger.seen, key)) return [];
     if (key) ledger.seen[key] = true;
     ledger.gates += 1;
-    return Object.entries(ledger.codes).map(([code, row]) => {
-      const clean = ledger.gates - row.start;
+    return Object.entries(ledger.codes).map(([key, row]) => {
+      const code = row.code ?? key, clean = ledger.gates - row.start;
       return `refusal trial ${code}: ${clean >= CLEAN_GATES_TO_ENFORCE ? 'enforce' : 'report'} (${Math.min(clean, CLEAN_GATES_TO_ENFORCE)}/${CLEAN_GATES_TO_ENFORCE} clean gates)`;
     });
   });
@@ -156,7 +166,11 @@ export function countTrialGate(root, { file = refusalTrialFile(root), id } = {})
 /** Record that a refusal on trial would have refused good work: its trial starts over, so it keeps reporting. */
 export function recordFalseRefusal(root, code, { file = refusalTrialFile(root) } = {}) {
   updateLedger(file, ledger => {
-    const row = ledger.codes[code] ?? { falseRefusals: 0 };
-    ledger.codes[code] = { ...row, identity: row.identity ?? ruleIdentity(code), start: ledger.gates, falseRefusals: row.falseRefusals + 1 };
+    const keys = Object.keys(ledger.codes).filter(key => (ledger.codes[key].code ?? key) === code);
+    if (!keys.length) keys.push(code);
+    for (const key of keys) {
+      const row = ledger.codes[key] ?? { falseRefusals: 0 };
+      ledger.codes[key] = { ...row, code, identity: row.identity ?? ruleIdentity(code), start: ledger.gates, falseRefusals: row.falseRefusals + 1 };
+    }
   });
 }

@@ -198,7 +198,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N12 [wont, aim] `pullboard mcp` serves the commands as MCP tools; A9 covers it.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 - N14 [approved, must] `pullboard run` builds routed items unattended: a command per tier, verified dependencies merged, check, retry, submit or escalate. | gate: test/e2e.test.js | serves: N8
-- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: test/sweep.test.js, test/e2e.test.js
+- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: apps/cli/tests/sweep.test.js, test/e2e.test.js
 - N16 [retired] Merged into N14.
 - N17 [retired] Merged into N15.
 - N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.
