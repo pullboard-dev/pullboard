@@ -2,7 +2,7 @@
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import './main-audit-cases.js';
-import './main-audit-receipt.test.js';
+import '../packages/gate/tests/main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
 import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';

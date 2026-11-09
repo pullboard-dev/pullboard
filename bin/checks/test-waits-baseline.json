@@ -85,7 +85,7 @@
   "test/chrome-fixture.js": {
     "sleep": 1
   },
-  "test/chrome-fixture.test.js": {
+  "packages/gate/tests/chrome-fixture.test.js": {
     "sleep": 2
   },
   "test/chrome-graceful-shutdown.js": {

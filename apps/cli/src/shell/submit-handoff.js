@@ -206,9 +206,11 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
  * dispatcher drains this ticket; a lapsed one is taken here and a dispatcher is launched under that lease [C7].
  * Why the row is freed again when nothing launched: a dispatcher that already holds the machine drains every
  * repository's tickets, and a row held by nobody must not keep the next submit from launching one.
+ * Why a recovery launch (no reservation) goes to the front of the line: its gate already waited its turn once and lost
+ * it to a dead worker; on 8 Nov such retries waited up to 17 min behind routine submits [C7].
  */
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
-  const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart });
+  const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart, urgent: true });
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
@@ -304,12 +306,40 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
   return withFileLock(join(directory, 'recovery.guard.sqlite'), () => recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory));
 }
 
+/**
+ * Whether a queued job shows neither its captured request nor a place in line, the only case in which its capture
+ * may never have begun. Either one proves the launch was captured, so the machine's queue-order lock is taken only
+ * when both are missing.
+ * Why: that lock takes 1-18 s on a busy machine; on 8 Nov the health sweep took it once for every queued job, ran
+ * past its 60 s bound on every pass, was killed before its running jobs and retries, and dead gates waited 22 min
+ * (p50) for a restart [C7].
+ *
+ * @param {string} directory - The job's hand-off folder.
+ * @param {string} job - The job id.
+ * @param {{ waiting?: (job: string) => boolean }} [ports]
+ * @returns {boolean}
+ */
+export function capturedLaunchUnseen(directory, job, { waiting = handoffTicketWaiting } = {}) {
+  return !existsSync(join(directory, 'request.json')) && !waiting(job);
+}
+
+/**
+ * The sweep's order: running jobs first, then queued ones, each by item. Why: a dead running gate is the one a
+ * builder waits on, and a sweep that runs out of time must have reached it first [C7].
+ *
+ * @param {{ itemId: number, job: { state: string } }[]} jobs
+ * @returns {{ itemId: number, job: { state: string } }[]}
+ */
+export function sweepOrder(jobs) {
+  return [...jobs].sort((a, b) => Number(b.job.state === 'running') - Number(a.job.state === 'running') || a.itemId - b.itemId);
+}
+
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
   // The gate's driver record is its drive job on the board, never a file beside the hand-off [C7].
   const readWorker = () => withBoardRead(ctx, board => readWorkerRecord(board, observed));
   const workerRecord = readWorker();
-  if (!workerRecord && observed.state === 'queued') {
+  if (!workerRecord && observed.state === 'queued' && capturedLaunchUnseen(directory, observed.id)) {
     const unlaunched = await withHandoffQueueOrder(() => {
       const current = withBoardRead(ctx, board => {
         const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
@@ -415,7 +445,7 @@ async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
  * @returns {Promise<number>} How many unfinished hand-offs the sweep looked at.
  */
 export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHandoffs, recover = recoverSubmitHandoff, recoverInfrastructure = recoverInfrastructureHandoffs, returnNoVerdict = returnNoVerdictHandoffs } = {}) {
-  const jobs = list(ctx);
+  const jobs = sweepOrder(list(ctx));
   let failure = null;
   for (const { itemId, job } of jobs) {
     try { await recover(ctx, itemId, job.agentId, job); }
