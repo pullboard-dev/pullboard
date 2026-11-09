@@ -16,6 +16,9 @@ function graph(t) {
   put('src/cockpit.js', 'export const version = 1;\n');
   // A product module that only names the entry path as text, as seven package modules do.
   put('src/names-cli.js', "export const ENTRY = 'bin/pullboard.js';\nexport const run = root => root;\n");
+  // A test the changes below never reach, so a focused selection is never the whole suite.
+  put('src/other.js', 'export const other = 1;\n');
+  put('test/other.test.js', "import '../src/other.js';\n");
   return box;
 }
 
