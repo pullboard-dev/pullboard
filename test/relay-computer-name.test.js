@@ -20,6 +20,9 @@ test('linked computers use person-given names in coordinator holds and devices [
   const other = await box.otherDeviceJoin(pairing.document.code, 'Travel laptop');
   assert.equal((await box.cli('add', box.lane, 'First named coordinator')).code, 0);
   const denied = await other.cli('add', box.lane, 'Other coordinator is refused');
+  const meta = async d => (await d.cli('export')).document.tables.board_meta.filter(r => /holder|coord/u.test(r.meta_key));
+  const out = { deniedCode: denied.code, boxMeta: await meta(box), otherMeta: await meta(other), boxStatus: (await box.cli('status')).document.relay, otherStatus: (await other.cli('status')).document.relay, link: box.readLink() };
+  throw new Error('DEBUG ' + JSON.stringify(out));
   assert.equal(denied.document?.error?.code, 'COORDINATOR_HELD', denied.failure ?? JSON.stringify(denied.document));
   assert.match(denied.document.error.message, /Writing desk/u);
   const taken = await other.cli('takeover');
