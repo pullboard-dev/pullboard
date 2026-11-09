@@ -198,17 +198,26 @@ function readItem(box, id) {
 }
 
 /**
- * Shape a current export for an archived client, which predates the additive job tables.
+ * Shape a current export for an archived client, which predates the job tables.
  *
  * Why: 7d16c88b1f added job and job_step on open, and old exchange.js refuses any table it does not know.
- * The fixture boards hold no jobs, so dropping the empty tables hands the old client the same board.
+ * fc85f1c3cb then moved each item's submit hand-off record from board_meta (`submit_handoff:<item>`) onto its gate job,
+ * so the fixture boards now hold jobs. The old client reads the record from board_meta, so every item's newest
+ * record-carrying step goes back there and the job tables are dropped: the archived client gets the board it knew.
  * @param {any} snapshot
  * @returns {any}
  */
 function legacySnapshot(snapshot) {
   const { job = [], job_step: jobStep = [], ...tables } = snapshot.tables;
-  assert.deepEqual([job.length, jobStep.length], [0, 0], 'the replayed fixture board holds no jobs');
-  return { ...snapshot, tables };
+  const records = new Map();
+  for (const step of [...jobStep].sort((a, b) => b.job_step_id - a.job_step_id)) {
+    const owner = job.find((row) => row.job_id === step.job_step_job);
+    assert.equal(owner?.job_kind, 'gate', 'every replayed job is a gate job');
+    const record = JSON.parse(step.job_step_payload).record;
+    if (record !== undefined && !records.has(owner.job_item)) records.set(owner.job_item, record);
+  }
+  const handoffs = [...records].map(([item, record]) => ({ meta_key: `submit_handoff:${item}`, meta_value: JSON.stringify(record) }));
+  return { ...snapshot, tables: { ...tables, board_meta: [...(tables.board_meta ?? []), ...handoffs] } };
 }
 
 /**
