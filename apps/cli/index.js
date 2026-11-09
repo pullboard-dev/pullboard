@@ -44,3 +44,4 @@ export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';
 
+export { requireNonEmptySubmit } from './src/shell/empty-submit.js';
