@@ -1,4 +1,4 @@
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { seatFamily } from "../../../verify/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { heartbeatSeat } from "./seat-presence.js";
@@ -55,7 +55,7 @@ export function register(board, who) {
         );
       }
       // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
-      const priorFamily = reviewRouting.seatFamily(board, existing.agent_id);
+      const priorFamily = seatFamily(board, existing.agent_id);
       const locked = saveJoinedSession(board, existing.agent_id, who);
       const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
