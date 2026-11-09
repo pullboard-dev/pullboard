@@ -1,7 +1,6 @@
 {
   "src/background-view.js": "apps/view/src/shell/background-view.js",
   "src/badge.js": "apps/view/src/shell/badge.js",
-  "src/help/setup.js": "apps/view/src/shell/help/setup.js",
   "src/needs-state.js": "apps/view/src/shell/needs-state.js",
   "src/needs-summary.js": "apps/view/src/core/needs-summary.js",
   "src/resume-needs.js": "apps/view/src/core/resume-needs.js",

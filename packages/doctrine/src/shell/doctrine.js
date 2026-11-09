@@ -7,7 +7,6 @@ import {
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
 } from '../../../config/index.js';
-import { committedIds } from '../../../store/index.js';
 import {
   loadSpec,
   parseSpec,
@@ -107,13 +106,9 @@ function composeDoctrine(repo, name, standard = standardDoctrine()) {
   };
 }
 
-/** Retain committed row ids across the conventional filename change at the requested revisions. */
-export function doctrineHistory(root, name, revs = ['HEAD']) {
-  const history = committedIds(root, name, revs);
-  if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return history;
-  const other = committedIds(root, name === DOCTRINE_FILE ? LEGACY_DOCTRINE_FILE : DOCTRINE_FILE, revs);
-  for (const [id, commit] of other.ids) if (!history.ids.has(id)) history.ids.set(id, commit);
-  return { ...history, since: history.since ?? other.since };
+/** The current and the legacy doctrine file names, in that order. */
+export function doctrineFileNames() {
+  return [DOCTRINE_FILE, LEGACY_DOCTRINE_FILE];
 }
 
 /** A current, labelled rules list for AGENTS.md and cold-start run packs. */

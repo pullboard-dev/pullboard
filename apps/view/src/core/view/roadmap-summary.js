@@ -63,7 +63,7 @@ export function roadmapSummary(milestone, context = {}) {
 
 /**
  * The header for each milestone read, made once and reused across its header, body and companion panel [N26]. Why here:
- * the page embeds this source, so it keeps src/cockpit.js inside its line cap; the page hands in what it reads by.
+ * the page embeds this source, so it keeps apps/cli/src/shell/cockpit.js inside its line cap; the page hands in what it reads by.
  *
  * @param {{targetLabels: Map, addresses: Map, headings?: Map, root: string, held?: string|null}} page - Prepared display observations.
  * @returns {(read: {milestone: object, rows: object[]}|null) => object|null}

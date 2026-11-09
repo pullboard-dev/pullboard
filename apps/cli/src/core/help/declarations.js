@@ -1,8 +1,7 @@
 /** Ordered command-group declarations; separators remain part of their original text. */
 import { introHelp } from './intro.js';
 import { outsideHelp } from './outside.js';
-// Direct import: the view front door reaches back into this CLI help graph, so setupHelp is read before it initializes.
-import { setupHelp } from '../../../../view/src/shell/help/setup.js';
+import { setupHelp } from './setup.js';
 import { workHelp } from './work.js';
 import { coordinatorHelp } from './coordinator.js';
 import { receiptsHelp } from './receipts.js';

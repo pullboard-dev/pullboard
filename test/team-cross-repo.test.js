@@ -2,7 +2,7 @@ import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import * as linkStore from '../packages/store/index.js';
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
   boardLinkRequest,
@@ -25,6 +25,7 @@ import {
   writeFileSync,
 } from './team-scenarios.fixture.js';
 import { join } from 'node:path';
+import { CROSS_REPO_DEPENDENCY_ENGINE } from '../packages/state/core.js';
 
 test('an item waits across repos [B24,H16]', async t => {
   /** A private board clock makes exact canonical replay comparisons deterministic. */
@@ -124,7 +125,6 @@ test('an item waits across repos [B24,H16]', async t => {
   assert.equal(store.nextFor(local, { agentId: 'web-1', lane: 'web' }).item.item_id, dependent);
   assert.equal(store.nextFor(replica, { agentId: 'web-1', lane: 'web' }).item.item_id, dependent);
   const move = prepareEngineMove(local, 'claim', [dependent, options]);
-  const { CROSS_REPO_DEPENDENCY_ENGINE } = await import('../packages/state/core.js');
   assert.ok(move.engine >= CROSS_REPO_DEPENDENCY_ENGINE, 'older replicas cannot flatten a foreign-dependent claim');
   const ordered = { sequence: 1, at: clock.now().toISOString() };
   assert.deepEqual(applyEngineMove(local, move, ordered), applyEngineMove(replica, move, ordered), 'one ordered claim returns the same receipt on both replicas');

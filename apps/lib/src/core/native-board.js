@@ -85,7 +85,7 @@ import {
   relayPerson,
   requestPerson,
 } from '../../../../packages/link/index.js';
-import { projectState } from '../../../../src/serve.js';
+import { projectState } from '../../../view/index.js';
 import {
   projectFit,
   pendingFit,
@@ -159,7 +159,7 @@ import { recordRowVerification as applyRowVerification } from '../../../../packa
 import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../../packages/spec/index.js';
 import { draftSpecRow as applySpecRowDraft } from '../../../../packages/spec/index.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../../packages/store/index.js';
 import {
   addMilestone,
   editMilestone,
@@ -282,7 +282,11 @@ const MILESTONE_READS = {
 const libraryBoard = {};
 /** Properties read through live bindings, so a cyclic first load never reads a store export before it exists. */
 function libraryExport(name, read) { Object.defineProperty(libraryBoard, name, { enumerable: true, get: read }); }
-for (const name of Reflect.ownKeys(store)) if (typeof name === 'string') libraryExport(name, () => store[name]);
+/** The library reads these two names from the store's write operations: the door's plain names are the read-only variants. */
+const LIBRARY_WRITE_NAMES = { ensureCoordinator: 'board_ensureCoordinator', recordNextIdle: 'board_recordNextIdle' };
+/** A native operation replaces a store export of the same name, so the library never defines one name twice. */
+const NATIVE_OPERATIONS = new Set([...NATIVE_BOARD_NAMES, ...Object.keys(MILESTONE_READS)]);
+for (const name of Reflect.ownKeys(store)) if (typeof name === 'string' && !NATIVE_OPERATIONS.has(name)) libraryExport(name, () => store[LIBRARY_WRITE_NAMES[name] ?? name]);
 for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
 for (const [name, read] of Object.entries(MILESTONE_READS)) libraryExport(name, read);
 export const board = Object.freeze(libraryBoard);

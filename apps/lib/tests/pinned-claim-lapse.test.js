@@ -58,6 +58,8 @@ function fixture(t) {
   const ctx = { clock: { now: () => new Date(at) }, config: {} };
   /** One ordinary write by another seat runs the same maintenance every board write runs. */
   const maintain = (actor = helper) => {
+    // The holders are live seats that keep heartbeating, so only their work, never their presence, ages a claim (#3447).
+    for (const id of [first, second]) store.heartbeatSeat(board, id);
     const snapshot = captureLapsedClaims(ctx, board, actor);
     if (snapshot) store.maintainStaleState(board, { agentId: actor, snapshot, health: {}, claimsOnly: true });
     return snapshot;
