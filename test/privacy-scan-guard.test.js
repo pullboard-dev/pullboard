@@ -13,7 +13,7 @@ import { test } from 'node:test';
 const ROOT = resolve(import.meta.dirname, '..');
 const SELF = 'test/privacy-scan-guard.test.js';
 // The view lane's paths, as `pullboard lanes` prints them.
-const VIEW = ['src/cockpit.js', 'src/serve.js', 'src/view.css', 'src/view', 'test/cockpit.test.js', 'test/cockpit', 'test/journeys.test.js'];
+const VIEW = ['apps/cli/src/shell/cockpit.js', 'apps/view', 'test/cockpit.test.js', 'test/cockpit', 'test/journeys.test.js'];
 // Names written in pieces so this file never contains them whole; the scan also finds the pieces joined.
 const NAMES = [['Stu', 'dio'], ['Mac', 'Book'], ['M', 'BP'], ['Cor', 'ey'], ['ol', 'son']].map(parts => parts.join(''));
 const PATTERN = new RegExp(`\\b(?:${NAMES.join('|')})\\b|\\(the person,`, 'iu');

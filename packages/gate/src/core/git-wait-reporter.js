@@ -3,7 +3,7 @@
  * queue, one line per memory state and one line when a runner drops out. packages/gate/index.js re-exports it.
  */
 
-/** Build de-duplicated queue messages for a gate waiting on machine capacity or memory; tests read it through src/cli.js. */
+/** Build de-duplicated queue messages for a gate waiting on machine capacity or memory; tests read it through the apps/cli door. */
 export function gateWaitReporter(io) {
   let last = '';
   let warned = false;

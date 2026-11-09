@@ -8,9 +8,9 @@ import { cachedSubmitSourceStep } from '../apps/cli/src/shell/submit-controller-
 import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
@@ -62,7 +62,7 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
     .some(problem => problem.includes('cannot prove cut through bin/bridge.js')), 'an unknown root-tool loader also refuses');
 });
 
-import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells as inspectSubmit } from '../bin/cells-submit-checks.js';
 import { touchedCells } from '../bin/cells-submit-checks.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { writePlan } from '../bin/cells-plan.js';
@@ -72,12 +72,28 @@ import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
+import { privateFixtureFiles } from './fixture-child.js';
+
+// The accepted inventory is produced off-path by a background producer (#3533), so this file publishes each fixture
+// main's inventory into one private machine home and hands it to the submit check as the producer's result would be.
+const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME, machineHome = privateFixtureFiles('cells-checks-machine-').root;
+process.env.PULLBOARD_MACHINE_HOME = machineHome;
+after(() => {
+  if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
+  rmSync(machineHome, { recursive: true, force: true });
+});
+/** The accepted inventory published for each fixture main, by main commit. */
+const published = new Map();
+/** The real submit check with the inventory its producer published for `main`. */
+const preflight = (root, main, commit, item, services) => inspectSubmit(root, main, commit, item, services && { ...services, acceptedArtifact: services.acceptedArtifact ?? published.get(main) });
 
 /** Bind real higher-controller services for every immutable fixture inspection. */
 const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 
 /** Commit the actual small plan and complete canonical baseline, with no production-source substitution. */
-function plannedFixture(t, prepare = () => {}) {
+async function plannedFixture(t, prepare = () => {}) {
   const box = fixture(t);
   prepare(box);
   writePlan(box.root, computePlan(box.root));
@@ -86,7 +102,12 @@ function plannedFixture(t, prepare = () => {}) {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
-  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
+  const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const trunk = git(box.root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  const artifact = await warmAcceptedCells(box.root, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk });
+  assert.equal(artifact.available, true, 'the producer published the accepted inventory of main');
+  published.set(main, artifact);
+  return { ...box, main, item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
 }
 
 /** Commit the exact candidate the real immutable-snapshot preflight will inspect. */
@@ -97,7 +118,7 @@ function commitCandidate(box) {
 }
 
 test('submit accepts unchanged scheduled debt but refuses an unplaced committed source before executing it [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   const clean = await requireSubmitCells(box.root, box.main, box.main, box.item);
   assert.deepEqual(clean.problems, []);
   box.put('src/new-unsafe.js', 'throw new Error("candidate module must never execute");\n');
@@ -105,7 +126,7 @@ test('submit accepts unchanged scheduled debt but refuses an unplaced committed 
 });
 
 test('submit names a new later edge even when candidate metadata declares it temporary [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   const commit = commitCandidate(box);
   await assert.rejects(requireSubmitCells(box.root, box.main, commit, box.item), /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
@@ -119,7 +140,7 @@ test('submit names a new later edge even when candidate metadata declares it tem
 });
 
 test('submit keeps accepted placement authority when a candidate drops a row into stays or changes cell order [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t), plan = readPlan(box.root);
+  const box = await plannedFixture(t), plan = readPlan(box.root);
   const early = plan.cells.find(cell => cell.name === 'kernel');
   const row = early.paths.shift();
   plan.stays.push({ path: row[0], reason: 'forged candidate exemption' });
@@ -132,7 +153,7 @@ test('submit keeps accepted placement authority when a candidate drops a row int
 });
 
 test('submit compares lints with accepted allowances even if a candidate rewrites its own baseline [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('src/refused.js', 'export class Refused extends Error {}\n' + '\n'.repeat(1501));
   const report = cellLintReport(box.root, { importsIn, commonJsIn });
   writeCellLintBaseline(box.root, cellLintBaseline(report));
@@ -143,7 +164,7 @@ test('submit compares lints with accepted allowances even if a candidate rewrite
 
 
 test('submit accepts a real clean move and keeps an existing temporary edge as unchanged debt [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t, box => {
+  const box = await plannedFixture(t, box => {
     box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
     box.put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'src/stats-flow.js', contractItem: 123,
       expires: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }] }));
@@ -152,7 +173,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
   box.put('bin/tool.js', "import '../src/cli.js'; // unchanged runtime dependency\n");
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'temporary exceptions are disabled in both snapshots and the old exact edge is still equal debt');
-  const clean = plannedFixture(t);
+  const clean = await plannedFixture(t);
   clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
   clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
   clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
@@ -172,18 +193,18 @@ function moveFixtureKernel(box, body) {
 }
 
 test('submit preserves an existing cut across a real importer relocation [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t, box => {
+  const box = await plannedFixture(t, box => {
     box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   });
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
   assert.deepEqual(result.problems, [], 'the same actual dependency is inherited under its committed moved path');
-  assert.ok(result.existingCuts.some(problem => problem.includes('src/refused.js -> src/stats-flow.js')),
-    'the original cut evidence remains readable in its original source namespace');
+  // Submit no longer lists the accepted cut backlog (it belongs to the main audit: 7a6b37bef3, cutDeltaProblems).
+  assert.deepEqual(result.existingCuts, [], 'the accepted backlog is not relisted, and the relocated edge adds nothing to it');
 });
 
 test('submit still refuses a genuinely new cut after an importer relocation [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
     /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/core\/refused\.js -> src\/stats-flow\.js/u,
@@ -191,7 +212,7 @@ test('submit still refuses a genuinely new cut after an importer relocation [C7,
 });
 
 test('submit ignores candidate checker code and refuses a forged overlapping ownership root [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t, box => {
+  const box = await plannedFixture(t, box => {
     box.put('bin/cells-plan-cuts.js', 'export const fixtureChecker = true;\n');
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'private checker source');
   });
@@ -205,8 +226,11 @@ test('submit ignores candidate checker code and refuses a forged overlapping own
     'a new cell cannot shadow all accepted package owners');
 });
 
-test('submit requires real controller services before reading any input [C7,D3]', async () => {
-  await assert.rejects(preflight(null, null, null, null), /canonical checkout and parser services are required/u);
+test('submit requires real controller services before reading any input [C7,D3]', async t => {
+  const box = fixture(t), commit = git(box.root, 'rev-parse', 'HEAD').trim();
+  await assert.rejects(preflight(box.root, commit, commit, {}), /canonical parser and cache services are required/u);
+  // The cell object scope itself needs an actual repository before anything else (#2711).
+  await assert.rejects(preflight(null, null, null, null), /cells object scope needs a repository and action/u);
 });
 
 import childProcess from 'node:child_process';
@@ -297,7 +321,9 @@ test('a newly reachable unchanged module reuses its cold census observation [C7,
 
 test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
   const { root } = fixture(t), calls = bindingCompilerCalls(t);
-  const key = { checkDigest: 'checker', config: { acceptedMain: 'main', preloads: [] } };
+  // The checker's identity is the bytes of its code files (#2601), so the key names real files of this tool.
+  const tool = path => fileURLToPath(new URL(`../${path}`, import.meta.url));
+  const key = { code: [tool('bin/cells-inventory-cache.js')], config: { acceptedMain: 'main', preloads: [] } };
   const cache = observationCache(root, key, () => true), modules = bindingModules();
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
   assert.equal(calls(), 1);
@@ -308,7 +334,7 @@ test('real compiler observations survive a checked same-main census only [C7,D3]
   reconstructed[0].body = JSON.parse(JSON.stringify(reconstructed[0].body));
   withBindingReadCache(() => bindingReadsForModules(reconstructed), { eligible: () => true, observations: restored.values });
   assert.equal(calls(), 1, 'a later process scope reuses equal reconstructed input values');
-  const changed = observationCache(root, { ...key, checkDigest: 'changed' }, () => true);
+  const changed = observationCache(root, { ...key, code: [tool('bin/cells-submit-checks.js')] }, () => true);
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: changed.values });
   assert.equal(calls(), 2, 'checker identity invalidates the durable observations');
   const preloadChanged = observationCache(root, { ...key, config: { ...key.config, preloads: ['new bytes'] } }, () => true);
@@ -390,7 +416,7 @@ test('eligible runtime context changes require a fresh real binding compiler obs
 });
 
 test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t, box => {
+  const box = await plannedFixture(t, box => {
     box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
     box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
     box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
@@ -399,7 +425,8 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
   });
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
-  const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  const candidate = commitCandidate(box), observed = {};
+  bindingCompilerCalls(t, observed);
   let requested = 0, computed = 0;
   const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
     readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
@@ -419,21 +446,22 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   try {
     process.env.NODE_OPTIONS = '--no-warnings';
     assert.equal(bindingCacheEligible(), false);
-    let uncached;
-    try { await run(box.item); }
-    catch (error) { uncached = error; }
-    assert.equal(uncached?.message, cached.message, 'the exact full diagnostics do not change when canonical policy bypasses both caches');
-    assert.ok(observed.imports > first.imports, 'actual submit entry bypasses import-parser reuse');
-    assert.ok(first.requested > first.computed, 'eligible actual submit reuses binding probes within the census');
-    assert.equal(computed, requested, 'canonical bypass recompiles every requested binding probe');
-    assert.ok(computed > first.computed, 'actual submit entry bypasses repeated binding-probe reuse');
-    assert.ok(calls() > 0);
+    // A foreign preload may change what the parsers observe, so the accepted inventory cannot be reused under it and
+    // submit refuses before any parser or binding work, rather than computing a different answer (#2711).
+    await assert.rejects(run(box.item), /foreign Node preload prevents accepted cells inventory reuse/u,
+      'canonical policy refuses a foreign preload instead of answering from a bypassed cache');
+    assert.equal(observed.imports ?? 0, 0, 'the refusal does no import-parser work');
+    assert.equal(observed.bindings ?? 0, 0, 'the refusal does no binding compiler work');
+    assert.equal(requested, 0, 'the refusal requests no binding probe');
+    // The accepted inventory serves the unchanged modules, so the refused candidate needs each binding once and none repeats;
+    // the cross-run reuse is the computed === 0 check above, and census reuse has its own cases (#2711).
+    assert.ok(first.computed > 0 && first.requested === first.computed, `the eligible actual submit probes each binding exactly once ${JSON.stringify(first)}`);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
 
 /** Exercise the actual writer's 100-order filename, not an invented alternate reader spelling. */
 test('submit reads canonical 100-order shards and refuses alternate shard identities [C7,D3]', async t => {
-  const box = plannedFixture(t), plan = readPlan(box.root);
+  const box = await plannedFixture(t), plan = readPlan(box.root);
   plan.cells.find(cell => cell.name === 'kernel').order = 100;
   writePlan(box.root, plan);
   const commit = commitCandidate(box);
@@ -456,7 +484,7 @@ test('submit reads canonical 100-order shards and refuses alternate shard identi
 
 
 test('scheduled rows stay unmoved while mapped cells retain real missing-body checks [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
   box.put('src/new.css', 'body { color: red; }\n');
   kernel.paths.push(['src/new.css', 'packages/kernel/src/shell/new.css', 'rule']);
@@ -469,7 +497,7 @@ test('scheduled rows stay unmoved while mapped cells retain real missing-body ch
 });
 
 test('outside-cell changes do not widen touched cells but still refuse unplaced source [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('test/ordinary.test.js', '// real outside-cell test change\n');
   const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
   assert.deepEqual(result.cells, []);
@@ -485,7 +513,7 @@ async function refusal(promise) {
 
 test('submit refuses deleting a module a test names inside a generated script, never for a comment or prose mention [C7,D3]', async t => {
   for (const form of [() => './src/doomed.js', () => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
-    const box = plannedFixture(t, fixture => {
+    const box = await plannedFixture(t, fixture => {
       fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
       fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
       fixture.put('test/child.test.js', `const script = \`import('${form(fixture.root)}').then(m => m.doomed);\`;\n// src/quiet.js once held the quiet value\nconst note = 'the old src/quiet.js held the quiet value';\nexport { script, note };\n`);
@@ -503,21 +531,23 @@ test('submit refuses deleting a module a test names inside a generated script, n
 });
 
 test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
-  let checkouts = 0, rows = [];
+  const box = await plannedFixture(t);
+  let reads = 0, rows = [];
   const services = { parsers: { importsIn, commonJsIn }, withImportParseCache,
-    cacheEligible: () => true, readCutItems: () => rows,
-    withMainCheckout: (root, commit, run) => { checkouts++; return withMainCheckout(root, commit, run); } };
-  const first = await preflight(box.root, box.main, box.main, box.item, services);
+    cacheEligible: () => true, readCutItems: () => rows, withMainCheckout, onSnapshotRead: () => { reads++; } };
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  const candidate = commitCandidate(box);
+  const first = await preflight(box.root, box.main, candidate, box.item, services);
   assert.deepEqual(first.problems, []);
-  const afterFirst = checkouts;
-  const second = await preflight(box.root, box.main, box.main, box.item, services);
+  const afterFirst = reads;
+  assert.ok(afterFirst > 0, 'the first check reads the changed file from the immutable snapshot');
+  const second = await preflight(box.root, box.main, candidate, box.item, services);
   assert.equal(second.reused, true, 'the exact green check reads its receipt');
-  assert.equal(checkouts, afterFirst, 'reuse avoids snapshot checks');
+  assert.equal(reads, afterFirst, 'reuse avoids snapshot reads');
   rows = [{ item_id: 1, item_lane: 'core', item_title: 'different cut', item_status: 'verified', item_merged_commit: box.main }];
-  const changed = await preflight(box.root, box.main, box.main, box.item, services);
+  const changed = await preflight(box.root, box.main, candidate, box.item, services);
   assert.notEqual(changed.reused, true, 'changed board authority cannot reuse the old receipt');
-  assert.ok(checkouts > afterFirst);
+  assert.ok(reads > afterFirst, 'the changed authority inspects the snapshot again');
 });
 
 test('shared cell inventory updates changed modules and reports structural fallback [C7,D3]', t => {
@@ -567,7 +597,7 @@ test('damaged inventory cache is discarded and rebuilt from the immutable snapsh
 });
 
 test('one changed cell selects its importers without unrelated cells [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
   const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
   assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
@@ -623,7 +653,7 @@ test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', t 
 });
 
 test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t, ({ put }) => {
+  const box = await plannedFixture(t, ({ put }) => {
     const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
       stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
     for (let index = 0; index < 96; index++) {
@@ -660,7 +690,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
 });
 
 test('unchanged accepted cell cut evidence is reused across different candidate trees [C7,D3,CD64]', async t => {
-  const box = plannedFixture(t), events = [];
+  const box = await plannedFixture(t), events = [];
   const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
     readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => true,
     onCellObservation: (mode, name) => events.push([mode, name]) };
@@ -707,7 +737,7 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
 });
 
 test('controller source steps cache only exact green source and base [C7,D3]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   const code = [fileURLToPath(new URL('../apps/cli/src/shell/submit-controller-cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
   let calls = 0;
