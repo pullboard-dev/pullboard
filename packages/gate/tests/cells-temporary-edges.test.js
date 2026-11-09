@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan/** */
 /** Temporary import debt has an explicit removal owner, UTC expiry and visible shim count [C7]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { importsIn } from '../index.js';
+import { commonJsIn } from '../index.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -12,12 +12,12 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { computePlan } from '../bin/cells-plan.js';
-import { writePlan } from '../bin/cells-plan.js';
-import { importCuts } from '../packages/codemap/index.js';
-import { cellLintReport } from '../packages/codemap/index.js';
-import { runFixtureChild } from './fixture-child.js';
-import { runFixtureGit } from './fixture-child.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { importCuts } from '../../codemap/index.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Build a committed real Git graph whose earlier cell has one forbidden later import. */
 function fixture(t) {
@@ -43,7 +43,7 @@ function fixture(t) {
     expires: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) };
   /** Exercise the actual production command, retaining its status and named diagnostics. */
   function check() {
-    return runFixtureChild(process.execPath, [fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url)), '--cuts', group.cell], { cwd: root, env, encoding: 'utf8' });
+    return runFixtureChild(process.execPath, [fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url)), '--cuts', group.cell], { cwd: root, env, encoding: 'utf8' });
   }
   /** Replace the one committed-policy input without mocking the scanner. */
   function policy(edges) { put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges })); }
