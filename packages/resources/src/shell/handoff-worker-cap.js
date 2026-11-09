@@ -187,6 +187,19 @@ export function queueHandoffLaunch(launch, reservation) {
   return name;
 }
 
+/**
+ * The file a dispatcher holding the machine's lock rewrites on every pass; its age is the liveness check board commands
+ * read. Why: reading the lock holders opens the machine's slot database and probes each holder process, which took
+ * 4-13 s per command under load; one stat costs about a millisecond, and a stale beat only wakes the full check [C7].
+ */
+export function handoffDispatcherHeartbeat() { return join(handoffQueueDirectory(), 'dispatcher-heartbeat'); }
+
+/** Rewrite the dispatcher's heartbeat; a missed beat only costs one detached recovery check, never the pass. */
+function beatDispatcherHeartbeat() {
+  try { writeFileSync(handoffDispatcherHeartbeat(), `${process.pid}\n`, { mode: 0o600 }); }
+  catch { /* the next pass beats again */ }
+}
+
 /** The dispatcher's own log: its stderr and every slot release it had to retry. */
 export function handoffDispatcherLog() { return join(handoffQueueDirectory(), 'dispatcher.log'); }
 
@@ -468,6 +481,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (RETRIED_SLOT_ERRORS.has(error.code)) { logDispatcher(`dispatcher lock not taken: ${error.code}; retrying on the next pass`); await new Promise(done => setTimeout(done, pollMs)); if (!waitingTickets().length) return { started }; continue; }
       throw error;
     }
+    beatDispatcherHeartbeat();
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
     // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
     await sweeps.now();
@@ -567,6 +581,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       if (!RETRIED_SLOT_ERRORS.has(error?.code)) throw error;
       logDispatcher(`dispatcher lock not renewed: ${error.code} ${error.message}; retrying on the next pass`);
     }
+    beatDispatcherHeartbeat();
     // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
     try { onPass(); } catch (error) { logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
@@ -645,11 +660,21 @@ export const HANDOFF_DISPATCHER_OWNER_ENV = 'PULLBOARD_DISPATCHER_OWNER';
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
  * @param {{ startOf?: (pid: number) => string, owner?: string }} [options]
- * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine.
+ * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine or another launcher holds the launch lock, which this call never waits for.
  */
 export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner } = {}) {
   if (dispatcherHeld()) return false;
-  const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch' });
+  // Another launcher already holds the lock and is starting the dispatcher this call would start, so this call never queues
+  // behind it. Why: on 8 Nov ~77 board commands waited on this lock with no deadline, each poll a turn in the single-writer
+  // queue, and builders idled 20 minutes behind a 14-minute commit hook [C7].
+  let lock;
+  try {
+    lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch',
+      onWait() { throw new Refused('HANDOFF_LAUNCH_BUSY', 'another process is launching the dispatcher'); } });
+  } catch (error) {
+    if (error.code === 'HANDOFF_LAUNCH_BUSY') return false;
+    throw error;
+  }
   try {
     if (dispatcherHeld()) return false;
     const queue = handoffQueueDirectory();

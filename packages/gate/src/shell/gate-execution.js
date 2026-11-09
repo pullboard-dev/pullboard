@@ -236,7 +236,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = yield { root, command, remoteCommand, gateLease,
-    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, signal,
+    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, runnerStartupMs: gateLease.runnerStartupMs, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
     localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
