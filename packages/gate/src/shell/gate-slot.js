@@ -325,7 +325,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
     runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    runnerIdleProbe: (runner, previous, { liveJobs = [] } = {}) => probeRunnerHealth(runner, previous, { idle: true, liveJobs }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
