@@ -93,7 +93,7 @@ test('clause 2: an adopted batch refused RUNNER_SOURCE three times stops blocked
   const result = landRuns(box, entry, { mode: 'source', runs: 5 });
   const id = '00000000-0000-4000-8000-000000000002';
   assert.deepEqual(result.adopted, [id, null, null, null, null], `the first run adopts the fixture batch; d614aab905 returns a refused one-item batch to its item, so later runs start fresh batches: ${JSON.stringify({ errors: result.errors, lines: result.lines, batch: result.batch })}`);
-  assert.equal(result.errors.filter(code => code === 'RUNNER_SOURCE').length, 3, `exactly three attempts, then no loop: ${result.errors}`);
+  assert.equal(result.errors.filter(code => code === 'RUNNER_SOURCE').length, 3, `exactly three attempts, then no loop: ${JSON.stringify({ errors: result.errors, lines: result.lines, others: result.others, merged: result.merged, batch: result.batch?.state })}`);
   assert.equal(result.batch.refusals.length, 1, 'each refused one-item batch keeps its own refusal');
   assert.ok(result.batch.refusals.every(refusal => refusal.code === 'RUNNER_SOURCE' && refusal.message === 'the runner checkout is not the queued candidate'), JSON.stringify(result.batch.refusals));
   assert.equal(result.batch.state, 'blocked', 'nothing adopts it again');
