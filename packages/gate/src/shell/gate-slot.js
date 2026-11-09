@@ -409,8 +409,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         infrastructureAttempts.push(failure);
         lease.infrastructureAttempts = [...infrastructureAttempts];
-        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
-          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        // Only the dispatch's own READY timer names a missed READY: the lease's queue deadline passes during any long
+        // phase, so reading the clock against it marked a plain transport loss as a readiness failure (#3563) [C7].
+        const admissionDeadline = !cleanup && error.diagnostic?.reason === 'admission-deadline';
         // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
         // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
         // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.

@@ -453,9 +453,25 @@ function resultWrittenAt(directory, since) {
   return null;
 }
 
-/** Signal a detached worker's whole process group, so its --execute child stops with it; a gone group is fine. */
-function signalWorker(worker, signal) {
-  try { process.kill(-worker.pid, signal); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+/**
+ * Signal a detached worker's whole process group, so its --execute child stops with it. A group that is gone (ESRCH) or
+ * that this dispatcher may not signal (EPERM, a pid since reused by another user's process) is logged and treated as no
+ * longer this dispatcher's worker; it is never thrown. Why: on 8 Nov a kill EPERM thrown from here ended the dispatcher
+ * twice (09:08Z and 09:16Z), each time followed by dead gates (#3727) [C7].
+ *
+ * @param {{ pid: number }} worker - The detached worker whose group is signalled.
+ * @param {string} signal - The signal to send.
+ * @param {{ kill?: (pid: number, signal: string) => void, entry?: { job?: string, foreign?: boolean } }} [options] - The kill call (tests pass a stand-in) and the running entry to mark.
+ * @returns {boolean} True when the signal was sent.
+ */
+export function signalWorker(worker, signal, { kill = process.kill, entry } = {}) {
+  try { kill(-worker.pid, signal); return true; }
+  catch (error) {
+    if (error?.code !== 'ESRCH' && error?.code !== 'EPERM') throw error;
+    if (entry) entry.foreign = true;
+    if (error.code === 'EPERM') logDispatcher(`signal ${signal} to the worker group of ${entry?.job ?? worker.pid} refused: ${error.code}; treated as not this dispatcher's worker`);
+    return false;
+  }
 }
 
 /**
@@ -465,9 +481,9 @@ function signalWorker(worker, signal) {
  */
 function boundAfterResult(entry, now, graceMs) {
   entry.resultAt ??= resultWrittenAt(entry.directory, entry.startedAt);
-  if (entry.resultAt === null || now - entry.resultAt < graceMs) return;
-  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM'); }
-  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
+  if (entry.foreign || entry.resultAt === null || now - entry.resultAt < graceMs) return;
+  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM', { entry }); }
+  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL', { entry });
 }
 
 /** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
@@ -593,11 +609,21 @@ export const HANDOFF_DISPATCHER_OWNER_ENV = 'PULLBOARD_DISPATCHER_OWNER';
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
  * @param {{ startOf?: (pid: number) => string, owner?: string }} [options]
- * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine.
+ * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine or another launcher holds the launch lock, which this call never waits for.
  */
 export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner } = {}) {
   if (dispatcherHeld()) return false;
-  const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch' });
+  // Another launcher already holds the lock and is starting the dispatcher this call would start, so this call never queues
+  // behind it. Why: on 8 Nov ~77 board commands waited on this lock with no deadline, each poll a turn in the single-writer
+  // queue, and builders idled 20 minutes behind a 14-minute commit hook [C7].
+  let lock;
+  try {
+    lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch',
+      onWait() { throw new Refused('HANDOFF_LAUNCH_BUSY', 'another process is launching the dispatcher'); } });
+  } catch (error) {
+    if (error.code === 'HANDOFF_LAUNCH_BUSY') return false;
+    throw error;
+  }
   try {
     if (dispatcherHeld()) return false;
     const queue = handoffQueueDirectory();
