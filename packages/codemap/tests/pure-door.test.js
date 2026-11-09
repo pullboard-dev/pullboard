@@ -16,7 +16,7 @@ const BODY = 'packages/kernel/src/core/refused.js';
 /** Run the real cells plan CLI in the fixture; the moved check's problems come back one per line. */
 function plan(root, ...args) {
   const run = spawnSync(process.execPath, [BIN, ...args], { cwd: root, encoding: 'utf8' });
-  return { status: run.status, problems: run.stderr.split('\n').filter(Boolean) };
+  return { status: run.status, problems: run.stderr.split('\n').filter(line => line && !/ExperimentalWarning|--trace-warnings/u.test(line)) };
 }
 
 /** Set one key on a cell's plan shard, as a plan edit would. */
