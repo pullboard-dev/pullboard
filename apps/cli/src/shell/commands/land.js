@@ -180,7 +180,8 @@ export const LANDING_COALESCE_MS = 0;
  * Run board-owned landing after acceptance; the caller catches this entire post-verdict effect.
  * An agent session hands landing to the board's own worker: the main checkout belongs to the coordinator's session,
  * so landing there from a reviewer's session was refused NOT_YOUR_CHECKOUT and nothing landed (#2499). The worker
- * holds no session, and one pending wake absorbs every accept made before it fires.
+ * holds no session, and one pending wake absorbs every accept made before it fires. Returns true, or the landing's
+ * result when this process ran it.
  */
 export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
@@ -205,11 +206,27 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
       },
       execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
     return { ...(landed && typeof landed === 'object' ? landed : {}), retryMs: policy.config.landing?.cadenceMs ?? LANDING_RETRY_MS,
-      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at) };
+      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at),
+      untried: untriedAfter(store.listItems(board, { all: true }), landed?.batch) };
   });
   const retryAt = landingRetryAt(result, now());
   if (retryAt) await schedule(root, retryAt, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
-  return true;
+  // The wake reads the run's outcome, so a blocked batch with untried work waiting starts the next run at once [C7].
+  return result && typeof result === 'object' ? result : true;
+}
+
+/**
+ * Whether a verified, unheld, unmerged item waits outside a batch that just ended blocked: work the next batch can take
+ * at once. Why: after each blocked batch the lander backed off 1 to 4 minutes while #3862, never tried, waited [C7].
+ *
+ * @param {object[]} items - The board's items.
+ * @param {object | undefined} batch - The batch this run ended with.
+ * @returns {boolean}
+ */
+export function untriedAfter(items, batch) {
+  if (batch?.state !== 'blocked') return false;
+  const tried = new Set((batch.items ?? batch.candidates ?? []).map(entry => entry.id));
+  return items.some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at && !tried.has(item.item_id));
 }
 
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
@@ -250,7 +267,9 @@ export function landingRetryAt(result, now) {
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
   // loops hot.
-  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  // A batch that ended blocked tried its items; the next batch takes the untried ones behind it at once [C7].
+  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0
+    || result?.batch?.state === 'blocked' && result.untried === true;
   if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
