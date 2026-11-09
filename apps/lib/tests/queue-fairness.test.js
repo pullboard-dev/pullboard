@@ -1,9 +1,9 @@
 /** Waiting-time policy exercises the native board and shared queue comparator [N2,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { QUEUE_FAIRNESS_ENGINE } from '../packages/state/core.js';
-import { fixtureBoard } from './board-fixture.js';
+import * as store from '../../../packages/store/index.js';
+import { QUEUE_FAIRNESS_ENGINE } from '../../../packages/state/core.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 /** Give all observations a recorded clock and configure only a disposable board. */
 function fixture(t) {

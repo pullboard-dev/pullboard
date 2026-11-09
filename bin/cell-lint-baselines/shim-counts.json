@@ -2,7 +2,7 @@
   "version": 1,
   "cells": {
     "api": 2,
-    "cli": 11,
+    "cli": 10,
     "config": 4,
     "gate": 22,
     "git": 4,
