@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence } from '../packages/state/index.js';
@@ -28,8 +28,8 @@ import { applyRelayMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { eventCauses } from '../src/board-rigor.js';
-import { rigorReport } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
+import { rigorReport } from '../packages/store/index.js';
 import { executeSentinel } from '../packages/sentinels/index.js';
 import { runDueSentinels } from '../packages/sentinels/index.js';
 import { startServeSentinel } from '../packages/sentinels/index.js';
@@ -49,11 +49,11 @@ import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion } from '../packages/spec/index.js';
 import { loadSpec } from '../packages/spec/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
-import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
+import { requireSupportedEngine as requirePublished55Engine } from '../packages/kernel/tests/fixtures/engine-55-reader.js';
 
 /** Isolate actual SQLite, Git, settings and subprocess files; due time is explicitly injected. */
 function fixture(t, { agentRoute } = {}) {

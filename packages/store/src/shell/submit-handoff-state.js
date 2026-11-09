@@ -50,6 +50,8 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'NO_POLICY',
   // The board's Git sync lease stayed busy or origin did not answer: the machine, not the source (#3111).
   'GIT_SYNC_LOCK_BUSY', 'GIT_SYNC_REMOTE',
+  // A runner refused the request's size or history scan: the gate requeues on a runner, never runs locally (#3898).
+  'RUNNER_REQUEST_LIMIT', 'RUNNER_SCAN_LIMIT',
 ]));
 
 /**

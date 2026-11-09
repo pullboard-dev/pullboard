@@ -1,6 +1,11 @@
-/** Match a recorded event to its declared move, including state-specific native aliases. */
+/**
+ * Match a recorded event to its declared move, including state-specific native aliases.
+ * A submit's own lease renewal keeps the item where it is and is no re-claim, so it matches no move.
+ */
 export function lifecycleMove(machine, state, event) {
-  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport', 'outside-intake': 'intake' };
+  if (event.kind === 'renew' && event.submitRenewal === true) return undefined;
+  // An owning lane's objection to an automatic companion reopens the item through its declared move (#3815).
+  const aliases = { renew: 'claim', 'merge-only-accept': 'submit-merge', rehome_import: 'rehomeImport', 'outside-intake': 'intake', item_patch_object: 'patch-objected' };
   const verb = ['item_patch_attach', 'item_patch_remove'].includes(event.kind)
     ? state === 'claimed' ? 'patch-claimed' : 'patch' : aliases[event.kind] ?? event.kind;
   return machine.moves.find(move => move.verb === verb && move.from.includes(state)
@@ -16,6 +21,8 @@ export function lifecycleEvent(event) {
     try {
       const lease = JSON.parse(event.event_detail).leaseUntil;
       projected.leaseUntil = typeof lease === 'string' && lease.length <= 64 && Number.isFinite(Date.parse(lease)) ? lease : null;
+      // A renewal that carries a submit's admission witness is the submit holding its lease, not a re-claim.
+      if (event.event_kind === 'renew' && JSON.parse(event.event_detail).submitAdmission) projected.submitRenewal = true;
     }
     catch { projected.leaseUntil = null; /* Malformed legacy claim metadata cannot prove a live lease. */ }
   }

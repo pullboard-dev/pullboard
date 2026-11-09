@@ -27,14 +27,21 @@ import {
   bindSubmitHandoffOrigin,
   submitHandoffRoot,
   isSubmitHandoffWorker,
-} from '../../../../src/submit-handoff-origin.js';
-import { submitHandoff } from '../../../../src/submit-handoff-read.js';
+} from '../../../../packages/sandbox/index.js';
+import { submitHandoff } from '../../../../packages/store/index.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { closeGateSpans } from '../../../../packages/resources/index.js';
+import { gateSpanCause } from '../../../../packages/resources/index.js';
+import { onDispatcherLifelineEnd } from '../../../../packages/resources/index.js';
+import { gateSpanFolder } from '../../../../packages/jobs/index.js';
+import { openGateSpans } from '../../../../packages/resources/index.js';
+import { recordGateSpan } from '../../../../packages/resources/index.js';
 import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
+import { withGateProgress } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
 import { rowSink } from '../../../../packages/drive/index.js';
 import { recordJobRow } from '../../../../packages/drive/index.js';
@@ -103,16 +110,30 @@ function workerContext(request, directory, root, nativeBoard) {
   return { ctx, job };
 }
 
+/**
+ * The completion a queued gate's failure records.
+ * Why: a red gate keeps its item with the seat that built it, in its item folder; only a driver failure may give the claim
+ * back to the board when claim.returnToBoard is on, so a seat is never handed a rework it did not start (#3796).
+ *
+ * @param {any} config - The coordinator configuration.
+ * @param {{ id: string, agentId: string }} job - The current queued job.
+ * @param {any} failure - The exact refusal document.
+ * @param {boolean} keepSeat - True for a red gate result.
+ * @returns {object} The completeSubmitHandoff argument.
+ */
+export function failureCompletion(config, job, failure, keepSeat) {
+  return { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: config.claim?.reopenFirstRefusalMinutes,
+    ...(config.claim?.returnToBoard === true && !keepSeat ? { returnToBoard: true } : {}) };
+}
+
 /** Retain a refusal and return only this process's still-current native job through the normal move. */
-async function recordWorkerFailure(ctx, request, directory, failure) {
+async function recordWorkerFailure(ctx, request, directory, failure, { keepSeat = false } = {}) {
   writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
   if (ctx && isSubmitHandoffWorker(ctx)) {
     try {
       const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
-        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-          { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes,
-            ...(ctx.config.claim?.returnToBoard === true ? { returnToBoard: true } : {}) }]));
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, failureCompletion(ctx.config, job, failure, keepSeat)]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
   }
@@ -187,6 +208,8 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
     // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
     onInfrastructure: async rerun => {
+      const now = Date.now();
+      recordGateSpan({ phase: 'rerun', start: now, end: now, host: rerun.hosts[0], outcome: 'retry', cause: 'infra-retry', code: rerun.code });
       try {
         await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
           text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]));
@@ -204,20 +227,21 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
  * more is written to the drive job, which stays resumable at its last saved step. The drive cell's `run.signal` ends
  * one run the same way when it stalls, so that run starts no new stage and no rerun while the cell reruns the same
- * candidate (#3661).
+ * candidate (#3661). The cell's `run.progress` is what the gate's runner waits and test runs report to, so a long
+ * healthy tests section is never read as a stall (#3829).
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
  * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
  *   healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
- * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal }) => Promise<object>}
+ * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal, progress?: (detail: object) => void }) => Promise<object>}
  */
 export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
-  return async (observe, { signal: ended } = {}) => {
+  return async (observe, { signal: ended, progress } = {}) => {
     const halt = stop && ended ? AbortSignal.any([stop, ended]) : stop ?? ended;
     const runStages = (stages, settings) => runGateStages(observe(halt ? stoppableStages(stages, halt, inflight) : stages), settings);
     ctx.runGateStages = runStages;
-    try { return await handoffGate(ctx, request, options); }
+    try { return await withGateProgress(progress, () => handoffGate(ctx, request, options)); }
     catch (error) {
       if (halt?.aborted) return new Promise(() => {});
       return handoffRefusedResult(error);
@@ -289,10 +313,33 @@ export function boardRecorder(nativeBoard, file) {
   const board = nativeBoard.openBoard(file);
   return {
     view: job => jobView(board.db, job),
-    record: row => recordJobRow(board.db, /** @type {any} */ (row)),
+    record: row => recordTicketSafely(row, () => recordJobRow(board.db, /** @type {any} */ (row))),
     close: () => store.closeBoard(board),
   };
 }
+
+/**
+ * Apply one drive row; a lease ticket that meets a locked board answers "not held" instead of throwing, and the next
+ * tick tries again. Every other row, and every other failure, throws as before.
+ * Why: lease renewals run from a timer, so a thrown "database is locked" there is uncaught and ends the driver
+ * mid-gate; every worker crash logged on 7-8 Nov was this one (8 of 8), each a dead gate on a healthy candidate [C7].
+ *
+ * @param {{ type: string, action?: string, job?: string }} row - The row the drive loop emitted.
+ * @param {() => any} write - Writes the row to the board.
+ * @param {(line: string) => void} [say] - Where a skipped ticket is noted.
+ * @returns {any} The write's answer, or false for a ticket the locked board did not take.
+ */
+export function recordTicketSafely(row, write, say = line => process.stderr.write(line + '\n')) {
+  try { return write(); }
+  catch (error) {
+    if (row?.type !== 'ticket' || !BOARD_LOCKED.test(String(error?.message ?? ''))) throw error;
+    say(`gate lease ${row.action} for ${row.job} met a locked board (${error.message}); the next tick tries again`);
+    return false;
+  }
+}
+
+/** A SQLite lock or busy failure, as node:sqlite reports it. */
+const BOARD_LOCKED = /database is locked|database table is locked|SQLITE_BUSY|SQLITE_LOCKED/u;
 
 /**
  * Run one queued submit gate as a drive-cell job, in this process: the dispatcher admitted it to `owner` and started
@@ -345,6 +392,8 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
    * Why: no process is load-bearing; the job rows, not this process, hold the gate's state.
    */
   const terminate = signal => async () => {
+    // Said in worker.log, so a stopped driver is never read as a silent death.
+    process.stderr.write(`gate driver ${process.pid} received ${signal}; stopping, the next driver resumes job ${request.job}\n`);
     stopper.abort(new Refused('SUBMIT_HANDOFF_STOPPED', `the gate driver received ${signal}; the next driver resumes its job`));
     try {
       await settledWithin(inflight, DRIVER_STOP_GRACE_MS);
@@ -358,7 +407,11 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
   };
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
+  // The dispatcher that started this driver holds its stdin; when the dispatcher exits the pipe ends and the driver
+  // stops as on SIGTERM, so no worker outlives its dispatcher and the sweep requeues the gate (#3899).
+  onDispatcherLifelineEnd(terminate('the end of its dispatcher lifeline'));
   let stalled = false;
+  let queuedAt = NaN;
   try {
     // A killed driver can leave this job's own checkout behind in an unknown state; the admitted driver discards it.
     if (existsSync(root)) discardGateCheckout(gateGit, request.commonDir, root);
@@ -371,9 +424,13 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
+    // Every phase this process runs records a span for the job, and gate-health reads them [C7].
+    openGateSpans({ folder: gateSpanFolder(request.commonDir), job: request.job, item: request.item });
+    queuedAt = Date.parse(job.at);
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
     // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
     if (!started.started && started.job?.state !== 'running') return;
+    if (started.started) recordGateSpan({ phase: 'queued', start: queuedAt, end: Date.parse(started.job?.startedAt) || Date.now() });
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     // The dispatcher admitted the drive job by its place in line; the captured request names what it drives.
@@ -388,7 +445,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     try {
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
-      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult });
+      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null } });
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
       stalled = last.job.steps.some(step => step.name === 'gate.stalled');
@@ -396,16 +453,25 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
     // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
     // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
-    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result);
+    // A red gate stays with the seat that built it, in its item folder; only a driver that failed hands the claim back (#3796).
+    const resultStart = Date.now();
+    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result, { keepSeat: true });
     else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    const code = result.code === 0 ? null : result.error?.code ?? null;
+    recordGateSpan({ phase: 'result', start: resultStart, outcome: result.code === 0 ? 'ok' : 'failed', code });
+    recordGateSpan({ phase: 'gate', start: queuedAt, outcome: result.code === 0 ? 'green' : 'red', code });
     withBoard(ctx, board => finishJob(board.db, drive, owner));
     return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
     if (stopper.signal.aborted) return { stopped: true };
+    const resultStart = Date.now();
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
+    recordGateSpan({ phase: 'result', start: resultStart, outcome: 'failed', code: error?.code });
+    recordGateSpan({ phase: 'gate', start: queuedAt, outcome: 'error', cause: gateSpanCause(error), code: error?.code ?? error?.name });
     throw error;
   } finally {
+    closeGateSpans();
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }

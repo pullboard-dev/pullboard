@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { lineCapacitySnapshot } from '../packages/seats/index.js';

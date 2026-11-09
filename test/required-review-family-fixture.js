@@ -1,7 +1,7 @@
 /** Real Git/SQLite controls for an item's explicit reviewer family [V1,V2,B3,H16]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 

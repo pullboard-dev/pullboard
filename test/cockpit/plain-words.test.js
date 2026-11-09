@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { recordGateRun } from '../../apps/lib/index.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
@@ -78,7 +78,7 @@ async function seedBookkeeping(box, alpha) {
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    store.recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
+    store.board_recordNextIdle(held, { agentId: 'coordinator', reason: 'held' });
     const kinds = new Set(store.events(held).map(event => event.event_kind));
     for (const kind of ['gate-run', 'milestone_order', 'milestone_items', 'join', 'next-idle', 'check-baseline', 'item_patch_attach', 'item_patch_remove', 'item_patch_follow', 'reject_returned', 'hold_item']) {
       assert.ok(kinds.has(kind), 'private native history genuinely contains ' + kind);

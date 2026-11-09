@@ -35,19 +35,45 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   if (primary?.branch) (await import('../../../../../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
 }
 
+/** Commands that write the board whatever their arguments. */
+const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
+  'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
+
+/**
+ * Whether a command line writes the board. Reads bind no write session and wake no dispatcher recovery, so a read
+ * such as whoami, show or status pays for neither [C7].
+ *
+ * @param {string[]} positionals - The command and its verb.
+ * @returns {boolean}
+ */
+export function writesBoard([command, first]) {
+  return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
+    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first))
+    || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
+}
+
+/**
+ * Whether a command line wakes queued-handoff recovery: board writes do, reads and Git hooks never. Why: on 8 Nov a
+ * commit-msg hook, heartbeats and inbox reads each ran recovery and waited minutes behind the dispatcher launch [C7].
+ *
+ * @param {string[]} positionals - The command and its verb.
+ * @returns {boolean}
+ */
+export function wakesHandoffRecovery(positionals) {
+  return writesBoard(positionals) && !['hook', 'hooks'].includes(positionals[0]);
+}
+
 /**
  * Bind this checkout to the session behind a write before any sync or side effect. Reads, help and authenticated
  * person channels keep their identity and load nothing for it.
  */
 async function bindCheckoutSession(io, positionals, values) {
   if (values.help || values.version || io.personChannel === 'view' || io.personRequest) return;
-  const [command, first] = positionals;
+  const [command] = positionals;
   if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
-  const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
-    'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove', 'object'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writesBoard(positionals)) return;
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
@@ -213,7 +239,7 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
-      if (!parsed?.values['dry-run']) {
+      if (!parsed?.values['dry-run'] && wakesHandoffRecovery(parsed?.positionals ?? [])) {
         await (await import('./handoff-recovery.js')).recoverQueuedHandoffs(io, git);
       }
     }

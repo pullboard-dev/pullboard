@@ -4,6 +4,7 @@ import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
+import { fixtureMachineSettings } from './testkit-fixture.js';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -155,6 +156,27 @@ export async function browserFreeRunnerCheck(t, helpers) {
     assert.equal(local.status, 0, show(local));
     assert.match(local.stdout, /^ok 1 - browser-bound file ran/mu, show(local));
     assert.deepEqual(fixture.phases(), { dispatched: 2, returned: 2 }, 'the browser-bound file never reached the runner');
+  });
+}
+
+/**
+ * On a gate.runnersOnly machine the same lease refusal ends the run as the runner's refusal: it never reruns locally,
+ * so the gate requeues on a runner (#3898).
+ */
+export async function runnersOnlyRefusalStaysOnRunner(t, helpers) {
+  await withNoBrowserRunner(t, helpers, async (fixture) => {
+    const { show, hold, free } = fixture;
+    fixtureMachineSettings(fixture.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, gate: { runnersOnly: true } });
+    await hold();
+    const command = `PULLBOARD_TEST_REUSE=0 node bin/run-tests.js ${shellQuote('test/declared.test.js')}`;
+    const pending = gateRun(fixture, command);
+    await until(() => fixture.phases().returned === 1, 'the runner answers the refused run');
+    free();
+    const refused = await awaitNestedRun(pending);
+    assert.notEqual(refused.status, 0, show(refused));
+    assert.match(refused.stderr, /RUNNER_BROWSER_SLOT_REQUIRED/u, show(refused));
+    assert.doesNotMatch(refused.stderr, /rerunning it locally/u, 'nothing reruns on the coordinator');
+    assert.doesNotMatch(refused.stdout, /^ok 1 - declared file ran/mu, 'the declared file never ran locally');
   });
 }
 

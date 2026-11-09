@@ -1,4 +1,44 @@
+# Dependencies
 node_modules/
-.DS_Store
+
+# Logs
 *.log
-.claude/worktrees/
+npm-debug.log*
+
+# Agent and editor tool folders (local state, never shared)
+.claude/
+.codex/
+.cursor/
+.vscode/
+.idea/
+.aider*
+
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+Icon
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editor swap and backup files
+*.swp
+*.swo
+*~
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Coverage and build output
+coverage/
+.nyc_output/

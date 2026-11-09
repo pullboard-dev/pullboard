@@ -8,7 +8,7 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { accept } from './fixture.js';
 import { build } from './fixture.js';

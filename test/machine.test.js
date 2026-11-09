@@ -28,7 +28,7 @@ import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { openBoard } from '../apps/lib/index.js';

@@ -10,7 +10,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, sep } from 'node:path';
+import { refuseTestsOnCoordinator } from '../packages/gate/src/shell/coordinator-test-guard.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { tmpdir } from 'node:os';
+
+// A bare node --test of a suite on the coordinator refuses here, before any fixture starts (#3899).
+refuseTestsOnCoordinator({ read: loadMachineSettings });
 
 /** Own a newly created private fixture root and read only files this capability actually created. */
 export function privateFixtureFiles(prefix = 'pullboard-fixture-input-') {

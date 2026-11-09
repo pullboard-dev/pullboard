@@ -23,9 +23,10 @@ import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
+import { requireNonEmptySubmit } from '../empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
+import { staleHeadLines } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
 import { clauseTicks } from '../../../../../packages/state/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
@@ -50,7 +51,7 @@ import {
   copySubmitHandoffOrigin,
   submitHandoffPolicy,
   requireSubmitHandoffExecution,
-} from '../submit-handoff-origin.js';
+} from '../../../../../packages/sandbox/index.js';
 import { blockingFailures } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
 import { gateClauseTickNotes } from '../gate-clause-ticks.js';
@@ -247,11 +248,18 @@ import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/ga
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 import { runPreflight } from '../submit-preflight.js';
+import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit-preflight.js';
 
-/** Report wall time without sharing the execution closures of unrelated submit stages. */
+/**
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
+ * span for an open gate's telemetry [C7].
+ */
 function reportSubmitStage(ctx, name, start) {
-  ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`);
+  const elapsed = performance.now() - start;
+  ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
+  const end = Date.now();
+  recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
 /**
@@ -408,6 +416,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
     if (clauseProblem) throw clauseProblem;
+    // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
+    if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
       await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
@@ -576,12 +586,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
+  // A queued submit's doctrine hold runs in the runner's analysis job; only its rule lookup and receipt stay here [C7].
+  const runnerDoctrine = remoteMode && hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice) ? { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice,
+    timeoutMs: acceptedMain.config.check?.timeoutMs, ...(submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice) ? { fast: true } : {}) } : null;
   // The four trusted analysis parts run as one runner job on one lease and one main-pinned private check (#3379).
   const runRemotePart = sharedRemoteAnalysis(signal => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -844,7 +857,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       await preflightPassed;
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
-      try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+      try { return await runMachineryGuard(root, () => (runnerDoctrine ? cachedDoctrineHold(root, runnerDoctrine, async () => (await runRemotePart('doctrine', signal)).doctrine)
+        : hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
         ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
           ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
           : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {

@@ -228,9 +228,35 @@ export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.cloc
  *
  * @param {string} commonDir
  * @param {Date} now
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}} [budget] a budgetState result, shown as one budget line
  */
-export function personBlockWords(commonDir, now) {
-  return readBlocks(commonDir, { since: new Date(now.getTime() - 86_400_000) })
-    .filter(block => block.audience === 'person')
-    .map(({ at, code, command, audience, reason, step }) => ({ at, code, command, audience, reason, step }));
+export function personBlockWords(commonDir, now, budget) {
+  return [
+    ...readBlocks(commonDir, { since: new Date(now.getTime() - 86_400_000) })
+      .filter(block => block.audience === 'person')
+      .map(({ at, code, command, audience, reason, step }) => ({ at, code, command, audience, reason, step })),
+    ...budgetWords(budget, now),
+  ];
+}
+
+/**
+ * The one budget line Needs you shows once spend reaches 80 percent of a limit, naming spend and limit;
+ * an ok state, or no budget set, shows none [N2]. A line rather than a block, so nothing is written to the ledger.
+ *
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}|undefined} budget a budgetState result
+ * @param {Date} now
+ * @returns {Array<{at: string, code: string, command: string, audience: string, reason: string, step: string}>}
+ */
+export function budgetWords(budget, now) {
+  if (!budget || budget.limit === null || (budget.state !== 'warn' && budget.state !== 'stop')) return [];
+  const stop = budget.state === 'stop';
+  const period = budget.which === 'dailyUsd' ? 'daily' : 'total';
+  return [{
+    at: now.toISOString(),
+    code: stop ? 'BUDGET_STOP' : 'BUDGET_WARN',
+    command: 'pullboard settings budget',
+    audience: 'person',
+    reason: `Spend is $${budget.spend.toFixed(2)} of the $${budget.limit.toFixed(2)} ${period} budget${stop ? ': the limit is reached' : ''}.`,
+    step: 'Raise the budget in the machine settings, or let the seats idle until the period ends.',
+  }];
 }
