@@ -34,6 +34,9 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   // The read-only gate health report is one document with its gate and landing halves.
   const health = await uncataloguedRootJSON(box, box.repo, 'gate-health');
   assert.deepEqual([typeof health.report, typeof health.landing], ['object', 'object']);
+  // A wait key nothing is over budget on answers within budget, with no breach to exit non-zero on.
+  const waits = await uncataloguedRootJSON(box, box.repo, 'waits', ['check', 'fixture-wait-key']);
+  assert.deepEqual(waits, { version: 1, key: 'fixture-wait-key', over: [] });
   // shadow-batch composes only accepted items, so a name no item answers to is refused by name and changes nothing.
   const shadow = await withCatalogChild(() => runFixtureChildAsync(process.execPath,
     [fileURLToPath(new URL('../bin/pullboard.js', import.meta.url)), 'shadow-batch', '99999', '--json'],
