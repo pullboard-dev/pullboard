@@ -4546,7 +4546,7 @@
     },
     "src/runner-worker.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "src/runners.js": {
       "cells": 1,

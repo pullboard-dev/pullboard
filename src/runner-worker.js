@@ -1,4 +1,4 @@
-/** The pinned process entry of the runner worker; its bytes, not the body's, prove the tooling identity [C7]. */
-import { runnerWorker } from '../apps/runner/index.js';
+/** Pinned runner worker entry: its bytes prove the tooling identity [C7]. */
+import { runnerWorker } from '../apps/runner/core.js';
 
 runnerWorker(process.argv);
