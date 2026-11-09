@@ -32,6 +32,9 @@ export const DISK_STORES = {
   receipts: ['check-receipts', 'gate-receipts', 'gate-receipts.jsonl', 'native-flake-receipts', 'landings', 'reviews'],
 };
 
+/** Removal failures that mean the entry changed or is held while being removed, so the prune keeps it and goes on. */
+const REMOVAL_RACES = new Set(['ENOTEMPTY', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES']);
+
 /** Only these stores hold raw material that may age out; every other store is kept forever. */
 const AGING_STORES = ['worktree archives', 'test actions', 'flake evidence', 'check output'];
 
@@ -235,7 +238,12 @@ export function pruneDisk(dir, { now = Date.now(), dryRun = false } = {}) {
       if (entry.held) { kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'a receipt or record still references it' }); continue; }
       const reason = old ? `older than ${rule.maxAgeDays} days (${ageDays} days old)` : `store over its ${sizeText(rule.maxBytes)} limit`;
       if (!dryRun) {
-        rmSync(entry.path, { recursive: true, force: true });
+        try { rmSync(entry.path, { recursive: true, force: true }); } catch (error) {
+          // A runner wrote into the folder as it was removed (9 Nov: test-actions/lists): keep it, free nothing, go on.
+          if (!REMOVAL_RACES.has(error?.code)) throw error;
+          kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'written to during removal; try again later' });
+          continue;
+        }
         mkdirSync(dir, { recursive: true });
         appendFileSync(join(dir, LOG_FILE), JSON.stringify({ at: new Date(now).toISOString(), store, entry: entry.name, bytes: entry.bytes, reason }) + '\n');
       }

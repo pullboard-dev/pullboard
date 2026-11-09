@@ -8443,20 +8443,6 @@
         "component test helper; moves with its importers"
       ]
     },
-    "test/reserve-next-review-lock.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "verify"
-      ],
-      "reasons": [
-        "imports past store front door (packages/store/src/shell/board-review-family.js)",
-        "spawns a child process (test/reserve-next-review-lock.test.js)"
-      ]
-    },
     "test/resources-release-fixture.js": {
       "cells": [
         "app:lib",

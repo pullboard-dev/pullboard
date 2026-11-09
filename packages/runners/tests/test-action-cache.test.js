@@ -1,22 +1,36 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { toolSourcePath } from '../packages/runners/index.js';
+import { copyPackageFiles } from '../index.js';
+import { toolSourcePath } from '../index.js';
 import assert from 'node:assert/strict';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
+import { cpSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join, relative, resolve } from 'node:path';
+import { delimiter } from 'node:path';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { readTestOutcomes } from '../packages/gate/index.js';
-import { requireTestTierAccount } from '../packages/gate/index.js';
-import { suiteProven } from '../packages/gate/index.js';
-import { testActionKeys } from '../packages/gate/index.js';
-import { prepareTestResultExchange } from '../packages/gate/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { readTestOutcomes } from '../../gate/index.js';
+import { requireTestTierAccount } from '../../gate/index.js';
+import { suiteProven } from '../../gate/index.js';
+import { testActionKeys } from '../../gate/index.js';
+import { prepareTestResultExchange } from '../../gate/index.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
-const source = fileURLToPath(new URL('../src', import.meta.url));
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
+const source = fileURLToPath(new URL('../../../src', import.meta.url));
 
 /** A fixture test that records its own name, then passes when its module says so. */
 function fixtureTest(name, module) {
@@ -31,7 +45,8 @@ test('${name} [C7]', check);
 
 /** A fixture test that declares the source tree and scans one source file as data, which no test imports. */
 const SCAN_TEST = `/** @pullboard-test-input source-tree */
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 /** Record that this file ran, then scan the probe's text. */
 function scan() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'd\\n'); if (readFileSync(new URL('../src/probe.js', import.meta.url), 'utf8').includes('forbidden')) throw new Error('d found a forbidden word'); }
@@ -60,7 +75,7 @@ function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-actions-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test']) mkdirSync(join(root, folder));
-  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/',
     ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(copiedToolIgnore)].join('\n') + '\n');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
@@ -188,7 +203,7 @@ test('nested proof', async t => { await t.test('child proof', () => {}); });
   ]);
   assert.doesNotThrow(() => requireTestTierAccount({ green: true, testOutcomes: outcomes }, ['test/b.test.js']));
   assert.throws(() => requireTestTierAccount({ green: true }, ['test/b.test.js']), { code: 'TEST_SELECTION_UNVERIFIED' });
-  const gateModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const gateModule = new URL('../../gate/index.js', import.meta.url).href;
   const observed = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
     import assert from 'node:assert/strict';
     import { runProfiledShellAsync, requireTestTierAccount } from ${JSON.stringify(gateModule)};
