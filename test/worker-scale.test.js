@@ -290,7 +290,7 @@ test('clause 1: workers.budget parses and stores spend per day, and the scaler l
 test('clause 2: workers help text and setting descriptions name spend per day, and the unset default message matches [C7]', async () => {
   const { SETTING_DESCRIPTIONS } = await import('../packages/config/index.js');
   const { workHelp } = await import('../apps/cli/src/core/help/work.js');
-  const { DEFAULT_NEXT_STEPS } = await import('../apps/cli/src/core/next-step-defaults.js');
+  const { DEFAULT_NEXT_STEPS } = await import('../packages/state/index.js');
   assert.match(SETTING_DESCRIPTIONS['workers.budget'].description, /spend per day or week/u);
   assert.equal(SETTING_DESCRIPTIONS['workers.budget'].unit, 'spend');
   assert.match(workHelp, /workers\.budget spend per day/u);

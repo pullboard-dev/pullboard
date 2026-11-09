@@ -1469,6 +1469,14 @@
         "apps/cli/src/shell/submit-handoff-seal.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/next-step-defaults.js",
+        "apps/cli/src/core/next-step-defaults.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
