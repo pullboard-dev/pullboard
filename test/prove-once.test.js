@@ -161,7 +161,7 @@ test('native review records sealed citations and reuses the actual submit execut
   const submitted = await cli(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const count = readFileSync(baseRuns, 'utf8');
-  assert.equal(count, 'x', 'submit executes the actual candidate test exactly once ' + submitted.out.slice(0, 6000) + submitted.err.slice(0, 3000));
+  assert.equal(count, 'x', 'submit executes the actual candidate test exactly once');
   assert.equal(existsSync(aloneRuns), false, 'the unchanged sealed package did not execute');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
