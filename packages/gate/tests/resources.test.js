@@ -1042,7 +1042,7 @@ test('queue order follows the machine settings [C7,O5]', async () => {
   /** The next waiter as a #651-only process ranks the same rows. */
   const next651 = (waiters) => {
     const byClass = waiters.every((waiter) => waiter.classed === 1);
-    const rank = (waiter) => (byClass ? classOf(waiter).effective : waiter.landing === 1 ? 0 : 1);
+    const rank = (waiter) => (byClass ? classOf(waiter, Date.now()).effective : waiter.landing === 1 ? 0 : 1);
     return [...waiters].sort((left, right) => rank(left) - rank(right) || left.ticket - right.ticket)[0].agent;
   };
   assert.deepEqual(rows().map(({ classed }) => classed), [0, 0], 'with reviewsFirst off a waiter is marked as not admitting by class');
