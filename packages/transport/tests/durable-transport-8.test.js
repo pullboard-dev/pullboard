@@ -1,8 +1,10 @@
 /** Durable gate 8/20: one reused channel per runner, shared by its gates, with the probe apart from it [C7]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, startFixtureChild } from './fixture-child.js';
-import { createTransport } from '../packages/transport/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
+import { createTransport } from '../index.js';
 
 after(cleanupFixtureChildren);
 

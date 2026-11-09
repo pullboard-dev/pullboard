@@ -1,8 +1,14 @@
 /** Durable gate 11/20: a lost channel requeues its unfinished shards and keeps the runner; probes alone quarantine [C7]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, privateFixtureFiles, startFixtureChild } from './fixture-child.js';
-import { createTransport, fetchResult, shellWord, startShard } from '../packages/transport/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
+import { createTransport } from '../index.js';
+import { fetchResult } from '../index.js';
+import { shellWord } from '../index.js';
+import { startShard } from '../index.js';
 
 after(cleanupFixtureChildren);
 

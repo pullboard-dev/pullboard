@@ -2791,7 +2791,7 @@
   "test/relay-parity-source-advance.js": {
     "raw-board": 1
   },
-  "test/relay-parity-stale-state.js": {
+  "packages/health/tests/relay-parity-stale-state.js": {
     "raw-board": 1
   },
   "test/relay-parity-submit-handoff.js": {

@@ -1,8 +1,12 @@
 /** Durable gate item 6: the last landing writes the tooling pin and workers read it, not the seat's checkout [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { writeToolingPin, toolingPin, toolingFor, treeOf } from '../packages/pin/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { writeToolingPin } from '../index.js';
+import { toolingPin } from '../index.js';
+import { toolingFor } from '../index.js';
+import { treeOf } from '../index.js';
 
 /** Build a repo with an old commit and a newer landed commit with different trees. */
 function repoWithOldAndNew() {

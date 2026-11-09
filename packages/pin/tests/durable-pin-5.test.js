@@ -1,10 +1,16 @@
 /** Durable gate item 5: the pin cell names sources by tree id and keeps bundles keyed by it [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles, runFixtureGit, runFixtureExecFile } from './fixture-child.js';
-import { pinFor, bundleFor, treeOf } from '../packages/pin/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { runFixtureExecFile } from '../../../test/fixture-child.js';
+import { pinFor } from '../index.js';
+import { bundleFor } from '../index.js';
+import { treeOf } from '../index.js';
 
 /** Build a throwaway repository with two commits and return the repo path and both commit ids. */
 function repoWithTwoCommits() {

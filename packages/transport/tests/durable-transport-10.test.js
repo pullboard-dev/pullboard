@@ -1,8 +1,15 @@
 /** Durable gate 10/20: gates run on the runner's shared channel, with no runner-controller process on the Mac [C7]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, privateFixtureFiles, runFixtureChildAsync, runFixtureExecFile, startFixtureChild } from './fixture-child.js';
-import { createTransport, runGate, shellWord } from '../packages/transport/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureExecFile } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
+import { createTransport } from '../index.js';
+import { runGate } from '../index.js';
+import { shellWord } from '../index.js';
 
 after(cleanupFixtureChildren);
 
