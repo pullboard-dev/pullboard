@@ -31,7 +31,7 @@ import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { serveApi } from '../packages/api/index.js';
 import * as apiExports from '../packages/api/index.js';
-import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
+import { allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
@@ -997,7 +997,7 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const httpClaimStep = await observedApiStep('claim an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpClaimStep), cliRefusal, `${httpClaimStep.evidence}\nCLI evidence:\n${cliClaimStep.evidence}`);
 
-    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', ['--wait', '0'], 1);
+    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', [], 1);
     const noWork = cliNextStep.document.error;
     assert.equal(noWork.code, 'NOTHING_FREE', cliNextStep.evidence);
     const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env, 409);

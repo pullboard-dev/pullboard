@@ -22,6 +22,7 @@ import { JSON_SHAPES } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { addItem as addBoardItem, appendFact } from '../packages/store/index.js';
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
 export function shellWord(value) {
