@@ -479,6 +479,48 @@ export function landingGateShard(state, files) {
   return { files: [...files], filesCommand: batch => `${runner} ${batch.map(file => quote('./' + file)).join(' ')}`, say: line => state.say?.(line) };
 }
 
+/**
+ * The test files a main move during a landing can change the result of: those whose import closure reaches both a file
+ * main's new commits changed and a file the batch changes. A test that reaches only main's change runs the same bytes
+ * main's own landing proved; one that reaches only the batch's runs the bytes the batch's gate proved. A test whose
+ * closure cannot be read reruns when either side changed it or the affected selection for main's move names it (all of
+ * them when that selection is the full suite). Null when the repository has no import graph to read (no test tiers or
+ * no focused runner): the caller keeps its own selection.
+ * Why: every "main moved outside this batch's files" rebuild reran a selection, the full plan when the move was wide,
+ * up to 2m07s a landing on 9 Nov, while the move rarely shared a test closure with the batch [C7].
+ *
+ * @param {any} state
+ * @param {{ trunkFiles: Set<string>, batchFiles: Set<string>, trunkAffected: { full?: boolean, files?: string[] } }} changes - Paths
+ *   main's move and the batch each changed, and the affected-test selection for main's move.
+ * @returns {string[] | null}
+ */
+export function trunkMoveReruns(state, { trunkFiles, batchFiles, trunkAffected }) {
+  const commit = headCommit(state.batch.root);
+  if (!state.config.affectedTests?.trim() || !hasTestTiers(state.batch.root, commit)) return null;
+  let closures;
+  try { closures = testClosures(state.batch.root, commit).closures; } catch { return null; }
+  return auditOnlySplit(state.config, interactingTests(closures, { trunkFiles, batchFiles, trunkAffected })).files;
+}
+
+/**
+ * The tests of trunkMoveReruns from an import-closure map: each test file to `{ files }`, or `{ files: null }` when its
+ * closure cannot be read.
+ *
+ * @param {Map<string, { files: string[] | null }>} closures
+ * @param {{ trunkFiles: Set<string>, batchFiles: Set<string>, trunkAffected?: { full?: boolean, files?: string[] } }} changes
+ * @returns {string[]}
+ */
+export function interactingTests(closures, { trunkFiles, batchFiles, trunkAffected }) {
+  const named = new Set(trunkAffected?.files ?? []);
+  const reruns = [];
+  for (const [file, closure] of closures) {
+    const reached = closure?.files;
+    if (!reached) { if (trunkAffected?.full || named.has(file) || trunkFiles.has(file) || batchFiles.has(file)) reruns.push(file); continue; }
+    if (reached.some(path => trunkFiles.has(path)) && reached.some(path => batchFiles.has(path))) reruns.push(file);
+  }
+  return reruns.sort();
+}
+
 /** Merge and test one speculative prefix without giving its worker publication authority. */
 export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
