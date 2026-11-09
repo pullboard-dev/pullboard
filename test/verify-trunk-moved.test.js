@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives main moving through files the review never read, and a move that reaches it names the files (#1861) [V4,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -65,8 +65,10 @@ test('page is built', () => {
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   json(fixtureJoin(box.run, reviewer, 'api', '--model', 'Fixture Reviewer', '--json'));
-  // Main moving after the submit makes its proof unreusable, so the review runs the check itself.
-  box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: main moves after the submit');
+  // Main moving through a file the check names after the submit makes its proof unreusable, so the review runs the check itself.
+  appendFileSync(join(box.repo, 'web/run-tests.js'), '// main moves after the submit\n');
+  box.git(box.repo, 'add', 'web/run-tests.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: main moves after the submit');
   box.git(reviewer, 'commit', '--allow-empty', '-q', '-m', 'test: force the review check to run');
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
