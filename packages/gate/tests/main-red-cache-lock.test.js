@@ -164,7 +164,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
         report.gate.knownMainFailures.failures.map(({ file, name, signature, item }) => ({ file, name, signature, item })));
     }
     const all = mainReceipts(box);
-    assert.equal(all.length, 3, 'each comparison was freshly retained as an authentic main-red receipt');
+    assert.equal(all.length, 3, `each comparison was freshly retained as an authentic main-red receipt: ${JSON.stringify(all.map(value => [value.command.slice(0, 8), value.green, value.failures?.map(row => row.file)]))}; runs ${readFileSync(join(box.env.CACHE_CONTROL, 'runs.jsonl'), 'utf8').trim()}`);
     const commandFor = name => createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './test/${name}.test.js'`).digest('hex');
     assert.deepEqual(all.map(value => value.command).sort(), [commandFor('a'), commandFor('b'), commandFor('b')].sort());
     assert.ok(all.every(value => value.environment.node === process.versions.node && value.environment.platform === process.platform));
