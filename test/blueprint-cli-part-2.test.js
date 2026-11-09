@@ -44,7 +44,7 @@ test('infrastructure loads as architecture [S1]', async () => {
 
   // The bundled files that said infrastructure now say architecture, and none says the old name.
   for (const name of bundledBlueprints()) {
-    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
+    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../packages/blueprints/src/shell/blueprints/${name}.json`), 'utf8'));
     assert.notEqual(raw.kind, 'infrastructure', `${name} uses the new name`);
   }
   assert.deepEqual(['serverless', 'data-pipeline'].map((name) => readBlueprint(name, process.cwd()).kind), ['architecture', 'architecture']);
