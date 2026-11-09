@@ -1,9 +1,13 @@
 /** Keep sealed person intent inside the CLI request boundary [H12,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { moveArgs } from '../packages/person/index.js';
-import { personRequestMove, preparePersonRequest, validatePersonRequest } from '../packages/person/core.js';
-import { Refused } from '../packages/kernel/core.js';
+import { moveArgs } from '../../person/index.js';
+import {
+  personRequestMove,
+  preparePersonRequest,
+  validatePersonRequest,
+} from '../../person/core.js';
+import { Refused } from '../core.js';
 
 test('[H12,H16] each supported person intent becomes literal CLI arguments', () => {
   const cases = [

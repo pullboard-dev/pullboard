@@ -1,13 +1,17 @@
 /** A withdrawn dependency never holds an accepted item back from landing; an open one still does [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
+import * as store from '../index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import { candidates } from '../../landing/index.js';
 
 /** A real scratch repo with one commit, and a real in-memory board. */
 function scratch(t) {

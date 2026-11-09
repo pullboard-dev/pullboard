@@ -1,8 +1,8 @@
 /** seatFamily reads its session peers through an index on a board_meta of production scale [C7,#2976]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureBoard } from './board-fixture.js';
-import { seatFamily } from '../packages/items/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { seatFamily } from '../../items/index.js';
 
 const ROWS = 300_000;
 const SEATS = 100;
