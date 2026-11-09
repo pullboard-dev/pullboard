@@ -8,6 +8,6 @@ export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/core/pi
 export { decodedProofEvent, proofEventDetail } from './src/core/event-detail.js';
 
 export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
+export { parseProcessCensus } from './src/core/process-census.js';
 export { machineHome } from './core.js';
 export { RUNNER_PRELOAD_ENV, declareKnownNodeOption, declareNodeOptionProofs, foreignNodeOptions } from './src/core/foreign-node-options.js';
-export { parseProcessCensus } from './src/core/process-census.js';
