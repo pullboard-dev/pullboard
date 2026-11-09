@@ -2621,7 +2621,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:cli front door (apps/cli/src/shell/commands/view.js)",
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "imports past app:view front door (src/view-state-summary.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -2751,15 +2750,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/cockpit/state-reader-codegen.test.js": {
-      "cells": [
-        "api",
-        "app:view"
-      ],
-      "reasons": [
-        "imports past app:view front door (src/view-state-summary.js)"
       ]
     },
     "test/cockpit/stats.test.js": {

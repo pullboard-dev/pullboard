@@ -32,7 +32,6 @@
     "src/runners.js",
     "src/serve.js",
     "src/spec.js",
-    "src/view-state-summary.js",
     "src/view/test-policy.js",
     "src/view/test-roles.js"
   ]
