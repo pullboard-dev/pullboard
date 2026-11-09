@@ -10,11 +10,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { diskLines } from '../apps/cli/src/shell/disk-use.js';
 import { diskPolicy } from '../apps/cli/src/shell/disk-use.js';
-import { diskUse } from '../apps/cli/src/shell/disk-use.js';
+import { MEASURE_LOCK, cachedDiskUse, diskUse, startDiskMeasure } from '../apps/cli/src/shell/disk-use.js';
 import { pruneDisk } from '../apps/cli/src/shell/disk-use.js';
 import { refusingBadPolicy } from '../apps/cli/src/shell/disk-use.js';
 import { Refused } from '../packages/kernel/index.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const MB = 1024 * 1024;
 const NOW = Date.parse('2026-11-08T12:00:00.000Z');
@@ -97,4 +97,41 @@ test('retention over a size limit removes the oldest unreferenced entries first 
   const real = pruneDisk(dir, { now: NOW });
   assert.ok(real.removed.some(row => row.entry === 'action-old-2222.log' && /over its/u.test(row.reason)));
   assert.ok(existsSync(join(dir, 'test-actions', 'action-kept-3333.log')));
+});
+
+test('clause 1: status never walks the stores itself: it shows the last measurement and starts a stale one in the background [C7]', (t) => {
+  const dir = fixture(t);
+  const started = [];
+  const start = (path) => { started.push(path); return true; };
+  const first = cachedDiskUse(dir, { now: NOW, start });
+  assert.equal(first.total, null, 'no measurement yet is shown as none, never measured in the command');
+  assert.equal(first.measuring, true);
+  assert.deepEqual(started, [dir], 'a missing measurement starts one');
+  assert.match(diskLines(first)[0], /being measured in the background/u);
+  const measured = diskUse(dir, { now: NOW });
+  started.length = 0;
+  const fresh = cachedDiskUse(dir, { now: NOW + 60_000, start });
+  assert.equal(fresh.total, measured.total);
+  assert.deepEqual(fresh.stores, measured.stores);
+  assert.deepEqual(started, [], 'a fresh measurement starts nothing');
+  const stale = cachedDiskUse(dir, { now: NOW + 11 * 60_000, start });
+  assert.equal(stale.total, measured.total, 'a stale measurement is still shown');
+  assert.deepEqual(started, [dir], 'and a new one starts in the background');
+});
+
+test('clause 1: one background measurement runs at a time and writes the figures status shows [C7]', (t) => {
+  const dir = fixture(t);
+  const launched = [];
+  // Hold the launched worker until the second start has been tried, then run it to completion.
+  assert.equal(startDiskMeasure(dir, { launch: (entry, { args }) => { launched.push([entry, args]); return 1; } }), true);
+  assert.equal(startDiskMeasure(dir, { launch: () => assert.fail('a second start while one runs launches nothing') }), false);
+  const [[entry, args]] = launched;
+  const worker = runFixtureChild(process.execPath, [entry, ...args], { encoding: 'utf8' });
+  assert.equal(worker.status, 0, worker.stderr);
+  assert.ok(!existsSync(join(dir, MEASURE_LOCK)), 'the measurement freed its lock');
+  const shown = cachedDiskUse(dir, { start: () => assert.fail('a fresh measurement starts nothing') });
+  // The measurement wrote its own cache file after walking, so only the stores it measured are compared.
+  const now = diskUse(dir);
+  assert.deepEqual(shown.stores.filter(row => row.name !== 'other'), now.stores.filter(row => row.name !== 'other'));
+  assert.ok(shown.stores.some(row => row.name === 'test actions'));
 });

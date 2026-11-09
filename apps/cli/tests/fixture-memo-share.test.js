@@ -132,8 +132,9 @@ export function cellsCacheDirectory(kind) { return join(process.env.FIXTURE_RUNN
 }
 
 /** A runner transport that runs the private check in one runner clone, with that runner's own cells cache. */
-function lease(box, runner) {
+function lease(box, runner, commands = []) {
   const runOnRunnerAsync = async (_root, shell, options) => {
+    commands.push({ shell, artifact: options.analysisArtifact ?? null });
     let bytes;
     try { bytes = execFileSync('/bin/sh', ['-c', shell], { cwd: runner.root, env: { ...box.env, FIXTURE_RUNNER_CACHE: runner.cache }, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 ** 2 }); }
     catch (error) { bytes = Buffer.concat([error.stdout ?? Buffer.alloc(0), error.stderr ?? Buffer.alloc(0)]); }
@@ -146,7 +147,7 @@ function lease(box, runner) {
   return { runner: { host: 'runner-1', node: process.execPath }, source: { commit: box.source, tree: box.tree }, executionServices: { runners: { runOnRunnerAsync } } };
 }
 
-test('clause 1: one runner\'s memo reaches the next runner\'s analysis through the controller [C7]', async t => {
+test('clause 1: one runner\'s memo reaches the controller store, and no request carries memo bytes [C7]', async t => {
   const box = fixture(t), home = folder(t, 'fixture-memo-machine-');
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
@@ -160,6 +161,10 @@ test('clause 1: one runner\'s memo reaches the next runner\'s analysis through t
   assert.equal('fixtureMemo' in one, false);
   assert.deepEqual(stored(join(home, 'cells-cache', 'fixtures-shared')), { 'built-on-first': 'result' });
   assert.equal(existsSync(join(second.cache, 'fixtures', NAME)), false);
-  await remoteSubmitAnalysis(box.controller, { ...request, source: box.source }, lease(box, second), join(box.dir, 'two'));
-  assert.deepEqual(stored(join(second.cache, 'fixtures')), { 'built-on-first': 'result' }, 'the second runner starts warm');
+  const commands = [];
+  await remoteSubmitAnalysis(box.controller, { ...request, source: box.source }, lease(box, second, commands), join(box.dir, 'two'));
+  // The memos ride only in the analysis artifact (#4054); this fixture has no accepted inventory bundle to carry them.
+  assert.equal(commands.length, 1);
+  assert.ok(commands[0].shell.length < 256 * 1024, `the request command is ${commands[0].shell.length} bytes`);
+  assert.equal(commands[0].shell.includes(memoBytes(['built-on-first']).toString('base64').slice(0, 64)), false, 'no memo bytes in the command');
 });
