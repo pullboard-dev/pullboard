@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js */
 import { agentSessionDigest } from '../packages/person/index.js';
 /** A review offer accounts for backlog, live reservations and reviewer eligibility [Q1,V15]. */
 import { submitFixture } from './board-submit-fixture.js';

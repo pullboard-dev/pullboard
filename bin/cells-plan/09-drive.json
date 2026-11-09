@@ -4,7 +4,7 @@
  "kind": "package",
  "root": "packages/drive",
  "frontDoor": "packages/drive/index.js",
- "pureFrontDoor": "packages/drive/core.js",
+ "lightFrontDoor": "packages/drive/core.js",
  "paths": [],
  "reexports": [],
  "imports": [

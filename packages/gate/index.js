@@ -1,6 +1,7 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
+export * from "./core.js";
 export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
-export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/shell/refusal-trial.js";
+export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/shell/refusal-trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";

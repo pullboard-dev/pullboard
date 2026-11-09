@@ -15,6 +15,8 @@ import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { stalePlanRows } from '../bin/cells-plan.js';
+import { orphanCutEdges } from '../bin/cells-plan.js';
+import { importCuts } from '../packages/codemap/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -259,4 +261,30 @@ for (const kind of ['dynamic', 'computed']) test(`--moved retains exact ${kind} 
   assert.match(notes[0], /also at main [a-f0-9]{12}/u);
   assert.deepEqual(problems.map(problem => Number(problem.split(':')[1])).sort((a, b) => a - b),
     [originalLine + 1, originalLine + 2], 'a basename-bearing site and an extra ordinary occurrence both still refuse');
+});
+
+test('a shim deleted by hand leaves no cut edge naming it: --check says so and --retire drops the edges [C7,D3,CD64]', t => {
+  const { root } = fixture(t);
+  const plan = computePlan(root);
+  const link = plan.cells.flatMap(cell => cell.cuts.map(row => ({ cell, row }))).find(entry => entry.row.edges.length);
+  assert.ok(link, 'the fixture plan records a cut');
+  const shim = link.row.edges[0].split('->')[0];
+  // What a shim-deletion item does: the file, its row and its re-export entry go; its cut edges used to stay.
+  for (const cell of plan.cells) {
+    cell.paths = cell.paths.filter(([from]) => from !== shim);
+    cell.reexports = cell.reexports.filter(path => path !== shim);
+  }
+  writePlan(root, plan);
+  rmSync(join(root, shim), { force: true });
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'an item deletes a shim');
+  assert.ok(orphanCutEdges(readPlan(root)).some(edge => edge.startsWith(`${shim}->`)), 'the edge naming the deleted shim is an orphan');
+  assert.throws(() => importCuts(readPlan(root)), /outside its named cells/u, 'the cut reader refuses it, which is CELLS_SUBMIT at the gate');
+  const check = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(check.status, 1, 'the plan check fails');
+  assert.match(check.stderr, new RegExp(`names ${shim}, which has no plan row; drop its cut edges: node bin/cells-plan.js --retire ${shim}`, 'u'));
+  const retire = runFixtureChild(process.execPath, [BIN, '--retire', shim], { cwd: root, encoding: 'utf8' });
+  assert.equal(retire.status, 0, retire.stderr);
+  assert.deepEqual(orphanCutEdges(readPlan(root)), [], 'no cut edge names a file without a row');
+  assert.doesNotThrow(() => importCuts(readPlan(root)), 'the cuts read again');
 });
