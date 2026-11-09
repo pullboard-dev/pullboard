@@ -14,7 +14,8 @@ import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
-const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
+const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/store/index.js')).href;
+const SENDER_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/cli/index.js')).href;
 const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
@@ -61,7 +62,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { personRequestRecords, requestIntentDigest, requestStageText } from ${JSON.stringify(REQUESTS_MODULE)};
     import { loadConfig } from ${JSON.stringify(CONFIG_MODULE)};
     import { laneNames } from ${JSON.stringify(LANES_MODULE)};
-    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
+    import { relaySenderIo } from ${JSON.stringify(SENDER_MODULE)};
     const root = process.cwd();
     const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     await syncRelay(root, io);
@@ -132,7 +133,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { join } from 'node:path';
     import { relayOperation, syncRelay } from ${JSON.stringify(RELAY_MODULE)};
     import { Refused } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/kernel/index.js')).href)};
-    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
+    import { relaySenderIo } from ${JSON.stringify(SENDER_MODULE)};
     const root = process.cwd();
     const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     await syncRelay(root, io);
@@ -160,7 +161,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
 
   const ordinary = await box.script(`
     import { relayOperation } from ${JSON.stringify(RELAY_MODULE)};
-    import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
+    import { relaySenderIo } from ${JSON.stringify(SENDER_MODULE)};
     const root = process.cwd();
     const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
     // The sender io queues local-first moves; this check needs the move sent now, so it takes one position before the board is read.

@@ -113,6 +113,6 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
 test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'),
-    LOAD_BEARING_CEILINGS, 'apps/lib/src/shell/submit-handoff-worker.js', 'packages/resources/src/shell/handoff-worker-cap.js', 'packages/gate/src/core/load-bearing.js'], { cwd: root, encoding: 'utf8' });
+    LOAD_BEARING_CEILINGS, 'apps/cli/src/shell/submit-handoff-worker.js', 'packages/resources/src/shell/handoff-worker-cap.js', 'packages/gate/src/core/load-bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
 });

@@ -27,8 +27,8 @@ import{rmSync}from'node:fs';import{join}from'node:path';import{DatabaseSync}from
 import{takeResource,listResources,runnerResourceStatus}from ${JSON.stringify(resource)};
 import{consumeControllerDisposition}from ${JSON.stringify(disposition)};
 const root=process.cwd(),source=join(root,'source'),scenario=${JSON.stringify(scenario)};
-const first={host:'first-disposition.invalid',slots:1,browser:1},second={host:'second-disposition.invalid',slots:1,browser:1};
-let runners=[first],lease=await takeResource({name:'gate',capacity:0,scope:'machine',root,repo:source,
+const first={host:'first-disposition.invalid',slots:1,browser:1};
+const runners=[first];let lease=await takeResource({name:'gate',capacity:0,scope:'machine',root,repo:source,
 agent:'coordinator',item:'2055',kind:'submit',remote:true,runnerOnly:true,runnerWaitMs:5000,runnerProvider:()=>runners});
 const child=spawn(process.execPath,['--input-type=module','-e',${JSON.stringify(custodian)}],{env:process.env,stdio:['pipe','pipe','pipe']});
 const closed=once(child,'close');let timer;
@@ -41,8 +41,10 @@ const owner=db.prepare('SELECT token,pid,started,repo,runner AS host FROM holder
 if(scenario==='source cancellation')rmSync(source,{recursive:true});else{child.kill('SIGKILL');await closed;}
 listResources();
 assert.throws(()=>lease.renew(),{code:'RESOURCE_LEASE_LOST'},'heartbeat/renew already learned native holder was pruned');
-const cleanup=db.prepare("SELECT id,detail FROM runner_recovery_event WHERE kind='cleanup'").get();
-assert.ok(cleanup);const unavailable=db.prepare('SELECT since FROM runner_unavailable WHERE host=?').get(first.host).since;
+const requeued=scenario!=='source cancellation',recorded=requeued?'orphan-requeued':'cleanup';
+const cleanup=db.prepare("SELECT id,detail FROM runner_recovery_event WHERE kind=?").get(recorded);
+assert.ok(cleanup);const unavailable=requeued?undefined:db.prepare('SELECT since FROM runner_unavailable WHERE host=?').get(first.host).since;
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable WHERE host=?').get(first.host).n,requeued?0:1,requeued?'a dead controller leaves its healthy host in service':'source loss quarantines its runner');
 assert.throws(()=>consumeControllerDisposition(db,{...owner,token:'foreign'},'cancel',{version:1,root:source}),{code:'RESOURCE_LEASE_LOST'});
 assert.throws(()=>consumeControllerDisposition(db,{...owner,started:owner.started+' foreign'},'requeue'),{code:'RESOURCE_LEASE_LOST'});
 const cancellation={version:1,root:source,reason:'source directory is gone',diagnostic:{reason:'source-cancelled',phase:'controller'}};
@@ -53,13 +55,14 @@ lease.cancelRunner(cancellation);
 assert.equal(db.prepare('SELECT since FROM runner_unavailable WHERE host=?').get(first.host).since,unavailable,'settlement must not duplicate/reset quarantine');
 }else{
 assert.throws(()=>consumeControllerDisposition(db,owner,'cancel',cancellation),{code:'RESOURCE_LEASE_LOST'},'dead-controller disposal does not impersonate source cancellation');
-runners=[first,second];lease=await lease.requeueRunner('transport-lost');assert.equal(lease.runner.host,second.host);
-assert.equal(db.prepare('SELECT since FROM runner_unavailable WHERE host=?').get(first.host).since,unavailable);
+lease=await lease.requeueRunner('transport-lost');assert.equal(lease.runner.host,first.host,'the healthy host stays in service and takes the redispatch');
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable WHERE host=?').get(first.host).n,0,'the requeue leaves the first host in service');
 }
-assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind='cleanup'").get().n,1);
+assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind=?").get(recorded).n,1);
 assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind='lease-disposition'").get().n,1);
 assert.throws(()=>consumeControllerDisposition(db,owner,scenario==='source cancellation'?'cancel':'requeue',cancellation),{code:'RESOURCE_LEASE_LOST'},'native disposal is consumed once');
-assert.equal(runnerResourceStatus(runners).find(row=>row.host===first.host).unavailableReason,'CLEANUP_UNVERIFIED');
+const status=runnerResourceStatus(runners).find(row=>row.host===first.host);
+if(requeued)assert.equal(status.unavailable,false);else assert.equal(status.unavailableReason,'CLEANUP_UNVERIFIED');
 console.log(JSON.stringify({scenario,settled:true}));
 }finally{db.close();}
 }finally{clearTimeout(timer);if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');await closed;lease.release();}`;

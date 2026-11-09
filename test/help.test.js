@@ -38,7 +38,7 @@ function helpGraph() {
   while (pending.length) {
     const chain = pending.pop();
     const file = chain.at(-1);
-    assert.ok(![resolve(ROOT, 'apps/cli/src/shell/cli.js'), resolve(ROOT, 'src/serve.js'), resolve(ROOT, 'apps/view/src/shell/serve.js')].includes(file)
+    assert.ok(![resolve(ROOT, 'apps/cli/src/shell/cli.js'), resolve(ROOT, 'apps/view/src/shell/serve.js')].includes(file)
       && !file.startsWith(resolve(ROOT, 'relay') + '/'), `help reaches a forbidden dependency: ${chain.join(' -> ')}`);
     if (visited.has(file)) continue;
     visited.add(file);
@@ -162,8 +162,8 @@ test('full help is assembled from the independently editable command groups [C7,
   const graph = helpGraph();
   let offset = 0;
   for (const section of HELP_SECTIONS) {
-    // Setup help is owned by the view cell and lifecycle help by the state package; both are in the help graph.
-    const owner = { setup: 'apps/view/src/shell/help/setup.js', lifecycle: 'packages/state/index.js' }[section.name] ?? `apps/cli/src/core/help/${section.name}.js`;
+    // Lifecycle help is owned by the state package and is in the help graph.
+    const owner = { lifecycle: 'packages/state/index.js' }[section.name] ?? `apps/cli/src/core/help/${section.name}.js`;
     assert.ok(graph.has(resolve(ROOT, owner)), `${section.name} has its own declaration module`);
     assert.equal(HELP.all.slice(offset, offset + section.text.length), section.text,
       `${section.name} contributes its unchanged text in declaration order`);

@@ -1,4 +1,4 @@
-import { usageDollars } from '../../../config/src/core/cost-prices.js';
+import { usageDollars } from '../../../config/pure.js';
 import { timeSplitRecords } from './cost-split.js';
 /** One authenticated command bounds public usage revisions without discarding pending totals [N2,C7]. */
 export const USAGE_BATCH_LIMIT = 1000;
@@ -6,7 +6,7 @@ export const USAGE_BATCH_LIMIT = 1000;
 /** Read-only usage totals for one item, kept free of board writers so show stays light [N2,C7]. */
 
 /** Fixed public explanations for unavailable native token attribution, with no private paths or identities. */
-export const UNKNOWN_USAGE_REASONS = ['native-session-unavailable', 'no-native-baseline', 'native-session-unreadable-or-reset', 'native-counter-unreadable-or-decreased', 'shared-session', 'missed-claim-anchor', 'not-recorded'];
+export const UNKNOWN_USAGE_REASONS = ['native-session-unavailable', 'no-native-baseline', 'native-session-unreadable-or-reset', 'native-counter-unreadable-or-decreased', 'shared-session', 'missed-claim-anchor', 'wrapper-session-id-fixed', 'not-recorded'];
 
 /** Every numeric field a sanitized usage record carries. */
 export const SPLIT_COUNTS = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens'];

@@ -42,6 +42,8 @@ import {
   withDeclaredLoads,
 } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
@@ -171,12 +173,20 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
     if (!next || ['order', 'root', 'frontDoor'].some(key => next[key] !== cell[key])
-      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor)) {
+      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor && next.lightFrontDoor !== cell.pureFrontDoor)
+      || (cell.lightFrontDoor !== undefined && next.lightFrontDoor !== cell.lightFrontDoor)
+      || (cell.pureDoor !== undefined && next.pureDoor !== cell.pureDoor)) {
       problems.push(`accepted cell ${cell.name} identity/order/front door changed`);
       continue;
     }
     if (cell.pureFrontDoor === undefined && next.pureFrontDoor !== undefined) {
       problems.push(...pureFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.lightFrontDoor === undefined && next.lightFrontDoor !== undefined) {
+      problems.push(...lightFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.pureDoor === undefined && next.pureDoor !== undefined) {
+      problems.push(...pureDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
@@ -254,7 +264,7 @@ export function touchedCells(files, before, after, inventories) {
   /** A source alias and a moved target both belong to their declared cell. */
   const owners = file => {
     if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file.startsWith(cell.root + '/')
+      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
@@ -540,7 +550,7 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
-    config: inputs, code: [import.meta.url, '../src/commands/submit.js', '../packages/gate/src/shell/module-imports.js',
+    config: inputs, code: [import.meta.url, '../apps/cli/src/shell/commands/submit.js', '../packages/gate/src/shell/module-imports.js',
       '../packages/gate/src/shell/module-import-cache.js', '../packages/gate/src/shell/test-isolation.js', '../packages/landing/src/shell/main-red.js']
       .map(path => fileURLToPath(new URL(path, import.meta.url))), commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);

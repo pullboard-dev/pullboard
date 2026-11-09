@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';

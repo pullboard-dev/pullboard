@@ -1,12 +1,13 @@
 /** A capable seat whose pick is undiagnosed light work is offered 'diagnose #N', so the light seat builds it [C7,N2]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoin, fixturePolicy } from './testkit-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js Change: return the canonical result from the handler Test case: test/handler.test.js asserts the canonical result';
 
@@ -48,4 +49,47 @@ test('next offers a strong seat diagnose #N for undiagnosed light work while a l
   assert.equal(taken.code, 0, taken.err);
   assert.match(taken.out, new RegExp(`claimed #${id}: Light correction`, 'u'));
   assert.equal(onBoard(box, board => store.getItem(board, id).item_owner) !== null, true, 'the light seat holds the diagnosed item');
+});
+
+/** The diagnosis the cold-correction case records; its exact words are asserted back from next. */
+const COLD_SESSION_MODEL = 'Two tier diagnosis fixture';
+const COLD_LIGHT_MODEL = 'Two tier light fixture';
+const COLD_DIAGNOSIS = 'Files: web/handler.js test/handler.test.js Change: repoint the fixture to the canonical handler Test case: handler returns the expected result from the canonical module';
+
+test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG returns it for diagnosis [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = COLD_SESSION_MODEL;
+  const box = helpers.project('true', isolated);
+  // The diagnosis names test/handler.test.js, so the web lane owns test/ and claim's cross-ownership guard stays out of the way.
+  const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'test/'] } } });
+  const light = join(box.dir, 'light');
+  box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
+  const joined = fixtureJoin(box.run, light, 'web', '--route', 'light', '--model', COLD_LIGHT_MODEL);
+  assert.equal(joined.code, 0, joined.err);
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works [test]', '--check', 'true',
+    '--brief', 'Files: web/handler.js\nTest: expected result', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  const before = box.run(light, 'claim', String(id));
+  assert.notEqual(before.code, 0);
+  assert.match(before.err, /\[ROUTE\] item #\d+ needs a mid model/u);
+  const recorded = box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS);
+  assert.equal(recorded.code, 0, recorded.err);
+  const picked = box.run(light, 'next', '--build', '--json');
+  assert.equal(picked.code, 0, picked.err);
+  const answer = JSON.parse(picked.out);
+  assert.equal(answer.item.item_id, id);
+  assert.match(answer.item.item_brief, /repoint the fixture/u);
+  const root = answer.itemFolder ?? light;
+  const released = box.run(root, 'release', String(id), '--reason', 'DIAGNOSIS_WRONG', '--note', 'the fixture diagnosis missed the actual assertion', '--no-next');
+  assert.equal(released.code, 0, released.err);
+  assert.equal(onBoard(box, board => store.getItem(board, id).item_route), 'mid');
+  const retry = box.run(light, 'claim', String(id));
+  assert.notEqual(retry.code, 0);
+  assert.match(retry.err, /\[ROUTE\] item #\d+ needs a mid model/u);
+  assert.equal(box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS.replace('fixture', 'assertion')).code, 0);
+  assert.equal(box.run(light, 'claim', String(id)).code, 0);
 });

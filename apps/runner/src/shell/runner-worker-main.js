@@ -1,4 +1,4 @@
-import { auditAdapterEnvironment } from '../../../../packages/kernel/index.js';
+import { auditAdapterEnvironment } from '../../../../packages/kernel/core.js';
 import { processCensus } from './runner-custody.js';
 import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt [C7]. */
@@ -28,9 +28,9 @@ import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
 import { receiveAnalysisArtifact } from '../../../../packages/resources/index.js';
-import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/execution-environment.js';
+import { captureTestRuntimes } from '../../../../packages/sandbox/core.js';
 import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+import { Refused } from '../../../../packages/kernel/core.js';
 import { createDescendantTracker } from './runner-custody.js';
 import { sampleRunnerLoad } from '../../../../packages/runners/src/shell/runner-load.js';
 import { pinSourceCacheJob } from '../../../../packages/runners/src/shell/runner-source-cache.js';

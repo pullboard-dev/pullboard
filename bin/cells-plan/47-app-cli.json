@@ -19,6 +19,7 @@
   ["test/worktree-maintenance-archive.fixture.js","apps/cli/tests/worktree-maintenance-archive.fixture.js","rule"],
   ["src/cli-board-read.js","apps/cli/src/shell/cli-board-read.js","seed"],
   ["src/cli-context.js","apps/cli/src/shell/cli-context.js","seed"],
+  ["src/relay-sender-main.js","apps/cli/src/shell/relay-sender-main.js","rule"],
   ["src/cli-help.js","apps/cli/src/shell/cli-help.js","seed"],
   ["src/cli-identity.js","apps/cli/src/shell/cli-identity.js","seed"],
   ["src/cli-main.js","apps/cli/src/shell/cli-main.js","seed"],
@@ -28,7 +29,6 @@
   ["src/cli-support.js","apps/cli/src/shell/cli-support.js","seed"],
   ["src/cli-sync.js","apps/cli/src/shell/cli-sync.js","seed"],
   ["src/cli.js","apps/cli/src/shell/cli.js","seed"],
-  ["src/cockpit.js","apps/cli/src/shell/cockpit.js","seed"],
   ["src/commands/add.js","apps/cli/src/shell/commands/add.js","seed"],
   ["src/commands/agents.js","apps/cli/src/shell/commands/agents.js","seed"],
   ["src/commands/answer.js","apps/cli/src/shell/commands/answer.js","seed"],
@@ -276,18 +276,15 @@
   ["src/cli-main/run-command.js","apps/cli/src/shell/cli-main/run-command.js","rule"],
   ["src/cli-main/run-main.js","apps/cli/src/shell/cli-main/run-main.js","rule"],
   ["src/cli-trace.js","apps/cli/src/shell/cli-trace.js","rule"],
-  ["src/submit-remote-gate.js","apps/cli/src/shell/submit-remote-gate.js","rule"]
+  ["src/submit-remote-gate.js","apps/cli/src/shell/submit-remote-gate.js","rule"],
+  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
+  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"]
  ],
  "reexports": [
-  "src/cli-context.js",
-  "src/cli-main.js",
   "src/cli-presence.js",
   "src/cli-read-context.js",
-  "src/cli.js",
-  "src/cockpit.js",
   "src/commands/index.js",
   "src/help.js",
-  "src/next-step-words.js",
   "src/next-steps.js"
  ],
  "imports": [
@@ -333,7 +330,7 @@
  "cuts": [
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
   {"cell":"link","imports":1,"edges":["src/relay-setup.js->src/init.js"]},
-  {"cell":"app:view","imports":2,"edges":["src/serve.js->src/next-step-words.js","src/view/cockpit-page.js->src/help.js"]}
+  {"cell":"app:view","imports":1,"edges":["src/view/cockpit-page.js->src/help.js"]}
  ],
  "ratchets": {
   "legacySource": -108,

@@ -1529,6 +1529,70 @@
         "packages/gate/tests/landing-stage-composition.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/flow-report.test.js",
+        "packages/stats/tests/flow-report.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-actors.test.js",
+        "packages/stats/tests/stats-actors.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-flow.test.js",
+        "packages/stats/tests/stats-flow.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-compare.test.js",
+        "packages/stats/tests/stats-compare.test.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-build-time.test.js",
+        "packages/stats/tests/stats-build-time.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/stats-time.test.js",
+        "packages/stats/tests/stats-time.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -1562,11 +1626,7 @@
     },
     {
       "path": "src/cli-hook-work.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/relay-sender-main.js",
-      "cell": "app:lib"
+      "cell": "app:cli"
     },
     {
       "path": "bin/static-style-checks.js",
@@ -1943,6 +2003,7 @@
     "api->git",
     "api->store",
     "apps/lib->store",
+    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
@@ -1954,6 +2015,8 @@
     "items->git",
     "items->kernel",
     "items->store",
+    "items->queue",
+    "queue->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
@@ -2001,8 +2064,22 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
+    "sandbox->config",
+    "sandbox->git",
     "commits->kernel",
     "rigor->store",
-    "(root)->store"
+    "(root)->store",
+    "spec->kernel",
+    "gate->spec",
+    "(root)->doctrine",
+    "(root)->landing",
+    "person->doctrine",
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine",
+    "store->items",
+    "github->items"
   ]
 }
