@@ -100,4 +100,3 @@ export { gateHealthLines } from "./src/core/gate-health.js";
 export { gateHealthReport } from "./src/shell/gate-health.js";
 export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
 export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';
-export { queuesTestRun, queueTestRun, workTestRun, readTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines } from "../jobs/index.js";

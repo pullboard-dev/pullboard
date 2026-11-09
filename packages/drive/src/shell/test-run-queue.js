@@ -16,13 +16,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { LEASE_MS } from '../core/lease-rules.js';
-import { finishJob } from './job-lease.js';
-import { renewLease } from './job-lease.js';
-import { takeJob } from './job-lease.js';
-import { createJob } from './job-store.js';
-import { jobView } from './job-store.js';
-import { writeStep } from './job-store.js';
+import { LEASE_MS } from '../../../jobs/index.js';
+import { finishJob } from '../../../jobs/index.js';
+import { renewLease } from '../../../jobs/index.js';
+import { takeJob } from '../../../jobs/index.js';
+import { createJob } from '../../../jobs/index.js';
+import { jobView } from '../../../jobs/index.js';
+import { writeStep } from '../../../jobs/index.js';
 
 /** The job kind of a queued test run; the drive cell's gate reclaim never touches it. */
 export const TEST_RUN_KIND = 'test-run';

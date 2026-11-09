@@ -12,11 +12,11 @@ import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { recordClauseTicks } from './submit.js';
-import { queuesTestRun } from '../../../../../packages/gate/index.js';
-import { queueTestRun } from '../../../../../packages/gate/index.js';
-import { readTestRun } from '../../../../../packages/gate/index.js';
+import { queuesTestRun } from '../../../../../packages/drive/index.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
+import { readTestRun } from '../../../../../packages/drive/index.js';
 import { testRunLines } from '../../../../../packages/gate/index.js';
-import { workTestRun } from '../../../../../packages/gate/index.js';
+import { workTestRun } from '../../../../../packages/drive/index.js';
 import {
   context,
   resourceAgent,

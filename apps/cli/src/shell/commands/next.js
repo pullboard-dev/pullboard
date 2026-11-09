@@ -64,8 +64,8 @@ import {
 } from '../next-say.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
-import { deliverOwnTestRuns } from '../../../../../packages/gate/index.js';
-import { deliverTestRunsWhenReady } from '../../../../../packages/gate/index.js';
+import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
+import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
 
 /** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
 function inboxReasons(ctx) {

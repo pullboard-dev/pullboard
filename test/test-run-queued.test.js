@@ -10,7 +10,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { MACHINE_CONTEXT_ENV } from '../packages/jobs/src/shell/test-run-queue.js';
+import { MACHINE_CONTEXT_ENV } from '../packages/drive/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
