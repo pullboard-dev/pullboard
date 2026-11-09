@@ -96,3 +96,5 @@ export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBeari
 export { freeRunnerSlots } from "./src/shell/proof-shards.js";
 export { gateHealthLines } from "./src/core/gate-health.js";
 export { gateHealthReport } from "./src/shell/gate-health.js";
+export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
+export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';

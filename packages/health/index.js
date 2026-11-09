@@ -14,3 +14,4 @@ export { landingFailureFindings, landingFailureObservation } from './src/shell/l
 export { reviewFamilyCover, reviewFamilyBuildPause, reviewFamilyBacklog, shoutReviewCoverStuck, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG, REVIEW_COVER_PAUSE_TAIL, shoutConflictedReviews } from './src/shell/review-family-cover.js';
 
 export { claimHealthProjection, claimHealthSnapshot } from './src/shell/claim-health-projection.js';
+export { runScheduledClaimWatchdog } from './src/shell/claim-sweep.js';
