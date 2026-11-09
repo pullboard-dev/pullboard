@@ -120,9 +120,9 @@ test('[M1,V4] a conflict-free candidate must contain the exact main used for sub
 
 test('[V2,V4] baseline witness distinguishes observed failure, absent case and unrelated setup failure', () => {
   const failed = baselineTestEvidence('TAP version 13\nnot ok 1 - named witness\n  ---\n  duration_ms: 1\n  ...\n', 'node --test');
-  assert.deepEqual(failed, { failed: ['named witness'], passed: [], noTestsMatched: false });
+  assert.deepEqual(failed, { failed: ['named witness'], passed: [], failedCases: [], noTestsMatched: false });
   assert.equal(baselineTestEvidence('run-tests: NO_TESTS_MATCHED: no named case', 'node bin/run-tests.js').noTestsMatched, true);
-  assert.deepEqual(baselineTestEvidence('Error: module missing', 'node --test'), { failed: [], passed: [], noTestsMatched: false });
+  assert.deepEqual(baselineTestEvidence('Error: module missing', 'node --test'), { failed: [], passed: [], failedCases: [], noTestsMatched: false });
 });
 
 
