@@ -69,8 +69,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'prose-commands', run: root => {
     const { declared, actual } = proseCommandSets(root);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
-    const line = readFileSync(join(root, 'src/cockpit.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
-    return [`src/cockpit.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
+    const line = readFileSync(join(root, 'apps/cli/src/core/help.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
+    return [`apps/cli/src/core/help.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
   } },
   { name: 'wall-clock-budgets', run: root => {
     const clock = spawnSync(process.execPath, ['test/wall-clock-budgets.js'], { cwd: root, encoding: 'utf8' });
