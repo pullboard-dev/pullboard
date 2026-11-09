@@ -39,9 +39,8 @@ test('next hands the seat a buildable item instead of refusing NO_POLICY on a st
   const box = staleThenFresh(t);
   const result = box.run(box.web, 'next');
   assert.equal(result.code, 0, result.err || result.out);
-  assert.doesNotMatch(`${result.out}${result.err}`, /NO_POLICY/);
-  assert.match(result.out, /#2/);
-  assert.match(result.out, /skipped #1/);
+  assert.match(result.out, /skipped #1: \[NO_POLICY\]/, 'the stale item is named, not refused');
+  assert.match(result.out, /claimed #2: Fresh item/);
 });
 
 test('claim by id on the stale item still refuses NO_POLICY with its refresh step [C7]', t => {
