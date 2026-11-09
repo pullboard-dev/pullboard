@@ -14,10 +14,10 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
-import { dropStagingFolder } from '../../../pin/index.js';
-import { placeKeyedFolder } from '../../../pin/index.js';
-import { sweepKeyedFolders } from '../../../pin/index.js';
-import { touchKeyedFolder } from '../../../pin/index.js';
+import { dropStagingFolder } from './runner-keyed-store.js';
+import { placeKeyedFolder } from './runner-keyed-store.js';
+import { sweepKeyedFolders } from './runner-keyed-store.js';
+import { touchKeyedFolder } from './runner-keyed-store.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
