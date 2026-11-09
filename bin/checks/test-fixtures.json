@@ -1490,9 +1490,6 @@
   "apps/lib/tests/durable-pull-runner-27.test.js": {
     "raw-board": 1
   },
-  "test/durable-review-24.test.js": {
-    "raw-board": 2
-  },
   "test/durable-switch-land.test.js": {
     "raw-board": 1
   },
@@ -2140,9 +2137,6 @@
   "test/line-settings.test.js": {
     "tempdir": 1,
     "raw-board": 4
-  },
-  "test/liveness-reviews.test.js": {
-    "raw-board": 1
   },
   "packages/gate/tests/liveness-slots.test.js": {
     "tempdir": 2
@@ -3868,6 +3862,12 @@
   },
   "packages/drive/tests/wall-limit-load-scaled.test.js": {
     "tempdir": 1
+  },
+  "packages/moves/tests/durable-review-24.test.js": {
+    "raw-board": 1
+  },
+  "packages/moves/tests/liveness-reviews.test.js": {
+    "raw-board": 1
   },
   "packages/moves/tests/next-light-reserve.test.js": {
     "raw-board": 2
