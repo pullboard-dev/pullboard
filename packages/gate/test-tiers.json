@@ -930,7 +930,7 @@
       ]
     },
     {
-      "file": "packages/commits/tests/landing-message.test.js",
+      "file": "test/landing-message.test.js",
       "tier": "T3",
       "packages": [
         ".",

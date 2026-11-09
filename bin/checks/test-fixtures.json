@@ -92,7 +92,7 @@
   "packages/gate/tests/shim-import-ratchet.test.js": {
     "hand-policy": 1
   },
-  "packages/commits/tests/landing-message.test.js": {
+  "test/landing-message.test.js": {
     "hand-policy": 1,
     "model": 1
   },

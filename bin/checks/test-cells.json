@@ -7,6 +7,7 @@
     "test/blueprint-cli.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
     "test/doctrine-rulings.test.js": "drives the real CLI (resume, doctrine rulings) across several checkouts and the agent move API, and checks its JSON output and exit codes end to end",
     "test/follow-up-admission.test.js": "drives the real CLI in a project checkout and checks its admission output, queue order and board rows end to end",
+    "test/landing-message.test.js": "drives the real CLI (init, claim, submit, verify accept, land) in a project checkout and checks the landed commit header and trailers end to end",
     "test/relay-pairing-options.test.js": "drives the real CLI (relay on, relay pair, relay --help) through a relay and auth stand-in, and checks its exit codes, output and machine state end to end",
     "test/resource-open-once.test.js": "drives the real CLI in a project checkout and checks its JSON output and machine resource state end to end",
     "test/runner-probe-under-load.test.js": "drives the real CLI in a project checkout and checks its output and exit codes while a runner is probed under load end to end",
@@ -152,7 +153,6 @@
     "apps/lib/tests/handoff-warm-checkout.test.js": "imports bin/gate-drive-worker.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/submit-handoff-worker.test.js": "imports test/submit-handoff-fixture.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/commits/tests/agent-guidance.test.js": "imports test/e2e-helpers.js, outside its own cell commits; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/commits/tests/landing-message.test.js": "imports packages/runners/index.js, outside its own cell commits; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/commits/tests/merge-hooks.test.js": "imports packages/store/index.js, outside its own cell commits; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/config.test.js": "imports packages/runners/index.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/exit-rules-context-ceiling.test.js": "imports packages/stats/index.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -1247,7 +1247,7 @@
     "test/worktree-start.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/zombie-gate-jobs.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder"
   },
-  "rootTests": 977,
+  "rootTests": 978,
   "sealed": [
     "activity",
     "api",
