@@ -1,6 +1,6 @@
 /** Where an item's clock time goes: every landed item's add-to-merge span split into named phases that sum to it [R1,R2,C7]. */
-import { Refused } from '../../../kernel/index.js';
-import { proofEventDetail } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
+import { proofEventDetail } from '../../../kernel/pure.js';
 
 export const TIME_PHASES = ['queued', 'building', 'tool', 'thinking', 'static', 'doctrine', 'check', 'test', 'conflict', 'unattributedChecks',
   'reviewWait', 'reviewing', 'rejectWaitingBuilder', 'rejectRebuilding', 'idleHold', 'landing'];

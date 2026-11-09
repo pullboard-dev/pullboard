@@ -32,7 +32,7 @@ import {
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
-} from '../packages/kernel/src/core/discovery.js';
+} from '../packages/kernel/index.js';
 import { isWorkerProcessIdentityTimeout, workerProcessIdentityQuery, parseWorkerProcessIdentity } from '../packages/drive/core.js';
 import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
@@ -1338,7 +1338,7 @@ async function main(args) {
         if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null; const { runLandingShards } = await import('../packages/landing/index.js');
-        const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
+        const { parseProcessCensus } = await import('../packages/kernel/index.js');
         const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
         // One read of each planned file's first-line declaration, shared by every shard [C7].
         const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
