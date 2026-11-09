@@ -1753,6 +1753,10 @@
     {
       "path": "src/move-history/249.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/hop-matrix.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
