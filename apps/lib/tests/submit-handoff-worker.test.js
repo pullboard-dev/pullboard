@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
 import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
+import { submitHandoffPorts } from '../../../bin/gate-drive-worker.js';
 import { admitGateDrive } from '../../../packages/drive/index.js';
 import { drainLoop } from '../../../packages/drive/index.js';
 import { gateDriveJobId } from '../../../packages/drive/index.js';
@@ -22,13 +23,17 @@ import { rowSink } from '../../../packages/drive/index.js';
 import { createJob } from '../../../packages/jobs/index.js';
 import { jobView } from '../../../packages/jobs/index.js';
 import { Refused } from '../../../packages/kernel/index.js';
+import { bindSubmitHandoffPorts } from '../src/shell/submit-handoff-worker.js';
 import { drivenHandoffGate } from '../src/shell/submit-handoff-worker.js';
+import * as cli from '../../cli/index.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
+
+bindSubmitHandoffPorts(submitHandoffPorts(cli));
 
 /** Demand a genuine CLI success before reading its native document. */
 function document(result) {
@@ -140,6 +145,7 @@ const UNREADABLE_DRIVE = `
 const a = JSON.parse(process.env.GATE_ROWS_TEST);
 const nativeBoard = await import(a.native);
 const worker = await import(a.worker);
+worker.bindSubmitHandoffPorts((await import(a.entry)).submitHandoffPorts(await import(a.cli)));
 const { Refused } = await import(a.kernel);
 const { chmodSync, readFileSync } = await import('node:fs');
 const files = [a.board, a.board + '-wal', a.board + '-shm'];
@@ -165,6 +171,8 @@ test('clause 1: a drive run through driveSubmitHandoff holds no board handle: wi
   const env = { ...box.env, GATE_ROWS_TEST: JSON.stringify({ request, owner, board: boardFile, stages: SUBMIT_STAGES,
     native: new URL('../src/core/native-board.js', import.meta.url).href,
     worker: new URL('../src/shell/submit-handoff-worker.js', import.meta.url).href,
+    cli: new URL('../../cli/index.js', import.meta.url).href,
+    entry: new URL('../../../bin/gate-drive-worker.js', import.meta.url).href,
     kernel: new URL('../../../packages/kernel/index.js', import.meta.url).href }) };
   // budget: the existing owned-worker hang ceiling; assertions concern the recorded rows, not elapsed time.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', UNREADABLE_DRIVE],
