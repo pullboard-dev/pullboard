@@ -1,13 +1,13 @@
 /** pullboard land --why and the status landing line read recorded events only [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import * as store from '../../store/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
 import {
   landWhy,
   landWhyLines,
   landingLine,
-} from '../../landing/index.js';
+} from '../index.js';
 
 const NOW = new Date('2026-11-04T10:00:00.000Z');
 

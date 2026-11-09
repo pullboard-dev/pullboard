@@ -1,7 +1,7 @@
 import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { REJECTION_RETURN_ENGINE } from '../../state/index.js';
-import { MOVE_REGISTRY } from '../../moves/index.js';
+import { MOVE_REGISTRY } from '../index.js';
 import { requireFixtureReviewFamilies } from "../../../test/review-family-fixture.js";
 /** @pullboard-test-loads src/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
@@ -13,8 +13,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../apps/lib/index.js";
+import * as store from "../../store/src/shell/board.js";
+import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 
 const COMMIT = 'a'.repeat(40);
