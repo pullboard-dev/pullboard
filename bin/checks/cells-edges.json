@@ -688,7 +688,7 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/lib/src/shell/submit-handoff-worker.js": {
+    "apps/cli/src/shell/submit-handoff-worker.js": {
       "cells": 6,
       "deep": 0
     },
@@ -3964,10 +3964,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/api.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/audit-failure-item.js": {
       "cells": 1,
       "deep": 0
@@ -4312,15 +4308,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/cli/claim.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/cockpit.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/commands/submit.js": {
       "cells": 1,
       "deep": 0
     },
