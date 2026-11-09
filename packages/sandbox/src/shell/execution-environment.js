@@ -1,7 +1,7 @@
 import { testRuntimeRows } from '../../../verify/core.js';
 import {
   environmentProblem,
-} from '../../../config/src/shell/config.js';
+} from '../../../config/core.js';
 import {
   lstatSync,
   mkdtempSync,
