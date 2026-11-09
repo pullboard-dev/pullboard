@@ -212,15 +212,22 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   const box = mergeCandidate('master');
   advanceMergeTrunk(box, false);
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
+  const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 0, submitted.err);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  // Submit composes clean main into the builder's own checkout as a merge commit (4d18c3c77d); the primary checkout is untouched.
+  assert.deepEqual(checkoutState(box, box.repo), before[0]);
+  const composed = checkoutState(box, box.web);
+  assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', 'HEAD').split(' '), [before[1].head, trunk], 'the builder head merges the builder source with the exact trunk tip');
+  assert.deepEqual({ status: composed.status, staged: composed.staged, work: composed.work, result: composed.result },
+    { status: before[1].status, staged: before[1].staged, work: before[1].work, result: before[1].result }, 'the composed builder checkout is clean and keeps its content');
+  const after = [checkoutState(box, box.repo), composed];
   const review = mergeReviewer(box);
   const reviewBefore = checkoutState(box, review);
   const accepted = box.run(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], after);
 });
 
 test('[B34,V6] conflicting submit names files and refuses without changing any checkout or index', () => {
@@ -231,7 +238,7 @@ test('[B34,V6] conflicting submit names files and refuses without changing any c
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
+  assert.match(refused.err, /merge main into your branch.*run the command again/);
   assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'claimed', 'refusal leaves the claim available for a resolved new commit');
@@ -248,7 +255,7 @@ test('[B34,V6] accept rechecks the moved trunk and refuses with indexes and chec
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
+  assert.match(refused.err, /merge main into your branch.*run the command again/);
   assert.deepEqual([box.repo, box.web, review].map(cwd => checkoutState(box, cwd)), before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', 'conflict cannot produce an accept receipt');
