@@ -15,7 +15,7 @@ const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
   // Preserve the strict tier of the exact moved relay workers (#1591).
   'apps/lib/src/shell/relay-checkpoint-worker.js',
-  'apps/lib/src/shell/relay-sender-main.js',
+  'apps/cli/src/shell/relay-sender-main.js',
   // Exact store identities retain Strict after both cells move (#1570).
   'packages/store/src/core/known-main-reworks.js',
   'packages/store/src/shell/proof-receipts.js',

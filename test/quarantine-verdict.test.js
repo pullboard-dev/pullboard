@@ -74,7 +74,7 @@ import {failureSignatures,MAIN_FAILURE_SIGNATURE_VERSION} from './tooling/packag
 import {fullGateRun,recordRun} from './tooling/packages/gate/index.js';
 import {accountedFailures} from './tooling/packages/landing/index.js';
 import {checkAtCommit} from './tooling/apps/runner/index.js';
-import * as store from './tooling/src/board.js';
+import * as store from './tooling/packages/store/index.js';
 import * as nativeBoard from './tooling/apps/lib/index.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const io={cwd:root,nativeBoard,say(){},err(){},gateWaitReporter:()=>()=>{}};

@@ -2,10 +2,14 @@
 import { lstatSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { cursorSnapshot } from './cost-cursor.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 import { unknownInputSplit } from './cost-read.js';
+
+/** The variables a seat wrapper exports to name the transcript its tokens land in: one file, or a folder whose newest transcript is meant. */
+export const AGENT_TRANSCRIPT_ENV = Object.freeze(['PULLBOARD_SESSION_LOG', 'PULLBOARD_SESSION_DIR']);
 
 /** Search native directories without following symlinks or reading other sessions' contents. */
 function findSession(directory, identity, provider) {
@@ -21,8 +25,50 @@ function findSession(directory, identity, provider) {
   return null;
 }
 
+/** Which provider's log format a declared transcript has: Codex only when a Codex id is the one the shell carries. */
+function declaredProvider(environment) {
+  return !environment.CLAUDE_CODE_SESSION_ID && (environment.CODEX_THREAD_ID || environment.CODEX_SESSION_ID) ? 'codex' : 'claude';
+}
+
+/** The regular, unlinked file at an absolute path, or null. */
+function regularFile(file) {
+  try {
+    const stat = lstatSync(file);
+    return stat.isFile() && !stat.isSymbolicLink() ? stat : null;
+  } catch { return null; }
+}
+
+/** The newest regular `.jsonl` directly inside a folder, or null. */
+function newestTranscript(directory) {
+  let newest = null;
+  let entries;
+  try { entries = readdirSync(directory, { withFileTypes: true }); } catch { return null; }
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+    const file = join(directory, entry.name);
+    const stat = regularFile(file);
+    if (stat && (!newest || stat.mtimeMs > newest.mtimeMs)) newest = { file, mtimeMs: stat.mtimeMs };
+  }
+  return newest?.file ?? null;
+}
+
+/**
+ * A transcript the seat wrapper names, ahead of any id lookup: an exact `PULLBOARD_SESSION_LOG`, else the newest
+ * transcript in `PULLBOARD_SESSION_DIR`. Why: a wrapper's fixed session id never names a real file, and a sub-agent
+ * writes to its own file that no id the wrapper holds can find.
+ */
+function declaredSource(environment) {
+  const [log, directory] = AGENT_TRANSCRIPT_ENV.map((name) => environment[name]);
+  const provider = declaredProvider(environment);
+  if (typeof log === 'string' && isAbsolute(log) && regularFile(log)) return { provider, file: log };
+  const file = typeof directory === 'string' && isAbsolute(directory) ? newestTranscript(directory) : null;
+  return file ? { provider, file } : null;
+}
+
 /** Native identity is used only to locate a file; neither it nor the file path is shared. */
 export function sessionSource(environment = process.env) {
+  const declared = declaredSource(environment);
+  if (declared) return declared;
   const provider = environment.CLAUDE_CODE_SESSION_ID ? 'claude' : 'codex';
   const identity = provider === 'claude' ? environment.CLAUDE_CODE_SESSION_ID : environment.CODEX_THREAD_ID ?? environment.CODEX_SESSION_ID;
   if (typeof identity !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/u.test(identity)) return null;
@@ -31,6 +77,14 @@ export function sessionSource(environment = process.env) {
     : join(environment.CODEX_HOME || join(homedir(), '.codex'), 'sessions');
   const file = findSession(directory, identity, provider);
   return file ? { provider, file } : null;
+}
+
+/**
+ * Why no transcript resolved. A Claude session id with no matching file is a wrapper that fixed its id (or never
+ * declared a transcript), a visible defect rather than a silent unavailable session.
+ */
+export function missingSessionReason(environment = process.env) {
+  return environment.CLAUDE_CODE_SESSION_ID ? 'wrapper-session-id-fixed' : 'native-session-unavailable';
 }
 
 /**
