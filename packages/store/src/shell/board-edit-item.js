@@ -15,7 +15,7 @@ import { REFERENCE_ENGINE } from "../../../state/core.js";
 import { validateReferences } from "../../../spec/index.js";
 import * as itemDependencies from "../../../items/index.js";
 import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
-import { itemEditBar } from "../../../../src/item-edit-bar.js";
+import { itemEditBar } from "../../../items/index.js";
 import { saveCheckTiming } from "../../../../src/check-timing.js";
 import { validateCheckTiming } from "../../../../src/check-timing.js";
 import { pendingRefreeze } from "./board-read-auxiliary.js";

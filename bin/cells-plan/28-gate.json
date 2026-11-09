@@ -93,12 +93,9 @@
  "reexports": [
   "src/affected-tests.js",
   "src/browser-admission.js",
-  "src/browser-slot-guard.js",
   "src/chrome-clone-check.js",
   "src/cpu-load-admission.js",
   "src/gate-run-receipt.js",
-  "src/gate-slot.js",
-  "src/gate-wait.js",
   "src/gui-admission.js",
   "src/module-imports.js",
   "src/perf-budgets.js",
@@ -107,7 +104,6 @@
   "src/test-file-dispatch.js",
   "src/test-file-pool.js",
   "src/test-isolation.js",
-  "src/test-run.js",
   "src/test-selection.js",
   "src/test-value-timing.js"
  ],
