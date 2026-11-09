@@ -9,7 +9,6 @@
     "packages/person/src/shell/person-pairing-limit.js",
     "packages/state/src/core/engine-metadata.js",
     "src/check-timing.js",
-    "src/cli-presence.js",
     "src/module-imports.js",
     "src/runner-worker.js",
     "src/runners.js",
