@@ -1537,6 +1537,14 @@
         "packages/blueprints/tests/blueprint.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
