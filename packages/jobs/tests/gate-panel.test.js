@@ -47,8 +47,8 @@ test('gatePanel and stalledGates read the board: unknown job and missing tables 
   createJob(db, { id: 'gate:3', kind: 'gate', item: 5, now: 0 });
   createJob(db, { id: 'land:1', kind: 'landing', item: 6, now: 0 });
   for (const id of ['gate:1', 'gate:2']) writeStep(db, id, 'running', {}, { now: 0 });
-  takeJob(db, 'gate:1', 'w1', { now: 0, leaseMs: MINUTE });
-  takeJob(db, 'gate:2', 'w2', { now: 0, leaseMs: 100 * MINUTE });
+  takeJob(db, 'gate:1', 'w1', { now: 1, leaseMs: MINUTE - 1 });
+  takeJob(db, 'gate:2', 'w2', { now: 1, leaseMs: 100 * MINUTE });
   assert.equal(gatePanel(db, 'gate:1', { now: 4 * MINUTE }).text, 'stalled (reclaimable) 3m');
   assert.equal(gatePanel(db, 'gate:2', { now: 4 * MINUTE }).stalled, false);
   assert.deepEqual(stalledGates(db, { now: 4 * MINUTE }), [{ id: 'gate:1', item: 3, text: 'stalled (reclaimable) 3m', ageMinutes: 3 }]);

@@ -40,11 +40,11 @@ test('renewReview extends the holder\'s reservation only [C7]', t => {
 
 test('a lapsed reservation is reclaimed with a lapsed step and offered again, and a fresh sighting of the reviewer extends it instead [C7]', t => {
   const db = database(t);
-  reserveReview(db, 5, 'r1', { now: 0, leaseMs: 100 });
-  reserveReview(db, 6, 'r2', { now: 0, leaseMs: 100 });
+  reserveReview(db, 5, 'r1', { now: 1, leaseMs: 100 });
+  reserveReview(db, 6, 'r2', { now: 1, leaseMs: 100 });
   const seen = reviewer => (reviewer === 'r2' ? 900 : null);
   const reclaimed = reclaimLapsedReviews(db, { now: 1000, leaseMs: 500, seen });
-  assert.deepEqual(reclaimed, [{ item: 5, reviewer: 'r1', lapsedMs: 900 }]);
+  assert.deepEqual(reclaimed, [{ item: 5, reviewer: 'r1', lapsedMs: 899 }]);
   assert.equal(jobView(db, 'review:6').leaseOwner, 'r2', 'seen alive 100 ms ago, so it keeps the review');
   assert.equal(jobView(db, 'review:6').leaseUntil, 1400);
   const job = jobView(db, 'review:5');
@@ -53,7 +53,7 @@ test('a lapsed reservation is reclaimed with a lapsed step and offered again, an
   assert.deepEqual(job.steps.map(step => step.name), ['reserved', 'lapsed']);
   const offer = reviewOffer(db, 5, { now: 1001 });
   assert.deepEqual([offer.offered, offer.holder], [true, null]);
-  assert.deepEqual(offer.lapses.map(lapse => [lapse.reviewer, lapse.lapsedMs]), [['r1', 900]]);
+  assert.deepEqual(offer.lapses.map(lapse => [lapse.reviewer, lapse.lapsedMs]), [['r1', 899]]);
   assert.deepEqual(reserveReview(db, 5, 'r3', { now: 1002 }), { reserved: true, holder: 'r3' });
   assert.deepEqual(jobView(db, 'review:5').steps.map(step => [step.name, step.seq]), [['reserved', 0], ['lapsed', 0], ['reserved', 1]], 'each attempt writes its own steps');
 });

@@ -52,12 +52,12 @@ test('reclaimLapsed names each lapsed lease with how long ago it ended, oldest f
   const db = jobOn(t, 'a');
   createJob(db, { id: 'b', kind: 'gate', now: 1 });
   createJob(db, { id: 'c', kind: 'gate', now: 1 });
-  takeJob(db, 'a', 'w1', { now: 0, leaseMs: 300 });
-  takeJob(db, 'b', 'w2', { now: 0, leaseMs: 100 });
-  takeJob(db, 'c', 'w3', { now: 0, leaseMs: 5000 });
+  takeJob(db, 'a', 'w1', { now: 1, leaseMs: 300 });
+  takeJob(db, 'b', 'w2', { now: 1, leaseMs: 100 });
+  takeJob(db, 'c', 'w3', { now: 1, leaseMs: 5000 });
   assert.deepEqual(reclaimLapsed(db, { now: 1000 }), [
-    { id: 'b', kind: 'gate', step: 'queued', leaseOwner: 'w2', lapsedMs: 900 },
-    { id: 'a', kind: 'gate', step: 'queued', leaseOwner: 'w1', lapsedMs: 700 },
+    { id: 'b', kind: 'gate', step: 'queued', leaseOwner: 'w2', lapsedMs: 899 },
+    { id: 'a', kind: 'gate', step: 'queued', leaseOwner: 'w1', lapsedMs: 699 },
   ]);
   assert.deepEqual(reclaimLapsed(db, { now: 50 }), []);
 });
@@ -82,7 +82,7 @@ test('finishJob marks the job done for its holder or an unleased or lapsed job, 
   assert.equal(finishJob(db, 'held', 'w1', { now: 1500 }), true);
   assert.deepEqual([jobView(db, 'held').step, jobView(db, 'held').leaseOwner], ['done', null]);
   assert.equal(finishJob(db, 'free', 'w9', { now: 1500 }), true);
-  takeJob(db, 'old', 'w1', { now: 0, leaseMs: 10 });
+  takeJob(db, 'old', 'w1', { now: 1, leaseMs: 10 });
   assert.equal(finishJob(db, 'old', 'w2', { now: 5000 }), true, 'a lapsed lease no longer protects its holder');
   assert.equal(jobView(db, 'old').step, 'done');
 });
