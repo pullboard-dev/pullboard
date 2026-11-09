@@ -718,7 +718,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
-  const { landingFailureReport } = await import('../src/landing-failure-report.js');
+  const { landingFailureReport } = await import('../packages/landing/index.js');
   const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
@@ -1417,7 +1417,7 @@ async function main(args) {
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // No test run starts on the coordinator unless a runner job started it (#3899).
-  (await import('../packages/gate/index.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
+  (await import('../packages/gate/src/shell/coordinator-test-guard.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;
