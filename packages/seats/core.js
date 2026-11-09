@@ -1,4 +1,5 @@
-/** Process-free lane policy for native move descriptors; no shell module is loaded [C7]. */
+/** Light door: lane policy for native move descriptors plus machine-local seat timing; reaches only relative files and node: built-ins [C7]. */
+export { timingSeat, appendSeatTiming, beginSeatTiming } from './src/shell/seat-timing.js';
 export {
   laneLeads,
   routeLaneMessage,

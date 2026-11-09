@@ -59,7 +59,7 @@ export function queuedItemLease(ctx, initial, agentId, kind, admission = null) {
   let finish;
   return async state => {
     if (!state.admitted && !finish) {
-      const { beginSeatTiming } = await import('../../../../../src/seat-timing.js');
+      const { beginSeatTiming } = await import('../../../../../packages/seats/core.js');
       finish = beginSeatTiming(ctx.info.root, 'runner-wait', 'gate slot');
     } else if (state.admitted && finish) { finish(); finish = null; }
     return report(state);
