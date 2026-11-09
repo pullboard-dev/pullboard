@@ -13,5 +13,5 @@ export { CELLS_INVENTORY_KIND, keyedJobId } from './src/core/keyed-result.js';
 export { driveLanding } from './src/shell/drive-landing.js';
 export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/core/drive-landing.js';
 export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/shell/gate-drive.js';
-export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/core/gate-drive.js';
+export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/core/gate-drive.js';
 export { createGateAdmission, gateDispatcherRow } from './src/shell/gate-admission.js';
