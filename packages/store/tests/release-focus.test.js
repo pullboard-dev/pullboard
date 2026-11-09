@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { addMilestone } from '../packages/store/index.js';
-import { setLineSetting } from '../packages/store/index.js';
-import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
-import { crossLaneFixture } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
+import * as store from '../index.js';
+import { addMilestone } from '../index.js';
+import { setLineSetting } from '../index.js';
+import { boardFixture } from '../../../test/next-order-fixture.js';
+import { submitted } from '../../../test/next-order-fixture.js';
+import { HOUR } from '../../../test/next-order-fixture.js';
+import { FREEZE } from '../../../test/next-order-fixture.js';
+import { crossLaneFixture } from '../../../test/e2e-helpers.js';
+import { openBoard } from '../../../apps/lib/src/core/native-board.js';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 function setup(t) {
   const { board, builder, reviewer } = boardFixture();
@@ -59,7 +63,7 @@ test('reviews follow the same focus [B26,C7]', t => {
 });
 
 test('focused draft rows form one approval batch for unlanded items [B26,C7]', async () => {
-  const { personNeeds } = await import('../packages/spec/index.js');
+  const { personNeeds } = await import('../../spec/index.js');
   const needs = personNeeds({ focusMilestone: { name: '0.9.3', items: [1, 2, 3, 4] },
     items: [
       { id: 1, status: 'open', specs: ['A1', 'B1'] },
@@ -83,8 +87,8 @@ test('real project state feeds focused draft rows into one Needs-you batch [B26,
   box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
-  const { projectState } = await import('../apps/view/index.js');
-  const { personNeeds } = await import('../packages/spec/index.js');
+  const { projectState } = await import('../../../apps/view/index.js');
+  const { personNeeds } = await import('../../spec/index.js');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const state = projectState(box.repo, { board });

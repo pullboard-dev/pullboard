@@ -2,21 +2,25 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { headerRows } from '../packages/spec/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { headerRows } from '../../../packages/spec/index.js';
 import {
   HEADER_LIMIT,
   buildCommitMessage,
   commitMessageProblems,
   parseCommitMessage,
   specOrder,
-} from '../packages/commits/index.js';
-import { landingRows } from '../packages/commits/src/core/landing-rows.js';
-import { checkLandingMessages, itemCommitType, landingMessage } from '../packages/landing/index.js';
-import { citedIds, parseSpec } from '../packages/spec/index.js';
-import { defaults } from '../packages/config/index.js';
-import { commitMsgProblems } from '../packages/commits/index.js';
-import { cellSandbox } from './cell-fixture.js';
+} from '../../../packages/commits/index.js';
+import { landingRows } from '../../../packages/commits/src/core/landing-rows.js';
+import { checkLandingMessages } from '../../../packages/landing/index.js';
+import { itemCommitType } from '../../../packages/landing/index.js';
+import { landingMessage } from '../../../packages/landing/index.js';
+import { citedIds } from '../../../packages/spec/index.js';
+import { parseSpec } from '../../../packages/spec/index.js';
+import { defaults } from '../../../packages/config/index.js';
+import { commitMsgProblems } from '../../../packages/commits/index.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
