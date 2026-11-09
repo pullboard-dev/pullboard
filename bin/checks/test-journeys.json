@@ -3770,7 +3770,6 @@
         "runners"
       ],
       "reasons": [
-        "imports past gate front door (src/test-file-pool.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
     },
