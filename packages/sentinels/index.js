@@ -9,5 +9,5 @@ export * from "./src/shell/sentinel-runner.js";
 export * from "./src/shell/sentinels.js";
 export * from "./src/shell/serve-sentinel.js";
 export { REVIEW_WAKE_WAIT_MS, wakeReviewCapacity } from './src/shell/review-capacity-wake.js';
-export { waitBudgets } from './src/core/wait-budgets.js';
+export { waitBudgets, waitItemFields, waitKey } from './src/core/wait-budgets.js';
 export { openWaitKey, recordWaits, waitLines, waitsSnapshot } from './src/shell/waits.js';

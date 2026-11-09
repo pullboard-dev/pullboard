@@ -20,6 +20,7 @@ import { shout } from '../../store/index.js';
 import { openWaitKey } from '../index.js';
 import { recordWaits } from '../index.js';
 import { waitBudgets } from '../index.js';
+import { waitItemFields } from '../index.js';
 import { waitLines } from '../index.js';
 import { waitsSnapshot } from '../index.js';
 import { startServeSentinel } from '../index.js';
@@ -58,14 +59,15 @@ function machine(t) {
   /** The ports recordWaits files through: real board moves on the real board file. */
   const ports = (extra = {}) => ({
     openKey: key => openWaitKey(board.db, key),
-    fileItem: draft => addItem(board, { by: 'coordinator', lane: 'core', title: draft.title, criterion: draft.criterion, brief: draft.brief }),
+    // The same fields and validation the CLI's ordered addItem move runs, so a refused item fails here too.
+    fileItem: draft => addItem(board, waitItemFields(draft, 'coordinator')),
     shout: text => shout(board, { from: 'sentinel', to: 'coordinator', lanes: [], text }),
     ...extra,
   });
   // Only this test's own processes are in view, so a real orphan or loop elsewhere on the machine is never touched.
   const census = () => new Map([...localCensus()].filter(([pid]) => children.includes(pid)));
   const snapshot = (options = {}) => waitsSnapshot({ paths, budgets: waitBudgets(), hosts: [], census: census(), ...options });
-  const items = () => board.db.prepare("SELECT item_id, item_title, item_brief FROM item WHERE item_brief LIKE '%Wait key:%'").all();
+  const items = () => board.db.prepare("SELECT item_id, item_title, item_brief, item_route, item_check FROM item WHERE item_brief LIKE '%Wait key:%'").all();
   return { board, root, paths, sleeper, children, ports, snapshot, census, items, setNow: value => { at = value; } };
 }
 
@@ -272,4 +274,25 @@ test('the view runs the wait audit every minute, one pass at a time per board [C
   await audit.callback();
   assert.deepEqual(audited, ['/one']);
   await observer.close();
+});
+
+test('waits record files a mid item add accepts: Files: naming the holder\'s source, a Test: line and a check [C7]', async t => {
+  const m = machine(t);
+  const holder = m.sleeper(), waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'),
+    [{ name: 'checkout-session:abc', pid: holder.pid, agent: 'coordinator', since: ago(27) }],
+    [{ name: 'checkout-session:abc', pid: waiter.pid, agent: 'core-1', since: ago(12) }]);
+  const snapshot = await m.snapshot();
+  // The holder's command line names the CLI command that held the lease, as `merged` did on 9 Nov.
+  const row = { ...snapshot.rows.find(entry => entry.surface === 'checkout-lease'), context: 'node /repo/bin/pullboard.js merged 3930 a6a7674098' };
+  const recorded = await recordWaits({ ...snapshot, rows: [row] }, m.ports());
+  assert.equal(recorded.filed.length, 1, 'the real add validation accepts the item');
+  const [item] = m.items();
+  assert.equal(item.item_route, 'mid', 'routed so a Sonnet builds it cold');
+  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/shell\/commands\/merged\.js\n- packages\/seats\/src\/shell\/agent-session\.js$/mu, 'the holder\'s source and the surface code');
+  assert.match(item.item_brief, /^Test: /mu);
+  assert.equal(item.item_check, "node bin/pullboard.js waits check 'checkout-lease:repo:checkout-session:abc:coordinator'", 'its check is the audit for this one cause');
+  const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
+  assert.throws(() => addItem(m.board, bare), /NO_BRIEF|Files:/u, 'a brief without Files: and Test: is the refusal this guards against');
 });

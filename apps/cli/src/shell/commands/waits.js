@@ -8,6 +8,8 @@ import { machineHome } from '../../../../../packages/resources/index.js';
 import { openWaitKey } from '../../../../../packages/sentinels/index.js';
 import { recordWaits } from '../../../../../packages/sentinels/index.js';
 import { waitBudgets } from '../../../../../packages/sentinels/index.js';
+import { waitItemFields } from '../../../../../packages/sentinels/index.js';
+import { waitKey } from '../../../../../packages/sentinels/index.js';
 import { waitLines } from '../../../../../packages/sentinels/index.js';
 import { waitsSnapshot } from '../../../../../packages/sentinels/index.js';
 import { context } from '../cli.js';
@@ -26,10 +28,19 @@ async function snapshotHere(ctx, budgets, runnerTimeoutMs) {
  * `pullboard waits` prints surface, holder, age, waiters and budget read-only and exits 1 when anything is over
  * budget; `pullboard waits record` also reclaims dead holders, files one item per new cause and records the run.
  */
-export async function run(io, { first, second } = {}) {
-  if (second !== undefined || (first !== undefined && first !== 'record')) throw new Refused('USAGE', 'use pullboard waits [--json] to read the table, or pullboard waits record to run the audit');
+export async function run(io, { first, second, rest = [] } = {}) {
+  const usage = first === 'check' ? second === undefined || rest.length : second !== undefined || (first !== undefined && first !== 'record');
+  if (usage) throw new Refused('USAGE', 'use pullboard waits [--json] to read the table, pullboard waits check <wait key> to test one cause, or pullboard waits record to run the audit');
   const ctx = context(io);
   const budgets = waitBudgets(ctx.config, loadMachineSettings());
+  if (first === 'check') {
+    // A filed item's check: red while the wait with this key is still over budget, green once its cause is gone.
+    const snapshot = await snapshotHere(ctx, budgets, 2_000);
+    const over = snapshot.rows.filter(row => row.breach && waitKey(row) === second);
+    io.result?.({ key: second, over });
+    io.say(over.length ? `${second}: over budget\n${waitLines({ ...snapshot, rows: over }).slice(0, -1).join('\n')}` : `${second}: within budget`);
+    return over.length ? 1 : 0;
+  }
   if (first !== 'record') {
     const snapshot = await snapshotHere(ctx, budgets, 500);
     io.result?.({ waits: snapshot });
@@ -48,7 +59,7 @@ export async function run(io, { first, second } = {}) {
     const filing = me.id === COORDINATOR;
     const outcome = await recordWaits({ ...snapshot, budgets: { ...budgets, file: budgets.file && filing, reclaim: budgets.reclaim } }, {
       openKey: key => openWaitKey(board.db, key),
-      fileItem: draft => ordered(ctx, board, 'addItem', [{ by: me.id, lane: 'core', title: draft.title, criterion: draft.criterion, brief: draft.brief, route: 'mid', specIds: ['C7'] }]),
+      fileItem: draft => ordered(ctx, board, 'addItem', [waitItemFields(draft, me.id)]),
       shout: text => ordered(ctx, board, 'shout', [{ from: 'sentinel', to: COORDINATOR, lanes: [], text }]),
       prunePools: scope => listResources({ scope, root: ctx.info.root }),
       release: async claim => {
