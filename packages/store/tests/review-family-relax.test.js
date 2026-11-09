@@ -1,14 +1,14 @@
 /** Native reservations and verdicts preserve the family-relaxation witness [V1,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../packages/state/core.js';
-import { REVIEW_FAMILY_SEAT_ENGINE } from '../packages/state/core.js';
-import { prepareEngineMove } from '../packages/state/index.js';
-import { applyEngineMove } from '../packages/state/index.js';
-import { exportBoard } from '../packages/store/index.js';
+import * as store from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../state/core.js';
+import { REVIEW_FAMILY_SEAT_ENGINE } from '../../state/core.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { exportBoard } from '../index.js';
 
 test('backlog relaxation is bound to the reservation and never permits self review [V1,H16]', t => {
   const board = fixtureBoard(t);

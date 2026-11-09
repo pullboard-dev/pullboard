@@ -4483,23 +4483,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/inspection-clause-evidence.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "state",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/inspection-submit-ticks.test.js": {
       "cells": [
         "app:lib",
@@ -4822,18 +4805,6 @@
         "gate",
         "kernel",
         "landing"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/known-main-affected.fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/known-main-reads-main-red-items.test.js": {
-      "cells": [
-        "app:cli",
-        "kernel",
-        "store"
       ],
       "reasons": [
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
