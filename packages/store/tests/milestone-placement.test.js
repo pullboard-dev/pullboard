@@ -1,10 +1,11 @@
 /** The board places a new item in a milestone by rule, shows why, and records any override's reason [N26,B35]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
-import { fixtureBoard } from './board-fixture.js';
+import * as store from '../index.js';
+import { addMilestone } from '../index.js';
+import { editMilestoneItems } from '../index.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../../state/core.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 /** A default board with two releases, seeded from work recorded before automatic placement. */
 function placementBoard(t) {
