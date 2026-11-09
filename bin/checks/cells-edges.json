@@ -952,10 +952,6 @@
       "cells": 5,
       "deep": 0
     },
-    "bin/cells-move-closure.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "bin/cells-move-fixtures.js": {
       "cells": 2,
       "deep": 0
@@ -1217,6 +1213,10 @@
       "deep": 0
     },
     "packages/codemap/src/shell/cells-fixture-memo.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/codemap/src/shell/cells-move-closure.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4453,10 +4453,6 @@
       "deep": 0
     },
     "src/family-declaration.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/gate-run-receipt.js": {
       "cells": 1,
       "deep": 0
     },

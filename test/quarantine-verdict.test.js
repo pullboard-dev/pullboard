@@ -54,7 +54,7 @@ import {receiptRecorder} from './tooling/packages/flakes/index.js';
 import {context,ordered,withBoard,resourceAgent,freezer,queuedItemLease} from './tooling/src/cli.js';
 import {runnerExecutionServices} from './tooling/src/runners.js';
 import {landingExecutionServices} from './tooling/packages/landing/index.js';
-import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/src/gate-run-receipt.js';
+import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/packages/gate/index.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './tooling/src/engine.js';
 import {QUARANTINE_VERDICT_ENGINE} from './tooling/packages/state/src/core/engines/quarantine-verdict-engine.js';
 import {quarantineVerdictSnapshot,flakeQuarantines,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './tooling/packages/flakes/index.js';

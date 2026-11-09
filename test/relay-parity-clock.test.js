@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/src/core/native-board.js';
 /** Native cached HTTP state keeps the same explicit clock as a fresh relay reader [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';

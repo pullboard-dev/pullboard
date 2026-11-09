@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../apps/lib/index.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../apps/lib/src/core/native-board.js';
 import { proposeSentinel as nativeProposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel as nativeDecideSentinel } from '../packages/sentinels/index.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../packages/sentinels/index.js';

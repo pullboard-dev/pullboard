@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MOVE_REGISTRY, minimumMoveEngine } from '../packages/moves/index.js';
-import { nativeBoardPorts } from '../apps/lib/index.js';
+import { nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { STALE_STATE_ENGINE } from '../packages/state/core.js';
 
