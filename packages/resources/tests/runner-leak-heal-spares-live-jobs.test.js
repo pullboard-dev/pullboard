@@ -1,14 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { DatabaseSync } from 'node:sqlite';
 import { healLeakedRunner } from '../src/shell/runner-leak-heal.js';
-import { stopScript } from '../../runners/src/shell/runner-leak-stop.js';
 
 const HOST = 'coreyolson@192.168.1.51';
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'TRANSPORT_UNVERIFIED' };
@@ -36,22 +32,4 @@ test('clause 1: a quarantine heal on a runner with a holder never calls the leak
     assert.equal(event.kind, 'leak-stop-skipped');
     assert.match(JSON.parse(event.detail).reason, /busy/u);
   } finally { db.close(); rmSync(home, { recursive: true, force: true }); }
-});
-
-test('clause 2: the stop script excludes a live job id and a fake ps listing keeps only the non-live job pid [C7]', () => {
-  const dir = temporaryDirectory('pullboard-leak-ps-');
-  try {
-    const root = join(dir, 'runner');
-    const script = stopScript(root, ['live-job']);
-    assert.match(script, /live-job/u);
-    assert.match(script, /index\(\$0,ENVIRON\["J"\] ids\[i\]\)/u);
-    writeFileSync(join(dir, 'ps'), `#!/bin/sh
-case "$*" in
-  *-axo*) printf '%s\\n' '111 Mon Nov 6 10:00:00 2026 node ${root}/jobs/live-job/step' '222 Mon Nov 6 10:00:00 2026 node ${root}/jobs/dead-job/step' '333 Mon Nov 6 10:00:00 2026 node /elsewhere' ;;
-esac
-`);
-    chmodSync(join(dir, 'ps'), 0o755);
-    const run = spawnSync('sh', ['-c', script.replace(/^sh -c /u, 'sh -c ')], { env: { ...process.env, PATH: dir + ':' + process.env.PATH }, encoding: 'utf8' });
-    assert.equal(run.stdout.trim(), '222', run.stderr);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

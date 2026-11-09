@@ -1,5 +1,5 @@
 /** Take, renew and reclaim job leases on the board's SQLite handle [C7]. */
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/core.js";
 import { LEASE_MS } from "../core/lease-rules.js";
 import { jobView } from "./job-store.js";
 

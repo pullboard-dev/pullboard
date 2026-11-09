@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/commits",
  "frontDoor": "packages/commits/index.js",
+ "lightFrontDoor": "packages/commits/core.js",
  "paths": [
   ["src/commit-message.js","packages/commits/src/core/commit-message.js","seed"],
   ["src/commit-metadata.js","packages/commits/src/core/commit-metadata.js","seed"],
