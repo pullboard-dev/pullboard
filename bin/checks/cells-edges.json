@@ -661,7 +661,7 @@
       "deep": 0
     },
     "apps/lib/src/core/native-board.js": {
-      "cells": 17,
+      "cells": 18,
       "deep": 0
     },
     "apps/lib/src/shell/cli-hook-work.js": {
@@ -4913,6 +4913,7 @@
         "kernel",
         "landing",
         "link",
+        "moves",
         "outbox",
         "person",
         "resources",

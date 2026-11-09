@@ -72,6 +72,7 @@ import {
   minimumMoveEngine,
   declaredMoveActor,
 } from '../../../../src/move-registry.js';
+import { withMoveNextSteps } from '../../../../packages/moves/index.js';
 import {
   activeViewAgents,
   viewProofSummary,
@@ -144,7 +145,7 @@ import {
   newRigorNotices,
   rigorNoticeText,
 } from '../../../../packages/rigor/index.js';
-import { NEXT_STEPS } from '../../../../src/next-step-words.js';
+import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/index.js';
 import * as landingEnvironment from '../../../../packages/landing/index.js';
 import {
   deriveRigorCause,
@@ -291,6 +292,9 @@ for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
 for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
 export const board = Object.freeze(libraryBoard);
 export { closeBoard } from '../../../../packages/store/index.js';
+
+// The CLI's own next-step table, composed here from its state-cell defaults so opening a board never loads the CLI (#3906).
+const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {

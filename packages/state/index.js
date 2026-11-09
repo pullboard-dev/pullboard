@@ -192,3 +192,4 @@ export { TWO_TIER_DIAGNOSIS_ENGINE } from '../../src/two-tier-diagnosis-engine.j
 export { REJECT_OPEN_ENGINE } from '../../src/reject-open-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from '../../src/clause-evidence-engine.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';
+export { DEFAULT_NEXT_STEPS } from './src/core/next-step-defaults.js';
