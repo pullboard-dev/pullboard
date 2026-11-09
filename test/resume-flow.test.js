@@ -557,7 +557,7 @@ test('setup lets agents build starter items while rows wait [S1,B26]', t => {
   const prepared = JSON.parse(box.run(box.repo, 'resume', '--diagnostics', '--json').stdout);
   assert.equal(prepared.setup.buildNow.command, `pullboard worktree ${first.item_lane} --model "<model name>"`);
   box.env.CODEX_THREAD_ID = 'starter-builder-session';
-  const opened = box.run(box.repo, 'worktree', first.item_lane, '--model', 'Starter fixture', '--json');
+  const opened = box.run(box.repo, 'worktree', first.item_lane, '--route', 'strong', '--model', 'Starter fixture', '--json');
   assert.equal(opened.status, 0, opened.failure || opened.stderr);
   const worktree = JSON.parse(opened.stdout).path;
   const ready = JSON.parse(box.run(worktree, 'resume', '--diagnostics', '--json').stdout);
