@@ -2016,6 +2016,8 @@
     "items->git",
     "items->kernel",
     "items->store",
+    "items->queue",
+    "queue->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
@@ -2071,6 +2073,10 @@
     "(root)->doctrine",
     "(root)->landing",
     "person->doctrine",
-    "blueprints->doctrine"
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine"
   ]
 }

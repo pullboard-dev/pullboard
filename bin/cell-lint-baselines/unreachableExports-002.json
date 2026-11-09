@@ -93,7 +93,6 @@
     "src/digest.js#writeDigest": 1,
     "src/doctrine-checks.js#checkRule": 1,
     "src/doctrine-checks.js#ruleFiles": 1,
-    "src/doctrine.js#STANDARD_VERSION": 1,
     "src/engine-folder.js#engineFolderProblems": 1,
     "src/engine-folder.js#engineFolderViolations": 1,
     "src/engine-metadata.js#CAUSE_ENGINE": 1,

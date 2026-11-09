@@ -1,10 +1,11 @@
 /** Real private queue custody drains one registered executor without changing live settings or holders [C7,Q1]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 /** Use a real private machine queue; fake executor names exercise admission without any network or live board. */
 async function scenario(t, body) {
@@ -15,8 +16,8 @@ async function scenario(t, body) {
   const source = `import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
-import { takeResource, listResources } from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
-import { runFixtureChildAsync, startFixtureChild } from ${JSON.stringify(new URL('./fixture-child.js', import.meta.url).href)};
+import { takeResource, listResources } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
+import { runFixtureChildAsync, startFixtureChild } from ${JSON.stringify(new URL('../../../test/fixture-child.js', import.meta.url).href)};
 import { once } from 'node:events';
 const root = process.cwd();
 const runners = [{host:'drain-a',slots:2,browser:0},{host:'flow-b',slots:3,browser:1},{host:'guard-c',slots:2,browser:1}];
@@ -37,7 +38,7 @@ function age(agent, ageMs=120001) { assert.equal(db.prepare('UPDATE waiter SET s
 function timing(agent, options={}, autoAge=true) { const control={cancel:false,aged:false,waiting:false}; const promise=takeResource({...base,timing:true,agent,item:'private-'+agent,...options,onWait(state){ if(control.cancel) throw new Error('private cancellation'); control.waiting=true; if(autoAge && !control.aged) {age(agent);control.aged=true;} }}); promise.then(lease=>leases.push(lease),()=>{}); pending.push({promise,control}); return {promise,control}; }
 /** A different real process consults the same private durable reservation. */
 async function ordinary(agent) {
-  const script='import {takeResource} from '+JSON.stringify(${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)})+'; const lease=await takeResource({...'+JSON.stringify({...base,runnerProvider:undefined})+',agent:'+JSON.stringify(agent)+',runnerProvider:()=>'+JSON.stringify(runners)+'}); console.log(JSON.stringify({host:lease.runner.host}));lease.release();';
+  const script='import {takeResource} from '+JSON.stringify(${JSON.stringify(new URL('../index.js', import.meta.url).href)})+'; const lease=await takeResource({...'+JSON.stringify({...base,runnerProvider:undefined})+',agent:'+JSON.stringify(agent)+',runnerProvider:()=>'+JSON.stringify(runners)+'}); console.log(JSON.stringify({host:lease.runner.host}));lease.release();';
   const result=await runFixtureChildAsync(process.execPath,['--input-type=module','-e',script],{cwd:root,env:process.env,encoding:'utf8',timeout:5000});
   assert.equal(result.status,0,result.context); return JSON.parse(result.stdout).host; }
 try { ${body} }
@@ -124,7 +125,7 @@ assert.ok(db.prepare("SELECT count(*) AS n FROM runner_timing_event WHERE kind='
 
 test('an old unfenced holder remains authoritative and prevents a false quiet receipt [C7,Q1]', async t => {
   await scenario(t, `
-const {takeResource:legacyTake}=await import(${JSON.stringify(new URL('./fixtures/resources-pre-runners.js', import.meta.url).href)});
+const {takeResource:legacyTake}=await import(${JSON.stringify(new URL('../../../test/fixtures/resources-pre-runners.js', import.meta.url).href)});
 const old=await legacyTake({name:'runner:drain-a',capacity:2,scope:'machine',root,agent:'old-client'}); leases.push(old); connect(old);
 await hold('flow-b','b-one'); await hold('flow-b','b-two');
 await hold('guard-c','c-one'); await hold('guard-c','c-two');
@@ -146,7 +147,7 @@ test('a dead private drain owner releases its reservation before ordinary admiss
 const a=await hold('drain-a','a-holder'); connect(a);
 await hold('flow-b','b-one'); await hold('flow-b','b-two');
 await hold('guard-c','c-one'); await hold('guard-c','c-two');
-const script='import {takeResource} from '+JSON.stringify(${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)})+'; const lease=await takeResource({...'+JSON.stringify({...base,runnerProvider:undefined})+',timing:true,agent:"private-dead-owner",runnerProvider:()=>'+JSON.stringify(runners)+'});lease.release();';
+const script='import {takeResource} from '+JSON.stringify(${JSON.stringify(new URL('../index.js', import.meta.url).href)})+'; const lease=await takeResource({...'+JSON.stringify({...base,runnerProvider:undefined})+',timing:true,agent:"private-dead-owner",runnerProvider:()=>'+JSON.stringify(runners)+'});lease.release();';
 const child=startFixtureChild(process.execPath,['--input-type=module','-e',script],{cwd:root,env:process.env,stdio:['ignore','pipe','pipe']}); children.push(child);
 const closed=once(child,'close');
 await until(()=>db.prepare("SELECT 1 FROM waiter WHERE agent='private-dead-owner'").get(),'private child queued');

@@ -98,7 +98,6 @@
     "test/pr-bridge.test.js->src/pr-verification.js": 1,
     "test/pr-bridge.test.js->test/land-board-fixture.js": 1,
     "test/pr-bridge.test.js->test/pr-bridge-fixture.js": 1,
-    "test/practice.test.js->src/doctrine.js": 1,
     "test/practice.test.js->src/skills.js": 1,
     "test/practice.test.js->src/spec.js": 1,
     "test/practice.test.js->src/templates.js": 1,
