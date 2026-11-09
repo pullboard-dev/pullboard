@@ -14,7 +14,6 @@
     "src/board.js",
     "src/check-timing.js",
     "src/cli-presence.js",
-    "src/doctrine.js",
     "src/family-declaration.js",
     "src/landing-failure-report.js",
     "src/landing-test-policy.js",

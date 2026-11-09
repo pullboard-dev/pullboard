@@ -1,6 +1,6 @@
 /** Explicitly materialize board proposals before the existing person-only exact-row decision [D1,S1]. */
 import { readFileSync } from 'node:fs';
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import {
   loadSpec,
   insertSectionRows,

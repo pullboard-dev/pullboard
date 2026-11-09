@@ -5409,24 +5409,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/liveness-reviews.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/lock-hold-budget-command.fixture.js": {
       "cells": [
         "app:lib",
@@ -5956,25 +5938,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/next-no-review-cover-wait.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/next-no-review-for-builder.test.js": {
@@ -8901,25 +8864,6 @@
       "reasons": [
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "runs the CLI (test/review-queue-cli.test.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/review-starve.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
     },
