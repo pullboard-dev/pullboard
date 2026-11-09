@@ -18,6 +18,7 @@
   ["src/check-baseline.js","packages/gate/src/shell/check-baseline.js","seed"],
   ["src/child-journal-preload.js","packages/gate/src/shell/child-journal-preload.js","seed"],
   ["src/chrome-clone-check.js","packages/gate/src/shell/chrome-clone-check.js","seed"],
+  ["src/native-user-directory.js","packages/gate/src/shell/native-user-directory.js","seed"],
   ["src/cpu-load-admission.js","packages/gate/src/shell/cpu-load-admission.js","seed"],
   ["src/gate-config.js","packages/gate/src/shell/gate-config.js","seed"],
   ["src/gate-control.js","packages/gate/src/shell/gate-control.js","seed"],
