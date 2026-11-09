@@ -14,13 +14,13 @@ import { basename } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { configProblems } from '../src/shell/config.js';
-import { defaults } from '../src/shell/config.js';
-import { loadConfig } from '../src/shell/config.js';
-import { forgetProject } from '../../seats/index.js';
-import { listProjects } from '../../seats/index.js';
-import { registerProject } from '../../seats/index.js';
-import { registryFile } from '../../seats/index.js';
+import { configProblems } from '../../config/index.js';
+import { defaults } from '../../config/index.js';
+import { loadConfig } from '../../config/index.js';
+import { forgetProject } from '../index.js';
+import { listProjects } from '../index.js';
+import { registerProject } from '../index.js';
+import { registryFile } from '../index.js';
 
 /**
  * Create an initialized temporary Git repository with a private Pullboard home.

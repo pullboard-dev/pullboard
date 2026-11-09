@@ -7,28 +7,28 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { driverRecord } from '../../../test/gate-driver-fixture.js';
-import { gateSettled } from '../../../test/submit-handoff-fixture.js';
-import { removeSandboxes } from '../../../test/submit-handoff-fixture.js';
+import { driverRecord } from './gate-driver-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 import { test } from 'node:test';
-import { openBoard } from '../index.js';
-import { HOOK_WORKER } from '../../cli/index.js';
-import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
-import { admitGateDrive } from '../../../packages/drive/index.js';
-import { drainLoop } from '../../../packages/drive/index.js';
-import { gateDriveJobId } from '../../../packages/drive/index.js';
-import { recordJobRow } from '../../../packages/drive/index.js';
-import { rowSink } from '../../../packages/drive/index.js';
-import { createJob } from '../../../packages/jobs/index.js';
-import { jobView } from '../../../packages/jobs/index.js';
-import { Refused } from '../../../packages/kernel/index.js';
-import { drivenHandoffGate } from '../../cli/src/shell/submit-handoff-worker.js';
-import { getItem } from '../../../packages/store/index.js';
-import { submitHandoff } from '../../../packages/store/index.js';
-import { writeBoardCommand } from '../../../packages/store/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChildAsync } from '../../../test/fixture-child.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { openBoard } from '../apps/lib/index.js';
+import { HOOK_WORKER } from '../apps/cli/index.js';
+import { gateDriveWorkerEntry } from '../bin/gate-drive-worker.js';
+import { admitGateDrive } from '../packages/drive/index.js';
+import { drainLoop } from '../packages/drive/index.js';
+import { gateDriveJobId } from '../packages/drive/index.js';
+import { recordJobRow } from '../packages/drive/index.js';
+import { rowSink } from '../packages/drive/index.js';
+import { createJob } from '../packages/jobs/index.js';
+import { jobView } from '../packages/jobs/index.js';
+import { Refused } from '../packages/kernel/index.js';
+import { drivenHandoffGate } from '../apps/cli/src/shell/submit-handoff-worker.js';
+import { getItem } from '../packages/store/index.js';
+import { submitHandoff } from '../packages/store/index.js';
+import { writeBoardCommand } from '../packages/store/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChildAsync } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Demand a genuine CLI success before reading its native document. */
 function document(result) {
@@ -163,9 +163,9 @@ process.stdout.write(JSON.stringify({ seen }));
 test('clause 1: a drive run through driveSubmitHandoff holds no board handle: with the board file unreadable to the drive, its step, ticket and verdict rows reach the board through the coordinator-side recorder [C7]', async t => {
   const { box, board, id, request, owner, job, boardFile } = admittedGate(t);
   const env = { ...box.env, GATE_ROWS_TEST: JSON.stringify({ request, owner, board: boardFile, stages: SUBMIT_STAGES,
-    native: new URL('../src/core/native-board.js', import.meta.url).href,
-    worker: new URL('../../cli/src/shell/submit-handoff-worker.js', import.meta.url).href,
-    kernel: new URL('../../../packages/kernel/index.js', import.meta.url).href }) };
+    native: new URL('../apps/lib/src/core/native-board.js', import.meta.url).href,
+    worker: new URL('../apps/cli/src/shell/submit-handoff-worker.js', import.meta.url).href,
+    kernel: new URL('../packages/kernel/index.js', import.meta.url).href }) };
   // budget: the existing owned-worker hang ceiling; assertions concern the recorded rows, not elapsed time.
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', UNREADABLE_DRIVE],
     { cwd: box.web, env, encoding: 'utf8', timeout: 120_000 });
