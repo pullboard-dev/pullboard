@@ -1,4 +1,5 @@
 /** Sandbox execution and immutable submission policy behind one named front door [C7,CD60]. */
+export * from './core.js';
 export {
   executionEnvironment,
   environmentLabel,
@@ -49,16 +50,6 @@ export {
   sourceAdvanceProblem,
   advanceItemSource,
 } from './src/shell/source-advance.js';
-export {
-  policyGit,
-  mainPolicy,
-  policyAt,
-  RUNNER_POLICY_FILE,
-  validRunnerTrunk,
-  runnerPolicyRecord,
-  carriedRunnerTrunk,
-  trunkRef,
-} from './src/shell/trusted-policy-read.js';
 export {
   requireTrunkMerge,
   itemPolicy,
