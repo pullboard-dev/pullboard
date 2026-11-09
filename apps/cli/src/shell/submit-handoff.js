@@ -136,15 +136,18 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
     return shared;
   }
-  assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   if (!clean) {
+    assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copy(toolRoot, tools);
     return tools;
   }
   // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
   const commit = rebuild?.commit ?? head.stdout;
+  // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
   const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
+  if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
+  else assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   const staging = advanced?.path ?? mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
     if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
