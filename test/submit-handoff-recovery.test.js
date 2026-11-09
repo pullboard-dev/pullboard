@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { fixtureJoin } from './testkit-fixture.js';
 import { driverRecord } from './gate-driver-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { jobView } from '../packages/jobs/index.js';
 import { LEASE_MS } from '../packages/jobs/index.js';
 import { admitGateDrive } from '../packages/drive/index.js';
