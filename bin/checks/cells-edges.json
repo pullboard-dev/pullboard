@@ -257,8 +257,8 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/hook.js": {
-      "cells": 12,
-      "deep": 2
+      "cells": 7,
+      "deep": 0
     },
     "apps/cli/src/shell/commands/hooks.js": {
       "cells": 3,
@@ -1994,7 +1994,7 @@
     },
     "packages/landing/src/core/landing-message.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/landing/src/core/landing-waivers.js": {
       "cells": 1,
@@ -3765,8 +3765,8 @@
       "deep": 0
     },
     "packages/sync/src/shell/sync.js": {
-      "cells": 6,
-      "deep": 1
+      "cells": 5,
+      "deep": 0
     },
     "packages/transport/src/core/pull-token.js": {
       "cells": 1,
@@ -4803,7 +4803,7 @@
     },
     "<-commits": {
       "imports": [],
-      "deepImporters": 4
+      "deepImporters": 1
     },
     "<-landing": {
       "imports": [],

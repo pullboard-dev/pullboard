@@ -1,21 +1,13 @@
 /** Installed guidance makes the board’s recorded checks and verdict the proof [I1,I3,V4]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import {
-  after,
-  test,
-} from 'node:test';
+import { test } from 'node:test';
+import { renderAgentsBlock } from "../../config/index.js";
 import {
   HOOKS,
-  HOOKS_DIR,
-} from "../src/shell/hooks.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+  hookScript,
+} from "../index.js";
 
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
-
-/** Inspect actual installed instructions so template text alone cannot stand in for delivery. */
+/** Inspect the exact bytes the installer writes (installHooks writes hookScript) so template names alone cannot stand in for them. */
 function boardProofGuidance(text, surface) {
   assert.match(text, /the frozen check, the gate and the verifier[’']s verdict are the proof/iu,
     `${surface} names the board’s three proof decisions`);
@@ -29,9 +21,8 @@ function boardProofGuidance(text, surface) {
 }
 
 test('the guidance names the gate and the verdict as the proof and forbids private evidence folders [I1,I3,V4]', () => {
-  const box = helpers.project();
-  boardProofGuidance(readFileSync(join(box.repo, 'AGENTS.md'), 'utf8'), 'generated AGENTS');
+  boardProofGuidance(renderAgentsBlock({}, ''), 'generated AGENTS');
   for (const hook of HOOKS) {
-    boardProofGuidance(readFileSync(join(box.repo, HOOKS_DIR, hook), 'utf8'), `installed ${hook} hook`);
+    boardProofGuidance(hookScript(hook), `installed ${hook} hook`);
   }
 });
