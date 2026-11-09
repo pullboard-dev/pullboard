@@ -55,6 +55,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: 6 fil
   const six = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
   assert.equal(proofShardCount(six.length, { batchFiles: PROOF_BATCH_FILES }), 2, 'batches of 3 would make 2 batches');
   assert.equal(proofShardCount(six.length, { freeSlots: 3 }), 3, 'with no batch size the files split one shard per free slot');
+  assert.equal(proofShardCount(six.length, { freeSlots: 18 }), 3, 'a pool with 18 free slots still opens at most PROOF_MAX_SHARDS controllers per gate');
   const calls = [];
   let release;
   const held = new Promise(resolve => { release = resolve; });

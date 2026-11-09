@@ -193,8 +193,16 @@ export function proofShardCount(fileCount, { freeSlots = 0, batchFiles = null } 
   if (batchFiles != null) return Math.ceil(fileCount / Math.max(1, Math.floor(batchFiles) || 1));
   const free = Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 0;
   if (free < 1) return Math.ceil(fileCount / PROOF_BATCH_FILES);
-  return Math.min(fileCount, Math.max(2, free));
+  return Math.min(fileCount, Math.max(2, Math.min(free, PROOF_MAX_SHARDS)));
 }
+
+/**
+ * The most shards, and so slot requests, one gate opens at once.
+ * Why: each shard runs its own runner-controller process on the coordinator. One shard per free slot let a single gate
+ * start 13 controllers; at load 59 the confirming probes took 100–200 s and marked every idle runner unresponsive,
+ * stopping all gates (8 Nov) [C7].
+ */
+export const PROOF_MAX_SHARDS = 3;
 
 /**
  * Split proof files into the queue's shards (proofShardCount), balanced by recorded file times through the landing
@@ -353,7 +361,7 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
     if (takeSlot && !closed() && queue.length > pending) request().catch(error => { failure ??= error; notify(); });
   }
   const gate = gateLane();
-  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.floor(freeSlots)) : 1;
+  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.min(PROOF_MAX_SHARDS, Math.floor(freeSlots))) : 1;
   for (let count = 0; count < opening; count += 1) grow();
   await gate;
   // Drain every running batch before refusing, so each slot's receipt and lease stay accurate.
