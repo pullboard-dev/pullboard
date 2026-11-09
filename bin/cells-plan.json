@@ -1529,6 +1529,22 @@
         "packages/gate/tests/landing-stage-composition.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -1943,6 +1959,8 @@
     "api->git",
     "api->store",
     "apps/lib->store",
+    "apps/lib->apps/cli",
+    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
@@ -2005,6 +2023,12 @@
     "sandbox->state",
     "commits->kernel",
     "rigor->store",
-    "(root)->store"
+    "(root)->store",
+    "spec->kernel",
+    "gate->spec",
+    "(root)->doctrine",
+    "(root)->landing",
+    "person->doctrine",
+    "blueprints->doctrine"
   ]
 }

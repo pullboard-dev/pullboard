@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Produce an artifact only from this host's actual admitted native release gate [C7,I15]. */
 import { runnerExecutionServices } from '../src/runners.js';
-import { landingExecutionServices } from '../src/landing-shards.js';
+import { landingExecutionServices } from '../packages/landing/index.js';
 import { copyFileSync, constants, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';

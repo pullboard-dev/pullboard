@@ -139,7 +139,6 @@
     "src/cli-support.js": 1,
     "src/cli-sync.js": 1,
     "src/cli.js": 1,
-    "src/cockpit.js": 1,
     "src/code-map.js": 1,
     "src/command-docs.js": 1,
     "src/command-docs/heartbeat.json": 1,

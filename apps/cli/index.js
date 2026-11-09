@@ -38,6 +38,7 @@ export { cockpitPage as cockpitPage } from "./src/shell/cockpit.js";
 export { run as run } from "./src/shell/commands/status.js";
 export { NEXT_STEPS as NEXT_STEPS } from "./src/shell/next-steps.js";
 export { stopReplacedWorker } from "./src/shell/submit-handoff.js";
+export { assertCurrentSubmitHandoff, submitHandoffClaimProblem } from "./src/shell/submit-handoff-worker.js";
 export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.js";
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';
