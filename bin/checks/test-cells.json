@@ -1335,6 +1335,7 @@
     "flakes",
     "github",
     "health",
+    "mcp",
     "merge",
     "pin",
     "receipt",
