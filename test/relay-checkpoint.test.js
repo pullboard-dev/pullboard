@@ -17,12 +17,12 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 import {
   CHECKPOINT_BACKGROUND_ENV,
   CHECKPOINT_QUIET_ENV,
   scheduleCheckpoint,
-} from '../src/shell/relay-checkpoint.js';
+} from '../packages/outbox/index.js';
 
 /** Whether a relay call uploads a checkpoint: an API1 state write or an API2 page publish. */
 function checkpointUpload(call) {
@@ -128,7 +128,7 @@ test('publishers that find a dead holder\'s claim together upload one checkpoint
   writeFileSync(join(directory, 'relay-checkpoint.pid'), '999999\n');
   writeFileSync(join(directory, 'relay-checkpoint.due'), `${Date.now() - 60_000}\n`);
   const from = box.calls.length;
-  const worker = fileURLToPath(new URL('../../../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
+  const worker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
   const exits = Array.from({ length: 4 }, () => new Promise(done => {
     spawn(process.execPath, [worker, box.root, box.linkFile], { cwd: box.root, env: box.env, stdio: 'ignore' }).once('exit', done);
   }));
@@ -214,5 +214,5 @@ test('checkpoint scheduling executes the supplied process worker with its exact 
 });
 
 test('importing the checkpoint process entry does not start a publisher [H5,C7]', async () => {
-  await assert.doesNotReject(() => import('../../../apps/lib/src/shell/relay-checkpoint-worker.js'), 'only invoking the worker file may read process board arguments or publish');
+  await assert.doesNotReject(() => import('../apps/lib/src/shell/relay-checkpoint-worker.js'), 'only invoking the worker file may read process board arguments or publish');
 });

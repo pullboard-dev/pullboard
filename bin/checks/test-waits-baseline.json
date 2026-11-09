@@ -24,9 +24,6 @@
   "packages/link/tests/relay-setup-once.test.js": {
     "sleep": 2
   },
-  "packages/outbox/tests/relay-checkpoint.test.js": {
-    "sleep": 6
-  },
   "packages/person/tests/agent-session.test.js": {
     "sleep": 1
   },
@@ -237,6 +234,9 @@
   },
   "test/relay-browser.test.js": {
     "sleep": 3
+  },
+  "test/relay-checkpoint.test.js": {
+    "sleep": 6
   },
   "test/relay-client-fixture.js": {
     "poll": 1,
