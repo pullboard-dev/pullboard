@@ -744,7 +744,7 @@
   "test/cells-data-reads.test.js": {
     "tempdir": 2
   },
-  "test/cells-inventory-incremental.test.js": {
+  "packages/landing/tests/cells-inventory-incremental.test.js": {
     "tempdir": 1
   },
   "apps/lib/tests/checkout-authority-schema.test.js": {
@@ -2588,7 +2588,7 @@
     "raw-board": 4,
     "hand-policy": 1
   },
-  "test/ratchet-against-main.test.js": {
+  "packages/landing/tests/ratchet-against-main.test.js": {
     "tempdir": 3
   },
   "packages/doctrine/tests/ratchet-rename.test.js": {
@@ -3554,7 +3554,7 @@
   "test/submit-auto-merge.test.js": {
     "tempdir": 2
   },
-  "test/submit-cells-incremental.test.js": {
+  "packages/landing/tests/submit-cells-incremental.test.js": {
     "tempdir": 2
   },
   "apps/cli/tests/submit-cells-remote.test.js": {
