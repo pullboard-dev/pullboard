@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { takeResource } from '../packages/resources/index.js';
-import { BATCH_DROP_LIMIT, freeRunnerSlots, proveBatches, shardSlotOptions } from '../packages/gate/src/shell/proof-shards.js';
+import { BATCH_DROP_LIMIT, PROOF_MAX_SHARDS, freeRunnerSlots, proveBatches, shardSlotOptions } from '../packages/gate/src/shell/proof-shards.js';
 import { formatTestOutcomes, readTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { privateFixtureFiles } from './fixture-child.js';
 import { waitForCondition } from './runner-fixture-state.js';
@@ -62,7 +62,7 @@ function batchRun(timingRunId, lane, files) {
     output: `ok ${lane} ${files.join(' ')}\n${formatTestOutcomes(timingRunId, files.map(file => ({ file, name: `${file} case`, passed: true, skipped: false })))}` };
 }
 
-test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its batches into all 5, and every file runs once [C7]', { timeout: 60_000 }, async t => {
+test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its batches into PROOF_MAX_SHARDS lanes, and every file runs once [C7]', { timeout: 60_000 }, async t => {
   const box = machine(t);
   const own = await hold(gateOptions(box, 'core-gate'));
   const others = [];
@@ -103,12 +103,15 @@ test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its
     // The five other gates finish and free their slots.
     freed = true;
     for (const lease of others.splice(0)) lease.release();
-    await waitForCondition(() => running === 6, 'the gate lane and all 5 freed slots running batches at once', { signal: t.signal });
+    await waitForCondition(() => running === PROOF_MAX_SHARDS, 'the gate lane and its capped slot lanes running batches at once', { signal: t.signal });
+    // With the capped lanes admitted, no further request queues or holds a slot although 5 slots are free.
+    assert.equal(rows(box.pool, 'holder'), PROOF_MAX_SHARDS, 'the gate holds only its capped lanes');
+    assert.equal(rows(box.pool, 'waiter'), 0, 'no slot request beyond the cap is queued');
     open();
     const merged = await proof;
 
     const slotRuns = runs.filter(row => row.lane !== 'gate');
-    assert.equal(new Set(slotRuns.map(row => row.lane)).size, 5, 'the run pulled batches into all 5 freed slots');
+    assert.equal(new Set(slotRuns.map(row => row.lane)).size, PROOF_MAX_SHARDS - 1, 'the run pulled batches into the capped lanes only');
     assert.ok(runs.filter(row => !row.afterFree).every(row => row.lane === 'gate'), 'before the pool freed, only the gate\'s own lane ran');
     assert.ok(slotRuns.every(row => row.afterFree), 'every freed slot joined after it was freed, not from a plan at gate start');
     assert.ok(slotLeases.every(host => host === 'fixture-a'), 'every slot the gate took is a runner slot');
@@ -116,7 +119,7 @@ test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its
     assert.equal(merged.isGreen, true);
     assert.deepEqual(merged.shards.flatMap(shard => shard.files).sort(), FILES, 'the one receipt names every file once');
     assert.deepEqual(readTestOutcomes(merged.output, timingRunId).map(row => row.file).sort(), FILES, 'every file is accounted for under the proof\'s one timing run id');
-    assert.match(notes.join('\n'), /proof ran 30 batches on the gate's lane and up to 5 more runner slots/u);
+    assert.match(notes.join('\n'), new RegExp(`proof ran 30 batches on the gate's lane and up to ${PROOF_MAX_SHARDS - 1} more runner slots`, 'u'));
     // The request still queued when the batches ran out ends instead of holding a slot it no longer needs.
     await waitForCondition(() => rows(box.pool, 'waiter') === 0 && rows(box.pool, 'holder') === 1,
       'no slot request left waiting and only the gate\'s own lease held once the queue is empty', { signal: t.signal });
