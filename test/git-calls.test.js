@@ -7,7 +7,7 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
@@ -16,7 +16,8 @@ import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { main } from './native-cli-fixture.js';
-import { headCommit, withGitFacts } from '../src/git.js';
+import { headCommit } from '../packages/git/index.js';
+import { withGitFacts } from '../packages/git/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { pathToFileURL } from 'node:url';
