@@ -1,15 +1,25 @@
 /** @pullboard-test-loads packages/resources/index.js packages/runners/src/shell/runner-leak-stop.js */
 /** A quarantined runner with no holders stops its leaked job processes and heals itself within 60 s [C7]. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { initializeRunnerRecovery, takeResource, updateRunnerSettings, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
-import { HEAL_RETRY_MS } from '../packages/resources/src/shell/runner-leak-heal.js';
-import { stopLeakedRunnerJobs } from '../packages/runners/src/shell/runner-leak-stop.js';
+import { initializeRunnerRecovery } from '../../resources/index.js';
+import { takeResource } from '../../resources/index.js';
+import { updateRunnerSettings } from '../../resources/index.js';
+import { recordRunnerFailure } from '../../resources/index.js';
+import { recoverUnavailableRunners } from '../../resources/index.js';
+import { HEAL_RETRY_MS } from '../../resources/src/shell/runner-leak-heal.js';
+import { stopLeakedRunnerJobs } from '../src/shell/runner-leak-stop.js';
 
 /** Build a private runner root with an ssh stand-in that runs the remote command in a local shell, and a machine database file. */
 function machine(t) {

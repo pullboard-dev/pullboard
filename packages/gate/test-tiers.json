@@ -10666,7 +10666,7 @@
       ]
     },
     {
-      "file": "test/cell-lints.test.js",
+      "file": "packages/runners/tests/cell-lints.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34836,7 +34836,7 @@
       ]
     },
     {
-      "file": "test/proof-reuse.test.js",
+      "file": "packages/runners/tests/proof-reuse.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43611,7 +43611,7 @@
       ]
     },
     {
-      "file": "test/runner-idle-dead-holder.test.js",
+      "file": "packages/runners/tests/runner-idle-dead-holder.test.js",
       "tier": "T3",
       "packages": [
         "packages/gate",
@@ -44347,7 +44347,7 @@
       ]
     },
     {
-      "file": "test/runner-self-heal.test.js",
+      "file": "packages/runners/tests/runner-self-heal.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51854,7 +51854,7 @@
       ]
     },
     {
-      "file": "test/test-file-budget.test.js",
+      "file": "packages/landing/tests/test-file-budget.test.js",
       "tier": "T3",
       "packages": [
         ".",

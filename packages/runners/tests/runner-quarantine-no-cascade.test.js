@@ -1,13 +1,14 @@
 /** A runner already unavailable is not quarantined again by its own jobs' cleanup: one drop is one quarantine [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { takeResource } from '../packages/resources/index.js';
-import { recordRunnerFailure } from '../packages/resources/src/shell/resource-recovery.js';
-import { runnerUnavailableRefusal } from '../packages/runners/src/shell/runner-dispatch.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { takeResource } from '../../resources/index.js';
+import { recordRunnerFailure } from '../../resources/src/shell/resource-recovery.js';
+import { runnerUnavailableRefusal } from '../src/shell/runner-dispatch.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const RUNNERS = [{ host: 'fixture-a', slots: 2, browser: 0 }, { host: 'fixture-b', slots: 2, browser: 0 }];
 

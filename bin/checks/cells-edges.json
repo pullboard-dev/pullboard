@@ -4256,10 +4256,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/check-timing.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4569,10 +4565,6 @@
       "deep": 0
     },
     "src/spec-revisions.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/spec.js": {
       "cells": 1,
       "deep": 0
     },
