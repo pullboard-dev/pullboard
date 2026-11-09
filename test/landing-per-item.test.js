@@ -10,7 +10,7 @@ import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
 /** A landing project with landing.perItem unset, so the default applies. */
 function perItemProject() {
@@ -87,6 +87,7 @@ test('a red item goes back to open alone with its evidence and the next run land
   try { submitItem(box, red, 'RED\n'); submitItem(box, green); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
   acceptItem(box, green);
+  moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
 
   const one = land(box);
@@ -110,6 +111,7 @@ test('two land runs on an unchanged board never record the same stop twice [C7,#
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
+  moveMainPastSubmit(box);
 
   land(box);
   const recorded = events(box);
