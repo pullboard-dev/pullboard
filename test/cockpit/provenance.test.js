@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { addItem, closeBoard } from '../../src/board.js';
+import { addItem, closeBoard } from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { beginCommandPhase } from '../../packages/link/index.js';
