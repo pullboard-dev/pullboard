@@ -1934,6 +1934,7 @@
     "runners->transport",
     "activity->store",
     "(root)->apps/cli",
+    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->items",
