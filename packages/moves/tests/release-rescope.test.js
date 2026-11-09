@@ -2,11 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { healthReport } from '../../health/index.js';
-import { dispatchHealth } from '../../sentinels/index.js';
 import * as store from '../../store/index.js';
 import { fixture } from './next-fixture.js';
 import { next } from './next-fixture.js';
 import { take } from './next-fixture.js';
+
+/** The upper-layer dispatch observation health asks for; this cell's test needs no dispatch findings, only the rescope ones. */
+const dispatchHealth = () => ({ findings: [] });
 
 /** Claim an item for a seat and release it with a reason, as a seat that gives work back does. */
 function giveBack(box, id, seat, reason) {

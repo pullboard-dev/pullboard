@@ -30,7 +30,7 @@ import {
   readBoardKey,
   storeBoardKey,
 } from './relay-key.js';
-import { encodeBoardKey } from '../../../kernel/src/core/seal.js';
+import { encodeBoardKey } from '../../../kernel/index.js';
 import {
   createPairingCode,
   openPairingBundle,
