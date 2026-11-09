@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { runnerIdleReply } from '../packages/runners/src/shell/runner-transport.js';
-import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
+import { runnerIdleReply } from '../src/shell/runner-transport.js';
+import { parseProcessCensus } from '../../kernel/src/core/process-census.js';
 
 /** A runner home whose resource queue still lists one gate holder under the given pid. */
 function homeWithHolder(pid) {
