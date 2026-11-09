@@ -1,17 +1,23 @@
 /** @pullboard-test-input source-tree */
 /** A landing that adds a file the cells plan does not cover places it by the plan's rule, so main's cells-plan check stays green [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { amendLandingEngines } from '../packages/landing/index.js';
-import { placeLandingNewFiles } from '../packages/landing/index.js';
-import { computePlan, readPlan, writePlan } from '../bin/cells-plan.js';
-import { git } from './cells-plan-fixture.js';
-import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { amendLandingEngines } from '../index.js';
+import { placeLandingNewFiles } from '../index.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { readPlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
+const BIN = fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url));
 const REASON = 'explicit bounded placement: stays in place during the move';
 
 /** Build a real two-parent item merge whose item adds the given files without touching the plan. */
