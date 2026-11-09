@@ -179,11 +179,42 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
-  const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
-  const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   // Cells the test-cell check records as sealed (bin/checks/test-cells.json): their tests conform, so the plan names them [C7].
   const sealedCells = sealedTestCells(root, commit);
+  const confined = global ? null : sealedConfinement(actual, sealedCells);
+  const selects = row => confined ? confinedUnit(row, confined, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
+  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
+  // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003).
+  const journeys = confined ? [] : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/**
+ * The cell roots (`packages/<cell>`, `apps/<cell>`) a change touches when every changed path lies inside a sealed cell,
+ * else null. Why: a sealed cell's tests conform and no outside file imports past its front door, so a change confined to
+ * it can reach outside only through that front door (#4003).
+ */
+function sealedConfinement(changed, sealedCells) {
+  if (!changed?.length || !sealedCells.length) return null;
+  const sealed = new Set(sealedCells), roots = new Set();
+  for (const file of changed) {
+    const match = /^((?:packages|apps)\/([^/]+))\//u.exec(file);
+    if (!match || !sealed.has(match[2])) return null;
+    roots.add(match[1]);
+  }
+  return roots;
+}
+
+/**
+ * A test a confined change selects: one under a changed sealed cell's own tests folder or a unit reaching only the changed
+ * cells, or, when a changed cell's front door changed, a contract test of a cell that reaches it. No root journey or other cell's test rides along (#4003).
+ */
+function confinedUnit(row, roots, doors) {
+  if ([...roots].some(cell => row.file.startsWith(`${cell}/tests/`))) return true;
+  // A unit that reaches only the changed cells is theirs wherever it sits; anything reaching further waits for its own change.
+  if (row.tier === 'T1' && row.packages.length && row.packages.every(name => roots.has(name))) return true;
+  const contract = /^((?:packages|apps)\/[^/]+)\/contract\//u.exec(row.file);
+  return Boolean(contract) && [...roots].some(cell => doors.has(`${cell}/index.js`) && row.packages.includes(cell));
 }
 
 /** The cells the committed test-cell listing at `commit` records as sealed; none when it is absent or unreadable. */

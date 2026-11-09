@@ -479,10 +479,6 @@ test('landing move preserves Strict on every protected provider [V4,B26,C7]', ()
     "packages/landing/src/core/landing-waivers.js"
   ],
   [
-    "src/landing-worker-identity.js",
-    "packages/landing/src/core/landing-worker-identity.js"
-  ],
-  [
     "src/landing-worker.js",
     "packages/landing/src/shell/landing-worker.js"
   ],
