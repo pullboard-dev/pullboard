@@ -1,14 +1,14 @@
 /** next --verify selects outside the board write transaction and rechecks only the chosen item inside it [C7,V15]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { reviewFamilyRelaxation } from '../packages/store/src/shell/board-review-family.js';
-import { confirmRelaxation } from '../packages/store/src/shell/review-family-relaxation.js';
-import { itemReviewPolicy } from '../packages/verify/index.js';
-import { familiesDiffer } from '../packages/verify/index.js';
-import { seatFamily } from '../packages/verify/index.js';
+import * as store from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { reviewFamilyRelaxation } from '../src/shell/board-review-family.js';
+import { confirmRelaxation } from '../src/shell/review-family-relaxation.js';
+import { itemReviewPolicy } from '../../verify/index.js';
+import { familiesDiffer } from '../../verify/index.js';
+import { seatFamily } from '../../verify/index.js';
 
 const SUBMITTED = 30;
 const SEATS = 15;

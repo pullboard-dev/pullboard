@@ -1,11 +1,14 @@
 /** A runner run never waits on queue priority while runner slots sit free, and a queued run keeps its captured commit [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { takeResource } from '../packages/resources/index.js';
-import { queuedSource } from '../packages/runners/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { takeResource } from '../../resources/index.js';
+import { queuedSource } from '../index.js';
 
 /** Six 18-slot runners and one 10-slot runner: the 118 slots of the 9 Nov fleet. */
 const FLEET = [...[51, 52, 53, 54, 55, 56].map(n => ({ host: `fixture-${n}`, slots: 18, browser: 12 })), { host: 'fixture-vanilla', slots: 10, browser: 6 }];
