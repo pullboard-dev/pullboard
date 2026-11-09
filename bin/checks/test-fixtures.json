@@ -2702,7 +2702,7 @@
     "raw-board": 13,
     "model": 1
   },
-  "test/relay-composed-styles.test.js": {
+  "apps/relay/tests/relay-composed-styles.test.js": {
     "repo-read": 1
   },
   "test/relay-computer-name.test.js": {
@@ -2815,7 +2815,7 @@
   "apps/relay/tests/relay-phone-grants.test.js": {
     "tempdir": 1
   },
-  "test/relay-retention.test.js": {
+  "apps/relay/tests/relay-retention.test.js": {
     "tempdir": 1
   },
   "test/relay-rigor.test.js": {
@@ -3164,7 +3164,7 @@
   "packages/runners/tests/runner-capsule-stdin.test.js": {
     "tempdir": 2
   },
-  "test/runner-cleanup-foreign-process.test.js": {
+  "apps/runner/tests/runner-cleanup-foreign-process.test.js": {
     "tempdir": 3,
     "hand-policy": 1
   },
