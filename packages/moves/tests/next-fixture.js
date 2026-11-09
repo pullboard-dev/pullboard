@@ -111,7 +111,8 @@ export async function next(box, flags = {}) {
   let values = { ...flags, defaultLoop: plain, observeIdle: true };
   for (let loop = 0; loop < 5; loop++) {
     const found = await nextOnce(box.ctx, values, box.ports);
-    if (!found.retry) return found;
+    // The command reports a review step for --verify even when the move leaves the flag unset.
+    if (!found.retry) return found.item ? { ...found, review: found.review ?? Boolean(flags.verify) } : found;
     if (found.skipItem) values = { ...values, omitIds: [...(values.omitIds ?? []), found.skipItem] };
   }
   throw new Error('next kept retrying');
