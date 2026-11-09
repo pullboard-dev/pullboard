@@ -8,11 +8,9 @@
     "packages/merge/src/shell/train-mechanical-merge.js",
     "packages/person/src/shell/person-pairing-limit.js",
     "packages/state/src/core/engine-metadata.js",
-    "src/check-timing.js",
     "src/module-imports.js",
     "src/runner-worker.js",
     "src/runners.js",
-    "src/spec.js",
     "src/view/test-policy.js",
     "src/view/test-roles.js"
   ]

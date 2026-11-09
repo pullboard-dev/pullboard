@@ -2088,6 +2088,7 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
+    "sandbox->items",
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",

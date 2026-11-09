@@ -50,7 +50,8 @@
     "test/implies-phone.test.js": "drives the real CLI (shout, person answers) through a relay client and checks what a phone answer authorizes, its board rows and output end to end",
     "test/intake.test.js": "drives the real CLI (intake, claim, verify, accept, land) in a project checkout and checks the person intake flow, output and board rows end to end",
     "test/relay-person-requests.test.js": "drives the real CLI (export, answer, status, resume, spec apply) through a relay stand-in and checks person requests, answers and exports end to end",
-    "test/relay-upload-status.test.js": "drives the real CLI (relay link, status) through a relay stand-in and checks the sealed upload-status notice and snapshot recovery end to end"
+    "test/relay-upload-status.test.js": "drives the real CLI (relay link, status) through a relay stand-in and checks the sealed upload-status notice and snapshot recovery end to end",
+    "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -189,7 +190,6 @@
     "apps/lib/tests/commit-message.test.js": "imports packages/commits/src/core/landing-rows.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/submit-infra.test.js": "imports test/cli-in-process-fixture.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/submit-registry-guards.test.js": "imports test/e2e-helpers.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/config/tests/submit-size.test.js": "imports test/e2e-helpers.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-landing.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-lower.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-temporary-edges.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -226,7 +226,6 @@
     "packages/landing/tests/submit-cells-incremental.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/submit-cells-stays.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/submit-cells-wildcard.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/moves/tests/release-rescope.test.js": "imports packages/sentinels/index.js, outside its own cell moves; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/add-lanes.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/agent-session.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/approved-row-changes.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -749,7 +748,6 @@
     "test/next-skips-old-policy.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-skips-unfinished-folder.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-starved-review-held.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/next-step-no-wait.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-steps.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-take.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-verify.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1136,6 +1134,7 @@
     "link",
     "mcp",
     "merge",
+    "moves",
     "outbox",
     "pages",
     "pin",

@@ -17,7 +17,7 @@ function item(box, number) {
   const file = `web/land-${number}.test.js`;
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(fixtureJoin(box.run, path, 'web', '--model', 'Fixture Model').code, 0);
+  assert.equal(fixtureJoin(box.run, path, 'web', '--model', 'Fixture Model', '--route', 'strong').code, 0);
   const added = fixtureAdd(box.run, box.repo, 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`, '--route', 'strong',
     '--check', `${box.affected} ${file}`, '--json');
   assert.equal(added.code, 0, added.out + added.err);

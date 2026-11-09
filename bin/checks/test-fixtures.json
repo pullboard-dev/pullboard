@@ -729,7 +729,7 @@
     "tempdir": 7,
     "repo-read": 2
   },
-  "test/cell-lints.test.js": {
+  "packages/runners/tests/cell-lints.test.js": {
     "tempdir": 2
   },
   "test/cells-checks-advisory.test.js": {
@@ -3151,7 +3151,7 @@
   "packages/runners/tests/runner-history-incremental.test.js": {
     "tempdir": 2
   },
-  "test/runner-idle-dead-holder.test.js": {
+  "packages/runners/tests/runner-idle-dead-holder.test.js": {
     "tempdir": 2
   },
   "test/runner-invalid-spec.test.js": {
@@ -3216,7 +3216,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/runner-self-heal.test.js": {
+  "packages/runners/tests/runner-self-heal.test.js": {
     "tempdir": 1
   },
   "test/runner-slot-quarantine.test.js": {
@@ -3643,13 +3643,13 @@
   "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
-  "test/test-cache-receipts.test.js": {
+  "packages/runners/tests/test-cache-receipts.test.js": {
     "tempdir": 2
   },
   "test/test-command.test.js": {
     "hand-policy": 2
   },
-  "test/test-file-budget.test.js": {
+  "packages/landing/tests/test-file-budget.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "env-spread": 1
