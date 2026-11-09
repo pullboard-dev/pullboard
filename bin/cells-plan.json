@@ -2001,6 +2001,8 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
-    "commits->kernel"
+    "commits->kernel",
+    "rigor->store",
+    "(root)->store"
   ]
 }
