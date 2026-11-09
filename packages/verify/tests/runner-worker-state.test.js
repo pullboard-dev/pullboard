@@ -15,12 +15,14 @@ import { runFixtureChild } from '../../../test/fixture-child.js';
 
 const FRONT_DOOR = pathToFileURL(resolve(import.meta.dirname, '../../../apps/runner/src/shell/runner-worker.js')).href;
 
-/** The probe loads the front door twice, the second time under a query suffix, and mutates only the first copy. */
+/** The probe loads the worker body twice, the second time under a query suffix, starts each by calling runnerWorker, and mutates only the first copy. */
 const PROBE = `
 const request = Buffer.from(JSON.stringify({ nonce: '00000000-0000-0000-0000-000000000000', root: process.argv[2] })).toString('base64');
 process.argv[2] = '--health'; process.argv[3] = request;
 const a = await import(${JSON.stringify(FRONT_DOOR)});
 const b = await import(${JSON.stringify(FRONT_DOOR + '?copy=2')});
+a.runnerWorker(process.argv);
+b.runnerWorker(process.argv);
 const { beginCleanup } = await import(new URL('./runner-worker-cleanup.js', ${JSON.stringify(FRONT_DOOR)}).href);
 const { installSignalCustody } = await import(new URL('./runner-worker-process.js', ${JSON.stringify(FRONT_DOOR)}).href);
 const A = a.workerState, B = b.workerState;
@@ -49,7 +51,7 @@ test('a second copy of the worker front door keeps its own process state, not th
   assert.equal(child.status, 0, child.stderr);
   const report = JSON.parse(/^REPORT (.*)$/mu.exec(child.stdout)[1]);
   assert.deepEqual(report, { distinct: true, collections: true, timers: true, custody: true, goneA: 'settled', goneB: 'pending' });
-  assert.equal(child.stdout.match(/"worker":true/gu).length, 2, 'each copy ran its own dispatch');
+  assert.equal(child.stdout.match(/"worker":true/gu).length, 2, 'each copy ran its own dispatch when called');
 });
 
 /** Existing review authority follows every moved runner body [C7]. */
