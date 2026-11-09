@@ -1,12 +1,13 @@
 /** A capable seat whose pick is undiagnosed light work is offered 'diagnose #N', so the light seat builds it [C7,N2]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoin, fixturePolicy } from './testkit-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js Change: return the canonical result from the handler Test case: test/handler.test.js asserts the canonical result';
 
@@ -61,6 +62,9 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = COLD_SESSION_MODEL;
   const box = helpers.project('true', isolated);
+  // The diagnosis names test/handler.test.js, so the web lane owns test/ and claim's cross-ownership guard stays out of the way.
+  const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'test/'] } } });
   const light = join(box.dir, 'light');
   box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
   const joined = fixtureJoin(box.run, light, 'web', '--route', 'light', '--model', COLD_LIGHT_MODEL);
