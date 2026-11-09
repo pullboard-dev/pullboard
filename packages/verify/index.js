@@ -6,7 +6,7 @@ export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPat
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/shell/bar-readiness.js';
 export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/shell/evidence.js';
-export { barTestFiles, frozenRowGates } from './src/core/frozen-clause.js';
+export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/core/frozen-clause.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/core/next-review.js';
 export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
@@ -20,7 +20,7 @@ export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibi
 export { committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/shell/review-independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/core/review-policy.js';
 export { reviewQueueLine } from './src/core/review-queue-line.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem } from './src/shell/review-routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/shell/review-routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/shell/rule-proof-counts.js';
 export { committedRuleCoverage, proofCoverageFingerprint } from './src/shell/rule-proof-coverage.js';
 export { appendRuleProof } from './src/shell/rule-proof-index.js';

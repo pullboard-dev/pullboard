@@ -1262,7 +1262,7 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
           assert.ok(Math.abs(head.offset) <= 2, `${width} ${pass} ${head.key} (${head.open}): the chevron centres on the title's first line: ${head.offset}px`);
         }
         // Flip every head, inner ones first so a folding Shipped never hides one still to press; each is measured both ways.
-        for (const key of heads.map((head) => head.key).reverse()) await press(chrome, `document.querySelector('[data-key=${JSON.stringify(key)}] > .milestone-head')`);
+        for (const key of heads.map((head) => head.key).reverse()) await press(chrome, `document.querySelector('[data-roadmap-key=${JSON.stringify(key)}].milestone-head')`); // a shared-header release nests its head in .release-header
         await chrome.waitFor(`[...document.querySelectorAll('#roadmap-list .milestone-head')].filter((head) => head.getClientRects().length).length >= 3`);
       }
     }
