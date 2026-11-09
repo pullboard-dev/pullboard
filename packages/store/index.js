@@ -114,3 +114,5 @@ export { objectItemPatch } from './src/shell/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";
+export { boardHoldLog, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/shell/board-hold-log.js';
+export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/shell/board-hold-ratchet.js';
