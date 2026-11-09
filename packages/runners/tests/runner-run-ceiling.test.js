@@ -1,7 +1,8 @@
 /** A gate run with no timeout of its own is stopped as hung at its ceiling, never left to run for hours [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { RUN_CEILING_MS, runCeilingMs } from '../packages/runners/src/shell/runner-dispatch.js';
+import { RUN_CEILING_MS } from '../src/shell/runner-dispatch.js';
+import { runCeilingMs } from '../src/shell/runner-dispatch.js';
 
 test('a gate item check or proof with no timeout of its own gets the 20-minute run ceiling; landings, trusted checks and main comparisons keep their own budgets [C7]', () => {
   // #2828 (9 Nov): an item check's hanging test held its gate 55 minutes; the same check hung 9 and 11 hours elsewhere.
