@@ -160,7 +160,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "dashboard-model.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
-  "apps/view/tests/cockpit/dashboard-render.test.js": {
+  "test/cockpit/dashboard-render.test.js": {
     "kind": "logic",
     "reason": "dashboard-render.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },

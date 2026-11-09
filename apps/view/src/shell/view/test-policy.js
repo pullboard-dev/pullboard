@@ -31,7 +31,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/core/view/lifecycle-diagram.js', names: ['lifecycleDiagramHtml'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
 
   { module: 'apps/view/src/shell/view/dashboard-model.js', names: ['dashboardModel'], tests: ['apps/view/tests/cockpit/dashboard-model.test.js'] },
-  { module: 'apps/view/src/core/view/dashboard-render.js', names: ['dashboardHtml'], tests: ['apps/view/tests/cockpit/dashboard-render.test.js'] },
+  { module: 'apps/view/src/core/view/dashboard-render.js', names: ['dashboardHtml'], tests: ['test/cockpit/dashboard-render.test.js'] },
   { module: 'apps/view/src/core/view/activity-model.js', names: ['activityModel'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },
   { module: 'apps/view/src/core/view/activity-render.js', names: ['activityHtml', 'activityFilters'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },
   { module: 'apps/view/src/core/view/activity-words.js', names: ['activityWords'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },
