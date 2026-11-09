@@ -2,14 +2,26 @@
 /** @pullboard-world-pin: clause 1 reads the shipped producer source to prove it never blocks the lease renewal timer. */
 /** A cells-inventory producer job reaches a result, or its lease lapses and another driver resumes it [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { acceptedCellsFromJob, closeBoard, openBoard } from '../apps/lib/index.js';
-import { LEASE_MS, createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
-import { CELLS_INVENTORY_KIND, keyedJobId, keyedResult } from '../packages/drive/index.js';
-import { treeOf } from '../packages/pin/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { acceptedCellsFromJob } from '../index.js';
+import { closeBoard } from '../index.js';
+import { openBoard } from '../index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { takeJob } from '../../../packages/jobs/index.js';
+import { writeStep } from '../../../packages/jobs/index.js';
+import { CELLS_INVENTORY_KIND } from '../../../packages/drive/index.js';
+import { keyedJobId } from '../../../packages/drive/index.js';
+import { keyedResult } from '../../../packages/drive/index.js';
+import { treeOf } from '../../../packages/pin/index.js';
 
 const files = privateFixtureFiles('pullboard-inventory-producer-');
 after(async () => { await cleanupFixtureChildren(); rmSync(files.root, { recursive: true, force: true }); });
@@ -63,7 +75,7 @@ test('clause 1: a producer that dies after produce.started lets its lease lapse 
 });
 
 test('clause 1: the pinned producer runs asynchronously so the lease renewal timer keeps firing while it works [C7]', () => {
-  const code = readFileSync(new URL('../apps/lib/src/shell/main-audit-produce.js', import.meta.url), 'utf8');
+  const code = readFileSync(new URL('../src/shell/main-audit-produce.js', import.meta.url), 'utf8');
   assert.doesNotMatch(code, /spawnSync/u, 'a blocking spawn froze the renewal timer and let the lease of a live producer lapse');
 });
 

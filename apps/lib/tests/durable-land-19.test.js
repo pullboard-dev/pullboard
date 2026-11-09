@@ -5,11 +5,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { jobView, LEASE_MS } from '../packages/jobs/index.js';
-import { toolingPin, treeOf } from '../packages/pin/index.js';
-import { FINISH_STEPS, batchLandingJobId, landBatch, landMerged, mergedLandingJobId } from '../packages/land/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { toolingPin } from '../../../packages/pin/index.js';
+import { treeOf } from '../../../packages/pin/index.js';
+import { FINISH_STEPS } from '../../../packages/land/index.js';
+import { batchLandingJobId } from '../../../packages/land/index.js';
+import { landBatch } from '../../../packages/land/index.js';
+import { landMerged } from '../../../packages/land/index.js';
+import { mergedLandingJobId } from '../../../packages/land/index.js';
 
 /** A repo with a trunk commit and a landed commit on top of it. */
 function landedRepo() {
@@ -86,7 +94,7 @@ test('clause 1: land writes a landed batch through the same finish sequence; a r
 });
 
 test('clause 1: pullboard merged and pullboard land both call the land cell, and merged records only inside its record step [C7]', () => {
-  const source = name => readFileSync(new URL(`../apps/cli/src/shell/commands/${name}.js`, import.meta.url), 'utf8');
+  const source = name => readFileSync(new URL(`../../cli/src/shell/commands/${name}.js`, import.meta.url), 'utf8');
   const merged = source('merged');
   const land = source('land');
   assert.match(merged, /import \{ landMerged \} from '[./]+packages\/land\/index\.js';/);
