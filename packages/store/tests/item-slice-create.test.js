@@ -18,6 +18,7 @@ test('holder and coordinator create slices, others are refused, and old engines 
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  cellSeat(board, { lane: 'coordinator', path: project.repo });
   const holderSeat = cellSeat(board, { lane: 'web', path: web });
   const parent = cellItem(board, { lane: 'web', title: 'Parent', criterion: 'The whole feature works', check: 'true', route: 'strong' }).item_id;
   cellClaim(board, parent, holderSeat, { root: web, itemFolder: true });
