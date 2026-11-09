@@ -18,7 +18,46 @@ const LISTING = 'bin/checks/test-cells.json';
 const TEST_DIRECTORY = /^(?:test|packages\/[^/]+\/tests|apps\/[^/]+\/tests)\//u;
 const TEST = { test: file => TEST_DIRECTORY.test(file) && TEST_FILE.test(file) };
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
-const CLI_LAUNCH = /bin\/pullboard(?:\.js)?\b|\bapps\/cli\b|\be2e-helpers\b|\bnative-cli-fixture\b|\bcli-in-process-fixture\b/u;
+// A call that starts a child process; a launch is one whose arguments name the CLI entry, directly or through a path variable.
+const SPAWN = /\b(?:spawn|spawnSync|execFile|execFileSync|fork|exec|execSync|runFixtureChild|runFixtureChildAsync|startFixtureChild)\s*\(([^;]*)/gu;
+// The CLI entries and the test helpers that launch it; reaching one through imports is a launch.
+const CLI_ENTRIES = new Set(['apps/cli/index.js', 'bin/pullboard.js', 'test/e2e-helpers.js', 'test/native-cli-fixture.js', 'test/cli-in-process-fixture.js']);
+
+/**
+ * Whether a source spawns the CLI: a child-process call whose arguments name bin/pullboard.js, or name a variable that a
+ * path expression (join, resolve or new URL) points at bin/pullboard.js. A plain data string that only mentions the path
+ * launches nothing [C7].
+ */
+export function spawnsCli(source) {
+  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*bin\/pullboard\.js/gu)].map(m => m[1]);
+  for (const call of source.matchAll(SPAWN)) {
+    if (/bin\/pullboard\.js/u.test(call[1])) return true;
+    if (paths.some(name => new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u').test(call[1]))) return true;
+  }
+  return false;
+}
+
+/**
+ * The CLI entry a test file reaches through its test-side imports, or null: a test or test helper importing
+ * apps/cli/index.js or bin/pullboard.js runs the CLI in process, and one importing a CLI-launching helper launches it.
+ * Product modules are not followed: what a cell itself imports is judged by the front-door rules, not as a launch. A test
+ * inside apps/cli importing its own front door is that cell's unit test.
+ */
+export function reachedCliEntry(root, file) {
+  const own = testCellOf(file);
+  const seen = new Set([file]), queue = [file];
+  for (let at = 0; at < queue.length; at++) {
+    const current = queue[at];
+    if (!existsSync(resolve(root, current))) continue;
+    for (const { specifier } of importSpecifiers(readFileSync(resolve(root, current), 'utf8'))) {
+      const target = posix.normalize(posix.join(posix.dirname(current), specifier));
+      if (CLI_ENTRIES.has(target) && !(own === 'apps/cli' && target.startsWith('apps/cli/'))) return target;
+      const testSide = target.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(target);
+      if (testSide && !seen.has(target)) { seen.add(target); queue.push(target); }
+    }
+  }
+  return null;
+}
 const HOOKS = /\binstallHooks\b|\bhooks\s+install\b|\bcore\.hooksPath\b|\binstall-hooks\b/u;
 
 /**
@@ -74,8 +113,8 @@ export function readListing(root) {
  * @param {{ pureHelpers?: string[] | Record<string, string>, leaves?: string[], order?: Map<string, number> }} [listing]
  * @returns {{ line: number, text: string }[]}
  */
-export function cellTestProblems(file, source, { pureHelpers = [], leaves = [], order = new Map() } = {}) {
-  return cellTestReading(file, source, { pureHelpers, leaves, order }).problems;
+export function cellTestProblems(file, source, { pureHelpers = [], leaves = [], order = new Map(), root = null } = {}) {
+  return cellTestReading(file, source, { pureHelpers, leaves, order, root }).problems;
 }
 
 /**
@@ -84,7 +123,7 @@ export function cellTestProblems(file, source, { pureHelpers = [], leaves = [], 
  *
  * @returns {{ problems: { line: number, text: string }[], tier: 'unit' | 'component' }}
  */
-export function cellTestReading(file, source, { pureHelpers = [], leaves = [], order = new Map() } = {}) {
+export function cellTestReading(file, source, { pureHelpers = [], leaves = [], order = new Map(), root = null } = {}) {
   const own = testCellOf(file);
   const helpers = pureHelperMap(pureHelpers);
   const problems = [];
@@ -97,13 +136,11 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
     if (frontDoor(target, where) && order.has(where) && order.has(own) && order.get(where) < order.get(own)) { tier = 'component'; continue; }
     problems.push({ line, text: `imports ${target}, outside its own cell ${own}; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper` });
   }
-  if (CLI_LAUNCH.test(source)) problems.push({ line: 1, text: 'spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it' });
+  if (spawnsCli(source) || (root && reachedCliEntry(root, file))) problems.push({ line: 1, text: 'spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it' });
   if (HOOKS.test(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
   return { problems, tier };
 }
 
-// The CLI entries a pure helper's import closure must never reach (sealing rule 1).
-const CLI_ENTRIES = new Set(['apps/cli/index.js', 'bin/pullboard.js', 'test/e2e-helpers.js']);
 
 /**
  * Each listed pure helper that is not pure, checked on every run so the list cannot rot (sealing rules 1 and 7): missing,
@@ -127,9 +164,9 @@ function impurity(root, path) {
   const seen = new Set([path]), queue = [path];
   for (let at = 0; at < queue.length; at++) {
     const file = queue[at];
-    if (CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
+    if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
     const source = readFileSync(resolve(root, file), 'utf8');
-    if (file.startsWith('test/') && (CLI_LAUNCH.test(source) || HOOKS.test(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    if (file.startsWith('test/') && (spawnsCli(source) || HOOKS.test(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
     for (const { specifier } of importSpecifiers(source)) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
@@ -153,7 +190,7 @@ export function classifyTests(root, { files, read = file => readFileSync(resolve
       if (typeof reason === 'string' && reason.trim()) return { file, kind: 'journey', cell: null, root: true, problems: [] };
       return { file, kind: 'finding', cell: null, root: true, problems: [{ line: 1, text: `unlisted root test; a test under test/ is a journey that names its reason in ${LISTING}, or it moves to its cell's tests/ folder` }] };
     }
-    const { problems, tier } = cellTestReading(file, read(file), { ...listing, order });
+    const { problems, tier } = cellTestReading(file, read(file), { ...listing, order, root });
     return { file, kind: problems.length ? 'finding' : 'cell', tier: problems.length ? null : tier, cell, root: false, problems };
   });
 }

@@ -9,6 +9,7 @@ import {
   readListing,
   testCellsProblems,
   testCellsReport,
+  spawnsCli,
   writeTestCells,
 } from '../bin/checks/test-cells.js';
 
@@ -151,4 +152,19 @@ test('clause 1: a listed root test moved into its cell keeps its finding, and a 
   assert.ok(Object.hasOwn(written.findings, 'packages/a/tests/moved.test.js'), 'the finding is recorded under its new path');
   assert.ok(!Object.hasOwn(written.findings, 'test/moved.test.js'), 'the old key is dropped');
   assert.equal(written.rootTests, 1);
+});
+
+test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper chain reaching a CLI launcher, never a data string [C7]', () => {
+  assert.equal(spawnsCli("const row = { check: 'node bin/pullboard.js spec check' };\n"), false, 'a data string launches nothing');
+  assert.equal(spawnsCli("const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
+  const root = fixture({
+    'test/e2e-helpers.js': 'export const run = () => 0;\n',
+    'packages/a/tests/chain-fixture.js': "export { run } from '../../../test/e2e-helpers.js';\n",
+    'packages/a/tests/chain.test.js': "import { run } from './chain-fixture.js';\nexport const x = run;\n",
+    'packages/a/tests/data.test.js': "export const row = { check: 'node bin/pullboard.js spec check' };\n",
+  });
+  const rows = Object.fromEntries(classifyTests(root).map(row => [row.file, row]));
+  assert.equal(rows['packages/a/tests/data.test.js'].kind, 'cell');
+  assert.equal(rows['packages/a/tests/chain.test.js'].kind, 'finding');
+  assert.match(rows['packages/a/tests/chain.test.js'].problems.at(-1).text, /spawns or reaches the CLI/u);
 });
