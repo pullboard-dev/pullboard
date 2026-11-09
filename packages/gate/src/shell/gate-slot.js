@@ -12,7 +12,9 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   confirmRunnerProbe,
+  gateSpanCause,
   inheritedGateSlot,
+  recordGateSpan,
   memoryAdmission,
   readMachineMemory,
   takeResource,
@@ -118,6 +120,34 @@ export function requireGateExecutionServices(value) {
     landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
 }
 
+/**
+ * The refusal for a run whose worker could not verify cleanup after the command had started (its READY came): the
+ * tests left a process or handle running past their end. Null for any other failure, including a cleanup timeout
+ * before READY, which stays the runner's infrastructure and is retried. Why: #3301's shard hung, the worker could not
+ * drain it, and the gate retried the same red on two runners for 39 minutes (9 Nov) [C7].
+ *
+ * @param {any} error
+ * @param {string} host
+ * @returns {Refused|null}
+ */
+export function testLeakRefusal(error, host) {
+  if (!(error instanceof Refused) || error.code !== 'RUNNER_CLEANUP_TIMEOUT' || error.diagnostic?.phase !== 'ready') return null;
+  const refused = new Refused('RUNNER_TEST_LEAK', `the tests ran on ${host} and left processes that did not exit within 30 seconds of the run (${error.message}); a test leaves a child process, server or open handle running: stop it in the test's cleanup, commit, and submit again`);
+  refused.diagnostic = error.diagnostic;
+  return refused;
+}
+
+/**
+ * Record one phase of a gate run under its slot, from `start` until now, for the open gate's span telemetry [C7].
+ * Why here: the slot already owns the gate's admission and retry spans, so its callers need no telemetry import.
+ *
+ * @param {string} phase
+ * @param {number} start - Epoch milliseconds.
+ */
+export function recordSlotPhase(phase, start) {
+  recordGateSpan({ phase, start, outcome: 'done' });
+}
+
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {
   if (!lease?.tracker) return undefined;
@@ -143,6 +173,16 @@ export function settleReceipt(lease) {
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
+}
+
+/**
+ * Whether this machine's settings say gate.runnersOnly: then no runner failure or refusal falls back to a local run.
+ * Why: on 8 Nov 15 gates on one machine reran their tests locally after a runner refused them, at load 78 (#3898).
+ *
+ * @returns {boolean}
+ */
+function machineRunnersOnly() {
+  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
 }
 
 /** Run work under the machine queue: landings first, then every other eligible waiter in arrival order.
@@ -183,7 +223,8 @@ export async function withGateSlot(root, action, options = {}) {
       if (result && typeof result === 'object') result.runnerAttempt = attempt;
       return result;
     }
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
+    // On a gate.runnersOnly machine a runner's refusal never becomes a local rerun: the run ends and the gate requeues (#3898).
+    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh' || machineRunnersOnly()) throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
     const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
@@ -228,7 +269,7 @@ function recordedCapacity(name) {
   if (!existsSync(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    db.exec('PRAGMA busy_timeout = 10000');
+    db.exec('PRAGMA busy_timeout = 2000'); // a WAL read waits only on recovery; never stall an admission for it [C7]
     const capacity = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name)?.capacity;
     return Number.isSafeInteger(capacity) && capacity > 0 ? capacity : null;
   } catch { return null; } finally { db.close(); }
@@ -294,6 +335,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const releaseContext = gateQueueSettings().currentReleaseFirst
     ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
+  const admissionStart = Date.now();
   let lease = await takeResource({
     name: 'gate',
     capacity: capacityProvider(),
@@ -325,7 +367,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
     runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    runnerIdleProbe: (runner, previous, { liveJobs = [] } = {}) => probeRunnerHealth(runner, previous, { idle: true, liveJobs }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
@@ -340,7 +382,12 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
       if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
       return onWait?.(state);
     },
+  }).catch(error => {
+    recordGateSpan({ phase: 'admission', start: admissionStart, outcome: 'failed', cause: gateSpanCause(error), code: error?.code, kind: receiptKind });
+    throw error;
   });
+  // The admission span: queued for a slot until one was granted, on its runner or this machine [C7].
+  recordGateSpan({ phase: 'admission', start: admissionStart, host: lease.runner?.host, kind: receiptKind });
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   let healthyTransportRetry = false;
@@ -355,10 +402,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try {
+        // A timed-out run is the tests' red, recorded as it came back: retrying it elsewhere ran #3301's hang three
+        // times, 13 minutes each (9 Nov) [C7].
         const result = await action(lease);
-        if (lease.runner && runnerOnly && (itemCheck || kind === 'review') && result?.timedOut === true) {
-          throw new RunnerDropped(lease.runner.host, { reason: 'run-timeout' });
-        }
         if (infrastructureAttempts.length) {
           infrastructureAttempts.push({ kind: 'retry', code: null, runner: lease.runner?.host ?? 'local',
             outcome: result?.isGreen === false || result?.state === 'red' ? 'check-red' : 'completed', at: new Date().toISOString() });
@@ -373,6 +419,11 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
             lease.cancelRunner(error.runnerCancellation);
           }
           throw error;
+        }
+        // Processes the tests left behind after they ran are the tests' red, not the runner's: never retried (#3301).
+        if (lease.runner) {
+          const leaked = testLeakRefusal(error, lease.runner.host);
+          if (leaked) throw leaked;
         }
         // Unverified cleanup belongs to the runner; runner-only checks retain remote admission on retry.
         const setup = error instanceof Refused && error.code === 'RUNNER_SETUP';
@@ -409,8 +460,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         infrastructureAttempts.push(failure);
         lease.infrastructureAttempts = [...infrastructureAttempts];
-        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
-          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
+        // Only the dispatch's own READY timer names a missed READY: the lease's queue deadline passes during any long
+        // phase, so reading the clock against it marked a plain transport loss as a readiness failure (#3563) [C7].
+        const admissionDeadline = !cleanup && error.diagnostic?.reason === 'admission-deadline';
         // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
         // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
         // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
@@ -446,6 +498,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
                 : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        const retryStart = Date.now();
         if (waitMs > 0) await retryPolicy.sleep(waitMs);
         try {
           lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
@@ -453,6 +506,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
             infrastructureRetryCount: boundedRetry ? infrastructureAttempts.length : 0,
             infrastructureAttempts: [...infrastructureAttempts] });
         } catch (requeueError) {
+          recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'failed', cause: 'infra-retry', code: requeueError?.code, kind: receiptKind });
           const requeueAttempt = requeueError?.code === 'RUNNER_WAIT_DEADLINE'
             ? { kind: 'runner-wait', code: requeueError.code, runner: requeueError.infrastructureAttempt?.runners?.[0]?.host ?? null,
               runners: requeueError.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: requeueError.message }
@@ -466,6 +520,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw requeueError;
         }
+        // The retry span: from the runner's stop through the backoff until the requeued run is admitted again.
+        recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'retry', cause: 'infra-retry', code: failure.code, kind: receiptKind });
         lease.infrastructureAttempts = [...infrastructureAttempts];
       }
     }

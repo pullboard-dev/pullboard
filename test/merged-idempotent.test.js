@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { closeBoard } from '../packages/store/index.js';
 import { events } from '../packages/store/index.js';
 import { claim } from '../packages/store/index.js';

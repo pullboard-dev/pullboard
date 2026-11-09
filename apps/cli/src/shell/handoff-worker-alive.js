@@ -1,11 +1,16 @@
 /** Liveness of a submit gate's driver: its drive job's row on the board and the process it names [C7]. */
 import { exactStart } from '../../../../packages/gate/index.js';
+import { gateDriverEnded } from '../../../../packages/drive/index.js';
 import { gateDriverGone } from '../../../../packages/drive/index.js';
 import { readGateDrive } from '../../../../packages/drive/index.js';
 
 /**
- * A driver that never started, a drive job that ended or lapsed its lease, an absent process or a different exact
- * incarnation proves death; unavailable identity never does.
+ * A driver that never started or whose drive job ended proves death; so does an absent process or a different exact
+ * incarnation. A lapsed lease with no process named is death too; a lapsed lease whose process is alive and the same
+ * is not, and unavailable identity never is.
+ *
+ * Why the process decides a lapse: a blocked event loop stops renewals for minutes while the driver lives; 25 healthy
+ * gates an hour were ended SUBMIT_HANDOFF_DEAD that way and later wrote their own verdicts (#3836).
  *
  * @param {ReturnType<typeof readGateDrive>} worker - The gate's driver record.
  * @param {{ id: string }} job - The submit hand-off record.
@@ -14,8 +19,8 @@ import { readGateDrive } from '../../../../packages/drive/index.js';
  */
 export function deadWorker(worker, job, now = Date.now()) {
   if (worker?.job !== job.id) return false;
-  if (gateDriverGone(worker, now)) return true;
-  if (!Number.isSafeInteger(worker.pid) || worker.pid < 1) return false;
+  if (gateDriverEnded(worker)) return true;
+  if (!Number.isSafeInteger(worker.pid) || worker.pid < 1) return gateDriverGone(worker, now);
   try { process.kill(worker.pid, 0); }
   catch (error) { return error.code === 'ESRCH'; }
   const observed = exactStart(worker.pid);

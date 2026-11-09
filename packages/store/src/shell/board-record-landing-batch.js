@@ -1,4 +1,4 @@
-import { FLAKE_RATCHET_ENGINE } from '../../../../src/flake-ratchet-engine.js';
+import { FLAKE_RATCHET_ENGINE } from '../../../state/core.js';
 import { quarantineBatchGates } from "../../../verify/index.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
@@ -6,7 +6,7 @@ import { logEvent } from "./board-event-log.js";
 import { guardLandingWrite } from "../core/board-landing-lease.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../state/index.js";
-import { LOCAL_LANDING_ENGINE } from "../../../../src/land-engine.js";
+import { LOCAL_LANDING_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 import { invariantEvidence } from "../../../items/index.js";
 import { preserveInvariantEvidence } from "../../../items/index.js";
@@ -14,8 +14,8 @@ import { validateLandingBatch } from "../../../items/index.js";
 import { validateLandingRevision } from "../../../items/index.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.js";
 import { latestLandingBatch } from "../../../git/index.js";
-import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
-import { carriesFlakeDiagnostics } from "../../../../src/flake-engine.js";
+import { NATIVE_FLAKE_ENGINE } from "../../../state/core.js";
+import { carriesFlakeDiagnostics } from "../../../state/core.js";
 import { coordinatorOnly } from "./board.js";
 
 /** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. */

@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -39,6 +40,29 @@ function firstBrokenRule(value) {
   ];
   for (const [message, broken] of rules) if (broken()) return message;
   return '';
+}
+
+/**
+ * Fill a runtime the controller named by digest and file names from the capsule this worker was just installed from.
+ * Why: the same bytes already arrive gzipped in the stdin capsule, and inlining them as well put the spec past its
+ * 1 MiB frame (#3884). The rebuilt files then pass the same digest and tooling checks as inline ones; a name that is
+ * unsafe, missing or unreadable refuses the job.
+ */
+function hydrateRuntime(value, S) {
+  const runtime = value?.runtime;
+  if (!runtime || typeof runtime !== 'object' || runtime.files !== undefined || runtime.names === undefined) return;
+  const { names } = runtime;
+  if (!Array.isArray(names) || names.length > 4096 || names.some(name => typeof name !== 'string' || !name || name.startsWith('/')
+    || name.split('/').some(part => !part || part === '.' || part === '..') || /[\\\u0000-\u001f\u007f]/u.test(name))) {
+    throw new Error('invalid trusted runtime paths');
+  }
+  const root = dirname(dirname(fileURLToPath(S.entryUrl)));
+  const files = {};
+  for (const name of names) {
+    try { files[name] = readFileSync(join(root, name), 'utf8'); }
+    catch { throw new Error('trusted runtime cache does not match the request'); }
+  }
+  value.runtime = { entry: runtime.entry, files, sha256: runtime.sha256 };
 }
 
 /** Parse and strictly validate the controller's one-shot work specification. */
@@ -81,6 +105,7 @@ export async function readSpec(S) {
     process.stdin.resume();
   });
   const value = spec;
+  hydrateRuntime(value, S);
   if (Number.isSafeInteger(value?.version) && value.version >= 0 && value.version !== 1) S.workSpecVersion = value.version;
   const rule = firstBrokenRule(value);
   if (rule) throw new Error(rule);

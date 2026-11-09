@@ -1,13 +1,13 @@
-import { hasPendingDispatchNotices } from "../../../../../src/board-health-receipts.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../../src/automatic-dispatch-engine.js";
-import { CPU_SENTINEL_ENGINE } from "../../../../../src/cpu-sentinel-engine.js";
-import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../src/rejected-work-return-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { hasPendingDispatchNotices } from "../../../../store/index.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/core.js";
+import { CPU_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { REJECTED_WORK_RETURN_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by recordHealthFindings, discovered without a shared registry edit [C7,V4,H16]. */
-import { HEALTH_SENTINEL_ENGINE } from "../../../../../src/board-health-receipts.js";
-import { hasPendingCpuNotices } from "../../../../../src/board-health-receipts.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { HEALTH_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { hasPendingCpuNotices } from "../../../../store/index.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingMinimumEngine(args, board, at) {

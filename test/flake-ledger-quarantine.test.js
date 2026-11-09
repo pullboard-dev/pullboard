@@ -1,7 +1,7 @@
 /** A proven ledger flake files its repair and quarantine, and the landing ratchet accepts it [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordFlakeObservation } from '../apps/lib/index.js';
+import { recordFlakeObservation } from '../apps/lib/src/core/native-board.js';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
@@ -10,7 +10,7 @@ import { withdraw } from '../packages/store/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
 import { flakeQuarantines } from '../packages/flakes/index.js';
 import { landingFlakeRatchet } from '../packages/flakes/index.js';
-import { LEDGER_QUARANTINE_ENGINE } from '../src/ledger-quarantine-engine.js';
+import { LEDGER_QUARANTINE_ENGINE } from '../packages/state/core.js';
 import { boardFixture } from './next-order-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 

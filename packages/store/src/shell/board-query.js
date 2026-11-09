@@ -1,4 +1,4 @@
-import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
@@ -35,7 +35,7 @@ import { reopenCauseCorrection } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 import { boardDataVersion } from "./board-data-version.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
@@ -161,15 +161,7 @@ export function listItems(board, { lane, all = false } = {}) {
   if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
     return remembered.items.map(item => ({ ...item }));
   }
-  const rows = board.db
-    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
-      EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
-      FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
-      LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
-      LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
-      WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
-      AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
-    .all(...(hasLane ? [lane] : []));
+  const rows = board.db.prepare(listItemsSql({ all, hasLane })).all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
@@ -195,6 +187,26 @@ export function listItems(board, { lane, all = false } = {}) {
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
   LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
+}
+
+/**
+ * The SQL that lists items, with each item's landed flag read from one scan of the merged events.
+ *
+ * Why: a correlated EXISTS per item walked that item's whole event history to find a merged event, so the
+ * all-items list of a 3,800-item board made thousands of scattered event reads and next ran past its routing
+ * budget on a cold board [#3848]. The merged events are read once, through the event kind index.
+ *
+ * @param {{ all: boolean, hasLane: boolean }} filter
+ * @returns {string}
+ */
+export function listItemsSql({ all, hasLane }) {
+  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
+      item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
+      FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
+      LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
+      LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
+      WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
+      AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`;
 }
 
 /** Remembered item lists by connection and filter; each entry names the board data version it read. */

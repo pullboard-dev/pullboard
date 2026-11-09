@@ -18,15 +18,15 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
-import * as store from '../src/board.js';
-import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MOVE_REGISTRY } from '../packages/moves/index.js';
-import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
+import { PROOF_RUN_ENGINE } from '../packages/state/core.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../apps/cli/index.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
@@ -34,8 +34,8 @@ import { registryFixtureBoard } from './move-registry-fixture.js';
 import { importsIn } from '../packages/gate/index.js';
 import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';
-import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
+import { SPEC_REVISION_ENGINE } from '../packages/state/core.js';
+import { PRIVATE_REHOME_ENGINE } from '../packages/state/core.js';
 import { registryProblems } from './move-registry-invariants.js';
 import {
   mappedWorkingSources,
@@ -44,7 +44,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { historyProblems } from './move-registry-history.js';
 import { installRegistryMergeCase } from './move-registry-merge-cases.js';
-import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
+import { TRAIN_LANDING_ENGINE } from '../packages/state/core.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js'];
@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/index.js';
+import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();
@@ -313,7 +313,7 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
-  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
+  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages', 'state', 'src', 'core', 'engines')), git), []);
 });
 
 installRegistryMergeCase();

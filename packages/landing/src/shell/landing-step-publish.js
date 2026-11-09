@@ -28,6 +28,9 @@ import { landingRunObserver } from './landing-step-gate.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from './main-red.js';
 import { fileURLToPath } from 'node:url';
+import { landingSpan } from '../../../resources/index.js';
+import { claimRefreshStart } from './main-red-refresh-flight.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -76,11 +79,28 @@ export function startBaseRefresh(state, batch, { source = refreshSource, launch 
   } catch (error) { state.say?.(`base main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
 }
 
-/** The detached refresh child: its own process group, no inherited stdio, never awaited. */
-export function spawnDetachedRefresh(root, previousMain, publishedMain) {
+/**
+ * The environment a refresh runs in: this one without a checkout lease token or agent session id, so the refresh and
+ * anything it starts never act under, or queue for, a checkout's lease. Why: a refresh is a read plus a cache write, and
+ * a refresh started by a write command inherited that command's checkout authority [C7].
+ */
+export function refreshEnvironment(env = process.env) {
+  const clean = { ...env };
+  for (const name of ['PULLBOARD_CHECKOUT_SESSION_TOKEN', ...AGENT_SESSION_IDS]) delete clean[name];
+  return clean;
+}
+
+/**
+ * The detached refresh child: its own process group, no inherited stdio, never awaited. It starts only when no refresh
+ * runs on this machine and none started within the spacing window, so landings never pile refreshes up (9 Nov) [C7].
+ * Returns whether a child started.
+ */
+export function spawnDetachedRefresh(root, previousMain, publishedMain, { claim = claimRefreshStart } = {}) {
+  if (!claim()) return false;
   const child = spawn(process.execPath, [fileURLToPath(new URL('../../../../bin/main-red-refresh.js', import.meta.url)), root, previousMain, publishedMain],
-    { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env } });
+    { cwd: root, detached: true, stdio: 'ignore', env: refreshEnvironment() });
   child.unref();
+  return true;
 }
 
 /**
@@ -259,7 +279,12 @@ export async function moveTrunkRef(state) {
 }
 
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
-export async function finishTrunk(state) {
+export function finishTrunk(state) {
+  return landingSpan('record', () => finishTrunkSteps(state));
+}
+
+/** The steps of finishTrunk, timed as one landing span. */
+async function finishTrunkSteps(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await timedPhase(state.say, 'lease check', () => state.checkLease());
   state.say?.('finish: envelope recorded; checking module resolution');

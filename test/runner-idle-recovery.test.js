@@ -7,16 +7,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Exercise the real pinned worker and recovery store against a private SSH destination, never the machine pool. */
 function control(t, body) {
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const box = e2e.project('true'), bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
+  const box = cellProject(t, { gate: 'true' }), bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard'), root = join(home, '.pullboard-runner');
   const requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, home, machineHome, root, join(root, 'jobs')]) mkdirSync(directory, { recursive: true });

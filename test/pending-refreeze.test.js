@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appliedSequence, applyRelayMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import {
@@ -17,11 +17,11 @@ import {
   VERIFIER_STANDING_ENGINE,
 } from '../packages/state/index.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
-import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../packages/sentinels/index.js';
-import { RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
-import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
-import { CONFLICT_ENGINE } from '../packages/merge/index.js';
+import { RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
+import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
+import { CONFLICT_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { unpackRelease } from './release-archive.js';
 import { fixtureAdd } from './testkit-fixture.js';

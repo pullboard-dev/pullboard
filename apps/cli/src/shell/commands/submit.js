@@ -23,7 +23,7 @@ import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
+import { requireNonEmptySubmit } from '../empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
@@ -51,7 +51,7 @@ import {
   copySubmitHandoffOrigin,
   submitHandoffPolicy,
   requireSubmitHandoffExecution,
-} from '../submit-handoff-origin.js';
+} from '../../../../../packages/sandbox/index.js';
 import { blockingFailures } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
 import { gateClauseTickNotes } from '../gate-clause-ticks.js';
@@ -248,11 +248,18 @@ import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/ga
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 import { runPreflight } from '../submit-preflight.js';
+import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit-preflight.js';
 
-/** Report wall time without sharing the execution closures of unrelated submit stages. */
+/**
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
+ * span for an open gate's telemetry [C7].
+ */
 function reportSubmitStage(ctx, name, start) {
-  ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`);
+  const elapsed = performance.now() - start;
+  ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
+  const end = Date.now();
+  recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
 /**
@@ -579,12 +586,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
+  // A queued submit's doctrine hold runs in the runner's analysis job; only its rule lookup and receipt stay here [C7].
+  const runnerDoctrine = remoteMode && hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice) ? { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice,
+    timeoutMs: acceptedMain.config.check?.timeoutMs, ...(submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice) ? { fast: true } : {}) } : null;
   // The four trusted analysis parts run as one runner job on one lease and one main-pinned private check (#3379).
   const runRemotePart = sharedRemoteAnalysis(signal => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -619,10 +629,13 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
   if (signal.aborted) throw signal.reason;
+  // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
+  const judgeStart = Date.now();
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true });
   }
+  recordGateSpan({ phase: 'proof-record', start: judgeStart, outcome: 'done' });
   if (companion) {
     companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
     companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
@@ -655,8 +668,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try {
       // The gate records its verdict over the red cases from main's fresh receipts at the base: main's own reds record
       // green, and a missing receipt runs its main-test job and finishes the verdict when it returns, never a bounce [C7,#3534].
+      const verdictStart = Date.now();
       try { criterionVerdict = await mainOwnedGate(ctx, { root, item: id, candidate: commit, base: mainFailureBase, claimBase: claimHead, cases: criterionCases, output: gate.output, runnerAdmission, onMeasuredReceipt }); }
       catch { criterionVerdict = null; /* A verdict that cannot be recorded leaves the judgement to main's keyed receipts below. */ }
+      recordGateSpan({ phase: 'main-verdict', start: verdictStart, outcome: 'done' });
       if (criterionVerdict?.verdict === 'red') throw new Error(`the frozen check is red in the candidate's own case(s): ${criterionVerdict.own.map(row => `${row.file} (${row.name})`).join('; ')}`);
       // Main-red status is main's keyed receipt; a missing one queues a main-test job and refuses, never refreshes [C7,#3424].
       const lookup = withBoard(ctx, board => criterionMainReceipts({ root, db: board.db, main: mainFailureBase, cases: criterionCases }));
@@ -736,9 +751,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
+      const compareStart = Date.now();
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
         recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
+      recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
@@ -794,6 +811,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });
   }
+  recordGateSpan({ phase: 'tests-judge', start: judgeStart, outcome: 'done' });
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionVerdict, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
@@ -847,7 +865,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       await preflightPassed;
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
-      try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+      try { return await runMachineryGuard(root, () => (runnerDoctrine ? cachedDoctrineHold(root, runnerDoctrine, async () => (await runRemotePart('doctrine', signal)).doctrine)
+        : hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
         ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
           ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
           : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
@@ -893,6 +912,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     } },
     { name: 'tests', run: judgeTests },
   ]);
+  const stagesEnd = Date.now();
   const cells = stages.cells;
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
@@ -981,6 +1001,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const waivedLines = waived ? waived.map(waiverLine) : [];
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
+  const submitRecordStart = Date.now();
+  recordGateSpan({ phase: 'submit-prepare', start: stagesEnd, end: submitRecordStart, outcome: 'done' });
   await withBoard(ctx, async (board) => {
     refuseUnsubmittableStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
@@ -1037,6 +1059,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     return submittedMove;
   });
+  recordGateSpan({ phase: 'submit-record', start: submitRecordStart, outcome: 'done' });
+  const postSubmitStart = Date.now();
   if (machineReceiptIds) {
     ctx.io.say(`machine-verified #${id}: frozen check and ${machineAuthorization.commands.length} clauses passed`);
     try { await landAfterAcceptance(ctx); }
@@ -1047,6 +1071,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }
+  recordGateSpan({ phase: 'post-submit', start: postSubmitStart, outcome: 'done' });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
   const sizeNote = oversizeNote(measuredLines, acceptedMain.config.itemSizeBudget);
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);

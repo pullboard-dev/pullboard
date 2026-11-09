@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { closeBoard, openBoard } from '../apps/lib/index.js';
+import { closeBoard, openBoard } from '../apps/lib/src/core/native-board.js';
 import * as store from '../packages/store/index.js';
 import { recordSubmitHandoff, jobView, takeJob } from '../packages/jobs/index.js';
 import { DISPATCHER_JOB, driveLanding, ensureDispatcher, gateDriveJobId, readGateDrive } from '../packages/drive/index.js';

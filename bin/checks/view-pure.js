@@ -7,7 +7,7 @@
  * (src/view/test-policy.js, src/view/test-roles.js); this file only reads them.
  *
  * Gate behavior, so the check can join the normal gate without turning it red:
- * - the roots named in bin/checks/view-pure-roots.json are enforced: any finding on one is a failure;
+ * - the roots named in apps/view/view-pure-roots.json are enforced: any finding on one is a failure;
  * - every other finding is reported with its count and never fails. Promoting a migrated test into
  *   the list makes it enforced from then on, so the reported count can only fall.
  */
@@ -31,7 +31,9 @@ import { report } from './scan.js';
 import { walk } from './scan.js';
 
 /** The repo-relative file that declares the enforced roots. */
-export const ENFORCED_FILE = 'bin/checks/view-pure-roots.json';
+export const ENFORCED_FILE = 'apps/view/view-pure-roots.json';
+/** View test files that count as roots: the old test/cockpit home and the view cell's tests/cockpit home. */
+const VIEW_TEST_FILES = /^(?:test\/cockpit|apps\/view\/tests\/cockpit)\/[^/]+\.test\.js$/u;
 const RENDERER_MODULES = /^src\/view\/(?!page-)(?:.*-(?:model|render)|activity-words|needs-panel|needs-list|roadmap-summary|roadmap-block|home|row-component|pipeline|lifecycle-chart|held-items|record-row|items-selection|segmented-control|lifecycle-diagram)\.js$/u;
 
 /**
@@ -76,7 +78,7 @@ export function viewPureReport(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_
     if (!actual.startsWith(canonical + sep) || !lstatSync(absolute).isFile()) throw new Error('source is outside the root or is not a regular file');
     return readFileSync(absolute, 'utf8');
   };
-  const roots = walk(root, /^test\/cockpit\/[^/]+\.test\.js$/u);
+  const roots = walk(root, VIEW_TEST_FILES);
   const sources = new Map(), edges = new Map(), unknown = new Map();
   const pending = [...new Set([...roots.filter(file => roles[file]?.kind === 'logic'), ...coverage.flatMap(row => row.tests)])];
   while (pending.length) {
@@ -142,7 +144,7 @@ export function enforcedRoots(root) {
 export function viewPureGate(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RENDERER_COVERAGE, enforced } = {}) {
   const declared = enforced ? { roots: enforced, problems: [] } : enforcedRoots(root);
   const failures = [...declared.problems], reported = [];
-  const scanned = new Set(walk(root, /^test\/cockpit\/[^/]+\.test\.js$/u));
+  const scanned = new Set(walk(root, VIEW_TEST_FILES));
   for (const file of declared.roots) {
     if (!scanned.has(file)) failures.push({ path: file, line: 1, text: 'enforced root is not a test/cockpit test file in this tree' });
     else if (roles[file]?.kind !== 'logic') failures.push({ path: file, line: 1, text: 'enforced root has no logic role in src/view/test-roles.js' });

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { kernelGateChange } from '../packages/verify/index.js';
 import { kernelApprovalText } from '../packages/verify/index.js';
 import { requireKernelApproval } from '../packages/verify/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import * as store from '../packages/store/index.js';
 import { privateRepo } from './submit-gate-fixture.js';
 import { builderRepo } from './submit-gate-fixture.js';
@@ -125,7 +125,7 @@ test('star-forwarded public names are checked while private body changes preserv
 
 test('submit rechecks a person decline recorded while the real gate runs [C7]', t => {
   const source = [
-    `import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};`,
+    `import { openBoard } from ${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)};`,
     `import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};`,
     "const board = openBoard(process.env.KERNEL_BOARD, undefined, { isMain: true });",
     "try { const lanes = ['coordinator', 'build'];",

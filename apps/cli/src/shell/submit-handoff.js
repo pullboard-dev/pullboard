@@ -1,4 +1,4 @@
-import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../packages/state/core.js';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { healthyExecutor } from '../../../../apps/lib/index.js';
 import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
@@ -7,6 +7,9 @@ import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { dropHandoffTicket } from '../../../../packages/resources/index.js';
+import { queuedElsewhere } from '../../../../packages/resources/index.js';
+import { recordHandoffQueue } from '../../../../packages/resources/index.js';
+import { replaceLostTicketOnce } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
@@ -18,6 +21,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../../packages/drive/index.js';
 /** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
 export { stalledGateDriveFindings } from '../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
@@ -28,8 +32,6 @@ import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -60,7 +62,10 @@ import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { submitHandoffRoot } from '../../../../packages/sandbox/index.js';
+import { advanceIdleToolTree } from './tools-snapshot-advance.js';
+import { keepToolsIndex } from './tools-snapshot-advance.js';
+import { checkoutCommittedTools } from './tools-snapshot-advance.js';
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
 export function copyTools(toolRoot, target) {
@@ -69,13 +74,12 @@ export function copyTools(toolRoot, target) {
 }
 
 /**
- * Copy the tool root's committed HEAD tree, never its working tree, into `target`. Why: a seat runs Pullboard from its
- * own item worktree, which is usually dirty, and an uncommitted edit must never leak into a snapshot other gates share [C7].
+ * Write the tool root's committed tree, never its working tree, into `target`, with the index a later tooling commit
+ * moves it by (#3663). Why: a seat runs Pullboard from its own item worktree, which is usually dirty, and an
+ * uncommitted edit must never leak into a snapshot other gates share [C7].
  */
 export function copyCommittedTools(toolRoot, target, commit = 'HEAD') {
-  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', toolRoot, target, commit],
-    { encoding: 'utf8', env: cleanGitEnvironment() });
-  if (run.status !== 0) throw new Error(`tools snapshot of the committed tree failed: ${String(run.stderr ?? '').slice(0, 500)}`);
+  if (!checkoutCommittedTools(toolRoot, target, commit)) throw new Error(`tools snapshot of the committed tree ${commit} failed`);
 }
 
 /**
@@ -95,6 +99,67 @@ export function rebuildCapturedTools(directory) {
     || !handoffToolsAllowed(tools, request.job)) return false;
   try { toolsSnapshot(toolRoot, request.job, request.commonDir, { rebuild: { tools, commit: toolsCommit } }); } catch { /* The retry then retains the evidence. */ }
   return existsSync(tools);
+}
+
+/**
+ * The tools a retried, recovered or relaunched gate runs: a snapshot of its tool root's current HEAD and that commit,
+ * or null when the tool root is gone or has no commit, so the caller keeps the captured tools.
+ *
+ * Why: the gate's source is the submitted commit, but its machinery (drive, proof shards, resources, runners) must be
+ * current; on 8 Nov retries reran submit-time tools for hours after main fixed them (8 Nov stale tools).
+ *
+ * @param {{ toolRoot?: string }} request - The captured request naming the Pullboard checkout that submitted.
+ * @param {string} job - The job the tools are for, naming a private copy when the tool root is not a clean checkout.
+ * @param {string} commonDir
+ * @returns {{ tools: string, toolsCommit: string } | null}
+ */
+export function currentHandoffTools(request, job, commonDir) {
+  const root = request?.toolRoot;
+  if (typeof root !== 'string' || !existsSync(root)) return null;
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout)) return null;
+  return { tools: toolsSnapshot(root, job, commonDir), toolsCommit: head.stdout };
+}
+
+/** The refresh a retry preparation calls: current tools for the retry's job, from the stopped request's tool root. */
+function retryTools(ctx) { return (id, request) => currentHandoffTools(request, id, ctx.info.commonDir); }
+
+/** How many times a running gate's dead worker is relaunched on the same job before the gate ends as infrastructure. */
+export const RUNNING_RELAUNCH_LIMIT = 2;
+
+/**
+ * Relaunch a running gate whose worker died, on the same job: the new driver resumes the gate's drive job from its last
+ * recorded section. Refuses SUBMIT_HANDOFF_RECOVERY, which ends the gate as today, once RUNNING_RELAUNCH_LIMIT
+ * relaunches are spent or when the captured request or tools cannot be proved.
+ *
+ * Why: on 8 Nov 71 of 111 infrastructure stops were SUBMIT_HANDOFF_DEAD, mostly running gates whose worker died; each
+ * lost its recorded sections and waited for a full retry, though the worker already resumes a running job (#3995).
+ *
+ * @param {any} ctx
+ * @param {number} itemId
+ * @param {{ id: string, commit: string }} current - The running hand-off record.
+ * @param {{ relaunches: number, owner?: string | null }} worker - Its driver record.
+ * @param {string} directory - The job's folder holding request.json.
+ */
+async function relaunchRunningGate(ctx, itemId, current, worker, directory) {
+  const relaunches = worker.relaunches ?? 0;
+  if (relaunches >= RUNNING_RELAUNCH_LIMIT) {
+    throw new Refused('SUBMIT_HANDOFF_RECOVERY', `the running worker exited without a terminal result, again after ${relaunches} relaunches`);
+  }
+  rebuildCapturedTools(directory);
+  let request;
+  try { request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8')); }
+  catch { throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request is unreadable'); }
+  if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
+    || !handoffToolsAllowed(request.tools, current.id) || !existsSync(request.tools)
+    || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())) {
+    throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result, and its captured request or tools cannot be proved');
+  }
+  // The dead driver is proven gone, so its drive lease is freed now; the relaunched driver is admitted at once, not
+  // refused GATE_DRIVE_LEASED for the up to 2 minutes the dead lease would take to lapse.
+  if (worker.owner) withBoard(ctx, board => releaseLease(board.db, gateDriveJobId(current.id), worker.owner));
+  await launchCapturedWorker(directory, request.tools, ctx.info.commonDir, current, relaunches + 1);
+  ctx.io.say(`relaunched running submit #${itemId}; its gate resumes from its last recorded section`);
 }
 
 /** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
@@ -120,10 +185,10 @@ function toolingDigest(toolRoot) {
  * @param {string} toolRoot
  * @param {string} job
  * @param {string} [commonDir]
- * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string } }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716)
+ * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string }, advance?: typeof advanceIdleToolTree }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716); advance moves an idle snapshot instead of a whole copy (#3663)
  * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild } = {}) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild, advance = advanceIdleToolTree } = {}) {
   copy ??= copyTools;
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
@@ -136,15 +201,21 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
     return shared;
   }
-  assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
   if (!clean) {
+    assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copy(toolRoot, tools);
     return tools;
   }
-  const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
+  const commit = rebuild?.commit ?? head.stdout;
+  // The move runs before the room check: that check's sweep removes idle snapshots, the very ones worth moving.
+  const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
+  if (advanced) sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
+  else assertToolTreeRoom({ commonDirs: [commonDir].filter(Boolean) });
+  const staging = advanced?.path ?? mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copyCommitted(toolRoot, staging, rebuild?.commit);
+    if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -206,9 +277,12 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
  * dispatcher drains this ticket; a lapsed one is taken here and a dispatcher is launched under that lease [C7].
  * Why the row is freed again when nothing launched: a dispatcher that already holds the machine drains every
  * repository's tickets, and a row held by nobody must not keep the next submit from launching one.
+ * Why a recovery launch (no reservation) goes to the front of the line: its gate already waited its turn once and lost
+ * it to a dead worker; on 8 Nov such retries waited up to 17 min behind routine submits [C7].
  */
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
-  const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart });
+  const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart, urgent: true });
+  recordHandoffQueue(directory);
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
@@ -304,12 +378,42 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
   return withFileLock(join(directory, 'recovery.guard.sqlite'), () => recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory));
 }
 
+/**
+ * Whether a queued job shows neither its captured request nor a place in line, the only case in which its capture
+ * may never have begun. Either one proves the launch was captured, so the machine's queue-order lock is taken only
+ * when both are missing.
+ * Why: that lock takes 1-18 s on a busy machine; on 8 Nov the health sweep took it once for every queued job, ran
+ * past its 60 s bound on every pass, was killed before its running jobs and retries, and dead gates waited 22 min
+ * (p50) for a restart [C7].
+ *
+ * @param {string} directory - The job's hand-off folder.
+ * @param {string} job - The job id.
+ * @param {{ waiting?: (job: string) => boolean }} [ports]
+ * @returns {boolean}
+ */
+export function capturedLaunchUnseen(directory, job, { waiting = handoffTicketWaiting } = {}) {
+  return !existsSync(join(directory, 'request.json')) && !waiting(job);
+}
+
+/**
+ * The sweep's order: running jobs first, then queued ones, each by item. Why: a dead running gate is the one a
+ * builder waits on, and a sweep that runs out of time must have reached it first [C7].
+ *
+ * @param {{ itemId: number, job: { state: string } }[]} jobs
+ * @returns {{ itemId: number, job: { state: string } }[]}
+ */
+export function sweepOrder(jobs) {
+  return [...jobs].sort((a, b) => Number(b.job.state === 'running') - Number(a.job.state === 'running') || a.itemId - b.itemId);
+}
+
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
   // The gate's driver record is its drive job on the board, never a file beside the hand-off [C7].
   const readWorker = () => withBoardRead(ctx, board => readWorkerRecord(board, observed));
+  // A queued job placed in another machine queue is that queue's dispatcher's to judge; this one cannot see its ticket.
+  if (observed.state === 'queued' && queuedElsewhere(directory)) return;
   const workerRecord = readWorker();
-  if (!workerRecord && observed.state === 'queued') {
+  if (!workerRecord && observed.state === 'queued' && capturedLaunchUnseen(directory, observed.id)) {
     const unlaunched = await withHandoffQueueOrder(() => {
       const current = withBoardRead(ctx, board => {
         const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
@@ -340,11 +444,15 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
   try {
     // A dead job on an item its seat no longer holds (released, withdrawn) still ends; it never shows running (#2627).
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
-    // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
-    if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
-    // A lost place in line ends as infrastructure rather than relaunching: nothing records how often it was lost (#3153).
-    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST') throw new Refused('SUBMIT_HANDOFF_RECOVERY', worker.unstarted.message);
-    if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
+    // A running gate resumes: its drive job holds every recorded section, and a driver admitted to it carries on from
+    // the last one, so a dead worker is relaunched on the same job instead of ending it SUBMIT_HANDOFF_DEAD (#3995).
+    if (current.state === 'running') {
+      await relaunchRunningGate(ctx, itemId, current, worker, directory);
+      return;
+    }
+    // A lost place in line is re-placed once, at once; the marker counts it, so a second loss ends as infrastructure (#3153).
+    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST' && !replaceLostTicketOnce(directory)) throw new Refused('SUBMIT_HANDOFF_RECOVERY', `${worker.unstarted.message}, again after it was re-placed`);
+    if (worker.unstarted?.code !== 'HANDOFF_TICKET_LOST' && worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
       || !handoffToolsAllowed(request.tools, current.id)
@@ -360,7 +468,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const gone = goneHandoff(current);
     let retry = null;
     if (owned && (current.state === 'running' || gone) && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
-      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory, { refresh: retryTools(ctx) }); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
@@ -415,7 +523,7 @@ async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
  * @returns {Promise<number>} How many unfinished hand-offs the sweep looked at.
  */
 export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHandoffs, recover = recoverSubmitHandoff, recoverInfrastructure = recoverInfrastructureHandoffs, returnNoVerdict = returnNoVerdictHandoffs } = {}) {
-  const jobs = list(ctx);
+  const jobs = sweepOrder(list(ctx));
   let failure = null;
   for (const { itemId, job } of jobs) {
     try { await recover(ctx, itemId, job.agentId, job); }
@@ -568,7 +676,7 @@ export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExec
       if (!current) return;
       let retry;
       try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
-        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0 }); }
+        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0, refresh: retryTools(ctx) }); }
       catch (error) {
         ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
         await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));

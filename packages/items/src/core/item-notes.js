@@ -1,8 +1,8 @@
-import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../src/two-tier-diagnosis-engine.js';
-import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../state/core.js';
+import { QUEUE_PREEMPT_ENGINE } from '../../../state/core.js';
 /** Item conversation labels and context-pack presentation, without board-wide messages [B29,B31,B32,N14]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { ITEM_NOTES_ENGINE } from '../../../../src/item-notes-engine.js';
+import { ITEM_NOTES_ENGINE } from '../../../state/core.js';
 import { Refused } from "../../../kernel/index.js";
 
 const LEGACY_FACT_KINDS = Object.freeze(['capture', 'measurement', 'note', 'diff', 'decision', 'rejection', 'supersession', 'root-cause', 'bar-check', 'bar-answer']);

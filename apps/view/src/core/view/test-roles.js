@@ -20,7 +20,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
   'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
   'test/cockpit/item-panel.test.js': { kind: 'journey', reason: 'A private native item with real sent-back and accepted verdicts, recorded red/green check baselines, brief files and lifecycle events is inspected through authenticated Chrome tabs, disclosures and measured desktop/phone layout.' },
   'test/cockpit/timeline-notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
-  "test/cockpit/needs-actions-pure.test.js": {
+  "apps/view/tests/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
   },
@@ -28,11 +28,11 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "adapter",
     "reason": "Generated local state-reader source is executed with explicit transport replies in a VM; this is a reader adapter contract, not a pure-render witness."
   },
-  "test/cockpit/roadmap-pure.test.js": {
+  "apps/view/tests/cockpit/roadmap-pure.test.js": {
     "kind": "logic",
     "reason": "Actual release ranking, completion, disclosure and shipping renderers consume supplied rows and prepared display Maps; async reads and real geometry stay journeys."
   },
-  "test/cockpit/verdict-pure.test.js": {
+  "apps/view/tests/cockpit/verdict-pure.test.js": {
     "kind": "logic",
     "reason": "Review notes and metadata render through the actual verdict functions with prepared links and explicit labels; no page or native review is fabricated."
   },
@@ -40,11 +40,11 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Full snapshot and summary stage projections use canonical event matching and explicit lifecycle data; native API and Chrome pipeline navigation remain journeys."
   },
-  "test/cockpit/group-pure.test.js": {
+  "apps/view/tests/cockpit/group-pure.test.js": {
     "kind": "logic",
     "reason": "Cross-repository history selection and Needs/event HTML receive plain observations plus explicitly prepared rich fields, without a native board or browser."
   },
-  "test/cockpit/auxiliary-pure.test.js": {
+  "apps/view/tests/cockpit/auxiliary-pure.test.js": {
     "kind": "logic",
     "reason": "Settings rows, hosted state and star markup run over supplied data, without the manifest reader, network reader or DOM writer."
   },
@@ -60,7 +60,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "Native release, escalation, retained and expired refreeze and lapse receipts are checked through API counts and real Chrome chart words at two widths."
   },
-  "test/cockpit/lifecycle-chart-pure.test.js": {
+  "apps/view/tests/cockpit/lifecycle-chart-pure.test.js": {
     "kind": "logic",
     "reason": "Original declared-route labels and exact count assertions call lifecycleChart with data; native receipt and Chrome journeys remain separate."
   },
@@ -68,27 +68,27 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "A real local HTTP page and Chrome verify shared row geometry, clipping, mouse disclosure and keyboard collapse; plain HTML assertions live in row-component-pure."
   },
-  "test/cockpit/row-component-pure.test.js": {
+  "apps/view/tests/cockpit/row-component-pure.test.js": {
     "kind": "logic",
     "reason": "Original shared-row escaping, attributes and variant assertions invoke the real HTML function without the separate Chrome geometry journey."
   },
-  "test/cockpit/home-capacity-pure.test.js": {
+  "apps/view/tests/cockpit/home-capacity-pure.test.js": {
     "kind": "logic",
     "reason": "Original measured-capacity, unknown, stale and label assertions invoke the production presenter over plain inputs; Chrome refresh and layout stay separate."
   },
-  "test/cockpit/segmented-control-pure.test.js": {
+  "apps/view/tests/cockpit/segmented-control-pure.test.js": {
     "kind": "logic",
     "reason": "Original segmented markup, escaping and pressed-state assertions invoke the real HTML-only component without the DOM adapter or native fixture."
   },
-  "test/cockpit/activity-codegen.test.js": {
+  "apps/view/tests/cockpit/activity-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated timestamp regex escapes are a script contract; separate from actual Activity model and HTML witnesses."
   },
-  "test/cockpit/agents-panel-pure.test.js": {
+  "apps/view/tests/cockpit/agents-panel-pure.test.js": {
     "kind": "logic",
     "reason": "Seeded agent and item observations invoke the actual Agents selection and HTML functions without a browser or native board."
   },
-  "test/cockpit/agents-panel-codegen.test.js": {
+  "apps/view/tests/cockpit/agents-panel-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated page-script syntax and embedded function contract; separate from actual data-to-HTML witnesses."
   },
@@ -104,7 +104,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "Genuine native claim, corrected criterion and retained refreeze through API history/thread and desktop/phone Chrome timeline."
   },
-  "test/cockpit/activity-sentences.test.js": {
+  "apps/view/tests/cockpit/activity-sentences.test.js": {
     "kind": "logic",
     "reason": "Fixed event-shaped data invokes actual Activity model, words and HTML; all original assertions retained without native fixtures."
   },
@@ -116,7 +116,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "addresses: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "test/cockpit/agent-floor.test.js": {
+  "apps/view/tests/cockpit/agent-floor.test.js": {
     "kind": "logic",
     "reason": "Nine original Agent Floor assertions over deterministic summary and event-shaped data; no native setup."
   },
@@ -156,7 +156,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "dashboard-clock: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "test/cockpit/dashboard-model.test.js": {
+  "apps/view/tests/cockpit/dashboard-model.test.js": {
     "kind": "logic",
     "reason": "dashboard-model.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },
@@ -168,7 +168,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "dashboard-row-visibility: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "test/cockpit/dashboard-runtime.test.js": {
+  "apps/view/tests/cockpit/dashboard-runtime.test.js": {
     "kind": "adapter",
     "reason": "dashboard-runtime: existing source/VM/transport contract, not a pure-render witness"
   },
@@ -380,7 +380,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "adapter",
     "reason": "tab-speed: existing source/VM/transport contract, not a pure-render witness"
   },
-  "test/cockpit/view-pure.test.js": {
+  "apps/view/tests/cockpit/view-pure.test.js": {
     "kind": "logic",
     "reason": "view-pure.test.js: seeded data invokes actual pure render/model exports without native fixtures"
   },

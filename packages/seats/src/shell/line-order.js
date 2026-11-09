@@ -1,7 +1,7 @@
 /** Opt-in queue ordering reads recorded board policy and the same review guards as actual reservation [N2,B13,H16]. */
 import { localDependencyIds } from '../core/dependency-references.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { LINE_ORDER_ENGINE } from '../../../../src/line-order-engine.js';
+import { LINE_ORDER_ENGINE } from '../../../state/core.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 
 /** Old recorded moves retain their previous ordering even when replayed beside newer policy records. */

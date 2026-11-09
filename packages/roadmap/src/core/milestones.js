@@ -1,6 +1,6 @@
-import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../../src/milestone-queue-order-engine.js';
+import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../state/core.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
-import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
+import { MILESTONE_LIMIT_ENGINE } from "../../../state/core.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
@@ -17,9 +17,9 @@ import {
   WITHDRAW_MILESTONE_ENGINE,
 } from "../../../state/index.js";
 import { Refused } from "../../../kernel/core.js";
-import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
-import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";
-import { LIVE_RELEASE_PLACEMENT_ENGINE } from "../../../../src/live-release-placement-engine.js";
+import { WORK_ORDER_ENGINE } from "../../../state/core.js";
+import { MILESTONE_PLACEMENT_ENGINE } from "../../../state/core.js";
+import { LIVE_RELEASE_PLACEMENT_ENGINE } from "../../../state/core.js";
 import { placementFor } from "./placement.js";
 import { placementNote } from "./placement.js";
 

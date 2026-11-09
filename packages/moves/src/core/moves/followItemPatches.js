@@ -1,5 +1,5 @@
 /** Only the claimed builder follows unchanged coordinator-authorized companions [C7,H16]. */
-import { PATCH_FOLLOW_ENGINE } from "../../../../../src/patch-follow-engine.js";
+import { PATCH_FOLLOW_ENGINE } from "../../../../state/core.js";
 /** Never replay applicability-sealed movement under an older engine. */
 function minimumEngine() { return PATCH_FOLLOW_ENGINE; }
 /** Preserve the authenticated builder as the actor, not any companion author. */

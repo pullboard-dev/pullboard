@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob, takeJob, renewLease, reclaimLapsed, LEASE_MS } from '../packages/jobs/index.js';
 
 const files = privateFixtureFiles('pullboard-durable-jobs-');

@@ -23,6 +23,7 @@ import { mainCheckout } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { takeLandingResource } from './landing-resource.js';
+import { landingSpan } from '../../../resources/index.js';
 import { requireConfirmedLanding } from '../../../../src/board-landing-lease.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -129,14 +130,12 @@ function adoptInterrupted(unfinished, { automatic, fence, say }) {
   return { lost };
 }
 
-/** Build, gate, diagnose and durably land one coordinator batch; all external actions stay in its worktree. */
-export async function land(options) {
-  options = { ...options, landingPorts: landingOperations(options.landingPorts) };
-  if (options.dryRun) return runLandingBatch(options);
-  invalidateGitFacts();
-  const trunk = mainCheckout(options.root);
-  const branch = trunk?.branch;
-  if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
+/**
+ * The landing's checks before its lease: lift cleared holds, refuse a red publish, close passed test defects, return
+ * relanded items, apply the cadence and preflight the selection. Returns `{ result }` when the landing ends here,
+ * else `{ publishHold }` for the selection after the lease.
+ */
+async function preflightLanding(options, trunk, branch) {
   if (trunk.commit && !options.dryRun && !options.adopt) {
     await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
   }
@@ -147,13 +146,13 @@ export async function land(options) {
     publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
   // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
-  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait });
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait, landingPorts: options.landingPorts });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (cadenceApplies(options) && (!options.due || idleLanding(options.board, trunk.commit))) {
       const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
-      if (deferred) return deferred;
+      if (deferred) return { result: deferred };
     }
   }
   if (trunk.commit && !options.adopt && idleLanding(options.board, trunk.commit)) {
@@ -168,12 +167,26 @@ export async function land(options) {
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
-      return emptyLanding(selected, options.say);
+      return { result: emptyLanding(selected, options.say) };
     }
   }
+  return { publishHold };
+}
+
+/** Build, gate, diagnose and durably land one coordinator batch; all external actions stay in its worktree. */
+export async function land(options) {
+  options = { ...options, landingPorts: landingOperations(options.landingPorts) };
+  if (options.dryRun) return runLandingBatch(options);
+  invalidateGitFacts();
+  const trunk = mainCheckout(options.root);
+  const branch = trunk?.branch;
+  if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
+  // Everything before the lease is one span: the 9 Nov traces lost 3 to 5 minutes here before any batch began [C7].
+  const { result: early } = await landingSpan('preflight', () => preflightLanding(options, trunk, branch));
+  if (early) return early;
   let lastWait = '';
   const controller = new AbortController();
-  const lease = await takeLandingResource({ board: options.board, write: options.write, refresh: options.refresh, branch,
+  const lease = await landingSpan('lease', () => takeLandingResource({ board: options.board, write: options.write, refresh: options.refresh, branch,
     onLost: error => controller.abort(error),
     /** Report a real ordered holder, without allocating machine test capacity to this waiter. */
     onWait({ holders, position }) {
@@ -182,7 +195,7 @@ export async function land(options) {
       const message = `landing waiting: ${branch} held by ${holder?.label ?? 'the previous landing'} on ${holder?.machine ?? (holder?.lineage ? 'the recorded coordinator machine (legacy identity)' : 'this machine')} for ${elapsed}s; queued at place ${position}; foreign holders require explicit release or pullboard takeover`;
       if (message !== lastWait) options.say(message);
       lastWait = message;
-    } });
+    } }));
   let failed = false;
   try {
     await lease.assertHeld();
@@ -210,7 +223,7 @@ export async function land(options) {
     };
     // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
     if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
-    return await options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal });
+    return await landingSpan('batch', () => options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal }));
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -299,6 +312,28 @@ async function recordRefusal(state, error) {
 }
 
 /**
+ * Reopen each item selection set aside as red in its last LANDING_RED_LIMIT batches at the same commit: its accept is
+ * withdrawn and it returns to its builder with the count, instead of being gated red again [C7].
+ */
+export async function returnRepeatedReds(board, selected, write, say) {
+  const kept = [];
+  for (const entry of selected.blocked) {
+    const item = entry.code === 'LAND_REPEATED_RED' ? store.getItem(board, entry.id) : null;
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) { kept.push(entry); continue; }
+    const note = `landing ${entry.message}; fix the failing tests named in its landing batches, commit and resubmit`;
+    try {
+      await write('reopen', [entry.id, { agentId: 'coordinator', withdrawVerdict: true, note }]);
+      say(`LAND_REPEATED_RED #${entry.id} reopened to its lane: ${entry.message}`);
+      kept.push({ ...entry, code: 'REPEATED_RED_REOPENED', message: note });
+    } catch (error) {
+      say(`LAND_REPEATED_RED #${entry.id} could not be reopened: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`);
+      kept.push(entry);
+    }
+  }
+  selected.blocked = kept;
+}
+
+/**
  * Reopen each candidate whose verdict a concrete main change made stale: the accept is withdrawn, the item reopens
  * with no owner and the changed file named, and its blocked entry becomes STALE_REOPENED. A moved landing, a legacy
  * unsealed review or unreadable history keeps the refusal, since those are not a plain main change [B3,C7].
@@ -364,6 +399,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
   // 5 Nov seven accepted items sat up to 30 h with this refusal logged every wake and no seat told [B3,C7].
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
+  if (!dryRun) await returnRepeatedReds(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
   if (publishHold && !selected.ready.length) throw publishHold.refusal;
@@ -500,7 +536,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const crash = isCrash(error);
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
       try { await recordRefusal(state, crashRefusal(error)); }
-      catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
+      // ERR_INVALID_STATE is node:sqlite's closed handle: the batch was stopped and abandoned, and its stop was recorded.
+      catch (noticeError) { say(`landing refusal could not be recorded: ${noticeError.code ?? 'ERROR'}${noticeError.code === 'ERR_INVALID_STATE' ? ' (the board closed under a batch its stop abandoned; the stop was recorded)' : ''}: ${String(noticeError.message ?? '').slice(0, 200)}`); }
     }
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].

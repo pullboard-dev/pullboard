@@ -8,22 +8,22 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { prepareItemPatchReview } from '../packages/items/index.js';
 import { effectiveItemHead } from '../packages/verify/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';
 import { requireTrunkMerge } from '../packages/sandbox/index.js';
 import { retryReviewCommit } from '../packages/verify/index.js';
 import { itemPatchAuthors } from '../packages/items/index.js';
-import { prepareItemPatchSubmit } from '../src/item-patch-submit.js';
-import { sealItemPatchSubmit } from '../src/item-patch-submit.js';
+import { prepareItemPatchSubmit } from '../packages/items/index.js';
+import { sealItemPatchSubmit } from '../packages/items/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
-import { ITEM_PATCH_SUBMIT_ENGINE } from '../src/item-patch-submit-engine.js';
+import { ITEM_PATCH_ENGINE } from '../packages/state/core.js';
+import { ITEM_PATCH_SUBMIT_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
@@ -112,7 +112,7 @@ async function repeatNativePhases(f, binding) {
   const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
   writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
-import { openBoard } from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import { openBoard } from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};

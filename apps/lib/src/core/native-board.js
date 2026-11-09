@@ -29,8 +29,8 @@ import {
   requireTrunkMerge,
 } from '../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { PIPELINE_CAUSE_ENGINE } from '../../../../src/pipeline-cause-engine.js';
-import { SUBMIT_HANDOFF_ENGINE } from '../../../../src/submit-handoff-engine.js';
+import { PIPELINE_CAUSE_ENGINE } from '../../../../packages/state/core.js';
+import { SUBMIT_HANDOFF_ENGINE } from '../../../../packages/state/core.js';
 import { firstRefusalDetail } from '../../../../packages/items/index.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 /** Supply current native engine thresholds without duplicating their values. */
@@ -44,8 +44,8 @@ import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/i
 import { renewReview } from '../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
 import { releaseReview } from '../../../../packages/jobs/index.js';
-import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
-import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
+import { submitHandoffBoardRoot } from '../../../../packages/sandbox/index.js';
+import { sealSubmitHandoffQueue } from '../../../../packages/sandbox/index.js';
 import {
   validateQuarantineProofIds,
   quarantineVerdictSnapshot,
@@ -72,6 +72,7 @@ import {
   minimumMoveEngine,
   declaredMoveActor,
 } from '../../../../src/move-registry.js';
+import { withMoveNextSteps } from '../../../../packages/moves/index.js';
 import {
   activeViewAgents,
   viewProofSummary,
@@ -144,7 +145,7 @@ import {
   newRigorNotices,
   rigorNoticeText,
 } from '../../../../packages/rigor/index.js';
-import { NEXT_STEPS } from '../../../../src/next-step-words.js';
+import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/index.js';
 import * as landingEnvironment from '../../../../packages/landing/index.js';
 import {
   deriveRigorCause,
@@ -192,21 +193,17 @@ import {
   currentProofCounters,
   proofCounter,
 } from '../../../../packages/verify/index.js';
-import {
-  ensureHotIndexes,
-  missingAdditiveIndexes,
-  ensureAdditiveIndexes,
-} from '../../../../src/board-hot.js';
+import { ensureHotIndexes } from '../../../../packages/store/index.js';
+import { missingAdditiveIndexes } from '../../../../packages/store/index.js';
+import { ensureAdditiveIndexes } from '../../../../packages/store/index.js';
 import {
   configureBoardJournal,
   closeBoardWrites,
 } from '../../../../packages/store/index.js';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from '../../../../src/board-schema.js';
+import { sharedSchemaOwner } from '../../../../packages/store/index.js';
+import { expectedBoardSchema } from '../../../../packages/store/index.js';
+import { sharedSchemaDiagnostic } from '../../../../packages/store/index.js';
+import { reportSharedSchema } from '../../../../packages/store/index.js';
 import {
   boardStanding,
   migrate,
@@ -219,9 +216,7 @@ import {
   readEventLogVersion,
   systemClock,
 } from '../../../../packages/store/index.js';
-import {
-  migrateEventLogVersion,
-} from '../../../../src/board-event-log-migrate.js';
+import { migrateEventLogVersion } from '../../../../packages/store/index.js';
 import {
   boardNotWritable,
   boardBusyError,
@@ -251,14 +246,12 @@ import {
   reviewPolicyChange,
   saveItemReviewPolicy,
 } from '../../../../packages/verify/index.js';
-import {
-  holdUntilKind,
-  forgetHoldMaintenance,
-  rememberHoldCondition,
-} from '../../../../src/board-conditional-holds.js';
+import { holdUntilKind } from '../../../../packages/store/index.js';
+import { forgetHoldMaintenance } from '../../../../packages/store/index.js';
+import { rememberHoldCondition } from '../../../../packages/store/index.js';
 import {
   STALE_STATE_ENGINE,
-} from '../../../../src/stale-state-engine.js';
+} from '../../../../packages/state/core.js';
 import {
   readReceivedBoardState,
 } from '../../../../packages/store/index.js';
@@ -291,6 +284,9 @@ for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
 for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
 export const board = Object.freeze(libraryBoard);
 export { closeBoard } from '../../../../packages/store/index.js';
+
+// The CLI's own next-step table, composed here from its state-cell defaults so opening a board never loads the CLI (#3906).
+const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {

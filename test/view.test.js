@@ -20,7 +20,7 @@ import { forgetProject, listApiProjects } from '../packages/seats/index.js';
 import { runningView, rememberView, forgetView } from '../apps/view/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../packages/spec/index.js';
-import { standardDoctrine } from '../src/doctrine.js';
+import { standardDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { esc, renderSpecView } from '../apps/view/index.js';
 import { assertPublicExportSupported } from '../apps/cli/index.js';
 import { fixtureAdd } from './testkit-fixture.js';

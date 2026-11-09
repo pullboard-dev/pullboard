@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** Process composition has explicit app ownership; ordinary libraries keep their real edges [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -199,13 +200,12 @@ test('clause 1: main\'s committed plan places every process entry, bin/main-red-
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });
 
-test('clause 1: the plan places src/infra-release-engine.js and src/main-red-focus-engine.js as canonical engine stays [C7]', () => {
+test('clause 1: infra-release and main-red-focus engines live in the state engines folder, with no src/ stay left [C7,V4]', () => {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
   const plan = readPlan(root);
-  for (const path of ['src/infra-release-engine.js', 'src/main-red-focus-engine.js']) {
-    const stay = plan.stays.find(entry => entry.path === path);
-    assert.ok(stay, path);
-    assert.match(stay.reason, /canonical feature engine identity/u);
+  for (const name of ['infra-release-engine.js', 'main-red-focus-engine.js']) {
+    assert.ok(existsSync(join(root, 'packages/state/src/core/engines', name)), name);
+    assert.equal(plan.stays.some(entry => entry.path === `src/${name}`), false, `no stay row names src/${name}`);
   }
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });

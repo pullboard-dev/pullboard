@@ -5,12 +5,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
+import { TYPED_REQUESTS_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { orderedMoveCommand } from '../packages/link/index.js';
@@ -109,6 +109,8 @@ test('reopen and reroute completion bind actual coordinator lifecycle and exact 
   const reopen=store.fileTypedRequest(board,{agentId:agent,verb:'reopen',itemId:item,cause:'bar-ambiguity'});
   store.reopen(board,item,{agentId:'coordinator',note:'Correct the frozen criterion'});const reopened=board.lastEvent.event_id;
   const reroute=store.fileTypedRequest(board,{agentId:agent,verb:'reroute',itemId:item,cause:'routing-assignment',route:'mid'});
+  // A light route needs a recorded diagnosis first (light-route diagnosis rule, e3ff15e335).
+  store.appendFact(board,item,{agentId:'coordinator',kind:'diagnosis',text:'Files: web/a.js Change: update the named function Test case: test/routed.test.js checks its behavior'});
   store.editItem(board,item,{agentId:'coordinator',route:'light'});const wrong=board.lastEvent.event_id;
   assert.throws(()=>store.answerTypedRequests(board,{agentId:'coordinator',answers:[{requestId:reroute,outcome:'done',eventId:wrong}]}),{code:'REQUEST_NOT_ACTED'});
   store.editItem(board,item,{agentId:'coordinator',route:'mid'});const routed=board.lastEvent.event_id;

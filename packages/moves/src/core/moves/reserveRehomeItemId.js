@@ -1,4 +1,4 @@
-import { PRIVATE_REHOME_ENGINE } from "../../../../../src/private-rehome-engine.js";
+import { PRIVATE_REHOME_ENGINE } from "../../../../state/core.js";
 
 /** Reserve an item ID before the matching source move names it [E15,H16]. */
 function minimumEngine() { return PRIVATE_REHOME_ENGINE; }

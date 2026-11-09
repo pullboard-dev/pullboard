@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { closeBoard, openBoard } from '../apps/lib/index.js';
+// The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
+import { closeBoard } from '../apps/lib/src/core/native-board.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 
 /** The model name fixture seats join with when a test passes `--model` itself. */
 export const FIXTURE_MODEL = 'Fixture Model';
@@ -129,6 +132,19 @@ export function fixtureMachineSettings(machineHome, settings) {
 }
 
 /**
+ * Write a file the repository's cells-plan tooling reads (bin/cells-plan.json) into a fixture project before its commit.
+ *
+ * Why: the hand-policy check sends tests here instead of writing bin/cells-plan.json by hand.
+ *
+ * @param {string} repo - The fixture repository root.
+ * @param {string} text - The plan file's text.
+ * @returns {void}
+ */
+export function fixtureCellsPlan(repo, text) {
+  writeFileSync(join(repo, 'bin', 'cells-plan.json'), text);
+}
+
+/**
  * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
  *
  * Why: policy files are written once here, so a policy rule change is met for every test.
@@ -178,6 +194,20 @@ export function fixtureOpenBoard(box) {
 }
 
 /**
+ * Open a board file in process with an optional clock; the caller closes it.
+ *
+ * Why: the cell fixture opens real boards through this one kit seam, so no cell test opens the store by hand.
+ *
+ * @param {string} file - The board.sqlite path, or ':memory:'.
+ * @param {{ now: () => Date }} [clock] - The board clock; the native clock when omitted.
+ * @param {object} [options] - openBoard options such as gitRoot.
+ * @returns {object} The open board.
+ */
+export function openKitBoard(file, clock, options) {
+  return openBoard(file, clock, options);
+}
+
+/**
  * Open a board file in process, hand it to the body, and close it after, even when the body throws.
  *
  * Why: tests that read or seed a board file they did not build as a project still go through the kit seam.
@@ -194,4 +224,23 @@ export function withFixtureBoard(file, body) {
   if (result && typeof result.then === 'function') return Promise.resolve(result).finally(() => closeBoard(board));
   closeBoard(board);
   return result;
+}
+
+/**
+ * A private Git repository for tests of how committed files are read: write files, commit them, repeat.
+ *
+ * Why: a selection or graph test needs real Git objects and nothing else, so the one raw `git init` lives here with the
+ * rest of the fixture seam instead of being copied into each test.
+ *
+ * @param {string} [prefix] - Lowercase name prefix of the private folder.
+ * @returns {{ root: string, put: (path: string, body: string) => void, commit: () => string }} The repo root, a writer, and a committer that returns the new commit id.
+ */
+export function fixtureCommittedGraph(prefix = 'pullboard-graph-') {
+  const files = privateFixtureFiles(prefix), root = files.root;
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  git('init', '-q', '-b', 'main');
+  return { root, put: (path, body) => files.write(path, body), commit: () => { git('add', '-A'); git('commit', '-qm', 'chore: fixture graph'); return git('rev-parse', 'HEAD').trim(); } };
 }

@@ -1,6 +1,7 @@
 import { ownershipWaitForJob } from './board-ownership-wait.js';
-import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../state/core.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
+import { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from '../../../state/index.js';
 import {
   boardWriteSnapshot,
   requireBoardWriteSnapshot,
@@ -34,6 +35,12 @@ const EXHAUSTED_RETRIES = 2;
  */
 export const INFRASTRUCTURE_RETRY_LIMIT = 3;
 /**
+ * Runner refusals that mean the host could not run the work right now: the gate requeues on another runner and a sharded
+ * landing reruns the shard. One list serves both, so the two cannot drift apart again (#3753).
+ */
+export const RERUNNABLE_RUNNER_REFUSALS = Object.freeze(['RUNNER_SETUP_REFUSED', 'RESOURCE_LEASE_LOST', 'RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED']);
+
+/**
  * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
  * failing (#2521), a gate whose bounded infrastructure retries were spent (#2516), and every machinery code the
  * queued worker reruns on. One set serves both sides, so a code the worker treats as infrastructure never reaches
@@ -42,15 +49,34 @@ export const INFRASTRUCTURE_RETRY_LIMIT = 3;
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'GIT_READ_INFRASTRUCTURE', 'GATE_INFRA_EXHAUSTED',
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
-  'RUNNER_BUSY', 'RUNNER_BROWSER_SLOT_REQUIRED', 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
+  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
   'MERGE_CHECK_FAILED',
   // The remote analysis step returned nothing, or the resource lease vanished under the gate: machinery, not source (#3303).
-  'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST',
+  'RUNNER_RESULT_INVALID',
   // Accepted policy changed or became unavailable; the captured source has no test failure.
   'NO_POLICY',
   // The board's Git sync lease stayed busy or origin did not answer: the machine, not the source (#3111).
   'GIT_SYNC_LOCK_BUSY', 'GIT_SYNC_REMOTE',
+  // A runner refused the request's size or history scan: the gate requeues on a runner, never runs locally (#3898).
+  'RUNNER_REQUEST_LIMIT', 'RUNNER_SCAN_LIMIT',
 ]));
+
+/**
+ * Whether a hand-off still serves its item: it is the item's current hand-off, queued or running, and the item is
+ * claimed by the hand-off's seat at its frozen digest. Why: a gate driver, its dispatcher and the fallback all ask
+ * this one question, so a withdrawn, reopened or replaced item's gate ends wherever it is noticed (#4072, SM1).
+ *
+ * @param {any} board - An open board.
+ * @param {number} itemId
+ * @param {string} handoffId - The hand-off job id the gate runs for.
+ * @returns {boolean}
+ */
+export function handoffServes(board, itemId, handoffId) {
+  const handoff = submitHandoff(board, itemId);
+  if (!handoff || handoff.id !== handoffId || !['queued', 'running'].includes(handoff.state)) return false;
+  const item = board.db.prepare('SELECT item_status, item_owner, item_frozen_digest FROM item WHERE item_id = ?').get(itemId);
+  return item?.item_status === 'claimed' && item.item_owner === handoff.agentId && item.item_frozen_digest === handoff.digest;
+}
 
 /**
  * Whether a queued gate's refusal is the machine's, not the builder's source: an infrastructure code, or a worker that
@@ -65,10 +91,10 @@ export function infrastructureStop(error) {
     || /\bSIG[A-Z0-9]+\b/u.test(String(error.message ?? '')));
 }
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
-import { PIPELINE_CAUSE_ENGINE } from "../../../../src/pipeline-cause-engine.js";
+import { QUEUED_RED_RETURN_ENGINE } from "../../../state/core.js";
+import { PIPELINE_CAUSE_ENGINE } from "../../../state/core.js";
 import { pipelineCause } from "../../../kernel/index.js";
-import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
+import { CONVEYOR_RETURN_ENGINE } from "../../../state/core.js";
 
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
@@ -197,9 +223,15 @@ export function startSubmitHandoff(board, id, options) {
     }
     if (options.unrecoverable) return { started: false, job: spendStoppedHandoff(board, id, job, options.unrecoverable) };
     if (options.retryJob) return { started: false, job: retryStoppedHandoff(board, id, job, options.retryJob) };
-    if (job.state !== 'queued') return { started: false, job };
     const item = getItem(board, id);
-    if (item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== job.digest) {
+    const serving = item.item_status === 'claimed' && item.item_owner === options.agentId && item.item_frozen_digest === job.digest;
+    // A running hand-off is resumed by the driver admitted after a dead one; it resumes only while its item still
+    // waits on it, as a queued one starts only then (#4073, state-machine gap SM3).
+    if (job.state === 'running' && (board.executionEngineVersion ?? ENGINE_VERSION) >= RUNNING_HANDOFF_ITEM_CHECK_ENGINE && !serving) {
+      throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the running claim or frozen bar changed; do not resume its old gate');
+    }
+    if (job.state !== 'queued') return { started: false, job };
+    if (!serving) {
       throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the queued claim or frozen bar changed; do not run its old gate');
     }
     return { started: true, job: record(board, id, { ...job, state: 'running', startedAt: now(board) }) };

@@ -30,6 +30,7 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
+  itemSpecIds,
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
@@ -79,7 +80,7 @@ export async function run(io, { first, values }) {
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
-      approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
     if (values.json) return result;
     const history = store.events(board, { itemId: id });

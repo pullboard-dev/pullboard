@@ -2,7 +2,7 @@ import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { toolsSnapshot } from '../submit-handoff.js';
-import { generateTestTiers } from '../../../../../packages/gate/index.js';
+import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
@@ -17,10 +17,10 @@ import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
-import { withMainCheckout } from '../../../../../packages/landing/index.js';
+import { committedNeedsGui } from '../../../../../packages/landing/index.js';
+import { mainRunnerSource } from '../../../../../packages/landing/index.js';
 import { runProfiledShellAsync } from '../../../../../packages/gate/index.js';
 import { testsNeedBrowser } from '../../../../../packages/gate/index.js';
-import { testsNeedGui } from '../../../../../packages/gate/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
@@ -69,6 +69,7 @@ import { loadSpec } from '../../../../../packages/spec/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
+  itemSpecIds,
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
@@ -475,7 +476,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       }
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
-    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
+    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     if (decision === 'ACCEPT' && check?.blockingVerdict) {
@@ -587,21 +588,29 @@ export async function run(io, args) {
         selectTests: async (root, pair) => {
           const selected = selectAffectedTests(root, pair);
           const tiered = selectTestTiers(root, pair);
-          const units = tiered?.units ?? await withMainCheckout(root, pair.commit, checkout =>
-            generateTestTiers(checkout).files.filter(row => row.tier === 'T1').map(row => row.file));
+          // Tiers come from the commit's Git objects, so no clone or checkout is made on this machine [C7,V4].
+          const units = tiered?.units ?? generateTestTiersAt(root, pair.commit).files.filter(row => row.tier === 'T1').map(row => row.file);
           const allowed = new Set(units);
           return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
         },
-        runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
+        // The runner receives the commit id and reads its files from this repository's object store, so there is no
+        // checkout or worktree here; a slot that would run on this machine is refused, never served from a clone [C7,V4].
+        runTests: async (commit, files, { profileFile, artifactDirectory }) => {
+          const root = ctx.info.root;
+          const source = mainRunnerSource(root, commit, policy.commit);
+          if (!source) return { unavailable: 'the exact comparison commit could not be read from the object store' };
           const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
-          const browser = await testsNeedBrowser(checkout, files);
-          return withGateSlot(checkout, lease => {
+          const browser = await testsNeedBrowser(root, files, { commit });
+          return withGateSlot(root, lease => {
+            if (!lease.runner) throw new Refused('RUNNER_SOURCE', 'a review comparison runs on a runner from commit ids; no local checkout is made, so register a runner and retry');
             lease.testTiers = true;
-            return runProfiledShellAsync(checkout, command,
-              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+            return runProfiledShellAsync(root, command,
+              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true,
+                pinnedSource: { head: source.head, tree: source.tree } });
           }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
-            browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
-        }),
+            browser, gui: files.some(file => committedNeedsGui(root, commit, file)), shortEligible: true, item: String(id), kind: 'compare',
+            pinnedSource: { commit: source.head, tree: source.tree, trunk: source.trunk } });
+        },
       });
       compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
     } catch (error) {

@@ -165,6 +165,10 @@ export async function nextOnce(ctx, values) {
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      // An item frozen under an older submit policy is passed over and named, so one stale item never stops the seat; claim by id still refuses (#3770).
+      if (error instanceof Refused && error.code === 'NO_POLICY' && /accepted submit policy changed|no longer contains the frozen policy/u.test(error.message)) {
+        return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
+      }
       throw error;
     }
     const itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: item.renewed });
@@ -210,6 +214,18 @@ export const nextSelection = {
   reviewOffer: (board, who) => store.reviewOffer(board, who),
 };
 
+/**
+ * Whether this seat's family may take the offered review only through the backlog family relaxation, the one
+ * same-family path, which the reservation may still refuse SAME_FAMILY when its witness no longer holds (#3681).
+ * Why: builders following next stopped at a same-family review they could not reserve while build work waited.
+ */
+function familyRelaxedOnly(ctx, board, me, item) {
+  if (!item || item.item_status !== 'submitted') return false;
+  const strict = store.reviewerChecks(board, { agentId: me.id, policy: ctx.config.verify.policy,
+    familyPolicy: ctx.config.verify.family, relaxationFor: () => null });
+  return Boolean(strict.familyAllows(item));
+}
+
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
@@ -234,7 +250,9 @@ function nextPick(ctx, board, values) {
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
-  if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
+  // A review this seat's family can take only by relaxation never stands in front of build work (#3681).
+  const familyOnly = familyRelaxedOnly(ctx, board, me, found?.item);
+  if (found?.mandatory && !ownClaim && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
@@ -255,9 +273,10 @@ function nextPick(ctx, board, values) {
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const { item, reasons, shared, lightReserved } = picked;
+  if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' && !values.defaultLoop ? null : found;
+  const offer = held && found?.urgent !== 'age' && !values.defaultLoop || familyOnly && item?.item_lane === me.lane ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,

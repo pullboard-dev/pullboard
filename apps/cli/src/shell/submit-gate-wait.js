@@ -5,9 +5,10 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
+import { gateDriverEnded } from '../../../../packages/drive/index.js';
 import { gateDriverGone } from '../../../../packages/drive/index.js';
 import { readGateDrive } from '../../../../packages/drive/index.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { submitHandoffRoot } from '../../../../packages/sandbox/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Read one exact native job without retaining a board lock across a sleep or process observation. */
@@ -25,12 +26,14 @@ function observeJob(ctx, id, acknowledgment, jobId, ports) {
 
 /**
  * A missing, unreadable or reused process identity never attests a healthy continuing gate. The driver's identity is
- * its gate's drive job on the board; a driver whose lease lapsed or never started is gone [C7].
+ * its gate's drive job on the board; a driver that never started or ended is gone, and one whose lease lapsed is gone
+ * when its process is [C7].
  */
 function requireWorker(ctx, ports, jobId, id) {
   const worker = ports.withBoardRead(ctx, board => readGateDrive(board.db, jobId));
   if (!worker) throw new Refused('SUBMIT_HANDOFF_RESULT', `the queued worker observation is unavailable; run pullboard show ${id}; its gate may still be running`);
-  if (gateDriverGone(worker, Date.now())) throw new Refused('SUBMIT_HANDOFF_CHANGED', `queued gate job ${jobId} lost its worker before a final outcome; run pullboard show ${id}; remote cleanup remains unknown`);
+  // A lapsed lease alone is judged by the process below: a blocked driver stops renewing while it lives (#3836).
+  if (gateDriverEnded(worker) || (worker.pid === null && gateDriverGone(worker, Date.now()))) throw new Refused('SUBMIT_HANDOFF_CHANGED', `queued gate job ${jobId} lost its worker before a final outcome; run pullboard show ${id}; remote cleanup remains unknown`);
   if (worker.version !== 1 || worker.job !== jobId || !Number.isSafeInteger(worker.pid) || worker.pid < 1
     || typeof worker.started !== 'string' || !worker.started) {
     throw new Refused('SUBMIT_HANDOFF_RESULT', `the queued worker identity is unavailable; run pullboard show ${id}; do not dispatch another copy`);

@@ -1,13 +1,13 @@
-import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
+import { VENDOR_FAMILY_ENGINE } from '../../../state/core.js';
 import { compositionReviews } from './review-composition.js';
 import { compositionAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from '../../../items/index.js';
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
-import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
-import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
+import { REVIEW_DEFAULT_ENGINE } from '../../../state/core.js';
+import { REVIEW_TIER_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../../../state/core.js';
 import { effectiveAgentParent } from '../../../seats/index.js';
 import { saveReviewFamily } from '../core/required-review-family.js';
 import { validateReviewFamily } from '../core/required-review-family.js';
