@@ -78,10 +78,11 @@ export function cellBoard(t, file, clock, options) {
  *
  * @param {string} file
  * @param {{ now: () => Date }} [clock]
+ * @param {object} [options] - openBoard options such as gitRoot.
  * @returns {object} The open board.
  */
-export function openCellBoard(file, clock) {
-  return openKitBoard(file, clock);
+export function openCellBoard(file, clock, options) {
+  return openKitBoard(file, clock, options);
 }
 
 export { closeBoard as closeCellBoard };

@@ -9,6 +9,8 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { closeSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { fstatSync } from 'node:fs';
+import { readSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -29,6 +31,12 @@ export const TEST_RUN_KIND = 'test-run';
 
 /** The step `next` writes once it handed a finished run to its seat, so it is told once. */
 const DELIVERED = 'delivered';
+
+/** How long a queued run may wait for its worker to take it before it is reported refused, not queued. */
+export const START_BOUND_MS = LEASE_MS;
+
+/** The last line a finished worker writes to its log: its verdict, runner and seconds. */
+const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu;
 
 /** How often a worker renews its lease: well inside the 2-minute liveness window. */
 const RENEW_MS = 30_000;
@@ -153,24 +161,50 @@ export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS } = 
 }
 
 /**
- * One run's state as a plain record: queued, running, green, red or lost, with its files, result and log.
+ * One run's state as a plain record: queued, running, green, red, lost or refused (never taken in time), with its files, result and log.
  *
  * @param {ReturnType<typeof jobView>} view
  * @param {number} [now]
- * @returns {{ id: string, status: string, agent: string|null, files: string[], log: string|null, result: any, delivered: boolean } | null}
+ * @returns {{ id: string, status: string, agent: string|null, files: string[], log: string|null, result: any, refusal: {code: string, message: string}|null, delivered: boolean } | null}
  */
-export function testRunState(view, now = Date.now()) {
+export function testRunState(view, now = Date.now(), { finalLine = null } = {}) {
   if (!view || view.kind !== TEST_RUN_KIND) return null;
   const step = name => view.steps.find(row => row.name === name)?.payload;
   const queued = step('queued') ?? {};
-  const result = step('result') ?? null;
+  let result = step('result') ?? null;
   const delivered = view.steps.some(row => row.name === DELIVERED);
+  // A worker prints its verdict to the log before it records the result; when the record never lands the log still ends the run.
+  if (!result && finalLine) result = { green: finalLine.green, runner: finalLine.runner, seconds: finalLine.seconds, counts: null,
+    failures: [], logPath: queued.log ?? null, files: queued.files ?? [], notices: ['result read from the log: the worker did not record it on the board'] };
   let status;
+  let refusal = null;
   if (result) status = result.green ? 'green' : 'red';
-  else if (view.leaseOwner ? view.leaseUntil < now : view.created + LEASE_MS < now) status = 'lost';
-  else status = view.leaseOwner ? 'running' : 'queued';
+  else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
+  else if (view.created + START_BOUND_MS < now) {
+    status = 'refused';
+    refusal = { code: 'TEST_RUN_NOT_STARTED', message: `no worker took this run within ${Math.round(START_BOUND_MS / 1000)}s of queueing` };
+  } else status = 'queued';
   return { id: view.id, status, agent: queued.agent ?? null, item: view.item, files: queued.files ?? [],
-    log: result?.logPath ?? queued.log ?? null, result, delivered };
+    log: result?.logPath ?? queued.log ?? null, result, refusal, delivered };
+}
+
+/**
+ * The verdict a finished worker printed as the last line of its log, or null while the log has none.
+ *
+ * @param {string|null|undefined} path
+ * @returns {{ green: boolean, runner: string, seconds: number } | null}
+ */
+export function readFinalLine(path) {
+  if (!path) return null;
+  let fd;
+  try {
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    const buffer = Buffer.alloc(Math.min(size, 8192));
+    readSync(fd, buffer, 0, buffer.length, size - buffer.length);
+    const match = FINAL_LINE.exec(buffer.toString('utf8'));
+    return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
+  } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
 }
 
 /**
@@ -183,7 +217,14 @@ export function testRunState(view, now = Date.now()) {
 export function readTestRun(board, id) {
   const rows = board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
   if (rows.length !== 1) throw new Refused('NO_TEST_RUN', `${rows.length ? 'more than one' : 'no'} test run matches ${id}; pass the full run id that pullboard test printed`);
-  return testRunState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+  return viewState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+}
+
+/** A job view as a run state, reading the worker's log only for a run that has no recorded result. */
+function viewState(view, now) {
+  const unfinished = view?.kind === TEST_RUN_KIND && !view.steps.some(row => row.name === 'result');
+  const log = unfinished ? view.steps.find(row => row.name === 'queued')?.payload?.log : null;
+  return testRunState(view, now, { finalLine: readFinalLine(log) });
 }
 
 /**
@@ -196,7 +237,7 @@ export function readTestRun(board, id) {
  */
 export function ownTestRuns(board, agent, now = Date.now()) {
   return board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
-    .map(row => testRunState(jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
+    .map(row => viewState(jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
 }
 
 /** Mark a run handed back, so `next` tells its seat once. */
@@ -256,6 +297,8 @@ export async function deliverTestRunsWhenReady(io, ctx, services, watch, { rearm
  */
 export function testRunLines(run) {
   const files = run.files.length ? run.files.join(' ') : '--affected';
+  if (run.status === 'refused') return [`test run ${run.id} refused: [${run.refusal.code}] ${run.refusal.message}; run pullboard test ${files} again`,
+    ...(run.log ? [`  log: ${run.log}`] : [])];
   if (run.status === 'lost') return [`test run ${run.id} lost: its worker stopped before a result; run pullboard test ${files} again`,
     ...(run.log ? [`  log: ${run.log}`] : [])];
   const result = run.result ?? {};
