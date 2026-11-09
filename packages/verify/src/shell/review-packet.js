@@ -22,6 +22,8 @@ import { frozenRowGates } from '../core/frozen-clause.js';
 import { barTestFiles } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 import { criterionClauses } from '../../../state/index.js';
+import { earlierHeadFacts } from '../../../state/index.js';
+import { linkEarlierFacts } from '../../../state/index.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -89,7 +91,7 @@ function storeReviewPacket(commonDir, packet) {
  * The board records a packet needs: the item, its newest submit at the head, the proof receipts
  * at that head and the check baseline. Board reads only; no Git and no process.
  */
-function reviewPacketInputs(board, { getItem, events, eventsOfKinds }, id) {
+function reviewPacketInputs(board, { getItem, events, eventsOfKinds, itemThread }, id) {
   const item = getItem(board, id);
   const history = events(board, { itemId: id });
   const detailOf = event => { try { return JSON.parse(event.event_detail); } catch { return {}; } };
@@ -101,7 +103,9 @@ function reviewPacketInputs(board, { getItem, events, eventsOfKinds }, id) {
   const known = submit?.gateGreen === false ? submit.submissionProof?.knownMainFailures : null;
   const mainRuns = known && typeof eventsOfKinds === 'function' ? eventsOfKinds(board, ['gate-run']).map(event => detailOf(event).run)
     .filter(run => run?.kind === 'main-red' && run.head === known.main).map(run => run.id) : [];
-  return { item, submit, receipts, baseline, mainRuns };
+  // The item's clause facts, so a fact citing an earlier head is shown next to the exact-head receipt's outcome (#3752).
+  const thread = typeof itemThread === 'function' ? itemThread(board, id) : [];
+  return { item, submit, receipts, baseline, mainRuns, thread };
 }
 
 /**
@@ -271,7 +275,7 @@ function cellsAt(root, commit) {
  * starts a test. It returns rather than refuses because submit and verify reach it; only show names the refusal.
  * `mainReceiptIds` are the submit's main comparison receipts; the board's recorded main runs are tried too.
  */
-function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
+function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [], thread = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
   const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : null;
@@ -313,6 +317,9 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   // Every declared case, skipped ones included: a clause with a case written for it is judged by that case alone.
   const declared = receipts.flatMap((receipt, index) => outcomesOf(receipt, index, { declared: true }).map(row => row.name));
   const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
+  // Clause facts citing an earlier head, each matched to the exact-head receipt's outcome for the same named cases;
+  // a named case missing from the exact-head receipt makes its clause stale (#3752).
+  const linked = linkEarlierFacts(earlierHeadFacts(item, thread, head, { everyEarlier: true }), executed, runs);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = namedFileEvidence(clause, runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)), executed, citesClause);
@@ -346,7 +353,8 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
       if (proof.deferred === true) gap = `no recorded run: the submit gate deferred the full suite${proof.reason ? ` (${proof.reason})` : ''}`;
       else if (proof.full === true) evidence = suiteRuns;
     }
-    return { ...clause, runs: evidence, ...(evidence.length ? {} : { gap: gap ?? 'no recorded run' }) };
+    const earlier = linked.filter(row => row.clause === clause.n);
+    return { ...clause, runs: evidence, ...(evidence.length ? {} : { gap: gap ?? 'no recorded run' }), ...(earlier.length ? { earlier } : {}) };
   });
   const seen = new Set();
   const atHead = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
@@ -371,7 +379,8 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
     criterionDigest: submit.criterionDigest ?? item.item_frozen_digest ?? null,
     proof: { full: proof.full === true, deferred: proof.deferred === true, files: proofFiles.length, reason: proof.reason ?? '' },
     diff: { stat, patch, truncated, files: changed },
-    gate: excused ? 'red only in main reds' : 'green', clauses: mapped, failures, excusedMainReds: excusedMain,
+    gate: excused ? 'red only in main reds' : 'green', clauses: mapped,
+    staleClauses: [...new Set(mapped.filter(clause => clause.earlier?.some(row => row.stale)).map(clause => clause.n))], failures, excusedMainReds: excusedMain,
     cells: { before: cellsBefore.size, after: cellsAfter.size, added: [...cellsAfter].filter(cell => !cellsBefore.has(cell)).sort(),
       removed: [...cellsBefore].filter(cell => !cellsAfter.has(cell)).sort(), touched },
     lints: { before: lintCounts(root, base), after: lintCounts(root, head) },
@@ -392,6 +401,9 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
     if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
+    for (const earlier of clause.earlier ?? []) {
+      lines.push(`     ${earlier.stale ? 'stale' : 'earlier head'}: fact ${String(earlier.fact ?? '').slice(0, 8)} cites ${earlier.cited}; at the exact head ${short(packet.head)}: ${earlier.outcomes.map(row => `${row.outcome} "${row.name}"`).join('; ') || 'no named case to match'}${earlier.stale ? ` (clause ${clause.n} is stale: ${earlier.outcomes.some(row => row.outcome === 'missing') ? 'a named case is missing from the exact-head receipt' : 'the fact names no case the exact-head receipt answers'})` : ''}`);
+    }
     for (const run of clause.runs) {
       lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
