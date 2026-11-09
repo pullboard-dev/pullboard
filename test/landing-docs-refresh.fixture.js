@@ -51,10 +51,12 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
-    { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
+  // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
+  const tarball = join(box.dir, 'candidate-archive.tar');
+  const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
+    { cwd: join(import.meta.dirname, '..'), env });
   assert.equal(archive.status, 0, archive.context);
-  const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', '-', '-C', box.repo], { input: archive.stdout, env });
+  const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', tarball, '-C', box.repo], { env });
   assert.equal(extracted.status, 0, extracted.context);
   // The private project uses its own explicit gate, not this repository's generated test inventory.
   rmSync(join(box.repo, 'packages/gate/test-tiers.json'));
@@ -81,7 +83,7 @@ function project(disableRefresh) {
   if (disableRefresh) {
     const file = join(box.repo, 'packages/landing/src/shell/landing-step-merge.js');
     const source = readFileSync(file, 'utf8');
-    const call = 'for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);';
+    const call = 'refreshLandingDocs(root);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
     writeFileSync(file, source.replace(call, '// Mutation control: landing documentation refresh removed.'));
   }
@@ -108,6 +110,10 @@ function verifiedDeclaration(box) {
   try { success(box, box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'Synthetic private lifecycle: declaration check only; landing documentation assertion is not yet armed.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
   writeFileSync(box.armed, 'armed');
+  // Main moves after the accept, so the submit receipt no longer answers for this landing's tree and its real gate runs [C7].
+  writeFileSync(join(box.repo, 'main-moved-after-accept.txt'), 'main moved after the accept\n');
+  box.git(box.repo, 'add', 'main-moved-after-accept.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: move main after the accept');
   return { item, head };
 }
 

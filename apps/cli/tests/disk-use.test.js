@@ -1,5 +1,6 @@
 /** Disk use is reported per store with a warning threshold, and retention ages out raw material but never a referenced record [C7]. */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -89,6 +90,23 @@ test('retention removes an aged raw log but never a referenced receipt or record
   const log = readFileSync(join(dir, 'retention-log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(log.length, 3);
   assert.ok(log.every(row => row.store && row.entry && row.bytes > 0 && /older than/u.test(row.reason)));
+});
+
+test('a folder that cannot be removed is kept with its reason and the prune goes on [C7]', (t) => {
+  const dir = fixture(t);
+  const locked = join(dir, 'test-actions', 'locked-6666');
+  put(join(locked, 'inner.log'), 1, 40);
+  utimesSync(locked, DAYS(40), DAYS(40));
+  chmodSync(locked, 0o555);
+  if (process.getuid?.() === 0) return t.skip('root removes a read-only folder');
+  let result;
+  try { result = pruneDisk(dir, { now: NOW }); } finally { chmodSync(locked, 0o755); }
+  const row = result.kept.find(item => item.entry === 'locked-6666');
+  assert.ok(row && /written to during removal/u.test(row.reason), 'the failed entry is kept with a reason');
+  assert.ok(existsSync(join(locked, 'inner.log')));
+  assert.ok(!result.removed.some(item => item.entry === 'locked-6666'), 'its bytes are not counted as freed');
+  assert.deepEqual(result.removed.map(item => item.entry).sort(), ['action-old-2222.log', 'arch-old-1111', 'flake-old-5555']);
+  assert.ok(!existsSync(join(dir, 'test-actions', 'action-old-2222.log')), 'the others are still removed');
 });
 
 test('retention over a size limit removes the oldest unreferenced entries first and a dry run removes nothing [C7]', (t) => {

@@ -2,8 +2,8 @@ import { sealOwnershipWait } from '../shell/ownership-wait-seal.js';
 import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
 import { claimedItemRoot } from '../../../../packages/items/index.js';
-import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
-import { withDerivedFamily } from '../../../../src/family-declaration.js';
+import { recordFamilyDeclareActivation } from '../../../../packages/items/core.js';
+import { withDerivedFamily } from '../../../../packages/items/core.js';
 import {
   submitGateConfig,
   submitGatePlan,
@@ -76,7 +76,7 @@ import {
 import {
   activeViewAgents,
   viewProofSummary,
-} from '../../../../src/view-state-summary.js';
+} from '../../../../apps/view/index.js';
 import { personSigningPresentation } from '../../../../packages/person/index.js';
 import {
   personRequestStatuses,
@@ -153,7 +153,7 @@ import {
 } from '../../../../packages/rigor/index.js';
 import { normalizedDispatch } from '../../../../packages/sentinels/index.js';
 import { rejectedWorkReturns } from '../../../../packages/sentinels/index.js';
-import { guardLandingWrite } from '../../../../src/board-landing-lease.js';
+import { guardLandingWrite } from '../../../../packages/store/index.js';
 
 import { recordRowVerification as applyRowVerification } from '../../../../packages/spec/index.js';
 import { decideSpecRevisions as applySpecRevisionDecisions } from '../../../../packages/spec/index.js';
@@ -176,7 +176,7 @@ import { boardEnginePorts } from '../../../../packages/store/index.js';
 import {
   openBoardStore,
   requireRuntimePorts,
-} from '../../../../src/board-store.js';
+} from '../../../../packages/store/index.js';
 import {
   guardStore,
   refreshStoreDeclarations,

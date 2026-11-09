@@ -1593,6 +1593,30 @@
         "packages/stats/tests/stats-time.test.js",
         "rule"
       ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/config.test.js",
+        "packages/config/tests/config.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/lanes.test.js",
+        "packages/config/tests/lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/registry.test.js",
+        "packages/config/tests/registry.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2079,6 +2103,8 @@
     "health->doctrine",
     "rigor->doctrine",
     "runners->doctrine",
-    "apps/lib->doctrine"
+    "apps/lib->doctrine",
+    "store->items",
+    "github->items"
   ]
 }

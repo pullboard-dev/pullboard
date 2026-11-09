@@ -13,8 +13,8 @@ import {
   SUBMITTED_CONFLICT_ENGINE,
 } from '../../../../src/engine-metadata.js';
 import { Refused } from '../../../kernel/index.js';
-import { conflictNote } from '../../../kernel/src/core/registry-guards.js';
-import { shownPaths } from '../../../kernel/src/core/registry-guards.js';
+import { conflictNote } from '../../../kernel/index.js';
+import { shownPaths } from '../../../kernel/index.js';
 import { carriesConflict } from '../core/conflict-carriage.js';
 
 export { carriesConflict };

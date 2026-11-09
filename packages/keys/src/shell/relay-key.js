@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import {
   decodeBoardKey,
   encodeBoardKey,
-} from '../../../kernel/src/core/seal.js';
+} from '../../../kernel/index.js';
 import { relayKeyDirectory } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 

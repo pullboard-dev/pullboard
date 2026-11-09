@@ -2604,7 +2604,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:cli front door (apps/cli/src/shell/commands/view.js)",
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "imports past app:view front door (src/view-state-summary.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -8258,24 +8257,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/release-focus.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "spec",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/release-ineligible-next.test.js": {
       "cells": [
         "app:cli",
@@ -8311,25 +8292,6 @@
       ],
       "reasons": [
         "imports past landing front door (packages/landing/src/shell/release-queue.js)"
-      ]
-    },
-    "test/release-rescope.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/release-speed.test.js": {
@@ -8461,20 +8423,6 @@
       ],
       "reasons": [
         "component test helper; moves with its importers"
-      ]
-    },
-    "test/reserve-next-review-lock.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "verify"
-      ],
-      "reasons": [
-        "imports past store front door (packages/store/src/shell/board-review-family.js)",
-        "spawns a child process (test/reserve-next-review-lock.test.js)"
       ]
     },
     "test/resources-release-fixture.js": {

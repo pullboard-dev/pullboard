@@ -12,7 +12,7 @@ import { relayMachineContext } from './relay.js';
 import { relayOperation } from './relay.js';
 import { request } from './relay.js';
 import { readBoardKey } from '../../../keys/index.js';
-import { unseal } from '../../../kernel/src/core/seal.js';
+import { unseal } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 /** Keep the recorded result bounded and credential-free, even for unexpected errors. */

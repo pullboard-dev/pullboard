@@ -7,8 +7,8 @@ import { readRelayMachine } from './relay-machine.js';
 import { updateRelayMachine } from './relay-machine.js';
 import { wrapForRecordedDevice } from './relay-machine.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { generateBoardKey } from '../../../kernel/src/core/seal.js';
-import { seal } from '../../../kernel/src/core/seal.js';
+import { generateBoardKey } from '../../../kernel/index.js';
+import { seal } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 /** Rebuild and seal this machine's current list using only its locally authenticated device roster. */
