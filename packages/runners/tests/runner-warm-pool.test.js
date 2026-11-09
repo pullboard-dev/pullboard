@@ -17,34 +17,32 @@ import { test } from 'node:test';
 import { borrowWarmCheckout } from '../index.js';
 import { snapshotWarmCheckout } from '../index.js';
 import { recycleWarmCheckout } from '../index.js';
-import { git } from '../../../test/runner-tooling-fixture.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
 
 test('a warm loan moves its worktree and restores source, objects, config and refs before reuse [C7,P3]', async t => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-warm-pool-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const source = join(directory, 'source'), pool = join(directory, 'pool');
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Warm fixture', GIT_AUTHOR_EMAIL: 'warm@example.invalid',
-    GIT_COMMITTER_NAME: 'Warm fixture', GIT_COMMITTER_EMAIL: 'warm@example.invalid' };
-  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_CONFIG_PARAMETERS']) delete env[key];
+  const box = cellSandbox(t);
+  const env = box.env;
   mkdirSync(source);
-  git(source, env, 'init', '-q', '-b', 'main');
+  box.git(source, 'init', '-q', '-b', 'main');
   writeFileSync(join(source, 'tracked.txt'), 'base source\n');
-  git(source, env, 'add', '.'); git(source, env, 'commit', '-qm', 'test: source base');
-  const base = git(source, env, 'rev-parse', 'HEAD'), tree = git(source, env, 'rev-parse', 'HEAD^{tree}');
+  box.git(source, 'add', '.'); box.git(source, 'commit', '-qm', 'test: source base');
+  const base = box.git(source, 'rev-parse', 'HEAD'), tree = box.git(source, 'rev-parse', 'HEAD^{tree}');
   const lease = { release() {} };
   /** Every protocol observation comes from real Git, with no fabricated compiler or proof result. */
-  const sourceGit = async (root, args) => git(root, env, ...args);
+  const sourceGit = async (root, args) => box.git(root, ...args);
   const first = join(directory, 'first'); mkdirSync(first);
   const options = { directory: pool, root: first, commit: base, history: new Set([base]), lease, git: sourceGit, env };
   assert.equal(await borrowWarmCheckout(options), null, 'a cold pool leaves the usual empty checkout for materialization');
-  git(first, env, 'init', '-q'); git(first, env, 'fetch', '-q', source, base); git(first, env, 'checkout', '-q', '--detach', 'FETCH_HEAD');
-  git(first, env, 'repack', '-ad');
+  box.git(first, 'init', '-q'); box.git(first, 'fetch', '-q', source, base); box.git(first, 'checkout', '-q', '--detach', 'FETCH_HEAD');
+  box.git(first, 'repack', '-ad');
   const handle = snapshotWarmCheckout({ directory: pool, root: first, commit: base, tree, lease });
   const inode = statSync(first).ino;
   writeFileSync(join(first, 'tracked.txt'), 'command mutation\n');
   writeFileSync(join(first, 'command-poison'), 'untracked mutation');
-  git(first, env, 'tag', 'command-poison');
+  box.git(first, 'tag', 'command-poison');
   writeFileSync(join(first, '.git', 'config'), '[core]\n hooksPath = /does/not/exist\n worktree = /does/not/exist\n');
   const packs = readdirSync(join(first, '.git', 'objects', 'pack')).filter(file => file.endsWith('.pack'));
   assert.ok(packs.length, 'the corruption probe targets an actual packed object store');
@@ -60,15 +58,15 @@ test('a warm loan moves its worktree and restores source, objects, config and re
   assert.equal(statSync(second).ino, inode, 'warm materialization moves the existing worktree instead of copying its files');
   assert.equal(readFileSync(join(second, 'tracked.txt'), 'utf8'), 'base source\n');
   assert.equal(existsSync(join(second, 'command-poison')), false);
-  assert.equal(git(second, env, 'tag', '--list'), '');
-  assert.equal(git(second, env, 'rev-parse', 'HEAD^{tree}'), tree);
-  assert.equal(git(second, env, 'status', '--porcelain'), '');
+  assert.equal(box.git(second, 'tag', '--list'), '');
+  assert.equal(box.git(second, 'rev-parse', 'HEAD^{tree}'), tree);
+  assert.equal(box.git(second, 'status', '--porcelain'), '');
   const concurrent = join(directory, 'concurrent'); mkdirSync(concurrent);
   assert.equal(await borrowWarmCheckout({ ...options, root: concurrent }), null, 'an active loan cannot be borrowed twice');
   writeFileSync(join(source, 'tracked.txt'), 'descendant source\n');
-  git(source, env, 'add', '.'); git(source, env, 'commit', '-qm', 'test: source descendant');
-  const child = git(source, env, 'rev-parse', 'HEAD'), childTree = git(source, env, 'rev-parse', 'HEAD^{tree}');
-  git(second, env, 'fetch', '-q', source, child); git(second, env, 'checkout', '-q', '--detach', 'FETCH_HEAD');
+  box.git(source, 'add', '.'); box.git(source, 'commit', '-qm', 'test: source descendant');
+  const child = box.git(source, 'rev-parse', 'HEAD'), childTree = box.git(source, 'rev-parse', 'HEAD^{tree}');
+  box.git(second, 'fetch', '-q', source, child); box.git(second, 'checkout', '-q', '--detach', 'FETCH_HEAD');
   const updated = snapshotWarmCheckout({ directory: pool, root: second, commit: child, tree: childTree, borrowed, lease });
   await recycleWarmCheckout(updated, { lease, git: sourceGit, env });
   const third = join(directory, 'third'); mkdirSync(third);
@@ -76,6 +74,6 @@ test('a warm loan moves its worktree and restores source, objects, config and re
   assert.equal(reused.reusedCommit, child);
   assert.equal(statSync(third).ino, inode);
   assert.equal(readFileSync(join(third, 'tracked.txt'), 'utf8'), 'descendant source\n');
-  assert.equal(git(third, env, 'rev-parse', 'HEAD^{tree}'), childTree);
+  assert.equal(box.git(third, 'rev-parse', 'HEAD^{tree}'), childTree);
   await recycleWarmCheckout(reused, { lease, git: sourceGit, env });
 });
