@@ -47,7 +47,7 @@ test('a mismatched runner refreshes once, a second mismatch names both versions,
   const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '..'), box.env);
   const paths = { bin: join(box.dir, 'bin'), worker: join(box.dir, 'worker'), home: join(box.dir, 'worker-home'),
     machineHome: join(box.dir, 'worker-machine'), requests: join(box.dir, 'requests') };
-  for (const dir of [paths.worker, paths.home, paths.machineHome]) mkdirSync(dir);
+  for (const dir of [paths.bin, paths.worker, paths.home, paths.machineHome]) mkdirSync(dir);
   for (const mode of ['once', 'twice', 'malformed']) {
     const calls = mismatchTransport(box, paths, mode);
     const script = `import assert from 'node:assert/strict';

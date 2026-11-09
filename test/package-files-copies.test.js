@@ -429,6 +429,7 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
     box.git(root, 'commit', '-q', '-m', 'test: private committed tooling bytes');
   }
   const marker = join(box.dir, 'ssh-attempt');
+  mkdirSync(join(box.dir, 'bin'));
   writeFileSync(join(box.dir, 'bin/ssh'), `#!/usr/bin/env node\nimport {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'called'); process.exit(255);\n`, { mode: 0o700 });
   // Each attempt reports why a transport refused, so a non-SSH failure cannot satisfy this control.
   let transportAttempt = 0;
