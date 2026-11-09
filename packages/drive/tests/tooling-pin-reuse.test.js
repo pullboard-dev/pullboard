@@ -6,19 +6,18 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { closeBoard } from '../../../apps/lib/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { driveOnce } from '../../drive/index.js';
+import { driveOnce } from '../index.js';
 import { createJob } from '../../jobs/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { bundleFor } from '../../pin/index.js';
 import { toolingFor } from '../../pin/index.js';
 import { writeToolingPin } from '../../pin/index.js';
-import { createTransport } from '../index.js';
-import { runGate } from '../index.js';
-import { ensureTooling } from '../src/shell/tooling-send.js';
-import { toolingFolder } from '../src/shell/tooling-send.js';
+import { createTransport } from '../../transport/index.js';
+import { ensureTooling } from '../../transport/index.js';
+import { runGate } from '../../transport/index.js';
+import { toolingFolder } from '../../transport/index.js';
 
 const files = privateFixtureFiles('pullboard-tooling-reuse-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -70,11 +69,11 @@ test('clause 1: the tooling folder is named by tree id and refuses an id that is
   assert.equal(toolingFolder('/r', 'a'.repeat(40)), `'/r'/tooling/${'a'.repeat(40)}`);
 });
 
-test('clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async () => {
+test('clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async t => {
   const { repo, tooling, bundle } = pinnedRepo('repo-b');
   const { transport, runner } = localRunner('runner-b');
   await ensureTooling(transport.connect(runner), { tree: tooling, bundle });
-  const board = openBoard(join(files.root, 'board.sqlite'));
+  const board = fixtureBoard(t);
   try {
     const head = runFixtureGit(['-C', repo, 'rev-parse', 'HEAD']);
     createJob(board.db, { id: 'g1', kind: 'gate', candidate: head, base: head, now: 1 });
@@ -88,7 +87,6 @@ test('clause 1: the production driver driveOnce sends a runner that holds the to
     assert.equal(running.tooling.tree, tooling);
     assert.equal(running.shards[0].command, `cat ${join(runner.root, 'tooling', tooling)}/tool.txt`, 'the shard reads the pinned copy');
   } finally {
-    closeBoard(board);
     transport.close();
   }
 });
