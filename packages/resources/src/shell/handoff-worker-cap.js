@@ -270,6 +270,22 @@ function releaseExited(running, releaseSlot) {
 }
 
 /**
+ * Wait for every worker this dispatcher started to exit, freeing each one's slot as it does: a dispatcher that hands
+ * the machine over launches nothing more but still frees the slots of the gates it started (DJ16).
+ *
+ * @param {Map<unknown, { exited?: boolean, slot: object, job: string }>} running - The workers this dispatcher started.
+ * @param {{ pollMs?: number, releaseSlot?: (slot: object) => void }} [options]
+ * @returns {Promise<void>}
+ */
+export async function finishRunningWorkers(running, { pollMs = 500, releaseSlot = releaseOnce } = {}) {
+  releaseExited(running, releaseSlot);
+  while (running.size) {
+    await new Promise(resolve => setTimeout(resolve, pollMs));
+    releaseExited(running, releaseSlot);
+  }
+}
+
+/**
  * Whether any worker this dispatcher started has exited without writing a result since it started; each exit is
  * counted once. Why: the dispatcher sees its own worker's exit at once, so it need not wait for a timed sweep to learn
  * of a death; on 8 Nov dead gates waited 22 min (p50) for their retry [C7].
@@ -622,7 +638,8 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
     }
     beatDispatcherHeartbeat();
     // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
-    try { onPass(); } catch (error) { logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+    // A pass that asks to hand the machine over (a dispatcher on stale tooling) ends the drain; any other failure is logged.
+    try { onPass(); } catch (error) { if (error?.handOver) throw error; logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
     if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
     // A worker that exited with no result is a dead gate: sweep now, so its gate ends and its retry starts in seconds.
