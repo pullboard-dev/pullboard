@@ -9,10 +9,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Refuse one exact-health transport, then run the actual pinned worker on a private SSH host. */
 function observe(t, mode) {
@@ -41,7 +41,7 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
   const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
     `process.stderr.write(${JSON.stringify('fixture exact-cleanup worker probe refused\n')}); ${failure}`));
-  const url = path => pathToFileURL(join(import.meta.dirname, '..', path)).href;
+  const url = path => pathToFileURL(join(import.meta.dirname, '..', '..', '..', path)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
