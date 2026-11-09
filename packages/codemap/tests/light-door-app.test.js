@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { fixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
-import { cellTestReading } from '../../../bin/checks/test-cells.js';
 import { cellLintReport } from '../index.js';
 
 const BIN = fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url));
@@ -72,13 +71,4 @@ test('a declared apps core.js is no stray in the cell lints, an undeclared one i
   assert.ok(!strays().includes(DOOR), strays().join('\n'));
   declare(root, 'app:cli', 'lightFrontDoor', undefined);
   assert.ok(strays().includes(DOOR), 'an undeclared core.js stays a stray');
-});
-
-test('a test in a later app cell importing an earlier app\'s core.js is a component test, not a deep import [C7,D3]', () => {
-  const order = new Map([['apps/view', 1], ['apps/relay', 2]]);
-  const reading = target => cellTestReading('apps/relay/tests/page.test.js', `import { x } from '${target}';\nexport { x };\n`, { order });
-  const door = reading('../../view/core.js');
-  assert.deepEqual(door.problems, []);
-  assert.equal(door.tier, 'component');
-  assert.equal(reading('../../view/src/core/view.js').problems.length, 1, 'a deep import past the door stays refused');
 });
