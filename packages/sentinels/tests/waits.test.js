@@ -119,14 +119,14 @@ test('a board writer holding past two seconds is a breach and a dead writer mark
   await waitForCondition(() => !gone(live.pid), 'the writer runs');
   writeFileSync(join(directory, `${live.pid}-00000000-0000-0000-0000-000000000001.json`), JSON.stringify({ version: 1, pid: live.pid,
     started: '', processSha256: 'a'.repeat(64), command: 'merged', seat: 'coordinator', acquiredAt: Date.now() - 5_000, contender: true }));
-  const gone = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
-  writeFileSync(gone, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
+  const deadMarker = join(directory, '4194301-00000000-0000-0000-0000-000000000002.json');
+  writeFileSync(deadMarker, JSON.stringify({ version: 1, pid: 4194301, started: 'x', processSha256: 'b'.repeat(64), command: 'add', seat: 'core-2', acquiredAt: Date.now() - 60_000 }));
   const snapshot = await m.snapshot();
   const row = snapshot.rows.find(entry => entry.surface === 'board-write' && entry.pid === live.pid);
   assert.equal(row.breach, true, 'five seconds against a two second database budget');
   assert.equal(row.holder, 'merged by coordinator');
   const recorded = await recordWaits(snapshot, m.ports());
-  assert.equal(existsSync(gone), false, 'the dead pid\'s marker is reclaimed at once');
+  assert.equal(existsSync(deadMarker), false, 'the dead pid\'s marker is reclaimed at once');
   assert.equal(recorded.filed.length, 1);
   assert.match(m.items()[0].item_brief, /Doing: node/u, 'the item says what the holder was doing');
 });
@@ -243,7 +243,9 @@ test('a claim kept alive only by an orphaned heartbeat loop is a breach: the loo
   presence.prepare('INSERT OR REPLACE INTO heartbeat (seat, at) VALUES (?, ?)').run(seat, new Date().toISOString());
   presence.close();
   const pidFile = join(m.root, 'loop.pid');
-  execFileSync('/bin/sh', ['-c', `cd "${worktree}" && /bin/sh -c 'while true; do echo heartbeat >/dev/null; sleep 1; done' >/dev/null 2>&1 & echo $! > "${pidFile}"`]);
+  // Only the loop goes to the background, with every stream closed, so this launch returns as soon as the shell exits.
+  execFileSync('/bin/sh', ['-c', `/bin/sh -c 'while true; do echo heartbeat >/dev/null; sleep 1; done' </dev/null >/dev/null 2>&1 & echo $! > "${pidFile}"`],
+    { cwd: worktree, stdio: 'ignore' });
   const loop = Number(execFileSync('/bin/cat', [pidFile], { encoding: 'utf8' }).trim());
   m.children.push(loop);
   const snapshot = await m.snapshot({ readers: { heartbeat: { commitMs: () => 0 } } });
@@ -288,7 +290,8 @@ test('with sixty breaches the run records one shout line under 400 characters on
   assert.equal(said.length, 1);
   assert.ok(said[0].length < 400, `the shout is ${said[0].length} characters`);
   assert.doesNotMatch(said[0], /\n/u, 'one line');
-  assert.match(said[0], new RegExp(`^waits: 60 over budget, filed #${recorded.filed[0].id} #${recorded.filed[1].id} .* and \\d+ more, reclaimed 0; pullboard waits for detail$`, 'u'));
+  // Short ids may all fit; long ones end in "and N more". Either way the line keeps its shape.
+  assert.match(said[0], new RegExp(`^waits: 60 over budget, filed #${recorded.filed[0].id} #${recorded.filed[1].id} [#\\d ]*(?:and \\d+ more)?, reclaimed 0; pullboard waits for detail$`, 'u'));
 });
 
 test('waits record files a mid item add accepts: Files: naming the holder\'s source, a Test: line and a check [C7]', async t => {

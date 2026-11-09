@@ -5,6 +5,7 @@ import { reclaimLapsed } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { phaseOf } from '../core/drive-phase.js';
+import { GATE_DRIVE_KIND } from '../core/gate-drive.js';
 import { driveOnce } from './drive-once.js';
 
 /** The longest a command's fallback drive may hold its answer; past it the command answers and the lease lapses. */
@@ -22,7 +23,8 @@ export const FALLBACK_BUDGET_MS = 1000;
  */
 export function lapsedGateJobs(db, { now = Date.now() } = {}) {
   return reclaimLapsed(db, { now }).filter((job) => {
-    if (job.kind !== 'gate') return false;
+    // A gate-drive job is listed too, so a stale one is ended; it is never driven here (#4071, SM2).
+    if (job.kind !== 'gate' && job.kind !== GATE_DRIVE_KIND) return false;
     const view = jobView(db, job.id);
     return Boolean(view) && phaseOf(view) !== 'verdict';
   });
@@ -57,10 +59,13 @@ export function endDeadGateJobs(db, lapsed, { owner, now, active }) {
     let still = null;
     try { still = typeof active === 'function' ? active(view) : null; } catch { still = null; }
     if (still === false) {
-      writeStep(db, id, 'withdrawn', { stale: true, reason: 'the item is no longer submitted at this job\'s commit', lastStep }, { now });
+      writeStep(db, id, 'withdrawn', { stale: true, reason: view.kind === GATE_DRIVE_KIND
+        ? 'its hand-off ended, another replaced it, or its item left the claim the hand-off serves'
+        : 'its item is no longer submitted at the head its hand-off submitted', lastStep }, { now });
       finishJob(db, id, owner, { now });
       ended.push({ id, ended: 'stale', lastStep });
-    } else if (now - (last?.at ?? view.created ?? now) >= GATE_JOB_NO_PROGRESS_MS) {
+    } else if (view.kind === 'gate' && now - (last?.at ?? view.created ?? now) >= GATE_JOB_NO_PROGRESS_MS) {
+      // A gate-drive job is resumed by its hand-off's recovery (#3995), so only a stale one is ended here.
       writeStep(db, id, 'ended', { infrastructure: true, code: 'GATE_JOB_NO_PROGRESS', lastStep,
         reason: `no step for ${Math.round((now - (last?.at ?? now)) / 60_000)} min after ${lastStep ?? 'its creation'}` }, { now });
       finishJob(db, id, owner, { now });
@@ -105,7 +110,9 @@ function withinBudget(drive, budgetMs) {
 export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, active, ...options } = /** @type {any} */ ({})) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'reclaimPass needs a driver id to hold the lease: pass { owner }.');
   const ended = new Set(endDeadGateJobs(db, known ?? lapsedGateJobs(db, { now: now() }), { owner, now: now(), active }).map(row => row.id));
-  const lapsed = (known ?? lapsedGateJobs(db, { now: now() })).filter(row => !ended.has(row.id));
+  // A gate-drive job runs a whole submit gate that only its hand-off worker can drive; the fallback ends a stale one
+  // above and leaves a live one to the worker and its recovery.
+  const lapsed = (known ?? lapsedGateJobs(db, { now: now() })).filter(row => !ended.has(row.id) && row.kind !== GATE_DRIVE_KIND);
   if (!lapsed.length) return { lapsed: 0, driven: null };
   const job = lapsed[0].id;
   try {

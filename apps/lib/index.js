@@ -8,3 +8,4 @@ export { submitHandoffRecord } from "./src/shell/submit-handoff-record.js";
 export { INFRASTRUCTURE_CODES, healthyExecutor, infrastructureFailure, submitUntilSettled } from "./src/shell/submit-infra-requeue.js";
 export { runUsageCheckpointWorker } from "./src/shell/usage-checkpoint-worker.js";
 export { produceAcceptedCells, acceptedCellsFromJob } from "./src/shell/main-audit-produce.js";
+export { launchServes } from "./src/shell/handoff-serving.js";

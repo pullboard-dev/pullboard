@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../resources/index.js';
 import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
@@ -14,11 +14,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
 
 /** A real board and Git checkout with a private two-slot machine and no inherited outer lease. */
 function fixture(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const sandbox = helpers.sandbox();
-  sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
-  const box = helpers.project(undefined, sandbox);
+  const box = cellProject(t, { model: 'gate-test-fixture' });
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1, gate: { shortSlots: 1 } }));
   for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];

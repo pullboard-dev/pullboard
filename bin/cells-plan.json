@@ -1035,6 +1035,20 @@
     {
       "path": "bin/hop-matrix.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/board-command-budget.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "gate"
+    },
+    {
+      "path": "bin/merged-followup.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "landing"
+    },
+    {
+      "path": "src/move-history/250.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -1880,6 +1894,7 @@
     "apps/cli->apps/runner",
     "apps/cli->apps/lib",
     "apps/cli->pin",
+    "apps/cli->drive",
     "api->git",
     "api->store",
     "apps/lib->store",
@@ -1911,12 +1926,16 @@
     "apps/cli->resources",
     "state->store",
     "stats->store",
+    "stats->jobs",
+    "stats->resources",
+    "apps/cli->stats",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
     "health->state",
     "moves->state",
     "rigor->state",
-    "sandbox->state"
+    "sandbox->state",
+    "commits->kernel"
   ]
 }

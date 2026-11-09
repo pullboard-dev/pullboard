@@ -312,6 +312,28 @@ async function recordRefusal(state, error) {
 }
 
 /**
+ * Reopen each item selection set aside as red in its last LANDING_RED_LIMIT batches at the same commit: its accept is
+ * withdrawn and it returns to its builder with the count, instead of being gated red again [C7].
+ */
+export async function returnRepeatedReds(board, selected, write, say) {
+  const kept = [];
+  for (const entry of selected.blocked) {
+    const item = entry.code === 'LAND_REPEATED_RED' ? store.getItem(board, entry.id) : null;
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) { kept.push(entry); continue; }
+    const note = `landing ${entry.message}; fix the failing tests named in its landing batches, commit and resubmit`;
+    try {
+      await write('reopen', [entry.id, { agentId: 'coordinator', withdrawVerdict: true, note }]);
+      say(`LAND_REPEATED_RED #${entry.id} reopened to its lane: ${entry.message}`);
+      kept.push({ ...entry, code: 'REPEATED_RED_REOPENED', message: note });
+    } catch (error) {
+      say(`LAND_REPEATED_RED #${entry.id} could not be reopened: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`);
+      kept.push(entry);
+    }
+  }
+  selected.blocked = kept;
+}
+
+/**
  * Reopen each candidate whose verdict a concrete main change made stale: the accept is withdrawn, the item reopens
  * with no owner and the changed file named, and its blocked entry becomes STALE_REOPENED. A moved landing, a legacy
  * unsealed review or unreadable history keeps the refusal, since those are not a plain main change [B3,C7].
@@ -377,6 +399,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
   // 5 Nov seven accepted items sat up to 30 h with this refusal logged every wake and no seat told [B3,C7].
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
+  if (!dryRun) await returnRepeatedReds(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
   if (publishHold && !selected.ready.length) throw publishHold.refusal;
@@ -513,7 +536,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const crash = isCrash(error);
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
       try { await recordRefusal(state, crashRefusal(error)); }
-      catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
+      // ERR_INVALID_STATE is node:sqlite's closed handle: the batch was stopped and abandoned, and its stop was recorded.
+      catch (noticeError) { say(`landing refusal could not be recorded: ${noticeError.code ?? 'ERROR'}${noticeError.code === 'ERR_INVALID_STATE' ? ' (the board closed under a batch its stop abandoned; the stop was recorded)' : ''}: ${String(noticeError.message ?? '').slice(0, 200)}`); }
     }
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
