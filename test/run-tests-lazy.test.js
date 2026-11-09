@@ -19,7 +19,7 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
-const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/src/shell/machine.js'];
+const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
 const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
 
 test('clause 1: a real named-file run meets its declared ten-second import-check budget [C7,V4]', { cpuLoad: true }, t => {
