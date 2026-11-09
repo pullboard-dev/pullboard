@@ -4,11 +4,15 @@
 /** A seat's pullboard test queues on the board and returns at once; next hands the result back; --wait blocks [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { MACHINE_CONTEXT_ENV } from '../packages/jobs/src/shell/test-run-queue.js';
+
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -43,14 +47,30 @@ function runnerProject() {
   return box;
 }
 
-/** Run one CLI command as the seat's agent session, timing it. */
+/**
+ * Run one CLI command as the seat's agent session at its own prompt, timing it: the agent-shell marker set, and none
+ * of the machine-work variables the test runner itself puts in this process's environment.
+ */
 function asSeat(box, ...args) {
+  const saved = Object.fromEntries([...MACHINE_CONTEXT_ENV, 'PULLBOARD_CLI_PID'].map(name => [name, box.env[name]]));
+  for (const name of Object.keys(saved)) delete box.env[name];
   box.env.CLAUDECODE = '1';
   try {
     const started = performance.now();
     const ran = box.run(box.web, ...args);
     return { ...ran, ms: performance.now() - started };
-  } finally { delete box.env.CLAUDECODE; }
+  } finally {
+    delete box.env.CLAUDECODE;
+    for (const [name, value] of Object.entries(saved)) if (value !== undefined) box.env[name] = value;
+  }
+}
+
+/** Run one CLI command as the seat's agent session with extra machine variables set, as machine work starts it. */
+function asSeatInside(box, extra, ...args) {
+  const saved = Object.fromEntries(Object.keys(extra).map(name => [name, box.env[name]]));
+  Object.assign(box.env, extra);
+  try { return asSeat(box, ...args); }
+  finally { for (const [name, value] of Object.entries(saved)) { if (value === undefined) delete box.env[name]; else box.env[name] = value; } }
 }
 
 test('a seat\'s pullboard test returns in under 1 s with a run id, and next hands back the red result [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
@@ -98,4 +118,24 @@ test('--wait still blocks for a non-seat caller and prints the result itself [C7
   const plain = box.run(box.web, 'test', 'test/green.test.js');
   assert.equal(plain.code, 0, 'outside an agent session the call blocks as it always did');
   assert.match(plain.err, new RegExp(`green on ${HOST}`, 'u'));
+});
+
+test('an item check that runs pullboard test on a red file fails, never a queued pass [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for the check and its nested runner run.
+  const box = runnerProject();
+  fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--check', `"${process.execPath}" "${BIN}" test test/red.test.js`);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const checked = asSeat(box, 'check', '--yes');
+  assert.notEqual(checked.code, 0, `the red check is red: ${checked.out}${checked.err}`);
+  assert.doesNotMatch(checked.out + checked.err, /queued test run/u, 'the check never got the queued answer');
+});
+
+test('a seat call under a live outer pullboard command or machine variables blocks and returns red [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for two stand-in runner runs.
+  const box = runnerProject();
+  // This test process stands in for the live gate or check that started the call.
+  const nested = asSeatInside(box, { PULLBOARD_CLI_PID: String(process.pid) }, 'test', 'test/red.test.js');
+  assert.equal(nested.code, 1, 'under a live pullboard command the run blocks and exits red');
+  assert.doesNotMatch(nested.out, /queued test run/u);
+  const runnerJob = asSeatInside(box, { GIT_NO_REPLACE_OBJECTS: '1' }, 'test', 'test/red.test.js');
+  assert.equal(runnerJob.code, 1, 'in the check runner\'s clean git environment the run blocks and exits red');
+  assert.doesNotMatch(runnerJob.out, /queued test run/u);
 });

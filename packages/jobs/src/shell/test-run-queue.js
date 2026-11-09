@@ -47,11 +47,50 @@ const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../bin/pu
  * @param {string|undefined} agent - The seat's agent id, or undefined when the checkout has no seat.
  * @param {Record<string, any>} values - The parsed switches.
  * @param {NodeJS.ProcessEnv} [environment]
+ * @param {{ alive?: (pid: number) => boolean, pid?: number }} [options]
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env) {
+export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid } = {}) {
   if (values.wait === true || values['test-run'] !== undefined || environment.PULLBOARD_TEST_WAIT === '1') return false;
-  return !ctx.info.isMain && agent !== undefined && AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]));
+  if (ctx.info.isMain || agent === undefined) return false;
+  if (!AGENT_SHELL_MARKERS.some(name => Boolean(environment[name]))) return false;
+  return machineContext(environment, { alive, pid }) === null;
+}
+
+/**
+ * Variables the machine sets for work that reads an exit code: a runner job, a landing shard, a test runner's
+ * children, a composed hook, an item check or `pullboard run` agent, a gate slot, node:test, git hooks and the
+ * check runner's clean git environment, and CI. Any one of them means the call is not a seat at its own prompt.
+ */
+export const MACHINE_CONTEXT_ENV = Object.freeze([
+  'PULLBOARD_RUNNER_JOB', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_HOOK_COMPOSED',
+  'PULLBOARD_CHECK', 'PULLBOARD_ITEM', 'PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_TOKEN', 'NODE_TEST_CONTEXT',
+  'GIT_EXEC_PATH', 'GIT_DIR', 'GIT_INDEX_FILE', 'GIT_NO_REPLACE_OBJECTS', 'CI',
+]);
+
+/**
+ * Name why this call runs inside machine work and must block, or null when it is a seat at its own prompt.
+ *
+ * Why the CLI pid: every in-process pullboard command sets PULLBOARD_CLI_PID to itself unless a live outer command
+ * set it first, so a `pullboard test` started by a live gate, check, landing, submit worker or sentinel sees another
+ * live pid and blocks, whatever variables that work's author did or did not set. A check that gets a queued answer
+ * would read exit 0 as a pass [C7].
+ *
+ * @param {NodeJS.ProcessEnv} environment
+ * @param {{ alive?: (pid: number) => boolean, pid?: number }} [options]
+ * @returns {string | null}
+ */
+export function machineContext(environment, { alive = pidAlive, pid = process.pid } = {}) {
+  const set = MACHINE_CONTEXT_ENV.find(name => environment[name] !== undefined && environment[name] !== '');
+  if (set) return set;
+  const outer = Number(environment.PULLBOARD_CLI_PID);
+  if (Number.isSafeInteger(outer) && outer > 0 && outer !== pid && alive(outer)) return 'PULLBOARD_CLI_PID';
+  return null;
+}
+
+/** True when a process with this pid exists. */
+export function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
 }
 
 /** Where a run's worker writes its own stdout and stderr. */
