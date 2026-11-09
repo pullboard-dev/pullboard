@@ -754,7 +754,7 @@
     },
     "apps/relay/src/shell/board-links.js": {
       "cells": 4,
-      "deep": 2
+      "deep": 0
     },
     "apps/relay/src/shell/browser-model.js": {
       "cells": 3,
@@ -2338,7 +2338,7 @@
     },
     "packages/merge/src/shell/trunk-conflict.js": {
       "cells": 1,
-      "deep": 2
+      "deep": 0
     },
     "packages/merge/src/shell/trunk-merge.js": {
       "cells": 2,
@@ -2558,7 +2558,7 @@
     },
     "packages/person/src/shell/person.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "packages/person/src/shell/relay-adapter.js": {
       "cells": 1,
@@ -2658,7 +2658,7 @@
     },
     "packages/rigor/src/shell/rigor-conflicts.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/rigor/src/shell/rigor-draft.js": {
       "cells": 5,
@@ -2917,12 +2917,12 @@
       "deep": 1
     },
     "packages/seats/src/shell/projects.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/seats/src/shell/seat-checkout.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/seats/src/shell/seat-wake.js": {
       "cells": 2,
@@ -4723,7 +4723,7 @@
     },
     "<-kernel": {
       "imports": [],
-      "deepImporters": 47
+      "deepImporters": 41
     },
     "apps/lib": {
       "imports": [
