@@ -85,6 +85,12 @@ import {
 export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js';
 
 const LEASE_MS = 20_000;
+/**
+ * The startup budget of a lease admitted after its queue deadline, in ms. Why a fixed budget: the queue wait setting
+ * (30 min for a submit, 30 s for a proof batch lane) says how long to wait for a slot, not how long a loaded
+ * coordinator needs to reach a runner; reusing it gave 34 admission deadline misses and 95 dropped batches in 3 h (#3832, 8 Nov).
+ */
+export const LATE_STARTUP_MS = 90_000;
 const GATE_WAITER_HEARTBEAT_MS = 120_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
@@ -1076,8 +1082,8 @@ export async function takeResource(options) {
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
-            queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerWaitMs,
-            startupDeadlineAt: now + options.runnerWaitMs } : null;
+            queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerStartupMs ?? LATE_STARTUP_MS,
+            startupDeadlineAt: now + (options.runnerStartupMs ?? LATE_STARTUP_MS) } : null;
           const queueTicket = consumeOpportunity(db, name, waiter.ticket, order, now);
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
