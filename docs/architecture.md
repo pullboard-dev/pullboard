@@ -197,10 +197,10 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 | <a id="hop-foreign-sweep"></a>another machine queue's sweep | A dispatcher from another machine home never recovers this home's gates; a gate whose driver died stays this home's to retry. | `test/harnesses/pipeline/foreign-sweep.harness.js` (8 Nov), repro, fails on `044d6c6c18^` with a launch in the other home: the dead gate left to its home, which retries it | none | PASS |
 | <a id="hop-green-review"></a>green → review | A green gate puts the item in review, waiting on an independent reviewer. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): submitted (in review) | none | PASS |
 | <a id="hop-accept-merged"></a>accept → landing batch → merged | An accept lands through a batch: main moves to the recorded merge and is pushed. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): accept, then `pullboard land`, in 5-19 s | none | PASS |
-| <a id="hop-command-latency"></a>board command latency | Board commands answer in under 200 ms. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): `show` and `status` p50 208-396 ms with the resident board, 521-1217 ms without | `pullboard status` 3.1 s on this board | FAIL |
+| <a id="hop-command-latency"></a>board command latency | Board commands answer in under 200 ms. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): `show` and `status` p50 107-396 ms with the resident board (over target in 3 of 4 runs at load 60), 521-1217 ms without | `pullboard status` 3.1 s on this board | PASS on the last run, live disagrees |
 
 What the matrix says today:
 
-- Board command latency fails its 200 ms target on a scratch board, warm resident board included, and `pullboard status` on this board took 3.1 s.
+- Board command latency met its 200 ms target on a scratch board only on the last of four runs (p50 107 ms); the other three, under load 60, were 208-396 ms with the resident board, and `pullboard status` on this board took 3.1 s.
 - The analysis job on the runner has no harness. It needs a runner that takes the analysis artifact path, which the local stand-in does not cover yet.
-- Four hops pass their harness while production disagrees: READY misses, requeue time, admission time and SUBMIT_HANDOFF_DEAD counts in the window still include gates that started before the 8 Nov fixes, on runners under load 60. Each becomes current when a later window agrees.
+- Five hops pass their harness while production disagrees, command latency above among them. The other four: READY misses, requeue time, admission time and SUBMIT_HANDOFF_DEAD counts in the window still include gates that started before the 8 Nov fixes, on runners under load 60. Each becomes current when a later window agrees.
