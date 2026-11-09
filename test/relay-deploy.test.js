@@ -685,7 +685,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
   assert.equal(existsSync(join(running.privateHome, 'data', 'auth.sqlite')), true, 'the private auth database was created in its configured volume');
 
   for (const omitted of [
-    'src/machine.js',
+    'packages/state/index.js',
     'apps/view/src/shell/view.css',
     'packages/kernel/src/core/seal.js',
     'apps/relay/src/shell/browser-client.js',
