@@ -104,3 +104,15 @@ test('[V1,B3] verdicts record independent assurance only for recorded different 
   assert.equal(code, 0, stderr);
   assert.match(stdout, /assurance: independent/u);
 });
+
+test('[V1,B3] at the current engine an earlier claimant who committed nothing does not limit assurance, and a committed author does', async (t) => {
+  const box = fixture(t);
+  const claimedOnly = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true });
+  assert.equal(store.verdictsFor(box.board, claimedOnly.id)[0].assurance, 'independent',
+    'an earlier unknown claimant that submitted no commit is not an author');
+  const committedUnknown = accepted(box, undefined, 'parent-Q');
+  assert.equal(store.verdictsFor(box.board, committedUnknown.id)[0].assurance, 'procedural',
+    'the committed author with no recorded parent still limits assurance');
+  const sameParent = accepted(box, 'parent-Q', 'parent-Q');
+  assert.equal(store.verdictsFor(box.board, sameParent.id)[0].assurance, 'procedural', 'a committed author under the reviewer\'s parent is not independent');
+});
