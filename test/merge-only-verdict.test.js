@@ -10,7 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureMergeOnly } from '../packages/merge/index.js';
@@ -18,7 +18,7 @@ import { mergeOnlyBasis } from '../packages/merge/index.js';
 import { runFixtureGit, runFixtureChild } from './fixture-child.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../packages/state/index.js';
-import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
+import { MERGE_ONLY_VERDICT_ENGINE } from '../packages/state/core.js';
 import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 import { capturePrProof } from '../packages/github/index.js';
 

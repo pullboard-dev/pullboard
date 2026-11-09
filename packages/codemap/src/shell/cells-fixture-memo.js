@@ -12,6 +12,12 @@ import { cellSourceSnapshot } from './cell-source-snapshot.js';
 /** Own one analysis session; the entry point supplies its trusted analyzer, cache policy and publication ports. */
 export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest, eligible, onTreeRead } = {}) {
   const trees = new Map();
+  /**
+   * Base blob text by object id, so each touched cell's base reads share one Git process per object (#3896); an
+   * object id names its bytes, so a remembered read can never be stale. The oldest leave first past the bound.
+   */
+  const baseBlobs = new Map();
+  const BASE_BLOBS = 4096;
   /** How many analyses one machine keeps; the oldest unused leave first. */
   const KEEP = 200_000;
 
@@ -123,12 +129,18 @@ export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, pub
     const repository = cellSourceSnapshot(root)?.repoRoot ?? root;
     /** The regular blob a path names at the base commit, or null. */
     const objectOf = path => (/^[\w./-]+$/u.test(path) && !path.split('/').some(part => !part || part === '.' || part === '..') && blobs.get(path)) || null;
-    /** Read one regular blob at the base commit, never the working tree. */
+    /** Read one regular blob at the base commit, never the working tree; each object is read from Git once. */
     function readBase(path) {
       const object = objectOf(path);
+      if (!object) return null;
       // Exact bytes come from Git directly; the analyzer re-hashes them against the object.
-      const shown = object && gitSpawnSync(['cat-file', 'blob', object], { cwd: repository, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
-      return shown?.status === 0 ? { source: shown.stdout, object } : null;
+      if (!baseBlobs.has(object)) {
+        const shown = gitSpawnSync(['cat-file', 'blob', object], { cwd: repository, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
+        if (baseBlobs.size >= BASE_BLOBS) baseBlobs.delete(baseBlobs.keys().next().value);
+        baseBlobs.set(object, shown?.status === 0 ? shown.stdout : null);
+      }
+      const source = baseBlobs.get(object);
+      return source === null ? null : { source, object };
     }
     const original = readBase(file);
     if (!original) return counts;

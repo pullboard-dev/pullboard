@@ -18,7 +18,7 @@ import {
   exportBoard,
   importBoard,
 } from '../../store/index.js';
-import { FLOW_SIZE_ENGINE } from '../../../src/flow-size-engine.js';
+import { FLOW_SIZE_ENGINE } from '../src/core/engines/flow-size-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';

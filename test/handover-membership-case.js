@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../packages/state/index.js';
 import { createDeviceKeys, unwrapDeviceBoardKey } from '../packages/keys/index.js';
 import { handOverBoardKeys, statementBytes } from '../packages/link/index.js';

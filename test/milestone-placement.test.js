@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** A default board with two releases, seeded from work recorded before automatic placement. */

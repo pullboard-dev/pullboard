@@ -3,7 +3,7 @@ import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observ
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
-} from '../submit-handoff-origin.js';
+} from '../../../../../packages/sandbox/index.js';
 import { captureLapsedClaims } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';

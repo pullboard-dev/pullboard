@@ -3,12 +3,10 @@ import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
-import {
-  latestStaleActivity,
-  staleInstant,
-  staleStateAge,
-  staleStateLimits,
-} from '../../../../src/board-stale-state-policy.js';
+import { latestStaleActivity } from '../../../store/index.js';
+import { staleInstant } from '../../../store/index.js';
+import { staleStateAge } from '../../../store/index.js';
+import { staleStateLimits } from '../../../store/index.js';
 
 /** Read recorded detail without letting incomplete legacy data establish expiry authority. */
 function detailOf(event) {

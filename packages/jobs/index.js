@@ -6,3 +6,4 @@ export { LEASE_MS, leaseLapsed } from "./src/core/lease-rules.js";
 export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/shell/job-shadow.js";
 export { gatePanel, stalledGates } from "./src/shell/gate-panel.js";
 export { gatePanelState } from "./src/core/gate-panel.js";
+export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/shell/gate-span-file.js";

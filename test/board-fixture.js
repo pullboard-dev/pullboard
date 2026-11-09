@@ -3,9 +3,11 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
-import { openBoardForRead } from '../apps/lib/index.js';
-import { closeBoard } from '../apps/lib/index.js';
+// The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
+import { openBoard } from '../apps/lib/src/core/native-board.js';
+import { nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
+import { openBoardForRead } from '../apps/lib/src/core/native-board.js';
+import { closeBoard } from '../apps/lib/src/core/native-board.js';
 import { Refused } from '../packages/kernel/core.js';
 import { moveArgs } from '../packages/person/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';

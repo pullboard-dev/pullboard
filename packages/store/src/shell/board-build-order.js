@@ -1,4 +1,4 @@
-import { QUEUE_FAIRNESS_ENGINE } from '../../../../src/queue-fairness-engine.js';
+import { QUEUE_FAIRNESS_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { lineSettings } from '../../../state/index.js';
 import { localDependencyIds } from '../../../items/index.js';

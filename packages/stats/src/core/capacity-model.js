@@ -453,6 +453,19 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
     monteCarlo: { replicates: 100, completed: empty ? 100 : replicates.length, nonFinishing: replicates.filter(row => row.finish === null).length } };
 }
 
+/**
+ * The budget line a warn or stop budget adds to the capacity report: spend and limit in dollars, and which limit it is.
+ * Below 80 percent, or with no budget set, the report has no budget line [N2].
+ */
+function budgetLines(budget) {
+  if (!budget || !['warn', 'stop'].includes(budget.state) || typeof budget.limit !== 'number' || typeof budget.spend !== 'number') return [];
+  const dollars = value => `$${value.toFixed(2)}`;
+  const span = budget.which === 'dailyUsd' ? 'daily' : 'total';
+  return [budget.state === 'stop'
+    ? `Budget reached: ${dollars(budget.spend)} of the ${dollars(budget.limit)} ${span} limit.`
+    : `Budget at 80 percent: ${dollars(budget.spend)} of the ${dollars(budget.limit)} ${span} limit.`];
+}
+
 /** Render the same explicit estimates and unknowns for status, the view and the morning report. */
 export function capacityLines(planner) {
   /** Format hours or counts without printing a missing measurement as zero. */
@@ -465,6 +478,7 @@ export function capacityLines(planner) {
     needs ? `${needs.length} items lack recorded approval evidence${needs.length ? `: ${needs.slice(0, 5).map(id => `#${id}`).join(', ')}${needs.length > 5 ? ` +${needs.length - 5} more` : ''}` : ''}.` : 'Approval evidence count: unknown.',
     ...(planner.staffing?.measuredLive === false ? [`Forecast assumes ${planner.staffing.seats} available seats from recent activity; live presence is unknown.`] : []),
     ...(planner.stale ? ['Estimates are stale; waiting for a board update.'] : []),
+    ...budgetLines(planner.budget),
     ...(planner.monteCarlo.asOf && planner.monteCarlo.asOf !== planner.asOf ? [`Finish range last refreshed at ${planner.monteCarlo.asOf}.`] : []),
     ...(planner.unknown.length ? [`Unknown: ${planner.unknown.slice(0, 5).join('; ')}${planner.unknown.length > 5 ? `; +${planner.unknown.length - 5} more` : ''}.`] : [])];
 }

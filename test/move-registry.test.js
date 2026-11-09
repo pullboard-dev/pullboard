@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
@@ -26,7 +26,7 @@ import { applyEngineMove } from '../packages/state/index.js';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MOVE_REGISTRY } from '../packages/moves/index.js';
-import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
+import { PROOF_RUN_ENGINE } from '../packages/state/core.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../apps/cli/index.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
@@ -34,8 +34,8 @@ import { registryFixtureBoard } from './move-registry-fixture.js';
 import { importsIn } from '../packages/gate/index.js';
 import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';
-import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
+import { SPEC_REVISION_ENGINE } from '../packages/state/core.js';
+import { PRIVATE_REHOME_ENGINE } from '../packages/state/core.js';
 import { registryProblems } from './move-registry-invariants.js';
 import {
   mappedWorkingSources,
@@ -44,7 +44,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { historyProblems } from './move-registry-history.js';
 import { installRegistryMergeCase } from './move-registry-merge-cases.js';
-import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
+import { TRAIN_LANDING_ENGINE } from '../packages/state/core.js';
 
 const SNAPSHOT = JSON.parse(readFileSync(new URL('./move-registry-baseline.json', import.meta.url), 'utf8'));
 const CONSUMERS = ['src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js'];
@@ -287,6 +287,14 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
 installStaleStateRegistryCases();
 
 /** Exercise each live invariant without mutating the accepted source or a historical oracle. */
+/** Proves the named 145 pair passes while any other duplicate engine number still fails [C7,V4]. */
+test('clause 1: a new duplicate engine number outside the named historical exception still fails [C7,V4]', () => {
+  const base = { registry: {}, sources: [], nextSteps: {} };
+  assert.deepEqual(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }] }), [], 'the named pair is the one exception');
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }, { name: 'THIRD_ENGINE', number: 145 }] }).join(), /duplicate or invalid engine number 145/u);
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'NEW_ENGINE', number: 146 }, { name: 'OTHER_NEW_ENGINE', number: 146 }] }).join(), /duplicate or invalid engine number 146/u);
+});
+
 test('registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
   const declaration = { operation: 'sample', engine: 1, itemIdFirstArgument: true, nextSteps: { SAMPLE: 'repair the sample' } };
   const input = { registry: { sample: declaration }, leaves: [{ name: 'SAMPLE_ENGINE', number: 1 }],
@@ -305,14 +313,16 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
-  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
+  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages', 'state', 'src', 'core', 'engines')), git), []);
 });
 
 installRegistryMergeCase();
 
-/** Proves the seven formerly unregistered refusal codes each carry a non-empty recovery step [C7]. */
-test('clause 1: seven refusal codes each have a recovery next step [C7]', () => {
-  for (const code of ['BAD_IDLE_SKIPS', 'WRONG_BRANCH', 'ITEM_FOLDER_DIRTY', 'SUBMIT_HANDOFF_NOT_LAUNCHED', 'LAND_STALLED', 'RUNNER_RESULT_SIGNATURE', 'RUNNER_RESULT_SOURCE']) {
+/** Proves every refusal code a registered move declares carries a non-empty recovery step, with no fixed count [C7]. */
+test('clause 1: every refusal a registered move raises has a recovery next step [C7]', () => {
+  const codes = new Set(Object.values(MOVE_REGISTRY).flatMap(declaration => Object.keys(declaration.nextSteps ?? {})));
+  assert.ok(codes.size > 0, 'the registry declares refusal codes to check');
+  for (const code of codes) {
     assert.equal(typeof NEXT_STEPS[code], 'string', code);
     assert.notEqual(NEXT_STEPS[code].trim(), '', code);
   }

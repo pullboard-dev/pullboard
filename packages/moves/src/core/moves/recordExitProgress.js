@@ -1,5 +1,5 @@
 /** Authenticated numeric claim counters require the exit-rule replay floor [B3,H16]. */
-import { EXIT_RULES_ENGINE } from "../../../../../src/exit-rules-engine.js";
+import { EXIT_RULES_ENGINE } from "../../../../state/core.js";
 /** Keep fresh and replayed usage captures on the same engine. */
 function minimumEngine() { return EXIT_RULES_ENGINE; }
 /** Only this native seat may publish its per-claim progress. */

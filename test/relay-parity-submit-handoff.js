@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { git } from '../src/git.js';
+import { git } from '../packages/git/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 
 /** Capture a real clean registered source, then compare every reader after queue, start and red completion.

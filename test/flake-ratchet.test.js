@@ -16,12 +16,12 @@ import { gateRuns } from '../packages/flakes/index.js';
 import { recordSealedGateRun } from '../packages/flakes/index.js';
 import { getItem } from '../packages/store/index.js';
 import { listItems } from '../packages/store/index.js';
-import { QUARANTINE_BACKFILL_ENGINE } from '../src/quarantine-backfill-engine.js';
+import { QUARANTINE_BACKFILL_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { QUARANTINE_CORE_ENGINE } from '../src/quarantine-core-engine.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
+import { QUARANTINE_CORE_ENGINE } from '../packages/state/core.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/core.js';
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

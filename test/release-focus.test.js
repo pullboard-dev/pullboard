@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { addMilestone } from '../src/board-milestones.js';
-import { setLineSetting } from '../src/board-line-settings.js';
+import * as store from '../packages/store/index.js';
+import { addMilestone } from '../packages/store/index.js';
+import { setLineSetting } from '../packages/store/index.js';
 import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';

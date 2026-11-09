@@ -3,7 +3,7 @@ import { Refused } from '../../../kernel/index.js';
 import { ENGINE_VERSION } from './machine.js';
 import { SUBMISSION_PROOF_ENGINE } from '../../../../src/move-engine-constants.js';
 import { submissionProof } from '../../index.js';
-import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../src/merge-only-verdict-engine.js';
+import { MERGE_ONLY_VERDICT_ENGINE } from '../core/engines/merge-only-verdict-engine.js';
 
 /** Seal a submit's patches, proof, merge-only carry and size before any replica sees it [V4,H16]. */
 export function prepareBefore(board, values, { ports, store }) {

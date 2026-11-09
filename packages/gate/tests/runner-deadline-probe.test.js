@@ -6,13 +6,15 @@ import { test } from 'node:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 
 const SOURCE = join(import.meta.dirname, '../../..');
 const RUNNER = 'only-runner';
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /**
  * Drive the real gate slot, SQLite queue and runner recovery tables with one configured runner (or none), where
@@ -20,7 +22,7 @@ after(e2e.cleanup);
  * deadline and quarantined six idle runners; only the controller's clock was slow, so the probe ports answer here.
  */
 function deadline({ runners = 1, gateSlots = 0, drops = 1, answers = true } = {}) {
-  const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   const root = box.repo;
   const env = box.env;
   const url = cell => JSON.stringify(pathToFileURL(join(SOURCE, 'packages', cell, 'index.js')).href);
@@ -72,6 +74,56 @@ process.stdout.write(JSON.stringify({ result, failure, attempts, probes, waits: 
   assert.equal(child.status, 0, child.context ?? child.stderr);
   return { ...JSON.parse(child.stdout), localRan: existsSync(marker) };
 }
+
+/**
+ * Drive the real gate slot with one runner slot held past the queue wait, so the second request is admitted late, and
+ * report that lease's startup budget. `lane` takes the second request's options from the proof batch lane builder.
+ * Why: the budget used to copy the queue wait setting, so a 30 s lane window became a 30 s startup budget (#3832).
+ */
+function lateBudget({ lane = false, waitMs = 100 } = {}) {
+  const box = cellProject(owner, { gate: 'true' });
+  const url = path => JSON.stringify(pathToFileURL(join(SOURCE, path)).href);
+  const script = `import { withGateSlot } from ${url('packages/gate/index.js')};
+import { shardSlotOptions } from ${url('packages/gate/src/shell/proof-shards.js')};
+import { runnerExecutionServices } from ${url('packages/runners/index.js')};
+import { landingExecutionServices } from ${url('packages/landing/index.js')};
+import { addRunner, setBrowserSlots, setGateRunnersFirst, setGateSlots } from ${url('packages/config/index.js')};
+addRunner({ host: ${JSON.stringify(RUNNER)}, slots: 1, browser: 1 });
+setBrowserSlots(0); setGateSlots(0); setGateRunnersFirst(true);
+const executionServices = { runners: { ...runnerExecutionServices(), probeRunnerTransport: async () => ({ healthy: true }),
+  probeRunnerHealth: async () => ({ healthy: true }), refreshRunnerMeasurements: async () => {} }, landing: landingExecutionServices() };
+let late = null, release;
+const held = new Promise(done => { release = done; });
+let taken; const gotFirst = new Promise(done => { taken = done; });
+const first = withGateSlot(process.cwd(), async () => { taken(); await held; }, { executionServices, runnerOnly: true, runnerWaitMs: 5_000 });
+await gotFirst;
+const options = ${lane ? `shardSlotOptions({ executionServices }, { admitMs: ${JSON.stringify(waitMs)} })` : `{ executionServices, runnerOnly: true, runnerWaitMs: ${JSON.stringify(waitMs)} }`};
+let waited = false;
+const second = withGateSlot(process.cwd(), async lease => { late = lease.lateRunnerDispatch ?? null; }, { ...options, executionServices,
+  onWait: async state => { if (state.admitted || waited) return; waited = true;
+    await new Promise(done => setTimeout(done, ${JSON.stringify(waitMs)} + 100)); release(); } });
+await Promise.all([first, second]);
+process.stdout.write(JSON.stringify({ late }));`;
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 30_000,
+  }); // budget: private queue admission of two leases and one 200 ms queue wait.
+  assert.equal(child.status, 0, child.context ?? child.stderr);
+  return JSON.parse(child.stdout).late;
+}
+
+test('clause 1: a lease admitted after its queue deadline gets the fixed 90 s startup budget, whatever runnerWaitMs says [C7]', () => {
+  const late = lateBudget({ waitMs: 100 });
+  assert.ok(late, 'the second request was admitted late');
+  assert.equal(late.budgetMs, 90_000);
+  assert.equal(late.startupDeadlineAt - late.admittedAt, 90_000);
+});
+
+test('clause 2: a proof batch lane admission window does not set its startup budget [C7]', () => {
+  const late = lateBudget({ lane: true, waitMs: 100 });
+  assert.ok(late, 'the lane request was admitted late');
+  assert.equal(late.budgetMs, 90_000, 'the lane gets the same startup budget as a submit lease');
+  assert.notEqual(late.budgetMs, 100);
+});
 
 test('clause 1, clause 3, clause 4: with one runner, a coordinator-side slowdown that misses the deadline leaves that runner in service [C7]', () => {
   const run = deadline();

@@ -1,9 +1,9 @@
-import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../packages/state/core.js';
 /** Native board routing assertions; no gate or current-main result is fabricated [C7,N2]. */
 import assert from 'node:assert/strict';
 import { compareMainFailures } from '../packages/landing/index.js';
 import { mainRedReworkItems } from '../packages/landing/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';

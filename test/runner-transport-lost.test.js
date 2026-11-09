@@ -369,3 +369,28 @@ test('actual health JSON and text expose private retained transport counts witho
   assert.match(text.out, /private-health-fixture: 1; receipt-count 1/u);
   assert.match(text.out, /retained native attempts/u);
 });
+
+test('a dispatch after the lease queue deadline gets its full startup budget and reaches READY first time [C7]', t => {
+  const box = fixture(t, { dropFirst: false });
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const configured = JSON.parse(readFileSync(settings, 'utf8'));
+  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
+  // The lease's queue deadline already passed, as after a gate's 177 s doctrine phase on that lease (#3563).
+  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
+    import {DatabaseSync} from 'node:sqlite';
+    const attempts=[];
+    const run=await withGateSlot(process.cwd(),lease=>{
+      attempts.push(lease.runner.host);
+      lease.runnerWaitDeadline=Date.now()-1;
+      return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'LATE_PHASE_EXECUTED\\')"',{gateLease:lease});
+    },{executionServices,remote:true,runnerOnly:true,onWait(){}});
+    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
+    const held=db.prepare('SELECT host,detail FROM runner_unavailable').all();db.close();
+    console.log(JSON.stringify({green:run.isGreen,output:run.output,attempts,held}));`);
+  assert.equal(result.green, true);
+  assert.match(result.output, /LATE_PHASE_EXECUTED/u);
+  assert.deepEqual(result.attempts, [box.runner.host], 'one dispatch, no readiness retry');
+  assert.deepEqual(result.held, [], 'a healthy runner is never held for a missed READY');
+});

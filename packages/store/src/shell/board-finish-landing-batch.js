@@ -1,4 +1,4 @@
-import { LAND_COLLISION_ENGINE } from "../../../../src/landing-collision-engine.js";
+import { LAND_COLLISION_ENGINE } from "../../../state/core.js";
 import { itemById } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
@@ -7,7 +7,7 @@ import { checkedLandingCommit } from "../../../verify/index.js";
 import { guardLandingWrite } from "../core/board-landing-lease.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../state/index.js";
-import { LOCAL_LANDING_ENGINE } from "../../../../src/land-engine.js";
+import { LOCAL_LANDING_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 import { latestLandingBatch } from "../../../git/index.js";
 import { coordinatorOnly } from "./board.js";

@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { checkAtCommit } from '../apps/runner/index.js';
-import { doctrineHistory } from '../src/doctrine.js';
+import { doctrineHistory } from '../packages/doctrine/src/shell/doctrine.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 

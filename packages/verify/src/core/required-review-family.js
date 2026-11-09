@@ -1,6 +1,6 @@
 import { seatFamily } from '../../../items/core.js';
 /** Optional item-specific reviewer families, independent of model names [V1,V2,H16]. */
-import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../src/automatic-dispatch-engine.js';
+import { AUTOMATIC_DISPATCH_ENGINE } from '../../../state/core.js';
 import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { aliasEngineOn } from './review-policy.js';
