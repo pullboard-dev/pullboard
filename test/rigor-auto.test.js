@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js packages/state/src/shell/machine.js */
 import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { personNeedsState } from '../apps/view/index.js';
 import { resumeNeeds } from '../apps/view/index.js';
@@ -61,7 +61,7 @@ function fixture() {
   const file = join(directory, 'board.sqlite');
   let now = new Date('2026-10-24T12:00:00Z');
   const board = openBoard(file, { now: () => new Date(now) }, { gitRoot: root });
-  store.ensureCoordinator(board, root);
+  store.board_ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'app', path: join(root, 'builder'), model: 'Fixture builder' });
   const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });
   let serial = 0;

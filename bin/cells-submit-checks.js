@@ -42,6 +42,8 @@ import {
   withDeclaredLoads,
 } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
@@ -171,12 +173,20 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
     if (!next || ['order', 'root', 'frontDoor'].some(key => next[key] !== cell[key])
-      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor)) {
+      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor && next.lightFrontDoor !== cell.pureFrontDoor)
+      || (cell.lightFrontDoor !== undefined && next.lightFrontDoor !== cell.lightFrontDoor)
+      || (cell.pureDoor !== undefined && next.pureDoor !== cell.pureDoor)) {
       problems.push(`accepted cell ${cell.name} identity/order/front door changed`);
       continue;
     }
     if (cell.pureFrontDoor === undefined && next.pureFrontDoor !== undefined) {
       problems.push(...pureFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.lightFrontDoor === undefined && next.lightFrontDoor !== undefined) {
+      problems.push(...lightFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.pureDoor === undefined && next.pureDoor !== undefined) {
+      problems.push(...pureDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
@@ -254,7 +264,7 @@ export function touchedCells(files, before, after, inventories) {
   /** A source alias and a moved target both belong to their declared cell. */
   const owners = file => {
     if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file.startsWith(cell.root + '/')
+      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
@@ -547,7 +557,7 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
     && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
   const artifact = services.acceptedArtifact ?? readAcceptedCells(root, acceptedMain);
-  if (!artifact?.available) throw inventoryPending(artifact?.cause ?? 'missing accepted tree artifact', acceptedMain);
+  if (!artifact?.available) throw inventoryPending(artifact?.message ? `${artifact.cause}: ${artifact.message}` : artifact?.cause ?? 'missing accepted tree artifact', acceptedMain);
   // The accepted inventory's identity is the pinned main's own tooling, whatever tooling runs this check (#3322).
   const expectedInventory = acceptedCellsIdentity(root, acceptedMain, { pinned: true });
   if (['tree', 'checker', 'preloads'].some(name => artifact.descriptor?.[name] !== expectedInventory[name])) throw inventoryPending('accepted inventory identity differs from the actual main checker', acceptedMain);

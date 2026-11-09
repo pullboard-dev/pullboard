@@ -1,5 +1,5 @@
 /** Pure bar attribution over immutable native history [R1,R2,CD64]. */
-import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
+import { proofEventDetail } from '../../../kernel/index.js';
 
 /**
  * Per author of a bar: corrections, rejects caused by a bar, and rejects caused by the build.

@@ -3,7 +3,7 @@ import * as store from "./board.js";
 import { listProjects } from "../../../seats/index.js";
 import { withPrivateBoard } from "../../../seats/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { boardReference } from "../../../kernel/src/core/registry-guards.js";
+import { boardReference } from "../../../kernel/index.js";
 
 /** Read a private board's exact durable reference without creating storage or inferring its owner. */
 async function privateReference(project, { openBoard }) {

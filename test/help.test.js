@@ -13,7 +13,9 @@ const ROOT = resolve(import.meta.dirname, '..');
 /** Read inspectable local module edges without initializing the module under inspection. */
 function localImports(source) {
   const found = new Set();
-  const staticImport = /^\s*(?:import|export)\s+(?:(?!['"])[^;]*?\sfrom\s+)?(['"])([^'"\n]+)\1/gmu;
+  // The clause before `from` is an import or export binding list, never free text: a string constant that holds an import
+  // statement, as src/engine-numbers.js does, must not read as an edge.
+  const staticImport = /^\s*(?:import|export)\s+(?:(?:[\w$]+\s*,\s*)?(?:\*\s+as\s+[\w$]+|\{[^}]*\}|[\w$]+)\s+from\s+)?(['"])([^'"\n]+)\1/gmu;
   const dynamicImport = /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/gu;
   for (const match of source.matchAll(staticImport)) found.add(match[2]);
   for (const match of source.matchAll(dynamicImport)) found.add(match[2]);
@@ -38,7 +40,7 @@ function helpGraph() {
   while (pending.length) {
     const chain = pending.pop();
     const file = chain.at(-1);
-    assert.ok(![resolve(ROOT, 'apps/cli/src/shell/cli.js'), resolve(ROOT, 'src/serve.js'), resolve(ROOT, 'apps/view/src/shell/serve.js')].includes(file)
+    assert.ok(![resolve(ROOT, 'apps/cli/src/shell/cli.js'), resolve(ROOT, 'apps/view/src/shell/serve.js')].includes(file)
       && !file.startsWith(resolve(ROOT, 'relay') + '/'), `help reaches a forbidden dependency: ${chain.join(' -> ')}`);
     if (visited.has(file)) continue;
     visited.add(file);

@@ -8,8 +8,9 @@ import { after, test } from 'node:test';
 import { checkSourceTagNames } from '../packages/runners/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { cleanupFixtureChildren, runFixtureChild } from './fixture-child.js';
+import { pathToFileURL } from 'node:url';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
-import { cleanupToolingSnapshots, cli, fixtureResultContext, gateResult, git, runThroughGate } from './runner-tooling-fixture.js';
+import { cleanupToolingSnapshots, fixtureResultContext, gateResult, git, runThroughGate } from './runner-tooling-fixture.js';
 
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
@@ -42,7 +43,20 @@ test('warm runner source moves a clean base and sends only the changed history [
   const sourceTags = Array.from({ length: 40 }, (_, index) => `source-${String(index).padStart(2, '0')}`);
   for (const tag of sourceTags) git(repo, env, 'tag', tag);
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachine, requests, stderrLog });
-  const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json');
+  // Register the runner through the runners cell's registration probe (the steps `runner add` performs), in a child on this fixture's machine home.
+  const cellUrl = cell => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'packages', cell, 'index.js')).href);
+  const registration = `import { addRunner, validateRunner } from ${cellUrl('config')};
+import { probeRunnerTransport } from ${cellUrl('runners')};
+import { recordRunnerGui } from ${cellUrl('resources')};
+const probed = validateRunner({ host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 });
+const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: true, enrollSigningKey: true });
+if (!observation.healthy || typeof observation.publicKey !== 'string' || !observation.nodePath) throw new Error('registration probe failed: ' + JSON.stringify(observation));
+probed.node = observation.nodePath;
+const measured = observation.cores !== undefined ? { cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: new Date().toISOString() } : {};
+const runner = addRunner({ ...validateRunner({ ...probed, slots: 1, browser: 0, fixed: true, ...measured, publicKey: observation.publicKey }), gui: observation.gui });
+recordRunnerGui(runner.host, observation.gui);
+`;
+  const added = runFixtureChild(process.execPath, ['--input-type=module', '-e', registration], { cwd: repo, env, encoding: 'utf8' });
   assert.equal(added.status, 0, added.context);
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = home; process.env.PULLBOARD_MACHINE_HOME = machineHome;

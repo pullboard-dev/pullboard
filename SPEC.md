@@ -60,7 +60,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - B31 [approved, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
-- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
+- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: test/trunk.test.js | serves: P2
 - B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
 - B37 [draft, must] When lanes are on, every item is built in its own lane; the coordinator claims only coordinator-lane items. (Proposed change to B12, Corey approved 3 Nov.) | gate: review
 - B38 [draft, must] Below strong, an item needs a criterion, a check command, and a brief naming its test and files; with no brief, its check file is the test and its cells are the files. (Proposed replacement for B14, Corey approved 3 Nov.) | gate: review
@@ -111,8 +111,8 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - O8 [approved, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: test/board.test.js | serves: O3
 
 ## L · Lanes
-- L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: packages/config/tests/lanes.test.js
-- L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/config/tests/lanes.test.js
+- L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: packages/seats/tests/lanes.test.js
+- L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/seats/tests/lanes.test.js
 - L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: test/e2e.test.js
 - L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: test/e2e.test.js
 - L5 [draft, must] When lanes are off, a seat joins the board, next offers any item its route covers, and pre-commit and submit check the claimed item's cells. (Corey approved lanes off, 3 Nov.) | gate: review
@@ -198,7 +198,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - N12 [wont, aim] `pullboard mcp` serves the commands as MCP tools; A9 covers it.
 - N13 [approved, must] `next` names items still awaiting a verdict; a lane is done when its items are verified. | gate: test/board.test.js | serves: N2
 - N14 [approved, must] `pullboard run` builds routed items unattended: a command per tier, verified dependencies merged, check, retry, submit or escalate. | gate: test/e2e.test.js | serves: N8
-- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: test/sweep.test.js, test/e2e.test.js
+- N15 [approved, must] `pullboard sweep` files a checker's problems as light items, one per file, each check seen failing first. | gate: apps/cli/tests/sweep.test.js, test/e2e.test.js
 - N16 [retired] Merged into N14.
 - N17 [retired] Merged into N15.
 - N18 [retired] Model ladders and routing by history left the core for a separate project; the core keeps tiers and escalation.

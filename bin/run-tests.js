@@ -58,7 +58,7 @@ const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
 const LANDING_ATTEMPT_ENV = 'PULLBOARD_LANDING_ATTEMPT';
 const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
-// Mirrors src/landing-shards.js; this preload stays free of that module until a landing needs it.
+// Mirrors packages/landing/src/shell/landing-shards.js; this preload stays free of landing until a landing run needs it.
 const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
 const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
@@ -718,8 +718,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
-  const { landingFailureReport } = await import('../src/landing-failure-report.js');
-  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
+  const { landingFailureReport, landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../packages/landing/index.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
   let testOutcomes = null;
@@ -1234,7 +1233,7 @@ async function main(args) {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../packages/gate/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+        import('../packages/gate/index.js'), import('../src/runners.js'), import('../packages/landing/index.js'),
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
@@ -1308,7 +1307,7 @@ async function main(args) {
       const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
       signal = result.signal;
       process.exitCode = result.status ?? 1; clock.mark('tests');
-      if (fileTimes) (await import('../src/landing-shards.js')).printShardFileTimes(fileTimes);
+      if (fileTimes) (await import('../packages/landing/index.js')).printShardFileTimes(fileTimes);
     } finally {
       try {
         if (clonesBefore) {
@@ -1338,7 +1337,7 @@ async function main(args) {
           : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
-        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null; const { runLandingShards } = await import('../src/landing-shards.js');
+        const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null; const { runLandingShards } = await import('../packages/landing/index.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
         // One read of each planned file's first-line declaration, shared by every shard [C7].
@@ -1417,7 +1416,7 @@ async function main(args) {
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // No test run starts on the coordinator unless a runner job started it (#3899).
-  (await import('../packages/gate/index.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
+  (await import('../packages/gate/src/shell/coordinator-test-guard.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;

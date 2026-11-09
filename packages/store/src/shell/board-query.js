@@ -1,7 +1,7 @@
 import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { withDerivedFamily } from "../../../../src/family-declaration.js";
-import { withDerivedFamilies } from "../../../../src/family-declaration.js";
+import { withDerivedFamily } from "../../../items/core.js";
+import { withDerivedFamilies } from "../../../items/core.js";
 import { effectiveItemHead } from "../../../verify/index.js";
 import { agentParent } from "../../../seats/index.js";
 export { agentParent } from "../../../seats/index.js";
@@ -27,7 +27,7 @@ import {
   itemShoutReader,
   UNREAD_SHOUT_SQL,
 } from "../core/board-shout-audience.js";
-import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
+import { shoutItemId } from "../../../kernel/index.js";
 import { workerInboxQuery } from "../core/board-worker-inbox.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from "../../../verify/index.js";

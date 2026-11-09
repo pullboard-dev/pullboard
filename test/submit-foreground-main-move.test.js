@@ -1,8 +1,10 @@
 /** Foreground and queued submits survive an unrelated main move during their check; any pullboard.json policy change still refuses [V4,H16,C7]. */
+import { trialLedgerKey } from '../packages/gate/index.js';
+import { composeAfterProof, requireSubmitComposition } from '../packages/items/index.js';
 import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -32,6 +34,37 @@ function state(box) {
 function workerLog(box, job) {
   const log = join(box.repo, '.git/pullboard/submit-handoffs', job?.id ?? 'none', 'worker.log');
   return existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : 'no worker log';
+}
+
+/**
+ * Wait until the queued job has removed what it owns: its source checkout and, for a private tool copy, that copy.
+ * A clean checkout's tools snapshot is keyed by the tooling tree and shared by every later submit (#3339), so it
+ * stays by design and the job leaves it in place.
+ */
+async function ownedCleanup(helpers, box, jobId) {
+  const directory = join(box.repo, '.git/pullboard/submit-handoffs', jobId);
+  const request = join(directory, 'request.json');
+  await helpers.waitFor(() => existsSync(request) && !existsSync(join(directory, 'source')), // budget: owned worker cleanup hang ceiling; no throughput claim.
+    'owned queued worker source cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  const tools = JSON.parse(readFileSync(request, 'utf8')).tools;
+  if (/^pullboard-handoff-tools-[0-9a-f]+$/u.test(basename(tools))) assert.ok(existsSync(tools), 'the shared tools snapshot stays for the next submit');
+  else await helpers.waitFor(() => !existsSync(tools), 'owned queued worker private tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+}
+
+/**
+ * Put both composition rules past their trial, the way twenty clean real gates would: MAIN_NOT_COMPOSED is a trial
+ * refusal that only reports until then, and each rule keeps its own trial under the one code.
+ */
+function enforceCompositionRules(box) {
+  const file = join(box.repo, '.git/pullboard/refusal-trials.json');
+  const codes = {};
+  for (const rule of [requireSubmitComposition, composeAfterProof]) {
+    const options = { rule: ['composition', rule.toString()] };
+    codes[trialLedgerKey('MAIN_NOT_COMPOSED', options)] = { code: 'MAIN_NOT_COMPOSED', identity: 'seeded', start: 0, falseRefusals: 0 };
+  }
+  assert.equal(Object.keys(codes).length, 2, 'each rule keeps its own trial under one code');
+  mkdirSync(join(box.repo, '.git/pullboard'), { recursive: true });
+  writeFileSync(file, JSON.stringify({ version: 2, gates: 20, codes }) + '\n');
 }
 
 /**
@@ -68,7 +101,9 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   writeFileSync(join(box.repo, 'web/other.js'), "export const other='independent';\n");
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
+  // The lane builds the check it is claimed against, so it owns the test runner and test files that check names.
+  const lanes = { ...helpers.CONFIG.lanes, web: { ...helpers.CONFIG.lanes.web, owns: ['web/', 'bin/run-tests.js', 'test/'] } };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, lanes,
     gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff } }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
@@ -77,11 +112,13 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(box.id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(box.id));
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const built = helpers.commitFile(box, box.web, 'web/feature.js', "export const feature='item';\n", 'feat(web): foreground candidate [G1]');
   assert.equal(built.status, 0, built.stderr);
   const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
   assert.equal(ready.code, 0, ready.out + ready.err);
+  if (mode === 'policy') enforceCompositionRules(box);
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   const result = runFixtureChild(process.execPath, [helpers.BIN, 'submit', String(box.id), '--no-next'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
@@ -128,11 +165,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
   const landed = state(box).item;
   assert.ok(landed.item_verdict === 'ACCEPT' || ['accepted', 'merged'].includes(landed.item_status), JSON.stringify(landed));
   const job = state(box).job;
-  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-    const request = join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'request.json');
-    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'source'));
-  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  await ownedCleanup(helpers, box, job.id);
 });
 
 test('queued submit refuses when a non-submit pullboard.json policy field changes during its gate [V4,H16,C7]', async t => {
@@ -149,9 +182,5 @@ test('queued submit refuses when a non-submit pullboard.json policy field change
   const refusal = readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8');
   assert.match(refusal, /NO_POLICY/u);
   assert.match(refusal, /accepted submit policy changed: shared/u);
-  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-    const request = join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'request.json');
-    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'source'));
-  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  await ownedCleanup(helpers, box, completed.job.id);
 });

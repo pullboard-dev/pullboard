@@ -24,7 +24,6 @@
     "src/sync.js->src/relay-lock.js": 1,
     "src/tap-tests.js->src/git.js": 1,
     "src/templates.js->src/config.js": 1,
-    "src/templates.js->src/doctrine.js": 1,
     "src/test-action-cache.js->src/affected-tests.js": 1,
     "src/test-action-cache.js->src/test-action-key-memo.js": 1,
     "src/test-action-cache.js->src/test-result-store.js": 1,

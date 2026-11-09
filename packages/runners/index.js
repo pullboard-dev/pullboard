@@ -33,3 +33,5 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 
 export { committedRunnerController, archivedToolingSource } from './src/shell/committed-tooling.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/shell/dirty-tooling.js';
+export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/shell/handoff-capacity.js';
+export { staleDispatcherTools, dispatcherPass, handOver } from './src/shell/handoff-dispatcher-handover.js';

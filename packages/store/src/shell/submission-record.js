@@ -1,5 +1,5 @@
 import { Refused } from "../../../kernel/index.js";
-import { seatFamily } from "../../../../src/family-declaration.js";
+import { seatFamily } from "../../../items/core.js";
 /** Record the existing submitted item fields and native event without changing transaction ownership [V4,H16]. */
 import { getItem } from "./board-query.js";
 import { logEvent } from "./board-event-log.js";

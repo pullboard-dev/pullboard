@@ -1,10 +1,10 @@
 /** Read small proof aggregates and projected facts without replaying the native event log [R1,R2]. */
-import { barStats } from '../../../stats/src/core/bar-stats.js';
 import { caughtFrom } from '../../../items/index.js';
-import { decodedProofEvent } from '../../../kernel/src/core/event-detail.js';
+import { decodedProofEvent } from '../../../kernel/index.js';
 import { proofCounter } from './proof-counters.js';
 import { currentProofCounters } from './proof-counters.js';
 import { proofCounterRows } from './proof-counters.js';
+import { barStats } from '../../../stats/index.js';
 import { projectFlowStats } from '../../../stats/index.js';
 import { proofAgentIds } from '../../../stats/index.js';
 

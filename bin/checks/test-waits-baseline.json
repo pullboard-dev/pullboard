@@ -2,7 +2,7 @@
   "docs/shots/capture-browser.test.js": {
     "sleep": 1
   },
-  "packages/config/tests/watch.test.js": {
+  "test/watch.test.js": {
     "poll": 1
   },
   "packages/gate/tests/check.test.js": {
@@ -18,14 +18,11 @@
   "packages/landing/tests/main-red.test.js": {
     "sleep": 2
   },
-  "packages/link/tests/relay-device-confirmation.test.js": {
+  "test/relay-device-confirmation.test.js": {
     "sleep": 1
   },
-  "packages/link/tests/relay-setup-once.test.js": {
+  "test/relay-setup-once.test.js": {
     "sleep": 2
-  },
-  "packages/outbox/tests/relay-checkpoint.test.js": {
-    "sleep": 6
   },
   "packages/person/tests/agent-session.test.js": {
     "sleep": 1
@@ -216,7 +213,7 @@
   "test/next-deadline.test.js": {
     "sleep": 1
   },
-  "test/package-files-copies.test.js": {
+  "packages/runners/tests/package-files-copies.test.js": {
     "poll": 3,
     "sleep": 2
   },
@@ -237,6 +234,9 @@
   },
   "test/relay-browser.test.js": {
     "sleep": 3
+  },
+  "test/relay-checkpoint.test.js": {
+    "sleep": 6
   },
   "test/relay-client-fixture.js": {
     "poll": 1,

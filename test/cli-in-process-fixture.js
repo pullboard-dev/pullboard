@@ -1,8 +1,8 @@
 /** Awaited production CLI calls with isolated output and serialized process-global environment [C7,A1]. */
 import { Readable } from 'node:stream';
 import { main } from './native-cli-fixture.js';
-import { HOOK_WORKER } from '../apps/lib/index.js';
-import { launchRelaySender } from '../apps/lib/index.js';
+import { HOOK_WORKER } from '../apps/cli/index.js';
+import { launchRelaySender } from '../apps/cli/index.js';
 
 let pending = Promise.resolve();
 

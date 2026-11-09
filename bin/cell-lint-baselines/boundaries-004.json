@@ -392,7 +392,6 @@
     "src/commands/spec.js->src/cli.js": 1,
     "src/commands/spec.js->src/config.js": 1,
     "src/commands/spec.js->src/doctrine-rulings.js": 1,
-    "src/commands/spec.js->src/doctrine.js": 1,
     "src/commands/spec.js->src/evidence.js": 1,
     "src/commands/spec.js->src/git.js": 1,
     "src/commands/spec.js->src/history.js": 1,

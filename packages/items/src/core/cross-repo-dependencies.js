@@ -1,5 +1,5 @@
 /** Foreign prerequisites use only the authenticated receiving board's canonical E32 state [B24,E32,H16]. */
-import { boardLinkRecord } from "../../../kernel/src/core/registry-guards.js";
+import { boardLinkRecord } from "../../../kernel/index.js";
 import { foreignDependencies } from "./item-dependencies.js";
 
 /** Resolve one repository against current signed links, never local paths or a submitter status. */

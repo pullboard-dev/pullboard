@@ -4,7 +4,7 @@ import {
   git,
   refuseGrafts,
 } from "./git.js";
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/core.js";
 
 const OBJECT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const ZERO = /^0+$/u;
