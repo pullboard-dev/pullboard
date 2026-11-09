@@ -60,7 +60,8 @@ function submittedSiblingHistory() {
   const bWorktree = join(box.dir, 'web-b-from-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/b-candidate', bWorktree, oldHead);
   assert.match(fixtureJoin(box.run, bWorktree, 'web').out, /joined as web-/u);
-  assert.equal(box.run(bWorktree, 'claim', String(itemB)).code, 0);
+  const claimedB = box.run(bWorktree, 'claim', String(itemB));
+  assert.equal(claimedB.code, 0, claimedB.out + claimedB.err);
   const bHead = commitFile(box, bWorktree, 'web/b-candidate.txt', 'B candidate based on old A');
 
   const oldReview = join(box.dir, 'review-old-a');
