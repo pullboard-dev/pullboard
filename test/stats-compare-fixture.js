@@ -52,7 +52,7 @@ export function fixture(t, changes = entries()) {
   store.register(seed, { lane: 'core', path: join(root, 'builder') });
   store.register(seed, { lane: 'review', path: join(root, 'reviewer') });
   for (let n = 1; n <= 3; n++) store.addItem(seed, { by: 'coordinator', lane: 'core', title: `Window ${n}` });
-  const document = exportBoard(seed);
+  const document = store.exportBoard(seed);
   store.closeBoard(seed);
   const joins = document.tables.agent.map(agent => [0, agent.agent_id, 'join', null, { lane: agent.agent_lane }]);
   document.tables.event = [...joins, ...changes].map((entry, order) => ({ entry, order }))
@@ -62,7 +62,7 @@ export function fixture(t, changes = entries()) {
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = document.tables.event.length;
   // @pullboard-board-file journey: the CLI and authenticated API must read the imported private board.
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
-  importBoard(board, document);
+  store.importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   return { root, board, clock, history: () => store.events(board) };
 }
