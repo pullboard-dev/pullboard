@@ -11,8 +11,8 @@ import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureGit } from './fixture-child.js';
-import { itemWaits } from '../packages/queue/core.js';
-import { readyItems } from '../packages/queue/core.js';
+import { itemWaits } from '../packages/queue/index.js';
+import { readyItems } from '../packages/queue/index.js';
 
 /** Keep the board, Git and injected observation clock private to this case. */
 function fixture(t) {

@@ -5,7 +5,7 @@ import { itemFiles } from '../../items/index.js';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { wallLoadFactor } from '../../drive/core.js';
-import { readyItems } from '../../queue/core.js';
+import { readyItems } from '../../queue/index.js';
 
 /** The pre-index reference: every candidate against every item. */
 function naive(item, items) {
