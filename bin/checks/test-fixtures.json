@@ -182,8 +182,7 @@
     "model": 1
   },
   "packages/git/tests/git-provenance.test.js": {
-    "tempdir": 5,
-    "raw-board": 1
+    "tempdir": 2
   },
   "packages/items/tests/bar-native-session.test.js": {
     "model": 7,
@@ -524,9 +523,6 @@
   "packages/sync/tests/local-fetch.test.js": {
     "tempdir": 1
   },
-  "packages/transport/tests/tooling-pin-reuse.test.js": {
-    "raw-board": 1
-  },
   "packages/verify/tests/evidence.test.js": {
     "tempdir": 1
   },
@@ -761,6 +757,10 @@
   },
   "test/cells-inventory-incremental.test.js": {
     "tempdir": 1
+  },
+  "apps/lib/tests/checkout-authority-schema.test.js": {
+    "tempdir": 1,
+    "raw-board": 1
   },
   "apps/lib/tests/cells-inventory-producer.test.js": {
     "raw-board": 1
@@ -2290,7 +2290,7 @@
   "test/merged-idempotent.test.js": {
     "raw-board": 1
   },
-  "packages/git/tests/merged-plan-check.test.js": {
+  "packages/landing/tests/merged-plan-check.test.js": {
     "tempdir": 6
   },
   "test/milestone-placement.test.js": {
