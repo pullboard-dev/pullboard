@@ -1,16 +1,24 @@
 /** The gate dispatcher never exits on a kill it may not send (EPERM) or that meets a replaced process (ESRCH) [C7,#3727]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { handoffDispatcherLog, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { handoffDispatcherLog } from '../index.js';
+import { queueHandoffLaunch } from '../index.js';
+import { reserveHandoffTicket } from '../index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
-const DISPATCHER = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
-const RESOURCES = fileURLToPath(new URL('../packages/resources/index.js', import.meta.url));
+const DISPATCHER = fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url));
+const RESOURCES = fileURLToPath(new URL('../index.js', import.meta.url));
 
 /** A stand-in gate driver that records that it ran, then ends. */
 const WORKER = `const fs = require('node:fs');
