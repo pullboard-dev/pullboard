@@ -143,7 +143,9 @@ function verifiedItem(box, number, root = box.repo) {
   });
   writeFileSync(join(root, `web/item-${number}.txt`), `actual item ${number}\n`);
   box.git(root, 'add', '-A');
-  box.git(root, 'commit', '-q', '-m', `feat(web): retain fixture item ${number} [G1]`);
+  // A side checkout is no joined seat; this synthetic setup commit skips its hooks, as the shipped-source commits do.
+  const hooks = root === box.repo ? [] : ['-c', 'core.hooksPath=/dev/null'];
+  box.git(root, ...hooks, 'commit', '-q', '-m', `feat(web): retain fixture item ${number} [G1]`);
   const commit = box.git(root, 'rev-parse', 'HEAD').trim();
   const tree = box.git(root, 'rev-parse', 'HEAD^{tree}').trim();
   onBoard(box, board => {

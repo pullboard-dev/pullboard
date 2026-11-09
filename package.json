@@ -27,6 +27,7 @@
     "docs",
     "!docs/**/*.test.js",
     "!packages/*/tests/**",
+    "!apps/*/tests/**",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
