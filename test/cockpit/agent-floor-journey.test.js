@@ -57,7 +57,7 @@ before(async () => {
     'Sent back once', 'Ready one', 'Ready two', 'Ready three'];
   for (const title of titles) {
     box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture row shows on the agent floor.',
-      '--check', 'test -f pullboard.json', '--wait');
+      '--check', 'test -d web/', '--wait');
   }
   for (const id of [1, 2]) {
     build(box, alpha, id, `landed-${id}.txt`);

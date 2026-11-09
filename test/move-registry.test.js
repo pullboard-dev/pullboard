@@ -3,7 +3,7 @@
 /** @pullboard-test-loads src/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
-import './typed-request-registry.test.js';
+import '../apps/lib/tests/typed-request-registry.test.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
