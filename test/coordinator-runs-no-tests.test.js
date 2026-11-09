@@ -100,7 +100,7 @@ test('with gate.runnersOnly on and no runner free, each check queues to the runn
   assert.equal(existsSync(marker), false, 'no check fell back to a local process');
 });
 
-test('the landing guards smoke a tree its submit gate proved through the runner-dispatching smoke, never the local one [C7,#3011]', async () => {
+test('clause 1: the landing guards smoke a tree its submit gate proved through the runner-dispatching smoke, never the local one [C7,#3011]', async () => {
   const trunk = await import(pathToFileURL(resolve(import.meta.dirname, '../packages/landing/src/shell/landing-step-trunk.js')).href);
   const smoke = await import(pathToFileURL(resolve(import.meta.dirname, '../packages/landing/src/shell/landing-cli-smoke.js')).href);
   assert.equal(trunk.landingSmoke({}), smoke.smokeCandidate, 'with no stand-in the guards use smokeCandidate, which runs on a runner when gate.runnersOnly is on');
