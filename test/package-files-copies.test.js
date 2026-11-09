@@ -18,7 +18,7 @@ import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js
 import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
 import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
 import { runFixtureChild } from './fixture-child.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -414,9 +414,7 @@ test('controller provider freshness follows its real package composition, not un
 });
 
 test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
-  const helper = createE2eHelpers();
-  t.after(helper.cleanup);
-  const box = helper.sandbox();
+  const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   mkdirSync(project);
@@ -431,6 +429,8 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
     box.git(root, 'commit', '-q', '-m', 'test: private committed tooling bytes');
   }
   const marker = join(box.dir, 'ssh-attempt');
+  mkdirSync(join(box.dir, 'bin'));
+  box.env.PATH = `${join(box.dir, 'bin')}:${box.env.PATH}`;
   writeFileSync(join(box.dir, 'bin/ssh'), `#!/usr/bin/env node\nimport {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'called'); process.exit(255);\n`, { mode: 0o700 });
   // Each attempt reports why a transport refused, so a non-SSH failure cannot satisfy this control.
   let transportAttempt = 0;
