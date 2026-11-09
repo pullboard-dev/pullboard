@@ -12369,7 +12369,7 @@
       ]
     },
     {
-      "file": "test/ci.test.js",
+      "file": "packages/gate/tests/ci.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -16176,7 +16176,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/needs-data.test.js",
+      "file": "apps/view/tests/cockpit/needs-data.test.js",
       "tier": "T3",
       "packages": [
         "apps/view",
@@ -16686,7 +16686,7 @@
       ]
     },
     {
-      "file": "test/cockpit/pipeline-pure.test.js",
+      "file": "apps/view/tests/cockpit/pipeline-pure.test.js",
       "tier": "T3",
       "packages": [
         "apps/view",
