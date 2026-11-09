@@ -1,13 +1,8 @@
 /** Sandbox execution and immutable submission policy behind one named front door [C7,CD60]. */
+export * from './core.js';
 export {
-  executionEnvironment,
-  environmentLabel,
-  carriesLandingEnvironment,
   runtimeCaptureSource,
-  testRuntimeImport,
   testRuntimeOption,
-  bindTestRuntime,
-  captureTestRuntimes,
 } from './src/shell/execution-environment.js';
 export {
   mainRedBuildOffer,
@@ -25,8 +20,6 @@ export {
 export {
   sandboxBlockedScanner,
   sandboxBlockedOperation,
-  fileDenialWatcher,
-  remoteFileDenial,
 } from './src/shell/sandbox-denial.js';
 export {
   verifyOutsideSandbox,
@@ -51,12 +44,7 @@ export {
 } from './src/shell/source-advance.js';
 export {
   policyGit,
-  mainPolicy,
   policyAt,
-  RUNNER_POLICY_FILE,
-  validRunnerTrunk,
-  runnerPolicyRecord,
-  carriedRunnerTrunk,
   trunkRef,
 } from './src/shell/trusted-policy-read.js';
 export {
