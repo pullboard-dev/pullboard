@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fileFixtureItem } from './testkit-fixture.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { warmAcceptedCells } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
