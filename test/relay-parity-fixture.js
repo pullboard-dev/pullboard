@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { addMilestone } from '../packages/store/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../packages/pages/index.js';
@@ -57,7 +57,7 @@ function foreignBoardFixture(t, box) {
   const secret = 'Foreign board private title must never enter another board snapshot';
   let id;
   try {
-    store.ensureCoordinator(board, root);
+    store.board_ensureCoordinator(board, root);
     id = store.addItem(board, { by: 'coordinator', lane: box.lane, title: secret, criterion: 'Private second-board work' });
   } finally { store.closeBoard(board); }
   const own = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
