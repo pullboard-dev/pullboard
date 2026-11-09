@@ -8,7 +8,7 @@
  * them only at run time, never while the modules load, so the cycle is safe.
  */
 import { createHash } from 'node:crypto';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../state/index.js';
 import { Refused } from '../../../kernel/core.js';

@@ -4,7 +4,7 @@
  * cycle, as the checkpoint publisher is.
  */
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import * as conflictRecords from './relay-conflict-record.js';
 import {
   appliedSequence,

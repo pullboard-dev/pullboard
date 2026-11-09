@@ -1,7 +1,7 @@
 /** What blueprint commands report back: a blueprint's starters on this board and the rows that wait [S1,I1]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   blueprintMarker,
   bundledBlueprints,

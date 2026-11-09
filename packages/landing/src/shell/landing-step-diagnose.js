@@ -6,7 +6,7 @@ import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
