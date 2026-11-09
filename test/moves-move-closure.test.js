@@ -15,7 +15,7 @@ import { packageFiles } from '../packages/runners/index.js';
 import { assignEngineNumbers } from '../src/engine-numbers.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
-import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
 /** Build a tree whose move bodies live in the moves cell, with or without the src/moves shims. */
 function engineTree(t, shims) {

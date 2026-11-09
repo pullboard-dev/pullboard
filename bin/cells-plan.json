@@ -632,10 +632,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "bin/cells-move-closure.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/bar-corrections.js",
       "reason": "canonical engine identity retained in src during package moves"
     },

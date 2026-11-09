@@ -136,7 +136,6 @@
     "apps/lib/tests/coordinator-resume.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "apps/lib/tests/handoff-warm-checkout.test.js": "imports bin/gate-drive-worker.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/submit-handoff-worker.test.js": "imports test/submit-handoff-fixture.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/runner/tests/analysis-artifact-closure.test.js": "imports bin/cells-move-closure.js, outside its own cell apps/runner; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/view/tests/cockpit/state-fresh-after-write.test.js": "imports test/e2e-helpers.js, outside its own cell apps/view; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/api/tests/shout-item-cli.test.js": "imports apps/lib/index.js, outside its own cell api; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/blueprints/tests/blueprint-part-2.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
