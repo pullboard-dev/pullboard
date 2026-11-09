@@ -16,5 +16,5 @@ export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/core
 export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/shell/gate-drive.js';
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/core/gate-drive.js';
 export { createGateAdmission, gateDispatcherRow } from './src/shell/gate-admission.js';
-export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines } from './src/shell/test-run-queue.js';
+export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines } from './src/shell/test-run-queue.js';
 export * from './core.js';
