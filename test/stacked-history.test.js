@@ -73,7 +73,7 @@ function submittedSiblingHistory() {
 
   const oldReview = join(box.dir, 'review-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReview, oldHead);
-  joinSeat(box, oldReview, 'api');
+  joinSeat(box, oldReview, 'api', { model: FIXTURE_MODEL_EARLIER });
   const rejected = box.run(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'A old submitted head', '--note', 'revise A before acceptance', '--json');
   assert.equal(rejected.code, 0, rejected.out + rejected.err);
 
@@ -109,7 +109,7 @@ test('[V17,V1] accepting the latest sibling submission clears every historical s
   const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = submittedSiblingHistory();
   const latestReview = join(box.dir, 'review-latest-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', latestReview, latestAHead);
-  joinSeat(box, latestReview, 'api');
+  joinSeat(box, latestReview, 'api', { model: FIXTURE_MODEL_EARLIER });
   const accepted = box.run(latestReview, 'verify', String(itemA), 'accept', '--note', 'accepted A latest sibling head', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
