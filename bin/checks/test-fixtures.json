@@ -92,11 +92,11 @@
   "packages/gate/tests/shim-import-ratchet.test.js": {
     "hand-policy": 1
   },
-  "packages/commits/tests/landing-message.test.js": {
+  "test/landing-message.test.js": {
     "hand-policy": 1,
     "model": 1
   },
-  "packages/commits/tests/merge-hooks.test.js": {
+  "packages/doctrine/tests/merge-hooks.test.js": {
     "tempdir": 4,
     "hand-policy": 9
   },
@@ -184,7 +184,7 @@
   "packages/git/tests/git-provenance.test.js": {
     "tempdir": 2
   },
-  "packages/items/tests/bar-native-session.test.js": {
+  "test/bar-native-session.test.js": {
     "model": 7,
     "hand-policy": 1,
     "raw-board": 2
@@ -193,7 +193,7 @@
     "repo-read": 1,
     "tempdir": 1
   },
-  "packages/items/tests/item-offer.test.js": {
+  "packages/store/tests/item-offer.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -220,7 +220,7 @@
   "packages/link/tests/relay-lock.test.js": {
     "tempdir": 3
   },
-  "packages/link/tests/relay-stall-phases.test.js": {
+  "test/relay-stall-phases.test.js": {
     "tempdir": 1
   },
   "packages/outbox/tests/relay-checkpoint.test.js": {
@@ -1557,7 +1557,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/items/tests/family-stored-once.test.js": {
+  "packages/store/tests/family-stored-once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -2084,7 +2084,7 @@
     "raw-board": 2,
     "tempdir": 1
   },
-  "packages/items/tests/landing-runner-source-hold.test.js": {
+  "packages/landing/tests/landing-runner-source-hold.test.js": {
     "raw-board": 2,
     "tempdir": 2
   },
@@ -2373,7 +2373,7 @@
     "hand-policy": 2,
     "raw-board": 12
   },
-  "test/no-eligible-reviewer.test.js": {
+  "apps/lib/tests/no-eligible-reviewer.test.js": {
     "model": 4,
     "raw-board": 8
   },
@@ -2656,7 +2656,7 @@
   "test/relay-boundary.test.js": {
     "repo-read": 2
   },
-  "test/relay-browser-assets.test.js": {
+  "apps/relay/tests/relay-browser-assets.test.js": {
     "tempdir": 2
   },
   "test/relay-browser-client.test.js": {
@@ -3321,7 +3321,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "test/runner-worker-state.test.js": {
+  "packages/verify/tests/runner-worker-state.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
