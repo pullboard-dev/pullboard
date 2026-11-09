@@ -6,7 +6,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import {
   applyEngineMove,

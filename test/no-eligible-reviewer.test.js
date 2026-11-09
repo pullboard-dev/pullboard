@@ -3,7 +3,7 @@ import { refuseUnreviewable } from '../packages/verify/index.js';
 /** A strict item no active seat could review is refused at submit and named by the sentinel [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../packages/items/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import * as store from '../src/board.js';
+import * as store from '../index.js';
 
 /** Same-path independent edits split only when enabled; a disjoint item still rides the first batch. */
 export function assertCollisionFreeLanding({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }) {
