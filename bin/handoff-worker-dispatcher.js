@@ -2,7 +2,7 @@
 /** Keep machine handoff admission separate from the gate's exact process-identity provider [C7]. */
 import { exactStart } from '../packages/gate/index.js';
 import { finishAwaitingVerdicts } from '../packages/gate/index.js';
-import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, recordHandoffCap } from '../packages/resources/index.js';
+import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
 import { createGateAdmission, gateDispatcherRow, mainOwnedVerdictPorts } from '../packages/drive/index.js';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
@@ -194,6 +194,26 @@ export function reportDispatcherRetry(error, waitMs) {
   catch { /* an unwritable log still leaves stderr, and the retry itself still happens */ }
 }
 
+/** The argument that runs the detached recovery check a board command starts instead of the drain. */
+export const RECOVER_ARG = '--recover';
+
+/**
+ * Run the full recovery check once: relaunch the dispatcher from a queued launch's captured tooling when no live one
+ * holds the machine's lock. A board command starts this detached (its cheap heartbeat check saw no live dispatcher),
+ * so a failure is written to the dispatcher log, where nobody is waiting on stderr [C7].
+ *
+ * @param {{ recover?: typeof recoverHandoffDispatcher }} [ports]
+ * @returns {Promise<void>}
+ */
+export async function runRecoveryCheck({ recover = recoverHandoffDispatcher } = {}) {
+  try { await recover({ loadStartOf: async () => exactStart }); }
+  catch (error) {
+    try { appendFileSync(handoffDispatcherLog(), `${new Date().toISOString()} recovery check failed: ${error.code ?? error.name}: ${error.message}\n`, { mode: 0o600 }); }
+    catch { /* an unwritable log leaves the next command's check to try again */ }
+    process.exitCode = 1;
+  }
+}
+
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
-if (process.argv[1] === fileURLToPath(import.meta.url)) await runDispatcher();
+if (process.argv[1] === fileURLToPath(import.meta.url)) await (process.argv[2] === RECOVER_ARG ? runRecoveryCheck() : runDispatcher());
