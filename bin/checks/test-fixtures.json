@@ -2712,7 +2712,7 @@
     "tempdir": 5,
     "repo-read": 1
   },
-  "packages/kernel/tests/relay-device-http.test.js": {
+  "test/relay-device-http.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-http.test.js": {
@@ -2757,10 +2757,10 @@
   "test/relay-page-client.test.js": {
     "tempdir": 1
   },
-  "packages/kernel/tests/relay-page-store.test.js": {
+  "test/relay-page-store.test.js": {
     "tempdir": 1
   },
-  "packages/kernel/tests/relay-pages-http.test.js": {
+  "test/relay-pages-http.test.js": {
     "tempdir": 1
   },
   "test/relay-parity-clock.test.js": {

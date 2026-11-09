@@ -16,6 +16,18 @@ const SEAT_MODEL = 'Fixture model';
 const RELAXED_FREEZE = () => ({ text: JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 1 } } }), digest: 'relaxed-family-digest' });
 
 /**
+ * Record the fixture's submission, preparing it again when another connection committed in between.
+ * Why: the seats' background board writes land between the submit's preparation and its write on a loaded runner,
+ * and BOARD_BUSY says exactly to retry from the current snapshot; the recorded red run (flake evidence 06a2dd0e) failed with exactly this BOARD_BUSY in submitFixture [N2,V1].
+ */
+function submitSettled(board, id, options) {
+  for (let attempt = 1; ; attempt += 1) {
+    try { return submitFixture(board, id, options); }
+    catch (error) { if (error?.code !== 'BOARD_BUSY' || attempt >= 5) throw error; }
+  }
+}
+
+/**
  * A board whose review ratio is reached by one submission built by a Haiku seat, with one buildable item waiting.
  * The frozen relaxation threshold of 1 makes the same-family review offerable, as on a busy board with familyRelaxAt.
  */
@@ -42,7 +54,7 @@ function familyReviewBoard(t) {
   const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git', 'pullboard', 'board.sqlite'), web: box.repo });
   try {
     store.claim(board, review, { agentId: author.agent, lane: 'web', leaseMs: HOUR, freeze: RELAXED_FREEZE });
-    submitFixture(board, review, { agentId: author.agent, commit, tree });
+    submitSettled(board, review, { agentId: author.agent, commit, tree });
   } finally { store.closeBoard(board); }
   return { box, joinFamily, builder, review, build };
 }
