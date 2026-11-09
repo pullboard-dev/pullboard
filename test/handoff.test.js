@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { HANDOFF_ENGINE } from '../src/handoff-engine.js';
+import { HANDOFF_ENGINE } from '../packages/state/core.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';

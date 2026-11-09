@@ -15,7 +15,7 @@ import { context } from '../apps/cli/index.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
-import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
+import { REJECTED_WORK_RETURN_ENGINE } from '../packages/state/core.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

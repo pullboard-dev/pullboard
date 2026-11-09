@@ -1,7 +1,7 @@
-import { STRICT_RENAME_ENGINE } from '../../../../src/strict-rename-engine.js';
+import { STRICT_RENAME_ENGINE } from '../../../state/core.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
-import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
-import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
+import { REVIEW_DEFAULT_ENGINE } from '../../../state/core.js';
+import { REVIEW_TIER_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { readFileSync } from 'node:fs';
 import { itemPatches } from '../../../items/core.js';

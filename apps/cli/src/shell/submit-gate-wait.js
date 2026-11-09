@@ -8,7 +8,7 @@ import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { gateDriverEnded } from '../../../../packages/drive/index.js';
 import { gateDriverGone } from '../../../../packages/drive/index.js';
 import { readGateDrive } from '../../../../packages/drive/index.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { submitHandoffRoot } from '../../../../packages/sandbox/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Read one exact native job without retaining a board lock across a sleep or process observation. */

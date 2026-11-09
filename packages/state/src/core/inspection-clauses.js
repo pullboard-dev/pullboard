@@ -65,20 +65,44 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner);
   const problems = [];
+  const testClauses = [];
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick && gateNamedFile(clause, new Set([...gateFiles, ...greenFiles]), item)) continue;
-    if (!tick) problems.push(`${label} has no evidence`);
+    if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
     } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence) && !proven()) {
       problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
+      testClauses.push(clause);
     }
   }
   if (!problems.length) return null;
-  return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`);
+  const tickWith = `tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`;
+  if (!testClauses.length) return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${tickWith}`);
+  return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${testStep(item, testClauses).message} or ${tickWith}`, testStep(item, testClauses).next);
+}
+
+/**
+ * The one command that ticks an unticked test clause: pullboard check <id> when the item has a frozen check, since it runs
+ * the check and writes every test tick itself; otherwise pullboard test on a file a clause names.
+ * Why: two Haiku seats released #3544 and #3567 on 8 Nov after green test runs, because the old step said to hand-write a case name [C7].
+ *
+ * @param {object} item - The item row.
+ * @param {{ text: string }[]} testClauses - The unticked test clauses.
+ * @returns {{ message: string, next: string }}
+ */
+function testStep(item, testClauses) {
+  if (String(item.item_check ?? '').trim()) {
+    const command = `pullboard check ${item.item_id}`;
+    return { message: `run ${command}, which runs the frozen check and ticks every test clause`, next: `${command}, then submit again` };
+  }
+  // A path the clause quotes that names a test; no runner's file naming is spelled out in this core file.
+  const file = testClauses.flatMap(clause => clause.text.match(/[\w./-]+\/[\w.-]+\.[cm]?[jt]s/gu) ?? []).find(path => /test/u.test(path)) ?? null;
+  const command = file ? `pullboard test ${file}` : 'pullboard test <a test file the clause names>';
+  return { message: `run ${command}, then tick the clause with its green run`, next: `${command}, then tick the clause and submit again` };
 }
 
 /**

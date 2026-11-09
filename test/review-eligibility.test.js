@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
-import { VENDOR_FAMILY_ENGINE } from '../src/vendor-family-engine.js';
+import { VENDOR_FAMILY_ENGINE } from '../packages/state/core.js';
 import { canonicalFamily } from '../packages/verify/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
+import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
 import * as queueStore from '../packages/store/index.js';
 import { roadmap } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
@@ -11,10 +11,10 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { REVIEW_ROUTING_ENGINE } from '../src/review-routing-engine.js';
+import { REVIEW_ROUTING_ENGINE } from '../packages/state/core.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
 import { workQueue } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
@@ -24,8 +24,8 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { familyIndex } from '../packages/verify/index.js';
-import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { FAMILY_ALIAS_ENGINE } from '../packages/state/core.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 import { seatFamily } from '../packages/items/index.js';
 import { parentSessionDigest as parentSessionDigestOf } from '../packages/items/index.js';
 import { familyName } from '../packages/verify/index.js';
@@ -957,7 +957,7 @@ for (const [builderFamily, reviewerFamily] of [['openai', 'OpenAI'], ['codex', '
   }
 }
 
-import { SAME_FAMILY_REFUSAL_ENGINE } from '../src/same-family-refusal-engine.js';
+import { SAME_FAMILY_REFUSAL_ENGINE } from '../packages/state/core.js';
 
 test('same-vendor refusal keeps its historical code before the new engine [V4,B26,H16]', t => {
   const f = fixture(t);

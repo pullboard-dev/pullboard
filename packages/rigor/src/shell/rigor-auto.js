@@ -19,7 +19,7 @@ import {
   conflictReport,
   splitProposal,
 } from './rigor-conflicts.js';
-import { NATIVE_FLAKE_ENGINE } from '../../../../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../../../state/core.js';
 import {
   automaticDecisionSource,
   automaticRigorSource,
@@ -27,8 +27,8 @@ import {
   readAutomaticRigorSource,
   rigorDecisionKey,
 } from '../../../../src/board-rigor-auto-source.js';
-import { RIGOR_AUTO_ENGINE } from '../../../../src/rigor-auto-engine.js';
-import { REOPEN_CAUSE_ENGINE } from '../../../../src/reopen-cause-engine.js';
+import { RIGOR_AUTO_ENGINE } from '../../../state/core.js';
+import { REOPEN_CAUSE_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { conflictCause } from '../../../items/index.js';
 import { recordCoordinatorInstructionDrafts } from './rigor-broadcasts.js';

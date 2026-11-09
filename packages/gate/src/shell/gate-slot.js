@@ -147,6 +147,16 @@ export function settleReceipt(lease) {
   return lease.receipt;
 }
 
+/**
+ * Whether this machine's settings say gate.runnersOnly: then no runner failure or refusal falls back to a local run.
+ * Why: on 8 Nov 15 gates on one machine reran their tests locally after a runner refused them, at load 78 (#3898).
+ *
+ * @returns {boolean}
+ */
+function machineRunnersOnly() {
+  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
+}
+
 /** Run work under the machine queue: landings first, then every other eligible waiter in arrival order.
  * Local executors wait while this machine is out of memory; remote runners keep admitting.
  *
@@ -185,7 +195,8 @@ export async function withGateSlot(root, action, options = {}) {
       if (result && typeof result === 'object') result.runnerAttempt = attempt;
       return result;
     }
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
+    // On a gate.runnersOnly machine a runner's refusal never becomes a local rerun: the run ends and the gate requeues (#3898).
+    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh' || machineRunnersOnly()) throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
     const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
@@ -454,12 +465,12 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
               : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
                 : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
-        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
         const retryStart = Date.now();
         if (waitMs > 0) await retryPolicy.sleep(waitMs);
         try {
           lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
-            local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
+            local: cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
             infrastructureRetryCount: boundedRetry ? infrastructureAttempts.length : 0,
             infrastructureAttempts: [...infrastructureAttempts] });
         } catch (requeueError) {

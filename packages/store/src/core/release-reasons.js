@@ -2,8 +2,8 @@ import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 /** The fixed reasons a release names, kept free of board imports so the release path loads without a cycle [C7]. */
 import { Refused } from "../../../kernel/index.js";
-import { INFRA_RELEASE_ENGINE } from '../../../../src/infra-release-engine.js';
-import { TAKEN_OVER_RELEASE_ENGINE } from '../../../../src/taken-over-release-engine.js';
+import { INFRA_RELEASE_ENGINE } from '../../../state/core.js';
+import { TAKEN_OVER_RELEASE_ENGINE } from '../../../state/core.js';
 
 /** The fixed list a release names; OTHER alone carries free text in the release note. */
 export const RELEASE_REASONS = Object.freeze(['INELIGIBLE', 'ROUTED_ELSEWHERE', 'BLOCKED', 'BUDGET', 'TAKEN_OVER', 'DIAGNOSIS_WRONG', 'INFRA', 'OTHER']);

@@ -36,8 +36,8 @@ function commit(root, message) {
 
 /** Add one source move, one engine leaf and no shared registry or history edit. */
 function addFeature(root, name, symbol) {
-  writeFileSync(join(root, `src/${name}-engine.js`), `import { unassignedEngine } from './engine-next.js';\nexport const ${symbol} = unassignedEngine();\n`);
-  writeFileSync(join(root, `packages/moves/src/core/moves/${name}.js`), `import { ${symbol} } from '../../../../../src/${name}-engine.js';
+  writeFileSync(join(root, `packages/state/src/core/engines/${name}-engine.js`), `import { unassignedEngine } from './engine-next.js';\nexport const ${symbol} = unassignedEngine();\n`);
+  writeFileSync(join(root, `packages/moves/src/core/moves/${name}.js`), `import { ${symbol} } from '../../../../state/src/core/engines/${name}-engine.js';
 /** Return this feature's discovered engine without changing a shared number. */
 function minimumEngine() { return ${symbol}; }
 /** Bind the explicit options actor. */
@@ -57,10 +57,12 @@ export function installRegistryMergeCase() {
     mkdirSync(join(root, 'src', 'moves'), { recursive: true });
     mkdirSync(join(root, 'src', 'move-history'));
     writeFileSync(join(root, 'src', 'move-history', 'legacy.json'), '{}');
-    writeFileSync(join(root, 'src', 'base-engine.js'), 'export const BASE_ENGINE = 148;\n');
+    const engines = join(root, 'packages', 'state', 'src', 'core', 'engines');
+    mkdirSync(engines, { recursive: true });
+    writeFileSync(join(engines, 'base-engine.js'), 'export const BASE_ENGINE = 148;\n');
     /** Build a leaf placeholder without importing any candidate module. */
     const pending = name => `import { unassignedEngine } from './engine-next.js';\nexport const ${name}_ENGINE = unassignedEngine();\n`;
-    writeFileSync(join(root, 'src', 'alpha-engine.js'), pending('ALPHA'));
+    writeFileSync(join(engines, 'alpha-engine.js'), pending('ALPHA'));
     const source = "throw new Error('CANDIDATE_SOURCE_MUST_NEVER_EXECUTE');\n";
     writeFileSync(join(root, 'src', 'moves', 'sample.js'), source);
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'ALPHA_ENGINE', number: 149 }]);
@@ -68,19 +70,19 @@ export function installRegistryMergeCase() {
     assert.equal(JSON.parse(frozen).declarations['sample.js'], source, 'the producer freezes bytes without evaluating declarations');
     writeFileSync(join(root, 'outside.txt'), 'PRIVATE_FIXTURE_CONTENT');
     symlinkSync(join(root, 'outside.txt'), join(root, 'src', 'moves', 'external.js'));
-    writeFileSync(join(root, 'src', 'beta-engine.js'), pending('BETA'));
+    writeFileSync(join(engines, 'beta-engine.js'), pending('BETA'));
     assert.throws(() => assignEngineNumbers(root), /regular move declaration/u, 'a candidate symlink cannot copy unrelated local bytes into history');
     assert.equal(existsSync(join(root, 'src', 'move-history', '150.json')), false, 'the refused source is never persisted in a record');
-    assert.equal(readFileSync(join(root, 'src', 'beta-engine.js'), 'utf8'), pending('BETA'), 'source refusal restores the exact placeholder bytes');
+    assert.equal(readFileSync(join(engines, 'beta-engine.js'), 'utf8'), pending('BETA'), 'source refusal restores the exact placeholder bytes');
     unlinkSync(join(root, 'src', 'moves', 'external.js'));
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'BETA_ENGINE', number: 150 }], 'fixing the source permits an ordinary retry');
     assert.equal(JSON.parse(readFileSync(join(root, 'src', 'move-history', '150.json'), 'utf8')).engine, 150);
-    writeFileSync(join(root, 'src', 'gamma-engine.js'), pending('GAMMA'));
+    writeFileSync(join(engines, 'gamma-engine.js'), pending('GAMMA'));
     const collision = join(root, 'src', 'move-history', '151.json');
     writeFileSync(collision, 'EXISTING_RECORD_BYTES');
     assert.throws(() => assignEngineNumbers(root), { code: 'EEXIST' }, 'allocation never overwrites an existing record');
     assert.equal(readFileSync(collision, 'utf8'), 'EXISTING_RECORD_BYTES');
-    assert.equal(readFileSync(join(root, 'src', 'gamma-engine.js'), 'utf8'), pending('GAMMA'), 'record collision restores the exact placeholder too');
+    assert.equal(readFileSync(join(engines, 'gamma-engine.js'), 'utf8'), pending('GAMMA'), 'record collision restores the exact placeholder too');
     unlinkSync(collision);
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'GAMMA_ENGINE', number: 151 }], 'resolving the collision permits an ordinary retry');
 
@@ -122,7 +124,7 @@ export function installRegistryMergeCase() {
     assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
     const allocatedOutput = run(root, process.execPath, ['--test', '--test-reporter=tap', 'test/move-registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
     assert.match(allocatedOutput, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
-    const leaves = readEngineLeaves(join(root, 'src'));
+    const leaves = readEngineLeaves(join(root, 'packages', 'state', 'src', 'core', 'engines'));
     const git = (...args) => run(root, 'git', args);
     const frozen = `src/move-history/${numbers[0]}.json`;
     const bytes = readFileSync(join(root, frozen), 'utf8');

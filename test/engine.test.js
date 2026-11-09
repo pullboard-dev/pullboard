@@ -676,9 +676,9 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   assert.ok(entries.length > 0, 'the registry names at least one feature engine');
   for (const [name, engine] of entries) assert.ok(Number.isSafeInteger(engine) && engine > 0, `feature ${name} declares a positive whole engine number`);
   assert.equal(ENGINE_VERSION, Math.max(...entries.map(([, engine]) => engine)), 'the engine version is the highest number any feature declares');
-  const source = new URL('../src/', import.meta.url);
+  const source = new URL('../packages/state/src/core/engines/', import.meta.url);
   const files = readdirSync(source).filter((file) => /-engine\.js$/u.test(file));
-  assert.deepEqual(Object.keys(ENGINE_REGISTRY), files.map((file) => file.slice(0, -'-engine.js'.length)).sort(), 'every src/*-engine.js leaf is a feature engine, discovered by its file name');
+  assert.deepEqual(Object.keys(ENGINE_REGISTRY), files.map((file) => file.slice(0, -'-engine.js'.length)).sort(), 'every engines-folder *-engine.js leaf is a feature engine, discovered by its file name');
   const declarations = files.map(file => {
     const text=readFileSync(new URL(file, source),'utf8');
     const lines=text.split('\n').filter(line=>/^export const /u.test(line));
@@ -733,7 +733,7 @@ test('engine 93 item messages replay and older broadcasts keep their recorded me
 
 test('outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
   const { createHash } = await import('node:crypto');
-  const { OUTSIDE_INTAKE_ENGINE } = await import('../src/outside-intake-engine.js');
+  const { OUTSIDE_INTAKE_ENGINE } = await import('../packages/state/core.js');
   const { copies: [one, two] } = engineCopies(t);
   // These object IDs exercise deterministic storage only; no outside program or sandbox execution is claimed.
   const text = JSON.stringify({ title: 'Outside replay fixture', criterion: 'record the source', rows: [], check: 'true' });

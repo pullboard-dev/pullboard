@@ -70,7 +70,7 @@ async function assertCopiedChangelog(image) {
   const shipped = readFileSync(join(ROOT, 'CHANGELOG.md'));
   const copied = readFileSync(join(image, 'CHANGELOG.md'));
   assert.deepEqual(copied, shipped, 'the production image includes byte-identical shipped release notes');
-  const runtimeChangelog = await import(pathToFileURL(join(image, 'src/release-headlines.js')).href);
+  const runtimeChangelog = await import(pathToFileURL(join(image, 'packages/config/index.js')).href);
   assert.deepEqual(
     runtimeChangelog.releaseHeadlinesBetween('0.0.0', '99.99.99'),
     releaseHeadlinesBetween('0.0.0', '99.99.99'),

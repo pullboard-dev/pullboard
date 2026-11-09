@@ -1,8 +1,8 @@
-import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
-import { PATCH_FOLLOW_ENGINE } from "../../../../../src/patch-follow-engine.js";
+import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/core.js";
+import { PATCH_FOLLOW_ENGINE } from "../../../../state/core.js";
 import { itemPatchRecords } from "../../../../items/core.js";
 /** Native coordinator patch inputs preserve source and author authority [V4,H16]. */
-import { ITEM_PATCH_ENGINE } from "../../../../../src/item-patch-engine.js";
+import { ITEM_PATCH_ENGINE } from "../../../../state/core.js";
 /** Old engines must never interpret new patch payloads. */
 function minimumEngine(args, board) {
   if (board && itemPatchRecords(board, args[0]).some(record => record.attachedCommit)) return PATCH_FOLLOW_ENGINE;

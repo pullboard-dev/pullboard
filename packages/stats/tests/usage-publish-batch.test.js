@@ -12,7 +12,7 @@ import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { storedSeatUsage } from '../src/shell/cost.js';
 import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
-import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
+import { USAGE_BATCH_ENGINE } from '../../state/core.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { applyEngineMove } from '../../state/index.js';
 import { declaredMoveActor } from '../../moves/index.js';

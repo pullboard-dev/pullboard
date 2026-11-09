@@ -1,8 +1,8 @@
 /** Append-only withdrawal bindings and derived review-history annotations [V2,V6,H16]. */
 import { Refused } from '../../../kernel/index.js';
-import { VERDICT_WITHDRAW_ENGINE } from '../../../../src/verdict-withdraw-engine.js';
+import { VERDICT_WITHDRAW_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../src/merge-only-verdict-engine.js';
+import { MERGE_ONLY_VERDICT_ENGINE } from '../../../state/core.js';
 
 /** Pair immutable verdict rows with their corresponding immutable acceptance/rejection events. */
 function verdictPairs(board, id) {

@@ -1,7 +1,7 @@
 import { checkTimingEngine } from "../../../../items/core.js";
 import { itemReviewPolicy } from "../../../../verify/src/core/review-policy.js";
-import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../../src/review-independence-engine.js";
-import { PRIVATE_REHOME_ENGINE } from "../../../../../src/private-rehome-engine.js";
+import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/core.js";
+import { PRIVATE_REHOME_ENGINE } from "../../../../state/core.js";
 
 /** Preserve the ordered source move ID in its arguments for idempotent destination application. */
 function minimumEngine(args, board) { return Math.max(checkTimingEngine(board, args[0]), board && itemReviewPolicy(board, args[0]).tier === 'strict' ? Math.max(PRIVATE_REHOME_ENGINE, REVIEW_INDEPENDENCE_ENGINE) : PRIVATE_REHOME_ENGINE); }

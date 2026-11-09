@@ -40,7 +40,7 @@ import {
 } from "../../../items/index.js";
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
   if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.claimHealthSnapshot !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
   const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
@@ -86,7 +86,11 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         const verdictState = freshness(item);
         return verdictState ? { ...projected, verdictState } : projected;
       }
-      return previous.items.get(item.item_id);
+      // A trunk move changes only whether each verdict is still fresh, so a kept item takes its verdict state again [C7].
+      if (!refreshVerdicts) return previous.items.get(item.item_id);
+      const { verdictState: _stale, ...kept } = previous.items.get(item.item_id);
+      const verdictState = freshness(item);
+      return verdictState ? { ...kept, verdictState } : kept;
     } });
     const progressById = workProgress(board);
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
@@ -141,7 +145,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       dependencies: currentDependencies.get(item.item_id) ?? [],
       milestone: milestoneNames.get(item.item_id) ?? null,
     }]));
-    const history = store.events(board);
+    const history = recordedHistory(board, previousHistory);
     // Both native and sealed relay readers use this exact recorded-history projection.
     listFields.state.statsPipeline = pipelineStats(history);
     const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
@@ -151,6 +155,19 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     try { board.db.exec('ROLLBACK'); } catch { /* Preserve the projection failure. */ }
     throw error;
   }
+}
+
+/**
+ * The board's whole event history, in order: the kept history of the last build extended by the events after it.
+ * Why keep it: the log only grows, and every derived projection memoizes per event row, so rows read again each build
+ * were decoded again each build. A kept prefix that no longer matches the board (fewer or other rows) is read anew.
+ */
+function recordedHistory(board, kept) {
+  if (!Array.isArray(kept) || !kept.length) return store.events(board);
+  const last = kept.at(-1).event_id;
+  const prefix = board.db.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(event_id), 0) AS id FROM event WHERE event_id <= ?').get(last);
+  if (prefix.n !== kept.length || prefix.id !== last) return store.events(board);
+  return kept.concat(board.db.prepare('SELECT * FROM event WHERE event_id > ? ORDER BY event_id').all(last));
 }
 
 /** Parse an item's ordered prerequisite IDs from its persisted row. */

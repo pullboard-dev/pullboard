@@ -22,7 +22,8 @@ import { IN_STATE } from "../../../state/index.js";
 import { MOVES } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { listAgents } from "./board-query.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../state/core.js";
+import { CONFLICT_ENGINE } from "../../../state/core.js";
 import { causeProblem } from "../core/board-rigor.js";
 import { conflictDetail } from "../../../merge/index.js";
 import { conflictProblem } from "../../../merge/index.js";
@@ -98,7 +99,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
           return null;
         },
         trunkConflicts: null,
-        conflictAccepted: (found) => (forMerge ? conflictProblem(board, found, conflict, (accept) => { supersedes = accept; }) : null),
+        conflictAccepted: (found) => (forMerge ? conflictProblem(board, found, conflict, (accept) => { supersedes = accept; }, CONFLICT_ENGINE) : null),
       },
       set: (found) => {
         submittedCommit = found.item_commit;

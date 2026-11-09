@@ -11,7 +11,7 @@
  * session through its checkout binding, so nothing here applies to it (#347).
  */
 import { COORDINATOR } from '../../../config/index.js';
-import { COORDINATOR_HOLD_ENGINE } from '../../../../src/coordinator-hold-engine.js';
+import { COORDINATOR_HOLD_ENGINE } from '../../../state/core.js';
 import { Refused } from '../../../kernel/index.js';
 import { computerName } from '../core/computer-name.js';
 import { HOLDER_KEY } from '../core/coordinator-holder.js';
@@ -20,7 +20,7 @@ import { coordinatorHolder } from '../core/coordinator-holder.js';
 import { machineOf } from '../core/coordinator-holder.js';
 
 export { computerLabel, coordinatorHolder };
-import { COMPUTER_NAME_ENGINE } from '../../../../src/computer-name-engine.js';
+import { COMPUTER_NAME_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 
 const MACHINE = /^[A-Za-z0-9_.-]{1,128}$/u;

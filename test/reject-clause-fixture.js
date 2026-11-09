@@ -1,7 +1,7 @@
 /** Faithful clause-bearing defaults for the existing board verdict fixture [V6,H16]. */
 import * as store from '../packages/store/index.js';
 import assert from 'node:assert/strict';
-import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
+import { REJECT_CLAUSE_ENGINE } from '../packages/state/core.js';
 
 /**
  * A verdict with the defaults a correct verifier would pass.

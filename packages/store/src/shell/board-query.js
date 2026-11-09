@@ -1,4 +1,4 @@
-import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
@@ -35,7 +35,7 @@ import { reopenCauseCorrection } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 import { boardDataVersion } from "./board-data-version.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
