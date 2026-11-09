@@ -7,7 +7,6 @@
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],
-  ["src/help/setup.js","apps/view/src/shell/help/setup.js","imports"],
   ["src/needs-state.js","apps/view/src/shell/needs-state.js","seed"],
   ["src/needs-summary.js","apps/view/src/core/needs-summary.js","seed"],
   ["src/resume-needs.js","apps/view/src/core/resume-needs.js","seed"],
