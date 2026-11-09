@@ -558,7 +558,7 @@ test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
     assert.equal(gateJudgmentPath(`src/${name}.js`), true);
     assert.equal(gateJudgmentPath(`apps/lib/src/shell/${name}.js`), true);
   }
-  assert.equal(gateJudgmentPath('apps/lib/src/shell/cli-hook-work.js'), false);
+  assert.equal(gateJudgmentPath('apps/cli/src/shell/cli-hook-work.js'), false);
 });
 
 test('cli move preserves strict tier on every previously strict body, and only those [V4,B26,C7]', () => {

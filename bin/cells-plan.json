@@ -1561,10 +1561,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "src/cli-hook-work.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "src/relay-sender-main.js",
       "cell": "app:lib"
     },
@@ -2005,6 +2001,8 @@
     "rigor->store",
     "(root)->store",
     "(root)->doctrine",
+    "apps/cli->seats",
+    "apps/cli->store",
     "person->doctrine",
     "blueprints->doctrine"
   ]

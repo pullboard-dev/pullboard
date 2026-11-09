@@ -664,7 +664,7 @@
       "cells": 18,
       "deep": 0
     },
-    "apps/lib/src/shell/cli-hook-work.js": {
+    "apps/cli/src/shell/cli-hook-work.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4301,10 +4301,6 @@
       "deep": 0
     },
     "src/cli-main.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-presence.js": {
       "cells": 1,
       "deep": 0
     },

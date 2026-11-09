@@ -69,7 +69,7 @@ async function timed(box, cwd, ...argv) {
   const startedAt = performance.now();
   try {
     const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href),
-      hookWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js'),
+      hookWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js'),
       /** Launch only the released sender actually requested by this command. */
       launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };

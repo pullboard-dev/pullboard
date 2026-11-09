@@ -50,7 +50,7 @@ export function launchRelaySender(root, env) {
 export async function relaySenderIo(root, io = {}) {
   const { relayOutboxSetting } = await import('../../../../src/cli.js');
   const loadNativeBoard = () => import('../core/native-board.js');
-  const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
+  const hookWorker = fileURLToPath(new URL('../../../cli/src/shell/cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url));
   const nativeBoard = await loadNativeBoard();
   return { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };;
@@ -60,7 +60,7 @@ export async function relaySenderIo(root, io = {}) {
 async function serve(root, file, io) {
   const { syncRelay } = await import('../../../../packages/link/index.js');
   const loadNativeBoard = () => import('../core/native-board.js');
-  const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
+  const hookWorker = fileURLToPath(new URL('../../../cli/src/shell/cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url));
   const boardIo = await relaySenderIo(root, io);
   await syncRelay(root, boardIo);

@@ -5,17 +5,17 @@ import { work } from '../../../../packages/seats/index.js';
 
 /** Refresh only the private presence sidecar before ordinary read-only context. */
 async function heartbeat() {
-  const { heartbeatCommand } = await import('../../../../src/cli-presence.js');
+  const { heartbeatCommand } = await import('./cli-presence.js');
   heartbeatCommand({ cwd: process.cwd(), err: text => process.stderr.write(text + '\n') });
 }
 
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
-  const { main } = await import('../../../../src/cli.js');
-  const { launchRelaySender } = await import('./relay-sender-main.js');
+  const { main } = await import('./cli.js');
+  const { launchRelaySender } = await import('../../../lib/index.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
-    loadNativeBoard: () => import('../core/native-board.js'), hookWorker: HOOK_WORKER,
-    submitHandoffWorker: fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url)), launchRelaySender,
+    loadNativeBoard: () => import('../../../lib/index.js'), hookWorker: HOOK_WORKER,
+    submitHandoffWorker: fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url)), launchRelaySender,
     // Heartbeat is an internal observation, not part of the hook's context payload.
     stdout: args[0] === 'heartbeat' ? { write() {} } : process.stdout,
     stderr: process.stderr, stdin: process.stdin });
@@ -23,10 +23,10 @@ async function dispatch(args) {
 
 /** Warn only when committed work has advanced beyond this seat's recorded claim head. */
 async function inspect() {
-  const { repoInfo, headCommit, tryGit } = await import('../../../../src/git.js');
+  const { repoInfo, headCommit, tryGit } = await import('../../../../packages/git/index.js');
   const { join } = await import('node:path');
   const store = await import('../../../../packages/store/index.js');
-  const { openBoardForRead } = await import('../core/native-board.js');
+  const { openBoardForRead } = await import('../../../lib/index.js');
   const info = repoInfo(process.cwd());
   const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) return;
