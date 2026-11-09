@@ -1,2 +1,4 @@
-/** Preserve this process entry: it loads its own moved body, outside the apps/runner front door [C7]. */
-export { workerState } from '../apps/runner/src/shell/runner-worker.js';
+/** Pinned runner worker entry: its bytes prove the tooling identity [C7]. */
+import { runnerWorker } from '../apps/runner/core.js';
+
+runnerWorker(process.argv);
