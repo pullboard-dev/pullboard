@@ -92,7 +92,7 @@
   "packages/gate/tests/shim-import-ratchet.test.js": {
     "hand-policy": 1
   },
-  "packages/commits/tests/landing-message.test.js": {
+  "test/landing-message.test.js": {
     "hand-policy": 1,
     "model": 1
   },
@@ -220,7 +220,7 @@
   "packages/link/tests/relay-lock.test.js": {
     "tempdir": 3
   },
-  "packages/link/tests/relay-stall-phases.test.js": {
+  "test/relay-stall-phases.test.js": {
     "tempdir": 1
   },
   "packages/outbox/tests/relay-checkpoint.test.js": {
@@ -1604,7 +1604,7 @@
     "tempdir": 2,
     "raw-board": 8
   },
-  "test/focus-reviews-finished-work.test.js": {
+  "packages/store/tests/focus-reviews-finished-work.test.js": {
     "raw-board": 3
   },
   "test/gate-admission-p95-fixture.js": {
@@ -1922,7 +1922,7 @@
     "tempdir": 2,
     "repo-read": 2
   },
-  "test/known-main-running-file.test.js": {
+  "packages/store/tests/known-main-running-file.test.js": {
     "raw-board": 4
   },
   "packages/landing/tests/known-main-signature-normalize.test.js": {
@@ -2367,7 +2367,7 @@
     "hand-policy": 2,
     "raw-board": 12
   },
-  "test/no-eligible-reviewer.test.js": {
+  "apps/lib/tests/no-eligible-reviewer.test.js": {
     "model": 4,
     "raw-board": 8
   },
@@ -3315,7 +3315,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "test/runner-worker-state.test.js": {
+  "packages/verify/tests/runner-worker-state.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
