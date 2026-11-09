@@ -28,7 +28,9 @@ import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
@@ -60,7 +62,7 @@ const ENTRY_POINTS = [
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
+  { verbs: ['escalate'], at: ['../packages/store/src/core/board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },
@@ -97,9 +99,10 @@ const CAUGHT = {
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  // Machine-verified submit lands after its record, and that landing call is caught like verify's.
   // The same catches as reached at the CLI's moved source (#2886).
-  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
@@ -243,7 +246,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
-    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', '../packages/gate/src/shell/gate-submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -417,7 +420,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -456,7 +459,7 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('clause 1: every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+test('clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
   const problems = codeProblems(machineRules.MACHINE);
   assert.deepEqual(problems, []);
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
@@ -565,6 +568,8 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
       'MOON_PHASE is raised by accept and reject but not declared there',
       'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
+      // Submit starts the companion objection window, which reads the same rigor sources (#2540).
+      'MOON_PHASE is raised by submit but not declared there',
     ], 'the native summary fact keeps release in the rigor-source refusal audit alongside existing lifecycle moves');
   }
 
@@ -665,6 +670,20 @@ function submittedItem(board, options = {}) {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', ...options });
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
   submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
+  return id;
+}
+
+/**
+ * A submitted item whose queued gate has no captured proof receipt, so a reviewer finds GATE_PENDING.
+ *
+ * @param {any} board
+ * @returns {number}
+ */
+function gatePendingItem(board) {
+  const id = submittedItem(board);
+  const item = store.getItem(board, id);
+  recordSubmitHandoff(board.db, id, { version: 1, id: `job-pending-${id}`, agentId: 'web-1', commit: item.item_commit,
+    executionCommit: item.item_commit, executionTree: item.item_tree, digest: item.item_frozen_digest, state: 'running' });
   return id;
 }
 
@@ -864,9 +883,9 @@ const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
   submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'clausesInspected', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'noUnverifiedStack'],
-  reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
-  reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent'],
+  reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'companionWindow'],
+  accept: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
+  reject: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent'],
 };
 
 
@@ -998,6 +1017,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     verdictOn(board, landed, 'web-2', 'ACCEPT');
     store.merged(board, landed, { agentId: 'coordinator', commit: SHA_A });
     const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
+    const pending = gatePendingItem(board);
     store.reserveReview(board, built, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
     const judge = (id, agentId, fields) =>
       outcome(() => store.verify(board, id, { agentId, decision, head: SHA_A, digest: 'wrong', policy: 'coordinator', note: '', review: { commit: SHA_A, head: SHA_A, trunk: SHA_B, paths: ['web/page.js'] }, ...fields }));
@@ -1006,6 +1026,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
     const fired = [
       judge(999, 'web-2', { reason: bad }),
       judge(open, 'web-2', { reason: bad }),
+      judge(pending, 'web-2', { reason: bad }),
       judge(landed, 'web-2', { reason: bad }),
       judge(built, 'web-2', { reason: bad, review: null }),
       judge(built, 'web-1', { reason: bad }),
@@ -1040,15 +1061,16 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   const vendorOnly = submittedItem(board, { sensitive: true });
   const open = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const reserveAs = (id, agentId, policy = 'coordinator', familyPolicy = 'off') => outcome(() => store.reserveReview(board, id, { agentId, leaseMs: 3_600_000, policy, familyPolicy }));
+  const pending = gatePendingItem(board);
   const cooling = submittedItem(board);
   store.reserveReview(board, cooling, { agentId: 'web-2', leaseMs: 3_600_000, policy: 'any' });
   store.release(board, cooling, 'web-2', 'another reviewer should take it', undefined, 'OTHER');
-  const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
+  const fired = [reserveAs(999, 'web-2'), reserveAs(open, 'web-2'), reserveAs(pending, 'web-2'), reserveAs(cooling, 'web-2'), reserveAs(built, 'web-1'), reserveAs(built, light), reserveAs(built, 'web-2'), reserveAs(built, other, 'any')];
   fired.push(reserveAs(vendorOnly, otherVendor, 'any', 'require'));
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'reserve'), 'ok']);
-  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'SAME_FAMILY', 'REVIEW_HELD', 'ok']);
+  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'GATE_PENDING', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'SAME_FAMILY', 'REVIEW_HELD', 'ok']);
 });
 
 test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {
@@ -1059,6 +1081,8 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   const id = submittedItem(board);
   const minutes = (count) => {
     at += count * 60_000;
+    // A reservation holds only while its reviewer's seat is alive, so both reviewers keep beating as the clock moves.
+    for (const seat of ['web-2', third]) heartbeatSeat(board, seat);
   };
   const reserve = (agentId) => store.reserveReview(board, id, { agentId, leaseMs: 30 * 60_000, policy: 'any' });
   const judge = (agentId, decision) =>
@@ -1153,7 +1177,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
       // Each seat declares its model; the builder's family differs so its peers may review it.
-      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
+      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model', '--route', 'strong');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });

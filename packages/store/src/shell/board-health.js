@@ -1,5 +1,5 @@
 import { hasPendingDispatchNotices } from "../core/board-health-receipts.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 /** Health mutation extracted without changing its transaction or notice order [A6]. */
 import { ENGINE_VERSION } from "../../../state/index.js";
 import {
@@ -16,9 +16,9 @@ import { HEALTH_SENTINEL_ENGINE } from "../core/board-health-receipts.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { PERSON } from "./board-query.js";
 
-import { CPU_SENTINEL_ENGINE } from "../../../../src/cpu-sentinel-engine.js";
+import { CPU_SENTINEL_ENGINE } from "../../../state/core.js";
 import { hasPendingCpuNotices } from "../core/board-health-receipts.js";
-import { REJECTED_WORK_RETURN_ENGINE } from "../../../../src/rejected-work-return-engine.js";
+import { REJECTED_WORK_RETURN_ENGINE } from "../../../state/core.js";
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
 export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false }, { atomic, insertShout, normalizedDispatch, rejectedWorkReturns }) {
   return atomic(board, () => {

@@ -19,6 +19,7 @@ const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const LOCAL_FIRST = new URL('../packages/link/index.js', import.meta.url).href;
 const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
+const OPENERS = new URL('./board-fixture.js', import.meta.url).href;
 // Budget: each real reply waits below the unchanged production ten-second per-request deadline.
 const RESPONSE_HOLD_MS = 5000;
 const MOVES = 26; // Twenty-six genuine queued moves keep one flush awaiting I/O beyond the real two-minute claim window.
@@ -41,7 +42,8 @@ function commitDefault(root, env) {
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   writeFileSync(join(env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: root, env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): keep the production sender default'], { cwd: root, env });
+  // --allow-empty: a project whose committed config already has no relay.outbox changes nothing, and that is the default being kept.
+  runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'chore(config): keep the production sender default'], { cwd: root, env });
 }
 
 /** Run the real CLI during unlinked setup without enabling the sender before both boards are ready. */
@@ -159,7 +161,8 @@ async function queueMoves(box) {
   const source = `
     const { relayOperation } = await import(${JSON.stringify(RELAY)});
     const { relayOutboxSetting } = await import(${JSON.stringify(POLICY)});
-    const io = { err() {}, relayOutbox: () => relayOutboxSetting(process.cwd()) };
+    const { apiBoardOpeners } = await import(${JSON.stringify(OPENERS)});
+    const io = { ...apiBoardOpeners, err() {}, relayOutbox: () => relayOutboxSetting(process.cwd()) };
     for (let index = 0; index < ${MOVES}; index++) await relayOperation(process.cwd(), 'shout',
       [{ from: 'coordinator', to: 'all', lanes: [], text: 'Slow real sender move ' + index }], io);
     process.stdout.write(JSON.stringify({ queued: ${MOVES} }));

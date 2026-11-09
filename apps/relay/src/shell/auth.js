@@ -19,7 +19,7 @@ import { computerName } from '../../../../packages/seats/index.js';
 import { repositoryName } from './github.js';
 import { approvalContext } from '../../../../packages/link/index.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../../packages/state/index.js';
-import { PEOPLE_ENGINE } from '../../../../src/people-engine.js';
+import { PEOPLE_ENGINE } from '../../../../packages/state/core.js';
 import {
   grantChallenge,
   passkeyBytes,

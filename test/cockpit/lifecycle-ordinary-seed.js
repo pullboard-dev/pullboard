@@ -1,10 +1,10 @@
 /** Genuine ordinary native lifecycle fixtures with the production freezer and a private board clock [N26,C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { cliReadContext$context as context } from '../../apps/cli/index.js';
-import { freezer } from '../../src/cli.js';
+import { cli$freezer as freezer } from '../../apps/cli/index.js';
 import { build } from './fixture.js';
 
 /** Seed real returns and expiry on the caller's registered private board, without manufacturing events or proof. */

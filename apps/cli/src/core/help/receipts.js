@@ -43,6 +43,8 @@ export const receiptsHelp = `Receipts
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
+  pullboard gate-health [--since 2h]    queued gates in the window: count, total p50/p90, time per phase,
+                                        top failure causes with hosts, and the 10 slowest with their dominant phase; --json
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default

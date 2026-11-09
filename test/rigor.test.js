@@ -1,7 +1,7 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
 import { apiBoardOpeners } from './board-fixture.js';
-import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
+import { REJECT_CLAUSE_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -13,21 +13,21 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../packages/state/index.js';
-import { rigorReport } from '../src/board-rigor.js';
+import { rigorReport } from '../packages/store/index.js';
 import { newRigorNotices, undraftedRigor } from '../packages/rigor/index.js';
 import { runCheckAt } from '../packages/rigor/index.js';
-import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
+import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { unpackRelease } from './release-archive.js';
 import { fixtureJoinArgv } from './testkit-fixture.js';

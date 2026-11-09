@@ -5,7 +5,7 @@ import { hasAgent } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { COMPANION_ENGINE } from "../../../../src/companion-engine.js";
+import { COMPANION_ENGINE } from "../../../state/core.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** Plan a request without writes; the same validation runs again inside its creation transaction. */

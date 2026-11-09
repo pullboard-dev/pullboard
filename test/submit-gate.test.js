@@ -8,7 +8,7 @@ import { runFixtureExecFile as execFileSync, runFixtureChild } from './fixture-c
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../packages/gate/index.js';
+import { selectAffectedTests, startDiagnostics } from '../packages/gate/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import { refuseSandboxBlocked, sandboxBlockedOperation } from '../packages/gate/index.js';
 import { SPEC } from './submit-gate-fixture.js';
@@ -693,4 +693,27 @@ test('clause 1: a submit runs the static style checks first [C7]', t => {
   assert.notEqual(checked.code, 0, 'an explicit check must run the same accepted project guard first');
   assert.match(checked.out + checked.err, /src\/cli\.jsx:1: one import binding per line/u);
   assert.equal(existsSync(marker), false, 'neither a submit nor a check bypasses the failed static guard');
+});
+
+test('clause 1: a red gate queues its flake diagnostics before it asks for a slot, and returns without waiting for one [C7,V4]', async () => {
+  const events = [];
+  const onFailure = Object.assign(async () => { events.push('observed'); }, { queue: async run => { events.push(`queued ${run.name}`); } });
+  // A slot provider that never grants: the diagnostics wait for it, the verdict does not.
+  const withSlot = () => { events.push('slot asked'); return new Promise(() => {}); };
+  const started = await startDiagnostics('/unused', onFailure, [[{ name: 'red-run' }, { root: '/unused', command: 'true', lease: {} }]], {}, { withSlot });
+  assert.deepEqual(events, ['queued red-run', 'slot asked'], 'the job is queued first, then the slot is asked for');
+  assert.ok(started.done instanceof Promise, 'the pending diagnostics are handed back, not awaited');
+});
+
+test('clause 2: diagnostics run in the granted slot and leave the verdict untouched when the slot fails [C7,V4]', async () => {
+  const seen = [];
+  const run = { isGreen: false, name: 'red-run' };
+  const onFailure = Object.assign(async (observed, context) => { seen.push([observed.name, context.lease.timingOperation]); }, { queue: async () => {} });
+  const granted = { proof: null };
+  const withSlot = async (_root, work) => { await work(granted); };
+  await (await startDiagnostics('/unused', onFailure, [[run, { root: '/unused', command: 'true', lease: { proof: 'p' } }]], {}, { withSlot })).done;
+  assert.deepEqual(seen, [['red-run', 'submit']], 'the observer ran once, in the granted slot');
+  const failing = async (_root, _work) => { throw Object.assign(new Error('no slot'), { code: 'GATE_INFRA_EXHAUSTED' }); };
+  await (await startDiagnostics('/unused', onFailure, [[run, { root: '/unused', command: 'true', lease: {} }]], {}, { withSlot: failing })).done;
+  assert.equal(run.isGreen, false, 'a failed diagnostics slot never changes the red verdict');
 });

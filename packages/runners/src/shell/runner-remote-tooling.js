@@ -72,7 +72,10 @@ export function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-/** Share the loaded generation guard; async callers leave the closure scan to their fresh controller. */
+/**
+ * Guard the full pinned controller policy graph before dispatching a fresh controller.
+ * This tracked step changes with the new pin, fencing generations loaded before graph fingerprinting existed.
+ */
 export function loadedToolingFiles({ rescan = true } = {}) {
   return currentRunnerTooling(TOOL_ROOT, (GENERATION.getStore() ?? LOADED_TOOLING)?.loaded ?? null, { rescan });
 }
@@ -142,7 +145,7 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound stays 1 MiB. */
+/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound is 8 MiB. */
 export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
 
 /**

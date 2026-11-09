@@ -15,7 +15,7 @@
   ["src/sentinels.js","packages/sentinels/src/shell/sentinels.js","seed"],
   ["src/serve-sentinel.js","packages/sentinels/src/shell/serve-sentinel.js","seed"]
  ],
- "reexports": ["src/sentinels.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
   {"cell":"git","imports":2,"before":true},

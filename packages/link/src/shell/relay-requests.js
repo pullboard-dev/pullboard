@@ -17,7 +17,7 @@ import { barReadiness } from '../../../verify/index.js';
 import { barReadySetting } from '../../../verify/index.js';
 import { barEffectValues } from '../../../person/core.js';
 import { sameBarEffect } from '../../../person/core.js';
-import { PEOPLE_ENGINE } from '../../../../src/people-engine.js';
+import { PEOPLE_ENGINE } from '../../../state/core.js';
 
 const INDEX = PERSON_REQUESTS_INDEX;
 

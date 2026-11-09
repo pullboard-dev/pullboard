@@ -3,7 +3,7 @@ import { rowDecisions } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { SPEC_REVISION_ENGINE } from "../../../../src/spec-revision-engine.js";
+import { SPEC_REVISION_ENGINE } from "../../../state/core.js";
 import { validRevisionApproval } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseSpec } from "../../../spec/index.js";

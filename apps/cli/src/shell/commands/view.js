@@ -59,7 +59,8 @@ import {
 
 /** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
 export function serveView(options = {}) {
-  return serveProvidedView({ refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), ...options, renderPage: cockpitPage });
+  // The state module pullboard serve hands its materializer, so the view reads resident state instead of rebuilding it.
+  return serveProvidedView({ refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), statePorts: new URL('./serve.js', import.meta.url).href, ...options, renderPage: cockpitPage });
 }
 
 /** Export the page with the same command authority and renderer used by the live view [N26]. */
@@ -140,7 +141,7 @@ export async function viewHere(io, values) {
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
     view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
-    const sentinel = startServeSentinel({ projectRoot });
+    const sentinel = startServeSentinel({ projectRoot, recover: async root => (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)) });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;
     view = {

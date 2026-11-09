@@ -13,7 +13,7 @@ import {
   prepareEngineMove,
 } from '../src/shell/engine.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
-import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../src/core/engines/agent-grant-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';
 import { mkdtempSync } from 'node:fs';

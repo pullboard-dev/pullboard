@@ -12,7 +12,9 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   confirmRunnerProbe,
+  gateSpanCause,
   inheritedGateSlot,
+  recordGateSpan,
   memoryAdmission,
   readMachineMemory,
   takeResource,
@@ -59,6 +61,53 @@ export function preferOtherRunners(runners, avoided) {
   return others.length ? others : runners;
 }
 
+/** How long an infrastructure stop keeps retrying on other runners, in total from its first failure (#3365). */
+export const INFRA_RETRY_WINDOW_MS = 30 * 60_000;
+/** The wait before the first infrastructure retry; it doubles with each stop up to INFRA_BACKOFF_MAX_MS (#3365). */
+export const INFRA_BACKOFF_START_MS = 30_000;
+/** The longest wait between two infrastructure retries (#3365). */
+export const INFRA_BACKOFF_MAX_MS = 5 * 60_000;
+
+/**
+ * The seconds to wait before the next infrastructure retry: 30 s, then 60 s, doubling to 5 min.
+ *
+ * @param {number} failures - Infrastructure stops already recorded before this one.
+ * @param {{ startMs: number, maxMs: number }} policy
+ * @returns {number} Milliseconds.
+ */
+export function infrastructureBackoffMs(failures, { startMs, maxMs }) {
+  return Math.min(startMs * 2 ** Math.max(0, failures), maxMs);
+}
+
+/**
+ * Fill in the infrastructure retry policy. PULLBOARD_INFRA_RETRY_BACKOFF_MS replaces the first wait (fixtures set 0).
+ *
+ * @param {{ windowMs?: number, startMs?: number, maxMs?: number, sleep?: (ms: number) => Promise<void>, now?: () => number }} [given]
+ * @returns {{ windowMs: number, startMs: number, maxMs: number, sleep: (ms: number) => Promise<void>, now: () => number }}
+ */
+export function infrastructureRetryPolicy(given = {}) {
+  const fromEnv = process.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS;
+  const envMs = fromEnv !== undefined && fromEnv !== '' && Number.isFinite(Number(fromEnv)) && Number(fromEnv) >= 0 ? Number(fromEnv) : null;
+  return { windowMs: given.windowMs ?? INFRA_RETRY_WINDOW_MS, startMs: given.startMs ?? envMs ?? INFRA_BACKOFF_START_MS,
+    maxMs: given.maxMs ?? INFRA_BACKOFF_MAX_MS, sleep: given.sleep ?? (ms => new Promise(done => setTimeout(done, ms))), now: given.now ?? Date.now };
+}
+
+/**
+ * The runners an infrastructure retry may use: ones not yet tried first; when every runner has been tried, only the
+ * least recently tried one (#3365).
+ *
+ * @param {{ host: string }[]} runners
+ * @param {Set<string>} avoided
+ * @param {string[]} tried - Hosts this ticket has failed on, least recent first.
+ * @returns {{ host: string }[]}
+ */
+export function rotateRunners(runners, avoided, tried) {
+  const untried = runners.filter(runner => !avoided.has(runner.host) && !tried.includes(runner.host));
+  if (untried.length || runners.length < 2) return untried.length ? untried : preferOtherRunners(runners, avoided);
+  const rank = runner => (tried.includes(runner.host) ? tried.indexOf(runner.host) : -1);
+  return [[...runners].sort((a, b) => rank(a) - rank(b))[0]];
+}
+
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
   const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
@@ -98,6 +147,16 @@ export function settleReceipt(lease) {
   return lease.receipt;
 }
 
+/**
+ * Whether this machine's settings say gate.runnersOnly: then no runner failure or refusal falls back to a local run.
+ * Why: on 8 Nov 15 gates on one machine reran their tests locally after a runner refused them, at load 78 (#3898).
+ *
+ * @returns {boolean}
+ */
+function machineRunnersOnly() {
+  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
+}
+
 /** Run work under the machine queue: landings first, then every other eligible waiter in arrival order.
  * Local executors wait while this machine is out of memory; remote runners keep admitting.
  *
@@ -124,6 +183,8 @@ export async function withGateSlot(root, action, options = {}) {
       const hosts = [...new Set(attempts.flatMap(attempt => [attempt.runner, ...(attempt.runners ?? []).map(runner => runner.host)]).filter(Boolean))];
       const refused = new Refused('RUNNER_UNAVAILABLE', `runner-first check has no available runner (${hosts.join(', ') || 'none admitted'}): ${error.message}`);
       refused.infrastructureAttempts = attempts;
+      // The 30 minute window is spent: the queued gate must stop at once, never rerun the whole submit (#3365).
+      if (error.code === 'RUNNER_INFRA_RETRY_EXHAUSTED') refused.infrastructureWindowSpent = true;
       throw refused;
     }
     if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
@@ -134,7 +195,8 @@ export async function withGateSlot(root, action, options = {}) {
       if (result && typeof result === 'object') result.runnerAttempt = attempt;
       return result;
     }
-    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
+    // On a gate.runnersOnly machine a runner's refusal never becomes a local rerun: the run ends and the gate requeues (#3898).
+    if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh' || machineRunnersOnly()) throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
     const required = error.code === 'RUNNER_GUI_SESSION_REQUIRED' ? 'a GUI session' : 'a browser slot';
@@ -144,6 +206,16 @@ export async function withGateSlot(root, action, options = {}) {
     return result;
   }
   finally { clearInterval(keepAlive); }
+}
+
+/**
+ * Whether this machine has a registered runner a gate run can go to, read from the machine settings.
+ * Why: a check baseline goes to a runner whenever one exists, never to this machine (#2520).
+ *
+ * @param {{ runners: { effectiveRunners: (settings: object) => object[] } }} executionServices
+ */
+export function runnersRegistered(executionServices) {
+  return executionServices.runners.effectiveRunners(loadMachineSettings()).length > 0;
 }
 
 /**
@@ -183,7 +255,7 @@ function machineSlots(settings) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, beforeAdmission, readMemory = readMachineMemory, executionServices, infrastructureRetry = false, signal, pinnedSource } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, beforeAdmission, readMemory = readMachineMemory, executionServices, infrastructureRetry = false, signal, pinnedSource, infrastructurePolicy } = {}) {
   const browserByLaunch = browserByLaunchEnabled();
   const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
@@ -218,7 +290,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     }
   }
   const settingsProvider = () => loadMachineSettings();
-  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+  if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => machineSlots(settingsProvider()).gate;
   // A pinned source is an exact commit read from the object store, so a runner may take it from a busy checkout [C7].
@@ -226,12 +298,16 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const retryInfrastructure = (infrastructureRetry || itemCheck || kind === 'review') && (itemCheck || kind === 'review');
   const avoided = AVOIDED_RUNNERS.getStore() ?? new Set();
   const infrastructureAttempts = [];
+  const retryPolicy = infrastructureRetryPolicy(infrastructurePolicy);
+  const triedRunners = [];
+  let infrastructureStartedAt = null;
   const policyTrunk = pinnedSource ? pinnedSource.trunk : source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
     ? executionServices.landing.captureReleaseQueue(root, item) : undefined;
   tracker.mark('queuedAt');
+  const admissionStart = Date.now();
   let lease = await takeResource({
     name: 'gate',
     capacity: capacityProvider(),
@@ -257,13 +333,13 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
-    runnerProvider: () => preferOtherRunners(effectiveRunners(loadMachineSettings()), avoided),
+    runnerProvider: () => rotateRunners(effectiveRunners(loadMachineSettings()), avoided, triedRunners),
     runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(settingsProvider()),
     runnerHealthProbe: probeRunnerHealth,
     /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
     runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    runnerIdleProbe: (runner, previous, { liveJobs = [] } = {}) => probeRunnerHealth(runner, previous, { idle: true, liveJobs }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
@@ -275,13 +351,21 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     beforeAdmission,
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
     onWait: async state => {
-      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
+      if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement, probeDirectory: join(machineHome(), 'runner-probes') });
       return onWait?.(state);
     },
+  }).catch(error => {
+    recordGateSpan({ phase: 'admission', start: admissionStart, outcome: 'failed', cause: gateSpanCause(error), code: error?.code, kind: receiptKind });
+    throw error;
   });
+  // The admission span: queued for a slot until one was granted, on its runner or this machine [C7].
+  recordGateSpan({ phase: 'admission', start: admissionStart, host: lease.runner?.host, kind: receiptKind });
   infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   let healthyTransportRetry = false;
+  let healthyDeadlineRetry = false;
+  // The host of the previous infrastructure stop: a healthy host failing twice in a row is a receipt fault; coming back to it after the others failed is rotation (#3365).
+  let previousStopHost = null;
   try {
     while (true) {
       lease.source = source;
@@ -329,41 +413,68 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         const failure = { kind: cleanup ? 'cleanup-timeout' : setup ? 'runner-setup' : 'transport-lost', code: cleanup || setup ? error.code : error.code ?? 'TRANSPORT_LOST',
           runner: lease.runner.host, at: new Date().toISOString(), diagnostic: error.diagnostic ?? null };
-        if (boundedRetry && infrastructureAttempts.length >= 1) {
+        // Each stop rotates to a runner not yet tried, waits 30 s doubling to 5 min, and the window is 30 min from the first stop (#3365).
+        infrastructureStartedAt ??= retryPolicy.now();
+        triedRunners.splice(0, triedRunners.length, ...triedRunners.filter(host => host !== failure.runner), failure.runner);
+        // The last wait is cut to the rest of the window, so the gate keeps retrying until the full 30 minutes have passed.
+        const windowLeftMs = retryPolicy.windowMs - (retryPolicy.now() - infrastructureStartedAt);
+        const waitMs = boundedRetry ? Math.max(0, Math.min(infrastructureBackoffMs(infrastructureAttempts.length, retryPolicy), windowLeftMs)) : 0;
+        failure.waitedSeconds = waitMs / 1000;
+        if (boundedRetry && windowLeftMs <= 0) {
           lease.infrastructureAttempts = [...infrastructureAttempts, failure];
-          const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runner ${lease.runner.host} failed again (${failure.code}) after the one automatic infrastructure retry; inspect the retained runner diagnostics before retrying`);
+          const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runners ${triedRunners.join(', ')} all stopped on infrastructure through the ${Math.round(retryPolicy.windowMs / 60_000)}-minute retry window; the last code was ${failure.code} on ${failure.runner}; inspect the retained runner diagnostics before retrying`);
           refused.infrastructureAttempts = [...infrastructureAttempts, failure];
           throw refused;
         }
         infrastructureAttempts.push(failure);
         lease.infrastructureAttempts = [...infrastructureAttempts];
-        // A separate Node process cannot prove that a worker which missed READY can accept a job.
-        const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
-          || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
-        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7].
-        const health = cleanup || admissionDeadline || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
+        // Only the dispatch's own READY timer names a missed READY: the lease's queue deadline passes during any long
+        // phase, so reading the clock against it marked a plain transport loss as a readiness failure (#3563) [C7].
+        const admissionDeadline = !cleanup && error.diagnostic?.reason === 'admission-deadline';
+        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
+        // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
+        // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
+        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
-        if (health?.healthy && healthyTransportRetry) {
+        const repeatedStop = previousStopHost === lease.runner.host;
+        previousStopHost = lease.runner.host;
+        if (health?.healthy && !admissionDeadline && healthyTransportRetry && repeatedStop) {
           const refused = new Refused('RUNNER_RESULT_INVALID', `runner ${lease.runner.host} answers SSH and Node but a second attempt lacks a valid completion (${diagnostic.reason}); inspect the retained transport diagnostic before retrying`);
           refused.runnerDiagnostic = diagnostic;
           throw refused;
         }
-        if (health?.healthy) healthyTransportRetry = true;
+        // An answering runner that misses READY twice leaves the runner in service and refuses only this job's wait.
+        if (health?.healthy && admissionDeadline && healthyDeadlineRetry) {
+          const refused = new Refused('RUNNER_WAIT_DEADLINE', `runner ${lease.runner.host} answers SSH and Node but missed its admission deadline again; the runner stays in service; check this machine's load, then retry`);
+          refused.runnerDiagnostic = diagnostic;
+          refused.infrastructureAttempts = [...infrastructureAttempts];
+          throw refused;
+        }
+        if (health?.healthy) {
+          if (admissionDeadline) healthyDeadlineRetry = true;
+          else healthyTransportRetry = true;
+        }
         const runnerUnavailable = { host: lease.runner.host,
-          reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
+          reason: cleanup ? error.message : admissionDeadline ? health?.healthy
+            ? 'worker did not become ready before its admission deadline; confirming SSH and Node observation succeeded'
+            : 'worker did not become ready before its admission deadline'
             : setup ? error.message : health?.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
           diagnostic, until: cleanup ? 'the pinned worker verifies exact-job cleanup on its next health probe'
-            : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
-              : health?.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
+            : health?.healthy ? 'the original ticket is readmitted'
+              : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
+                : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
-        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
+        const retryStart = Date.now();
+        if (waitMs > 0) await retryPolicy.sleep(waitMs);
         try {
           lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
-            local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
+            local: cleanup && !runnerOnly && !machineRunnersOnly() && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
             infrastructureRetryCount: boundedRetry ? infrastructureAttempts.length : 0,
             infrastructureAttempts: [...infrastructureAttempts] });
         } catch (requeueError) {
+          recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'failed', cause: 'infra-retry', code: requeueError?.code, kind: receiptKind });
           const requeueAttempt = requeueError?.code === 'RUNNER_WAIT_DEADLINE'
             ? { kind: 'runner-wait', code: requeueError.code, runner: requeueError.infrastructureAttempt?.runners?.[0]?.host ?? null,
               runners: requeueError.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: requeueError.message }
@@ -377,6 +488,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw requeueError;
         }
+        // The retry span: from the runner's stop through the backoff until the requeued run is admitted again.
+        recordGateSpan({ phase: 'retry', start: retryStart, host: failure.runner, outcome: 'retry', cause: 'infra-retry', code: failure.code, kind: receiptKind });
         lease.infrastructureAttempts = [...infrastructureAttempts];
       }
     }

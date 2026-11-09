@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/engine.js src/source-advance-engine.js packages/landing/index.js */
+/** @pullboard-test-loads src/engine.js packages/state/src/core/engines/source-advance-engine.js packages/landing/index.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
@@ -99,7 +99,7 @@ test('an unreviewed submission keeps its queue place and still needs an independ
 test('source-advance replay binds native episode, exact receipts and old-engine prefix without caller green [C7,V4,H16]',{timeout:180000},async t=>{
   const box=await mainMovedFixture(t);box.trigger();await box.settled();const now=state(box);
   const engine=await import(pathToFileURL(join(box.installed,'src/engine.js')));
-  const {SOURCE_ADVANCE_ENGINE}=await import(pathToFileURL(join(box.installed,'src/source-advance-engine.js')));
+  const {SOURCE_ADVANCE_ENGINE}=await import(pathToFileURL(join(box.installed,'packages/state/src/core/engines/source-advance-engine.js')));
   const detail=JSON.parse(now.events.find(row=>row.event_kind==='source_advanced').event_detail);
   const {model,person,...proof}=detail;
   const originalMove={version:1,engine:SOURCE_ADVANCE_ENGINE,id:randomUUID(),operation:'advanceItemSource',args:[box.id,{agentId:'coordinator',proof}]};

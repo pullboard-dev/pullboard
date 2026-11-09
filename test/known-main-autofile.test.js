@@ -8,15 +8,15 @@ import { submitGateConfig } from '../packages/gate/index.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../apps/lib/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../src/known-main-autofile-engine.js';
+import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../packages/state/core.js';
 import { rememberCreatedItems } from '../packages/link/index.js';
 import { bindRefs, resolveMove } from '../packages/outbox/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
 import { sealKnownMainAutofile } from '../packages/gate/index.js';
-import { validateKnownMainAutofile } from '../src/known-main-autofile.js';
+import { validateKnownMainAutofile } from '../packages/store/index.js';
 import { fixture, cli, rows } from './known-main-affected.fixture.js';
 
 /** Observe only the private fixture's normal CLI result and durable native event rows. */

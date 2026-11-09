@@ -101,6 +101,7 @@ import {
 } from './gate-run-receipt.js';
 import {
   committedTest,
+  singleFileTapOutcomes,
   tapTests,
 } from './tap-tests.js';
 import { readTestOutcomes } from './test-outcomes.js';
@@ -235,7 +236,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = yield { root, command, remoteCommand, gateLease,
-    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, signal,
+    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, runnerStartupMs: gateLease.runnerStartupMs, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
     localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
@@ -252,7 +253,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     ? sandboxBlockedOperation(root, run.output, { includeFilePaths: false })
     : sandboxBlockedOperation(root, run.output));
   const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? pinnedSource?.head ?? headCommit(root),
-    readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
+    readTestOutcomes(safeLog(run.output ?? ''), id) ?? singleFileTapOutcomes(command, safeLog(run.output ?? '')), tryGit);
   const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
   if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
   const profile = writeTimingProfile(profilePath, {
@@ -301,7 +302,11 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     if (!store) return null;
     const sourceClean = cleanProofSource(root, before, run, lease, Boolean(context.commit));
     const testRuntimes = run.testRuntimes ?? run.profile?.testRuntimes ?? null;
-    const environment = testRuntimeEnvironment(testRuntimes);
+    // A run with no captured test workers still observed its executor: record that host, never an invented one [C7,#2662].
+    const executor = run.environment;
+    const executorKnown = executor && ['node', 'platform', 'arch'].every(key => typeof executor[key] === 'string' && executor[key]);
+    const environment = testRuntimes ? testRuntimeEnvironment(testRuntimes)
+      : executorKnown ? { node: executor.node, platform: executor.platform, arch: executor.arch } : null;
     const remote = run.executionRunner ?? run.profile?.executionRunner;
     const localLoad = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
     // A submit's pinned main (lease.pinnedMain) is the only main its phases may record (#1777).
@@ -357,7 +362,8 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   if (gateLease) gateLease.testOutcomeRunId = outcomeId;
   let result = checkAtCommit(root, item, { gateLease, waitMs });
   const testOutcomes = result.executed && result.executionSourceUnchanged !== false
-    ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId), tryGit) : null;
+    ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId)
+      ?? singleFileTapOutcomes(result.executionCommand ?? frozenCheck(item), result.outputPath ? [...logLines(result.outputPath)].join('\n') : result.output ?? ''), tryGit) : null;
   if (testOutcomes) {
     result.testOutcomes = testOutcomes;
     if (result.profilePath) result.profile = { ...writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes }), profilePath: result.profilePath };

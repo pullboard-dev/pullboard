@@ -1,9 +1,9 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { builderFamilyProblem } from './builder-family-required.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../state/core.js';
 import { expectedBuildProblem } from '../../../items/index.js';
-import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
-import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
+import { UNTOUCHED_CLAIM_ENGINE } from '../../../state/core.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../state/core.js';
 import { EXIT_RULES_ENGINE } from "../../../state/index.js";
 import { capturedExitRules } from "../core/exit-rules-state.js";
 import {
@@ -11,6 +11,7 @@ import {
   exitContinuationProblem,
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
+import { awaitingGateOrReview } from "./submit-handoff-read.js";
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
   boardWriteSnapshot,
@@ -18,16 +19,16 @@ import {
 } from "./board-write-preparation.js";
 import { checkedSubmitOutcome } from "./submit-outcome.js";
 import { submitAdmission as checkedSubmitAdmission } from "../../../state/src/core/submit-admission.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 import {
   ENGINE_VERSION,
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERIFIER_STANDING_ENGINE,
   IN_STATE,
 } from "../../../state/index.js";
-import { ITEM_FOLDER_ENGINE } from "../../../../src/item-folder-engine.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
-import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+import { ITEM_FOLDER_ENGINE } from "../../../state/core.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
+import { CLAIM_IDLE_ENGINE } from "../../../state/core.js";
 import {
   pendingRefreeze,
   pendingRefreezeProblem,
@@ -175,7 +176,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
-            .all(agentId, now(board), id).filter(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+            .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
@@ -187,7 +188,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
           .all(agentId, now(board), id, agentId)
-          .find(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+          .find(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {

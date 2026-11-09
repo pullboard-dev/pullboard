@@ -83,6 +83,7 @@ Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
+    [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
@@ -98,6 +99,9 @@ Work
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
+                [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--sensitive]           select Strict review; edit can set it while open
+                [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
@@ -194,6 +198,7 @@ Work
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
+                                        --precheck: run cheap submit checks only, without cells or gate
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
@@ -262,7 +267,7 @@ Coordinator
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason "why"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
-  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
+  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3] [--forced "<why>"]  record verified work with its native batch receipt; --forced records hand-landed work as landed without a verify
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
@@ -317,6 +322,8 @@ Receipts
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
+  pullboard gate-health [--since 2h]    queued gates in the window: count, total p50/p90, time per phase,
+                                        top failure causes with hosts, and the 10 slowest with their dominant phase; --json
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default
@@ -388,10 +395,12 @@ Additional commands
   pullboard heartbeat                 record this seat's local session activity; no board move
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard seats                     current seat states and local 24-hour timing ledger
+  pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
+  pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.

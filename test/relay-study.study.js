@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { relaySnapshot } from '../packages/pages/index.js';

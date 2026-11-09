@@ -1,4 +1,5 @@
 import { processCensus } from './runner-custody.js';
+import { orphanObserver } from './runner-orphan-observe.js';
 /** Answer the controller's health request from the worker's own runner root [C7]. */
 import { runnerHealthReply } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { runnerIdleReply } from '../../../../packages/runners/src/shell/runner-transport.js';
@@ -23,7 +24,7 @@ export function serveHealth(encodedRequest) {
   try {
     const { request, root } = readRequest(encodedRequest);
     process.stdout.write(JSON.stringify(request.job !== undefined ? runnerJobReply(root, request, { census: processCensus })
-      : request.idle === true ? runnerIdleReply(root, request, processCensus) : runnerHealthReply(root, request)) + '\n');
+      : request.idle === true ? runnerIdleReply(root, request, processCensus, orphanObserver) : runnerHealthReply(root, request)) + '\n');
   } catch { process.exitCode = 1; }
 }
 

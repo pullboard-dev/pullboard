@@ -1,5 +1,5 @@
 /** Approved requirements change only through a visible person decision [P6,B23,N39]. */
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,

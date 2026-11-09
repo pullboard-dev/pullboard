@@ -24,7 +24,7 @@ import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';

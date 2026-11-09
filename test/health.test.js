@@ -22,7 +22,7 @@ import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../packages/items/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
-import { recurringJobs } from '../src/board-recurring-jobs.js';
+import { recurringJobs } from '../packages/store/index.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { gateRuns, runGate as frontDoorRunGate } from '../packages/gate/index.js';

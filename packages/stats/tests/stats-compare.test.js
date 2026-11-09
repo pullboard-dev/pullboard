@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { serveApi } from '../../api/index.js';
@@ -20,7 +20,7 @@ import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { compareFlowWindows } from '../src/core/stats-flow.js';
 import { comparisonLines } from '../src/core/stats-flow-window.js';
-import { NEXT_IDLE_ENGINE } from '../../../src/next-idle-engine.js';
+import { NEXT_IDLE_ENGINE } from '../../state/core.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const BASE = Date.parse('2026-10-10T00:00:00Z');
@@ -149,16 +149,16 @@ test('focus idle observations are counted as focus time [B26,R2]', t => {
 test('next records an authenticated prospective cause and refuses an invented reason without an event [R2,N2]', t => {
   const box = fixture(t, []);
   const before = box.history().length;
-  assert.deepEqual(store.recordNextIdle(box.board, { agentId: 'core-1', reason: 'held' }), { recorded: true });
+  assert.deepEqual(store.board_recordNextIdle(box.board, { agentId: 'core-1', reason: 'held' }), { recorded: true });
   const event = box.history().at(-1);
   assert.equal(event.event_kind, 'next-idle');
   assert.equal(event.event_by, 'core-1');
   assert.deepEqual(JSON.parse(event.event_detail), { ...idle('held'), model: 'unknown' });
   assert.equal(box.history().length, before + 1);
-  assert.throws(() => store.recordNextIdle(box.board, { agentId: 'core-1', reason: 'guessed-old-history' }), error => error.code === 'BAD_IDLE_REASON');
-  assert.throws(() => store.recordNextIdle(box.board, { agentId: 'missing', reason: 'held' }), error => error.code === 'NOT_JOINED');
+  assert.throws(() => store.board_recordNextIdle(box.board, { agentId: 'core-1', reason: 'guessed-old-history' }), error => error.code === 'BAD_IDLE_REASON');
+  assert.throws(() => store.board_recordNextIdle(box.board, { agentId: 'missing', reason: 'held' }), error => error.code === 'NOT_JOINED');
   assert.equal(box.history().length, before + 1);
-  assert.deepEqual(store.recordNextIdle(box.board, { agentId: 'core-1', reason: 'held' }), { recorded: true, unchanged: true });
+  assert.deepEqual(store.board_recordNextIdle(box.board, { agentId: 'core-1', reason: 'held' }), { recorded: true, unchanged: true });
 });
 
 

@@ -1,15 +1,15 @@
 /** Synthetic native lifecycle contracts exercise real guards; none are landing proof [V4,B26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
-import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
-import { REVIEW_DEFAULT_ENGINE } from '../src/review-default-engine.js';
+import { REVIEW_TIER_ENGINE } from '../packages/state/core.js';
+import { REVIEW_DEFAULT_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';

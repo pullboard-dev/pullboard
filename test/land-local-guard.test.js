@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { requireLocalGuardClassification } from '../packages/landing/index.js';
 import { landingPorts } from './landing-ports-fixture.js';
-import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
 
 /** Supply private in-memory ledger inputs without writing operational observations or receipts. */
 function fixture(classification, green) {

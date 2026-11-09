@@ -6,8 +6,8 @@ import { dependencyWaiters } from '../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { staleInstant } from '../../../../src/board-stale-state-policy.js';
-import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
+import { staleInstant } from '../../../store/index.js';
+import { staleStateLimits } from '../../../store/index.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
 import { staleStateSnapshot } from './stale-state-snapshot.js';
 import { observeStaleWork } from './stale-work-observation.js';
@@ -19,13 +19,14 @@ import { RENEWALS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
+import { machineStalled } from '../core/machine-stall.js';
 import { claimFolderActive } from './claim-folder-activity.js';
 import { claimFolderCommitAt } from './claim-folder-activity.js';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
 import { PINNED_CLAIM_RELEASE_MS } from '../../../store/index.js';
-import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../src/pinned-claim-lapse-engine.js';
+import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../state/core.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
@@ -133,6 +134,15 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const lapsedItems = items.filter(item => lapsed.has(item.item_id));
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
+  /** A seat is quiet when neither its heartbeat nor any event it wrote is two minutes old. */
+  const quietSeat = row => {
+    const beat = latestInstant(row.heartbeatAt ?? row.claimAt, seatActivityAt(board, row.actor));
+    return Number.isFinite(Date.parse(beat ?? '')) && at.getTime() - Date.parse(beat) >= seatQuietLimit;
+  };
+  // Most claimed seats going quiet in the same window is the machine stalling, not those seats dying (8 Nov: 21 releases
+  // in 3 h clustered with a coordinator stall): no claim is released for this window, and one shout says so.
+  const stall = machineStalled({ claimed: snapshot.claims.length, quiet: snapshot.claims.filter(quietSeat).length, gapMs: ctx.sweepGapMs ?? 0 });
+  if (stall) ctx.machineStall = { ...stall, observedAt: at.toISOString() };
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
     if (submitGateInFlight(board, byId.get(row.id))) return [];
@@ -149,6 +159,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
+    if (stall && heartbeatLost) return [];
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
     // Presence is not progress (#3446): a lease lapsed 40 minutes ago returns once the holder has made no move, commit
     // or proof run on it for 40 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the

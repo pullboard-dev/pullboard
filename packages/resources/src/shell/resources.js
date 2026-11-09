@@ -1,3 +1,4 @@
+import { recordGateSpan } from './gate-spans.js';
 import { repoRoot } from './seat-test-admission.js';
 import { holdingTestSeats } from './seat-test-admission.js';
 import { isSeatTest } from './seat-test-admission.js';
@@ -9,6 +10,7 @@ import { enqueueResourceWrite } from './resource-write-queue.js';
 import { enterResourceQueue } from './resource-write-queue.js';
 import { beatingProbes } from './waiter-heartbeat.js';
 import { retainConnection } from './resource-connections.js';
+import { reuseResourceConnections } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
@@ -23,13 +25,16 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
+  basename,
   dirname,
   join,
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from '../../../../src/git.js';
 import {
@@ -57,8 +62,17 @@ import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
 import { reservedTimingRunner } from './runner-timing-reserve.js';
 import { timingReserveAllows } from './runner-timing-reserve.js';
-import { platformIdentity } from './holder-liveness.js';
+import { duringWriteTurn } from './process-identities.js';
+import { freshIdentity } from './process-identities.js';
+import { processIdentity } from './process-identities.js';
+import { refreshIdentities } from './process-identities.js';
+import { refreshIdentitiesAsync } from './process-identities.js';
 import { differentStart } from './holder-liveness.js';
+import { pollingNow } from './runner-placement.js';
+import { requiredRunnerHosts } from './runner-placement.js';
+import { runnerAllowed } from './runner-placement.js';
+import { runnerAllowedNow } from './runner-placement.js';
+export { ADMISSION_POLL_FRESH_MS } from './runner-placement.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -76,11 +90,16 @@ import {
 export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js';
 
 const LEASE_MS = 20_000;
+/**
+ * The startup budget of a lease admitted after its queue deadline, in ms. Why a fixed budget: the queue wait setting
+ * (30 min for a submit, 30 s for a proof batch lane) says how long to wait for a slot, not how long a loaded
+ * coordinator needs to reach a runner; reusing it gave 34 admission deadline misses and 95 dropped batches in 3 h (#3832, 8 Nov).
+ */
+export const LATE_STARTUP_MS = 90_000;
 const GATE_WAITER_HEARTBEAT_MS = 120_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
-const PROCESS_IDENTITY_CACHE_MS = 3_000;
-const processIdentities = new Map();
+let openWrites = 0; // transactions open in this thread: a nested write never probes inside its outer turn
 const queueFiles = new WeakMap(); // Each open queue database's file: every write joins that file's ordered write queue [C7,#3084].
 const SLOT_DB_BUSY_MS = 10_000;
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
@@ -143,8 +162,44 @@ function canonicalResourceFile(file) {
   }
 }
 
-/** Open and initialize the small durable queue database, or hand back the process's one retained connection when reuse is on [C7,#3338]. */
-function open(file, machine = false) { return retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file)); }
+/**
+ * Open and initialize the small durable queue database, or hand back this process's one retained connection [C7,#3338].
+ * Why: a gate proof takes one lease per shard at once, and each lease opened its own connection, so one gate worker held
+ * 68 handles on 8 Nov, and every open spent a queue turn on schema setup. The retained stand-in joins the same write queue.
+ */
+function open(file, machine = false) {
+  reuseResourceConnections();
+  const db = retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file));
+  queueFiles.set(db, file);
+  return db;
+}
+
+/**
+ * The schema version this code writes: a digest of the setup and migration source, so any change to them reruns setup
+ * once on each database, and no one has to remember to bump a number.
+ */
+function resourceSchemaVersion() {
+  schemaVersion ??= Number.parseInt(createHash('sha256').update(`${openQueue}${initializeRunnerRecovery}${pinLegacyReclaimInputs}${adoptLegacyRows}`).digest('hex').slice(0, 7), 16) || 1;
+  return schemaVersion;
+}
+let schemaVersion;
+
+/**
+ * Move rows older clients still write into today's shape: remote leases stored as gate holders, and timing
+ * observations no live timing admission can need. Runs in setup and in each sweep, so a current open writes nothing.
+ */
+function adoptLegacyRows(db) {
+  // Older runner-aware builds stored remote leases as ordinary gate holders. Move them
+  // into their host namespace so old readers of name='gate' continue to see local use only.
+  db.exec(`INSERT INTO resource(name, capacity)
+    SELECT 'runner:' || runner, MAX(1, COUNT(*)) FROM holder
+    WHERE name = 'gate' AND runner <> '' GROUP BY runner
+    ON CONFLICT(name) DO NOTHING;
+    UPDATE holder SET name = 'runner:' || runner WHERE name = 'gate' AND runner <> '';
+    DELETE FROM timing_client_observation
+    WHERE NOT EXISTS (SELECT 1 FROM holder WHERE timing = 1)
+      AND NOT EXISTS (SELECT 1 FROM waiter WHERE timing = 1);`);
+}
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
@@ -154,6 +209,7 @@ function openQueue(file) {
   let transaction = false, leave;
   try {
     db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    if (db.prepare('PRAGMA user_version').get().user_version === resourceSchemaVersion()) return db; // current schema: an open takes no write turn
     leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
@@ -198,6 +254,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_deadline')) db.exec('ALTER TABLE waiter ADD COLUMN runner_deadline INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
+      if (table === 'waiter' && !columns.includes('polled')) db.exec('ALTER TABLE waiter ADD COLUMN polled INTEGER NOT NULL DEFAULT 0');
     }
     pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
@@ -218,10 +275,6 @@ function openQueue(file) {
       WHEN (NEW.name = 'gate' OR NEW.name GLOB 'runner:*') AND NEW.timing_aware = 0 BEGIN
         INSERT INTO timing_client_observation(agent,pid,started,name) VALUES (NEW.agent,NEW.pid,NEW.started,NEW.name);
       END;`);
-    // No live timing admission can need observations once its holder and waiter rows are gone.
-    db.exec(`DELETE FROM timing_client_observation
-      WHERE NOT EXISTS (SELECT 1 FROM holder WHERE timing = 1)
-        AND NOT EXISTS (SELECT 1 FROM waiter WHERE timing = 1)`);
     // Marks a waiter whose process admits by class; an older pullboard leaves it 0.
     if (!db.prepare('PRAGMA table_info(waiter)').all().some(({ name }) => name === 'classed')) {
       db.exec('ALTER TABLE waiter ADD COLUMN classed INTEGER NOT NULL DEFAULT 0');
@@ -231,13 +284,8 @@ function openQueue(file) {
         db.exec(`ALTER TABLE waiter ADD COLUMN ${column} ${definition}`);
       }
     }
-    // Older runner-aware builds stored remote leases as ordinary gate holders. Move them
-    // into their host namespace so old readers of name='gate' continue to see local use only.
-    db.exec(`INSERT INTO resource(name, capacity)
-      SELECT 'runner:' || runner, MAX(1, COUNT(*)) FROM holder
-      WHERE name = 'gate' AND runner <> '' GROUP BY runner
-      ON CONFLICT(name) DO NOTHING;
-      UPDATE holder SET name = 'runner:' || runner WHERE name = 'gate' AND runner <> '';`);
+    adoptLegacyRows(db);
+    db.exec(`PRAGMA user_version = ${resourceSchemaVersion()}`);
     db.exec('COMMIT');
     transaction = false; leave();
   } catch (error) {
@@ -263,12 +311,13 @@ function slotDatabaseLocked(error) {
 }
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine, so it gets 10 s. */
-function slotDatabaseOpeners(file) {
+async function slotDatabaseOpeners(file) {
   const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
   if (!lsof) return [];
-  let output = '';
-  try { output = execFileSync(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }); }
-  catch (error) { output = typeof error.stdout === 'string' ? error.stdout : ''; }
+  // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
+  const output = await new Promise(resolve => {
+    execFile(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000 }, (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
+  });
   const openers = [];
   for (const line of output.split('\n')) {
     if (line.startsWith('p')) openers.push({ pid: Number(line.slice(1)), command: '' });
@@ -288,7 +337,7 @@ async function retryLockedSlotDatabase(file, work) {
       if (!slotDatabaseLocked(error)) throw error;
       const elapsed = Date.now() - startedAt;
       if (elapsed >= deadline) {
-        const openers = slotDatabaseOpeners(file);
+        const openers = await slotDatabaseOpeners(file);
         const holder = openers.length ? `held by one of: ${openers.map(({ pid, command }) => `pid ${pid}${command ? ` (${command})` : ''}`).join(', ')}` : 'lock holder unknown';
         const stopped = new Refused('SLOT_DB_LOCKED', `never ran: the gate slot database ${file} stayed locked for ${elapsed}ms, past the ${deadline}ms deadline (${holder}). The run did not start, so this is not a test failure; rerun it.`);
         stopped.neverRanExitCode = NEVER_RAN_EXIT_CODE;
@@ -305,28 +354,9 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
 }
 
-/** Read a stable OS process identity; an unreadable identity is unknown, not proof of death. */
-function processIdentity(pid) {
-  const cached = processIdentities.get(pid);
-  if (cached && Date.now() - cached.checkedAt < PROCESS_IDENTITY_CACHE_MS) return cached.identity;
-  let identity = null;
-  try {
-    const output = execFileSync('/bin/ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], {
-      encoding: 'utf8',
-      env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    const fields = output.split(/\s+/u);
-    const state = fields.pop();
-    if (fields.length) identity = { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false };
-  } catch { identity = platformIdentity(pid); }
-  processIdentities.set(pid, { identity, checkedAt: Date.now() });
-  if (processIdentities.size > 1024) {
-    for (const [cachedPid, entry] of processIdentities) {
-      if (Date.now() - entry.checkedAt >= PROCESS_IDENTITY_CACHE_MS) processIdentities.delete(cachedPid);
-    }
-  }
-  return identity;
+/** Read every listed holder and waiter identity without blocking the loop, so the synchronous refresh before the next write turn finds them current. A failed read only leaves it to that refresh. */
+async function warmListedIdentities(db) {
+  try { await refreshIdentitiesAsync(livenessPids(db)); } catch { /* A closed or busy database leaves the synchronous refresh to do its own work. */ }
 }
 
 /** Read the start identity to store with a lease when the OS can provide it. */
@@ -347,36 +377,26 @@ function sameProcess(pid, started) {
 function custodyProcessMatches(pid, started) {
   if (!alive(pid)) return false;
   let identity = processIdentity(pid);
-  if (identity && (identity.zombie || differentStart(identity, started))) {
-    processIdentities.delete(pid);
-    identity = processIdentity(pid);
-  }
+  if (identity && (identity.zombie || differentStart(identity, started))) identity = freshIdentity(pid);
   return !identity || !identity.zombie && !differentStart(identity, started);
 }
 
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
-function update(db, action) {
+function update(db, action, sweep = true) {
+  if (sweep && !openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
   const leave = enterResourceQueue(queueFiles.get(db), { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
-  try { return transact(db, action); } finally { leave(); }
+  try { return transact(db, action, sweep); } finally { leave(); }
 }
 /** Apply queued writes that need no answer; a release, deleting its holder, is the only one. */
 function queuedWrites(db) {
-  return entry => transact(db, () => { if (entry.op === 'release') { db.prepare('DELETE FROM holder WHERE token = ?').run(entry.token); removeEmptyViewPortResource(db, entry.name); } });
+  return entry => transact(db, () => { if (entry.op === 'release') { db.prepare('DELETE FROM holder WHERE token = ?').run(entry.token); removeEmptyViewPortResource(db, entry.name); } }, false);
 }
-/** Run one short transaction and discard dead or expired leases. */
-function transact(db, action) {
+/** Run one short transaction, first discarding dead or expired leases unless it is a heartbeat or release (sweep false). */
+function transact(db, action, sweep = true) {
   beginResourceWrite(db, { timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
+  openWrites++;
   try {
-    pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
-    const cutoff = Date.now() - LEASE_MS;
-    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity: pid => { processIdentities.delete(pid); return processIdentity(pid); } });
-    for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
-      // A live but hung gate process cannot retain a queue place indefinitely.
-      const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
-      if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
-        db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
-      }
-    }
+    const relaunches = sweep ? duringWriteTurn(() => sweepLeases(db)) : [];
     const result = action();
     db.exec('COMMIT');
     for (const relaunch of relaunches) dispatchRelaunch(relaunch);
@@ -384,9 +404,29 @@ function transact(db, action) {
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* Preserve the original transaction failure. */ }
     throw resourceWriteError(error);
-  }
+  } finally { openWrites--; }
 }
 
+/** Free dead holders, controller orphans and dead or stale waiters; identities come from the cache read before the turn. */
+function sweepLeases(db) {
+  adoptLegacyRows(db);
+  pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
+  const cutoff = Date.now() - LEASE_MS;
+  const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity });
+  for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
+    // A live but hung gate process cannot retain a queue place indefinitely.
+    const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+    if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+  }
+  return relaunches;
+}
+/** Every PID the sweep may check: holders, waiters and registered runner controllers. */
+function livenessPids(db) {
+  const pids = db.prepare('SELECT pid FROM holder UNION SELECT pid FROM waiter').all().map(row => row.pid);
+  try { for (const { identity } of db.prepare("SELECT controller_identity AS identity FROM holder WHERE controller_identity <> ''").all()) pids.push(JSON.parse(identity).controllerPid); }
+  catch { /* An older table or damaged identity only leaves that PID to the cache. */ }
+  return pids;
+}
 /** Remove a view-port definition only after its last lease has left the resource queue. */
 function removeEmptyViewPortResource(db, name) {
   if (!name.startsWith('view-port-')) return;
@@ -419,7 +459,7 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
@@ -445,7 +485,7 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   const ageMs = order.reviewsFirst ? order.ageMs : Infinity;
   const line = orderedWaiters(queued, now, order)
     .filter(entry => name !== 'browser' || entry.browser === 1)
-    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, ...entry }) => {
+    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, ...entry }) => {
       const current = queueClass(entry, now, ageMs);
       return { ...project(entry), queueClass: current.name, ...(current.effective < current.base ? { agedFrom: current.declared } : {}) };
     });
@@ -561,11 +601,33 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
+  // The waiters that could take a runner slot now: the asker and every earlier one still polling.
+  const competing = waiters.filter(other => other.remote === 1 && (other.ticket === ticket || pollingNow(other, now))).length;
+  const headroom = Math.max(4, Math.ceil(runners.reduce((sum, runner) => sum + runner.slots, 0) / 4));
+  /**
+   * Whether the compatible runner slots free for this waiter exceed the waiters competing for runner slots by a
+   * headroom (a quarter of all runner slots, at least 4): then no ordering rule holds it back. Why: on 8-9 Nov runs
+   * waited minutes on queue priority with about 105 of 118 runner slots free, and proofs ended RUNNER_WAIT_DEADLINE
+   * with every runner up; priority, the one-test-per-seat rule and the landing hold exist for the last free slots, and
+   * a small pool keeps them all (#3928).
+   */
+  function plentyFor(waiter) {
+    if (waiter.remote !== 1 || waiter.timing === 1 || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'local') return false;
+    let free = 0;
+    for (const runner of runners) {
+      if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !runnerCompatible(db, runner, waiter, unavailable)) continue;
+      const used = usage.get(runner.host);
+      if (used.timing || drain?.host === runner.host || reserved === runner.host) continue;
+      free += Math.max(0, waiter.browser === 1 ? Math.min(runner.slots - used.slots, runner.browser - used.browsers) : runner.slots - used.slots);
+    }
+    return free - competing >= headroom;
+  }
   /** Find a currently free compatible slot without reserving it for later queue entries. */
   function available(waiter) {
-    if (blockedByLanding(waiter)) return null;
-    const seatTest = isSeatTest(waiter.kind), reserve = seatTest && !overdue.has(waiter.token); // an overdue test may take the spare slot
-    if (seatTest && testSeats.has(JSON.stringify([waiter.repo, waiter.agent]))) return null;
+    const plenty = plentyFor(waiter);
+    if (!plenty && blockedByLanding(waiter)) return null;
+    const seatTest = isSeatTest(waiter.kind), reserve = seatTest && !plenty && !overdue.has(waiter.token); // an overdue test may take the spare slot
+    if (seatTest && !plenty && testSeats.has(JSON.stringify([waiter.repo, waiter.agent]))) return null;
     /** Pick an eligible runner in durable round-robin order when the machine opts in. */
     function runnerSlot() {
       if (waiter.remote !== 1 || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'local') return null;
@@ -574,7 +636,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -657,6 +719,8 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
   }
   for (const waiter of waiters) {
+    // An earlier waiter that is not polling cannot take a slot now, so it never holds one from a later waiter [C7,#3692].
+    if (waiter.ticket !== ticket && !pollingNow(waiter, now)) continue;
     const executor = available(waiter);
     if (executor) {
       if (waiter.ticket !== ticket) {
@@ -750,16 +814,6 @@ function unavailableRunnerHosts(db, now, runners = []) {
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
-
-/** Return the durable runner allowlist; legacy restrictions continue to name only their preferred host. */
-function requiredRunnerHosts(waiter) {
-  if (!waiter?.requiredExecutor) return null;
-  const restriction = typeof waiter.requiredExecutor === 'string' ? JSON.parse(waiter.requiredExecutor) : waiter.requiredExecutor;
-  if (restriction?.kind !== 'ssh') return null;
-  return restriction.hosts ?? [restriction.host];
-}
-/** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
-function runnerAllowed(waiter, runner) { const hosts = requiredRunnerHosts(waiter); return hosts === null || hosts.includes(runner.host); }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
@@ -866,7 +920,7 @@ export function requiredExecutorOf(value) {
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
- * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false, loopHeartbeat = false } = options;
@@ -1019,6 +1073,7 @@ export async function takeResource(options) {
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
       await options.beforeAdmission?.(); const order = queueOrder(scope);
+      await warmListedIdentities(db);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
@@ -1050,8 +1105,8 @@ export async function takeResource(options) {
         // A first free runner gets one admission opportunity at the expired queue boundary.
         // A previous dispatch or a prior fallback decision never restarts the runner wait.
         const remoteEligible = remote && (!runnerDeadlinePassed || readinessFailover || !runnerDispatched && !lateAdmissionClosed);
-        db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
-          .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
+        db.prepare('UPDATE waiter SET heartbeat = ?, polled = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
+          .run(Date.now(), now, classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
         const unavailable = unavailableRunnerHosts(db, now, runners);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
@@ -1061,7 +1116,7 @@ export async function takeResource(options) {
         let runnerDeadline;
         if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
           const state = snapshot(db, name, order, now);
-          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
           runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable),
             branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
@@ -1090,8 +1145,8 @@ export async function takeResource(options) {
         }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
-            queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerWaitMs,
-            startupDeadlineAt: now + options.runnerWaitMs } : null;
+            queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerStartupMs ?? LATE_STARTUP_MS,
+            startupDeadlineAt: now + (options.runnerStartupMs ?? LATE_STARTUP_MS) } : null;
           const queueTicket = consumeOpportunity(db, name, waiter.ticket, order, now);
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
@@ -1102,7 +1157,7 @@ export async function takeResource(options) {
         }
         let runnerWait;
         if (name === 'gate' && waiter.remote === 1) {
-          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
           runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
           db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
         }
@@ -1134,10 +1189,12 @@ export async function takeResource(options) {
         let heartbeat;
         /** Keep the active holder lease alive while its executor is running. */
         const startHeartbeat = () => {
-          heartbeat = loopHeartbeat ? undefined : setInterval(() => {
+          heartbeat = loopHeartbeat ? undefined : setInterval(async () => {
+            if (released || transferred || lost) return;
+            await warmListedIdentities(db);
             if (released || transferred || lost) return;
             try {
-              const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
+              const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes, false);
               if (!changed) { lost = true; clearInterval(heartbeat); }
             } catch { /* Lease expiry remains the crash fallback. */ }
           }, HEARTBEAT_MS);
@@ -1166,12 +1223,34 @@ export async function takeResource(options) {
         /** Refresh this lease, or refuse if another process already evicted it. */
         const renew = () => {
           if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
-          const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
+          const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes, false);
           if (!changed) {
             lost = true;
             clearInterval(heartbeat);
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
+        };
+        /**
+         * Name another live process as this lease's holder, so the slot is kept while that process lives and freed when
+         * it ends, whatever becomes of the process that took it. Returns false when the process's start identity cannot
+         * be read; the lease then stays with its taker. Why: the hand-off dispatcher took each gate worker's slot in its
+         * own name, so a dispatcher exit freed every running worker's slot at once and its successor started a second
+         * full set of workers beside them (8 Nov) [C7].
+         *
+         * @param {number} holderPid - The process that now holds the slot.
+         * @returns {boolean}
+         */
+        const handOver = holderPid => {
+          if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          const holderStarted = Number.isSafeInteger(holderPid) && holderPid > 1 ? processStarted(holderPid) : '';
+          if (!holderStarted) return false;
+          const changed = update(db, () => db.prepare('UPDATE holder SET pid = ?, started = ? WHERE token = ?').run(holderPid, holderStarted, token).changes);
+          if (!changed) {
+            lost = true;
+            clearInterval(heartbeat);
+            throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          }
+          return true;
         };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
         const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
@@ -1232,8 +1311,8 @@ export async function takeResource(options) {
         };
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
           ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
-          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
-          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
+          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt, ...(Number.isSafeInteger(options.runnerWaitMs) ? { runnerStartupMs: options.runnerWaitMs } : {}) } : {}),
+          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, handOver, timingEvidence,
           ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
       }
       if (acquired.state.runnerWait) {
@@ -1251,6 +1330,8 @@ export async function takeResource(options) {
         runners: error.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: error.message };
       const nextAttempts = [...infrastructureAttempts, attempt];
       const waited = Math.max(0, Date.now() - waitStartedAt);
+      // A passed runner deadline that rejoins the queue once is a deadline span of the gate's admission [C7].
+      recordGateSpan({ phase: 'admission', start: waitStartedAt, outcome: 'retry', cause: 'deadline', code: error.code, host: attempt.runner });
       db.close();
       return takeResource({ ...options, _resume: { token, ticket: initialTicket, queueTicket: resume?.queueTicket ?? null,
         queuedAt, requestedAt: Date.now(), runnerDeadlineAt: 0, runnerDispatched: false, lateAdmissionClosed: false,

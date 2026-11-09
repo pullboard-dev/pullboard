@@ -49,7 +49,7 @@ after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
 /** Build the real loopback SSH transport in an isolated machine, with a short private deadline. */
-function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false } = {}) {
+function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false, transportDown = healthDown } = {}) {
   const box = e2e.project('true');
   const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
   for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
@@ -63,7 +63,7 @@ cp.spawnSync=function(command,...args){ if(command!=='/bin/launchctl') return or
   return {status:113,signal:null,stderr:'Could not find domain for fixture\\n'}; };
 require('node:module').syncBuiltinESMExports();\n`);
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, workerHealthDown: healthDown, stderrLog,
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown: transportDown, workerHealthDown: healthDown, stderrLog,
     registrationNodeOptions: `--require=${noDesktop}` });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');
@@ -71,7 +71,8 @@ require('node:module').syncBuiltinESMExports();\n`);
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
   writeFileSync(settingsFile, JSON.stringify({ ...settings, gateSlots: 1, browserSlots: 1,
-    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false } }));
+    // Pinned off: the default load-aware dispatch (4a04010085) reads the busy test machine through the stand-in and can refuse the fixture runner.
+    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false, loadAwareDispatch: false } }));
   return { ...box, requests, starts, stderrLog, settingsFile };
 }
 
@@ -88,10 +89,10 @@ async function observe(predicate, description, budgetMs = 10_000) {
   }
 }
 
-test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
+test('clause 1: a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
   // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
   // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
-  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
+  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -149,8 +150,9 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
   }
 });
 
-test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
-  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
+test('clause 1: a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
+  // A runner that never answers fails its SSH and Node confirming probe too; only that failure quarantines it (#3738).
+  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, transportDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -203,7 +205,7 @@ test('the public runner deadline setting has a five-minute default and rejects u
   }
 });
 
-test('an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
+test('clause 1: an executing runner command keeps its test budget after the admission deadline [C7]', async () => {
   const box = fixture({ runnerWaitMs: 5_000, dropFirst: false });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -318,7 +320,7 @@ function lateDispatchDiagnostics(box) {
   console.error('late private gate state:', { holders: pool?.holders.length, waiters: pool?.line.length });
 }
 
-test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
+test('clause 1: a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
   const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
   const box = fixture({ runnerWaitMs, dropFirst: false });
   const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
@@ -355,10 +357,10 @@ console.log(run.output);process.exitCode=run.isGreen?0:1;`;
       const line = result.stdout.split('\n').find(row => row.startsWith('LATE_FIRST_RECEIPT '));
       assert.ok(line, 'the normal gate emitted its controller receipt');
       const receipt = JSON.parse(line.slice('LATE_FIRST_RECEIPT '.length));
-      assert.equal(receipt.lateRunnerDispatch.budgetMs, runnerWaitMs, 'reuse the captured machine setting, not a new timeout');
+      assert.equal(receipt.lateRunnerDispatch.budgetMs, 90_000, 'a fixed startup budget, not the queue wait setting [3832]');
       assert.equal(receipt.lateRunnerDispatch.host, HOST + '-drop');
       assert.ok(receipt.lateRunnerDispatch.admittedAt >= receipt.lateRunnerDispatch.queueDeadlineAt);
-      assert.equal(receipt.lateRunnerDispatch.startupDeadlineAt - receipt.lateRunnerDispatch.admittedAt, runnerWaitMs);
+      assert.equal(receipt.lateRunnerDispatch.startupDeadlineAt - receipt.lateRunnerDispatch.admittedAt, 90_000);
       assert.equal(readFileSync(box.requests, 'utf8').trim().split('\n').length, 1, 'exactly one actual SSH dispatch');
       const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
       assert.equal(pool.holders.length + pool.line.length, 0, 'all original leases drain');
@@ -431,7 +433,7 @@ test('a failed late dispatch cannot buy another startup budget on a different fr
         first.release(); first = null;
       } });
       assert.equal(late.runner.host, runners[0].host);
-      assert.equal(late.lateRunnerDispatch.budgetMs, 60);
+      assert.equal(late.lateRunnerDispatch.budgetMs, 90_000);
       second.release(); second = null;
       const requeued = late.requeueRunner('transport-lost', { quarantine: false }); // a quarantined requeue starts a fresh attempt on purpose (10d8e44f17, #2657) late = null;
       await assert.rejects(requeued, { code: 'RUNNER_WAIT_DEADLINE' }, 'the same original request has spent its one late start');
@@ -507,7 +509,8 @@ test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q
 });
 
 test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
-  const box = fixture({ dropFirst: false });
+  // The private machine setting is the child's startup deadline; the 60 ms default expired under runner load (load average 19 on 12 CPUs).
+  const box = fixture({ dropFirst: false, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const gateUrl = pathToFileURL(join(process.cwd(), 'packages/gate/index.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}

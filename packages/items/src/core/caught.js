@@ -7,7 +7,7 @@ import { proofEventDetail } from "../../../kernel/src/core/event-detail.js";
  * names a trunk conflict or a red landing, a proven flake or a quarantined test, a sentinel finding), so the list is a
  * reading of history and adds nothing to it.
  */
-import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
+import { NATIVE_FLAKE_ENGINE } from "../../../state/core.js";
 
 /** The kinds of catch in the order they print, each with the words its heading uses. */
 export const CAUGHT_KINDS = [

@@ -76,6 +76,27 @@ export function assertTransportLive(S) {
   if (S.transportLost) throw new Error('runner transport was lost');
 }
 
+/**
+ * Run one startup step, retrying with backoff while the machine resource database is locked.
+ * Why: on 8 Nov a locked resources.sqlite during the worker's startup bridge ended the worker before READY, the controller
+ * read that as WORKER_UNRESPONSIVE and quarantined the runner, and 3 of 7 runners went out (#3086). A lock always frees.
+ *
+ * @param {object} S - Worker state; the transport must stay live between tries.
+ * @param {() => Promise<any>} work - The startup step.
+ * @param {{ wait?: (ms: number) => Promise<void>, tries?: number, pauseMs?: number }} [options]
+ */
+export async function retrySlotLocked(S, work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), tries = 8, pauseMs = 2_000 } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try { return await work(); }
+    catch (error) {
+      if (error?.code !== 'SLOT_DB_LOCKED' || attempt >= tries) throw error;
+      assertTransportLive(S);
+      await wait(Math.min(pauseMs * attempt, 10_000));
+      assertTransportLive(S);
+    }
+  }
+}
+
 /** Wait for every owned group, terminating any still present after its leader exits. */
 export async function drainAllOwned(S) {
   await Promise.all([...S.ownedChildren.values()].map(record => drainOwned(S, record, S.transportLost)));

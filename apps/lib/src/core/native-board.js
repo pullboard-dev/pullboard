@@ -29,8 +29,8 @@ import {
   requireTrunkMerge,
 } from '../../../../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { PIPELINE_CAUSE_ENGINE } from '../../../../src/pipeline-cause-engine.js';
-import { SUBMIT_HANDOFF_ENGINE } from '../../../../src/submit-handoff-engine.js';
+import { PIPELINE_CAUSE_ENGINE } from '../../../../packages/state/core.js';
+import { SUBMIT_HANDOFF_ENGINE } from '../../../../packages/state/core.js';
 import { firstRefusalDetail } from '../../../../packages/items/index.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 /** Supply current native engine thresholds without duplicating their values. */
@@ -44,8 +44,8 @@ import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/i
 import { renewReview } from '../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
 import { releaseReview } from '../../../../packages/jobs/index.js';
-import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
-import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
+import { submitHandoffBoardRoot } from '../../../../packages/sandbox/index.js';
+import { sealSubmitHandoffQueue } from '../../../../packages/sandbox/index.js';
 import {
   validateQuarantineProofIds,
   quarantineVerdictSnapshot,
@@ -258,7 +258,7 @@ import {
 } from '../../../../src/board-conditional-holds.js';
 import {
   STALE_STATE_ENGINE,
-} from '../../../../src/stale-state-engine.js';
+} from '../../../../packages/state/core.js';
 import {
   readReceivedBoardState,
 } from '../../../../packages/store/index.js';

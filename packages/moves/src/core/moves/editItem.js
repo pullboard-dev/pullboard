@@ -1,25 +1,25 @@
-import { EXPECTED_BUILD_ENGINE } from '../../../../../src/expected-build-engine.js';
-import { MACHINE_VERDICT_ENGINE } from '../../../../../src/machine-verdict-engine.js';
-import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../../src/blocked-dependencies-engine.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../state/core.js';
+import { MACHINE_VERDICT_ENGINE } from '../../../../state/core.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../state/core.js';
 import { checkTimingEngine } from "../../../../items/core.js";
-import { REVIEW_TIER_ENGINE } from "../../../../../src/review-tier-engine.js";
-import { CHECK_TIMING_ENGINE } from "../../../../../src/check-timing-engine.js";
-import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../../src/review-independence-engine.js";
-import { REFERENCE_ENGINE } from "../../../../../src/reference-engine.js";
-import { CROSS_REPO_DEPENDENCY_ENGINE } from "../../../../../src/cross-repo-dependency-engine.js";
+import { REVIEW_TIER_ENGINE } from "../../../../state/core.js";
+import { CHECK_TIMING_ENGINE } from "../../../../state/core.js";
+import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/core.js";
+import { REFERENCE_ENGINE } from "../../../../state/core.js";
+import { CROSS_REPO_DEPENDENCY_ENGINE } from "../../../../state/core.js";
 import { hasForeignDependencies } from "../../../../items/core.js";
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../../src/automatic-dispatch-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   BAR_ENGINE,
   carriesBarReason,
 } from "../../../../../src/bar-corrections.js";
-import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
+import { BAR_READY_ENGINE } from "../../../../state/core.js";
 import { barReadySetting } from "../bar-ready-setting.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
-import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../../../src/per-item-full-suite-engine.js';
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
+import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../../state/core.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

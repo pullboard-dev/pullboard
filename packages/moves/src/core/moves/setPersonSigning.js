@@ -1,5 +1,5 @@
 /** Routing metadata owned by setPersonSigning, which turns signed person moves on or off [E22,H16]. */
-import { PERSON_SIGNING_ENGINE } from "../../../../../src/person-signing-engine.js";
+import { PERSON_SIGNING_ENGINE } from "../../../../state/core.js";
 
 /** Signed person moves arrived with their own engine; nothing older can replay this operation [H16]. */
 function minimumEngine() { return PERSON_SIGNING_ENGINE; }

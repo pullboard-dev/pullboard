@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 
@@ -14,7 +14,7 @@ function unlandedLeaf(name) {
 
 /** The engine number a leaf holds at a commit, or null when the leaf is not there or not yet numbered. */
 function numberAt(box, commit, name) {
-  const shown = box.tryGit(box.repo, 'show', `${commit}:src/${name}-engine.js`);
+  const shown = box.tryGit(box.repo, 'show', `${commit}:packages/state/src/core/engines/${name}-engine.js`);
   return shown.status === 0 ? Number(/= (\d+);/u.exec(shown.stdout)?.[1] ?? NaN) : null;
 }
 
@@ -29,11 +29,12 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   const box = landProject();
   // The trunk already has one landed engine, and its documented move engine; the fixture lane owns src/ too.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/'])];
+  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/', 'packages/state/src/core/engines/'])];
   writeFileSync(join(box.repo, 'pullboard.json'), `${JSON.stringify(config, null, 2)}\n`);
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  writeFileSync(join(box.repo, 'src', 'base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
+  mkdirSync(join(box.repo, 'packages/state/src/core/engines'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/state/src/core/engines', 'base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
   // The project's own engine file, which is not Pullboard's: landing must neither fail on it nor change it.
   const game = '/** The project\'s game engine. */\nexport class GameEngine {}\nexport const SPEED = 3;\n';
   writeFileSync(join(box.repo, 'src', 'game-engine.js'), game);
@@ -43,7 +44,8 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   const names = ['alpha', 'beta'];
   const entries = names.map((name, index) => {
     const entry = itemWorktree(box, index + 1);
-    writeFileSync(join(entry.path, 'src', `${name}-engine.js`), unlandedLeaf(name));
+    mkdirSync(join(entry.path, 'packages/state/src/core/engines'), { recursive: true });
+    writeFileSync(join(entry.path, 'packages/state/src/core/engines', `${name}-engine.js`), unlandedLeaf(name));
     return submitItem(box, entry);
   });
   for (const index of order) acceptItem(box, entries[index]);
@@ -58,7 +60,7 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
     if (position === 0) assert.equal(numberAt(box, merge, other), null, `${other} had not landed yet at the first merge`);
   }
   assert.match(box.git(box.repo, 'show', `${result.batch.tip}:docs/formats.md`), /\| `move engine` \| `82` \|/u, 'the documented move engine follows the highest landed number');
-  const landed = box.git(box.repo, 'show', `${result.batch.tip}:src/alpha-engine.js`);
+  const landed = box.git(box.repo, 'show', `${result.batch.tip}:packages/state/src/core/engines/alpha-engine.js`);
   assert.match(landed, /^export const ALPHA_ENGINE = \d+;$/mu, 'the export line itself names its number');
   assert.ok(!landed.includes("from './engine-next.js'"), 'a landed leaf no longer imports the placeholder');
   assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), base);

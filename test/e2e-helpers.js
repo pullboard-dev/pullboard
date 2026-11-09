@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
@@ -69,6 +69,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
     PULLBOARD_USAGE_CHECKPOINT: 'inline',
+    // A fixture's infrastructure retry does not wait out the real 30 s back-off (#3365).
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
   };

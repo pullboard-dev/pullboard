@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { barCheckState, barCheckWarning } from '../packages/verify/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
-import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
+import { BAR_CHECK_ENGINE } from '../packages/state/core.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';

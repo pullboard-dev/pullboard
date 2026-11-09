@@ -2,7 +2,7 @@ import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { rejectionReturnEnabled } from '../core/rework-family-routing.js';
 import * as rejectClause from "../../../verify/src/shell/reject-clause.js";
 import { requireSourceAdvanceReview } from "../../../verify/index.js";
-import { SOURCE_ADVANCE_ENGINE } from "../../../../src/source-advance-engine.js";
+import { SOURCE_ADVANCE_ENGINE } from "../../../state/core.js";
 import { itemPatchReviewProblem } from "../../../items/index.js";
 import { outsideSandboxProblem } from "../../../items/index.js";
 import { outsideSource } from "../../../items/index.js";
@@ -12,8 +12,8 @@ import { getItem } from "./board-query.js";
 import { listItems } from "./board-query.js";
 import { requireKnownMainReworks } from '../core/known-main-reworks.js';
 import { submissionProof } from '../../../state/index.js';
-import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../../src/known-main-owner-pattern-engine.js';
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../src/known-main-running-file-engine.js';
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../state/core.js';
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../state/core.js';
 import { itemHold } from "./board-query.js";
 import { recordVerdict } from "../../../verify/index.js";
 import { atomic } from "./board-event-log.js";
@@ -35,13 +35,15 @@ import { moveItem } from "./board.js";
 import { escalate } from "./board.js";
 import { postRigorNotices } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../state/core.js';
+import { gateReceiptProblem } from './board.js';
 import { reservedRelaxation } from './board-review-family.js';
 import { itemReviewPolicy } from '../../../verify/index.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../state/core.js';
 import { holdItem } from "./board-hold-item.js";
 import { persistShout } from "./board-shout.js";
 import { shout } from "./board-shout.js";
-import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
+import { ROUTE_CALIBRATION_ENGINE } from "../../../state/core.js";
 import { listAgents } from './board-query.js';
 
 /**
@@ -95,6 +97,9 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       board.nativePorts.quarantine.validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
         commit: review?.head ?? found.item_commit, requireGreen: true });
     }
+    // A verdict with no gate receipt would be recorded as INSUFFICIENT_EVIDENCE and count toward the send-back hold (#3737).
+    const pendingGate = engine >= REVIEW_GATE_RECEIPT_ENGINE ? gateReceiptProblem(board, getItem(board, id) ?? {}) : null;
+    if (pendingGate) throw pendingGate;
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     const item = moveItem(board, id, verb, {
       transition,

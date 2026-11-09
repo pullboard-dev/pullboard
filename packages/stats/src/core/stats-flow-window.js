@@ -1,7 +1,7 @@
 /** Window projections of the canonical lifecycle observer; absent evidence is never a zero [R1,R2]. */
 import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
-import { NEXT_IDLE_ENGINE } from '../../../../src/next-idle-engine.js';
+import { NEXT_IDLE_ENGINE } from '../../../state/core.js';
 import { flowWindowBounds } from '../../../seats/core.js';
 export { flowWindowBounds } from '../../../seats/core.js';
 
@@ -171,13 +171,84 @@ export function comparisonBounds(minutes, now) {
 /** A missing denominator is unmeasured, never a fictitious zero or infinity. */
 function comparisonRatio(value, denominator) { return denominator > 0 && value !== null ? value / denominator : null; }
 
+/** The event kinds that open, renew, close or explain a seat's held work, the only ones a seat window replays. */
+const SEAT_KINDS = new Set(['claim', 'renew', 'reserve', 'submit', 'lapse', 'withdraw', 'reopen', 'release', 'accept', 'reject', 'patch', 'next-idle']);
+/** The event kinds a comparison window counts. */
+const COUNTED_KINDS = new Set(['submit', 'reject', 'shout']);
+/** Each indexed history's facts, by its first event row: the indexes of the histories that row starts, newest first. */
+const indexes = new WeakMap();
+
+/**
+ * Index a history once and extend the index as the history grows, so each window replays only the events that move
+ * a seat or a count [C7]. Why: a build compares two windows, and each walked every event of the board's history
+ * twice, parsing its time and detail; on a board of hundreds of thousands of events that was most of a build.
+ *
+ * Each seat-work event keeps the latest and earliest finite time among the other events since the one before it,
+ * so an expired hold closes exactly where the walk of every event closed it; a gap that straddles a window's end
+ * is walked from the history itself.
+ *
+ * @param {any[]} history Events in event id order; an index serves only a history its rows are a prefix of.
+ */
+function historyIndex(history) {
+  const first = history[0];
+  if (!first) return { length: 0, history, joins: [], seatEvents: [], counted: [], agentTimes: new Map() };
+  const kept = indexes.get(first) ?? [];
+  let index = kept.find(candidate => candidate.length <= history.length && history[candidate.length - 1] === candidate.last);
+  if (!index) {
+    index = { length: 0, last: null, history, joins: [], seatEvents: [], counted: [], agentTimes: new Map(), gap: { from: 0, max: -Infinity, min: Infinity } };
+    kept.unshift(index);
+    while (kept.length > 2) kept.pop();
+    indexes.set(first, kept);
+  }
+  for (let position = index.length; position < history.length; position++) {
+    const event = history[position];
+    const at = Date.parse(event.event_at);
+    const finite = Number.isFinite(at);
+    if (finite) {
+      const times = index.agentTimes.get(event.event_by);
+      if (times) times.push(at); else index.agentTimes.set(event.event_by, [at]);
+    }
+    if (event.event_kind === 'join') index.joins.push({ event, at });
+    if (COUNTED_KINDS.has(event.event_kind)) index.counted.push({ event, at });
+    if (SEAT_KINDS.has(event.event_kind)) {
+      index.seatEvents.push({ event, at, position, gap: index.gap });
+      index.gap = { from: position + 1, max: -Infinity, min: Infinity };
+    } else if (finite) {
+      if (at > index.gap.max) index.gap.max = at;
+      if (at < index.gap.min) index.gap.min = at;
+    }
+  }
+  index.length = history.length;
+  index.last = history.at(-1);
+  index.history = history;
+  return index;
+}
+
+/** The latest time, at most `end`, among the other events between two seat-work events. */
+function gapReach(index, gap, to, end) {
+  if (gap.max <= end) return gap.max;
+  if (gap.min > end) return -Infinity;
+  let reach = -Infinity;
+  for (let position = gap.from; position < to; position++) {
+    const at = Date.parse(index.history[position].event_at);
+    if (Number.isFinite(at) && at <= end && at > reach) reach = at;
+  }
+  return reach;
+}
+
 /** Preserve the Dashboard's event-observed seat cohort and union overlapping work, with building first. */
 function seatWindow(history, bounds) {
   const joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
-  for (const event of history) {
-    const at = Date.parse(event.event_at), detail = proofEventDetail(event);
-    if (at <= bounds.end && event.event_kind === 'join' && detail.lane && detail.lane !== 'coordinator'
-      && !['coordinator', 'board', 'person', 'clock'].includes(event.event_by) && !joined.has(event.event_by)) joined.set(event.event_by, at);
+  const index = historyIndex(history);
+  for (const { event, at } of index.joins) {
+    if (!(at <= bounds.end) || joined.has(event.event_by) || ['coordinator', 'board', 'person', 'clock'].includes(event.event_by)) continue;
+    const detail = proofEventDetail(event);
+    if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
+  }
+  for (const agent of joined.keys()) {
+    let latest = -Infinity;
+    for (const at of index.agentTimes.get(agent) ?? []) if (at <= bounds.end && at > latest) latest = at;
+    if (latest > -Infinity) last.set(agent, latest);
   }
   /** Close a real held interval only at its recorded transition or lease boundary. */
   function close(key, at) {
@@ -187,6 +258,46 @@ function seatWindow(history, bounds) {
     if (end > held.start) segments.push({ ...held, end });
     work.delete(key);
   }
+  /** Close every hold an event at `at` finds expired. */
+  function expire(at) {
+    while (deadlines.length && deadlines[0].until <= at) {
+      const { key, held, until } = popDeadline();
+      if (work.get(key) === held && held.until === until) close(key, until);
+    }
+  }
+  /**
+   * Every hold's deadline, earliest first, so expiring holds costs only the holds that expire. A renewed hold
+   * pushes its new deadline; the old entry no longer matches and is dropped when it surfaces.
+   */
+  const deadlines = [];
+  /** Track a hold's current deadline. */
+  function pushDeadline(key, held) {
+    const entry = { key, held, until: held.until };
+    let at = deadlines.push(entry) - 1;
+    while (at > 0) {
+      const parent = (at - 1) >> 1;
+      if (deadlines[parent].until <= entry.until) break;
+      deadlines[at] = deadlines[parent]; deadlines[parent] = entry; at = parent;
+    }
+  }
+  /** Take the earliest deadline. */
+  function popDeadline() {
+    const top = deadlines[0], last = deadlines.pop();
+    if (deadlines.length) {
+      deadlines[0] = last;
+      let at = 0;
+      for (;;) {
+        const left = 2 * at + 1, right = left + 1;
+        let least = at;
+        if (left < deadlines.length && deadlines[left].until < deadlines[least].until) least = left;
+        if (right < deadlines.length && deadlines[right].until < deadlines[least].until) least = right;
+        if (least === at) break;
+        [deadlines[at], deadlines[least]] = [deadlines[least], deadlines[at]];
+        at = least;
+      }
+    }
+    return top;
+  }
   /** Record the cause next actually observed; invalid or older observations explicitly mean unknown. */
   function idle(event, at, detail) {
     const reason = detail.version === 1 && Number.isSafeInteger(detail.engine) && detail.engine >= NEXT_IDLE_ENGINE
@@ -194,12 +305,14 @@ function seatWindow(history, bounds) {
     const rows = observations.get(event.event_by) ?? [];
     rows.push({ at, reason }); observations.set(event.event_by, rows);
   }
-  for (const event of history) {
-    const at = Date.parse(event.event_at);
+  for (const { event, at, position, gap } of index.seatEvents) {
+    if (work.size) {
+      const reach = gapReach(index, gap, position, bounds.end);
+      if (reach > -Infinity) expire(reach);
+    }
     if (!Number.isFinite(at) || at > bounds.end) continue;
     const detail = proofEventDetail(event), id = event.item_id, by = event.event_by;
-    if (joined.has(by)) last.set(by, Math.max(last.get(by) ?? -Infinity, at));
-    for (const [key, held] of work) if (held.until <= at) close(key, held.until);
+    expire(at);
     if (event.event_kind === 'next-idle') idle(event, at, detail);
     if (['claim', 'reserve'].includes(event.event_kind)) {
       const rows = observations.get(by) ?? [];
@@ -209,8 +322,11 @@ function seatWindow(history, bounds) {
     if (['claim', 'renew', 'reserve'].includes(event.event_kind)) {
       const kind = event.event_kind === 'reserve' ? 'review' : 'build', key = `${kind}:${id}`, held = work.get(key);
       const until = Date.parse(kind === 'review' ? detail.until : detail.leaseUntil);
-      if (held?.actor !== by) { close(key, at); work.set(key, { actor: by, kind, start: at, until: Number.isFinite(until) ? until : at }); }
-      else if (Number.isFinite(until)) held.until = until;
+      if (held?.actor !== by) {
+        close(key, at);
+        const opened = { actor: by, kind, start: at, until: Number.isFinite(until) ? until : at };
+        work.set(key, opened); pushDeadline(key, opened);
+      } else if (Number.isFinite(until)) { held.until = until; pushDeadline(key, held); }
     }
     if (['submit', 'lapse', 'withdraw', 'reopen'].includes(event.event_kind) || event.event_kind === 'release' && !detail.review) close(`build:${id}`, at);
     if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind) || event.event_kind === 'release' && detail.review) close(`review:${id}`, at);
@@ -219,9 +335,16 @@ function seatWindow(history, bounds) {
   let budget = 0, occupied = 0, seats = 0;
   const reasons = Object.fromEntries(IDLE_REASONS.map(reason => [reason, 0]));
   const unknownSeats = new Set(segments.filter(row => !joined.has(row.actor) && row.start < bounds.end && row.end > bounds.start).map(row => row.actor));
+  // Each actor's holds that reach into the window, grouped once rather than filtered from every hold per seat.
+  const inWindow = new Map();
+  for (const row of segments) {
+    if (!(row.start < bounds.end && row.end > bounds.start)) continue;
+    const rows = inWindow.get(row.actor);
+    if (rows) rows.push(row); else inWindow.set(row.actor, [row]);
+  }
   for (const [agent, joinAt] of joined) {
     const start = Math.max(bounds.start, joinAt);
-    const stays = segments.filter(row => row.actor === agent && row.start < bounds.end && row.end > start);
+    const stays = (inWindow.get(agent) ?? []).filter(row => row.end > start);
     if (!(last.get(agent) > bounds.start) && !stays.length) continue;
     seats++; budget += Math.max(0, bounds.end - start);
     const observed = (observations.get(agent) ?? []).sort((a, b) => a.at - b.at);
@@ -246,7 +369,7 @@ function seatWindow(history, bounds) {
 
 /** Project traffic and recorded stage time from the same event prefix, without consulting mutable item rows. */
 function comparisonWindow(history, prepared, bounds, stageReport) {
-  const selected = history.filter(event => { const at = Date.parse(event.event_at); return at > bounds.start && at <= bounds.end; });
+  const selected = historyIndex(history).counted.filter(({ at }) => at > bounds.start && at <= bounds.end).map(({ event }) => event);
   const submissions = selected.filter(event => event.event_kind === 'submit');
   const submittedItems = new Set(submissions.map(event => event.item_id).filter(id => id !== null && id !== undefined)).size;
   const landed = prepared.items.filter(item => item.mergeAt > bounds.start && item.mergeAt <= bounds.end).length;
