@@ -101,8 +101,8 @@
     "hand-policy": 9
   },
   "packages/seats/tests/lanes.test.js": {
-    "hand-policy": 17,
-    "tempdir": 4
+    "tempdir": 3,
+    "hand-policy": 11
   },
   "test/lanes-cli.test.js": {
     "hand-policy": 6,
