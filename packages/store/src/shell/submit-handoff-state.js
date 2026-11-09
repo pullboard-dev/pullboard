@@ -61,6 +61,23 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 ]));
 
 /**
+ * Whether a hand-off still serves its item: it is the item's current hand-off, queued or running, and the item is
+ * claimed by the hand-off's seat at its frozen digest. Why: a gate driver, its dispatcher and the fallback all ask
+ * this one question, so a withdrawn, reopened or replaced item's gate ends wherever it is noticed (#4072, SM1).
+ *
+ * @param {any} board - An open board.
+ * @param {number} itemId
+ * @param {string} handoffId - The hand-off job id the gate runs for.
+ * @returns {boolean}
+ */
+export function handoffServes(board, itemId, handoffId) {
+  const handoff = submitHandoff(board, itemId);
+  if (!handoff || handoff.id !== handoffId || !['queued', 'running'].includes(handoff.state)) return false;
+  const item = board.db.prepare('SELECT item_status, item_owner, item_frozen_digest FROM item WHERE item_id = ?').get(itemId);
+  return item?.item_status === 'claimed' && item.item_owner === handoff.agentId && item.item_frozen_digest === handoff.digest;
+}
+
+/**
  * Whether a queued gate's refusal is the machine's, not the builder's source: an infrastructure code, or a worker that
  * exited on a signal before it recorded a result (SUBMIT_HANDOFF_EXIT naming a signal). Why: on 4 Nov 17 of 52 queued
  * reds were machine refusals charged to their builders, 3 of them workers stopped by SIGTERM (#3111).
