@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChildAsync } from './fixture-child.js';
 
-const index = JSON.stringify(new URL('../index.js', import.meta.url).href);
+const index = JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href);
 
 /**
  * Run a fixture child against a private machine pool and return what it prints. The child counts the write

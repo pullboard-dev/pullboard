@@ -276,7 +276,7 @@
     "tempdir": 2,
     "hand-policy": 3
   },
-  "packages/resources/tests/lsof-lookups.test.js": {
+  "packages/runners/tests/lsof-lookups.test.js": {
     "tempdir": 1,
     "repo-read": 2
   },
@@ -322,14 +322,6 @@
   },
   "packages/sandbox/tests/trusted-policy.test.js": {
     "hand-policy": 1
-  },
-  "packages/spec/tests/doctrine-rulings.test.js": {
-    "model": 1
-  },
-  "packages/spec/tests/signoff.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 5
   },
   "packages/state/tests/bar-corrections.test.js": {
     "tempdir": 2,
@@ -496,6 +488,9 @@
   },
   "packages/store/tests/landing-noop.test.js": {
     "raw-board": 1
+  },
+  "packages/store/tests/milestone-placement.test.js": {
+    "raw-board": 4
   },
   "packages/store/tests/review-family-relaxation.test.js": {
     "raw-board": 2
@@ -1444,6 +1439,9 @@
     "tempdir": 1,
     "hand-policy": 3
   },
+  "test/doctrine-rulings.test.js": {
+    "model": 1
+  },
   "test/doctrine.test.js": {
     "tempdir": 1,
     "repo-read": 2,
@@ -2292,9 +2290,6 @@
   },
   "packages/landing/tests/merged-plan-check.test.js": {
     "tempdir": 6
-  },
-  "test/milestone-placement.test.js": {
-    "raw-board": 4
   },
   "test/mixed-mode-drill-fixture.js": {
     "model": 1
@@ -3191,7 +3186,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "packages/resources/tests/runner-disk-sweep.test.js": {
+  "apps/runner/tests/runner-disk-sweep.test.js": {
     "tempdir": 1
   },
   "test/runner-drain-fixture.js": {
@@ -3232,7 +3227,7 @@
     "env-spread": 1,
     "hand-policy": 1
   },
-  "test/runner-least-loaded.test.js": {
+  "packages/runners/tests/runner-least-loaded.test.js": {
     "hand-policy": 1
   },
   "test/runner-orphan-fixture.js": {
@@ -3322,7 +3317,7 @@
     "hand-policy": 3,
     "env-spread": 1
   },
-  "packages/resources/tests/runner-worker-capacity-sync.test.js": {
+  "apps/runner/tests/runner-worker-capacity-sync.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -3427,7 +3422,7 @@
     "hand-policy": 1,
     "raw-board": 5
   },
-  "test/shadow-tier1-verdict.test.js": {
+  "packages/flakes/tests/shadow-tier1-verdict.test.js": {
     "raw-board": 3
   },
   "packages/runners/tests/shared-version.test.js": {
@@ -3465,6 +3460,11 @@
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 2
+  },
+  "test/signoff.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "hand-policy": 5
   },
   "test/skills.test.js": {
     "tempdir": 2,
@@ -3557,7 +3557,7 @@
     "raw-board": 3,
     "hand-policy": 2
   },
-  "test/strict-review-all-families.test.js": {
+  "packages/health/tests/strict-review-all-families.test.js": {
     "model": 1,
     "raw-board": 3,
     "tempdir": 1

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { fixtureCommittedGraph } from './testkit-fixture.js';
-import { selectAffectedTests } from '../packages/gate/index.js';
+import { fixtureCommittedGraph } from '../../../test/testkit-fixture.js';
+import { selectAffectedTests } from '../index.js';
 
 /** Make a real committed ES-module graph with a CLI, a launcher and the modules the CLI imports. */
 function graph(t) {
@@ -12,8 +12,8 @@ function graph(t) {
   const { put } = box;
   put('package.json', '{"type":"module"}\n');
   put('bin/pullboard.js', "import '../src/cli.js';\n");
-  put('src/cli.js', "import './cockpit.js';\n");
-  put('src/cockpit.js', 'export const version = 1;\n');
+  put('src/cli.js', "import '../apps/cli/src/shell/cockpit.js';\n");
+  put('apps/cli/src/shell/cockpit.js', 'export const version = 1;\n');
   // A product module that only names the entry path as text, as seven package modules do.
   put('src/names-cli.js', "export const ENTRY = 'bin/pullboard.js';\nexport const run = root => root;\n");
   // A test the changes below never reach, so a focused selection is never the whole suite.
@@ -25,9 +25,9 @@ function graph(t) {
 test('clause 1: a product module that only names bin/pullboard.js no longer puts the CLI into the closure of a test that imports it [C7]', (t) => {
   const box = graph(t);
   box.put('test/names-only.test.js', "import { ENTRY } from '../src/names-cli.js';\nvoid ENTRY;\n");
-  box.put('test/unrelated.test.js', "import '../src/cockpit.js';\n");
+  box.put('test/unrelated.test.js', "import '../apps/cli/src/shell/cockpit.js';\n");
   const base = box.commit();
-  box.put('src/cockpit.js', 'export const version = 2;\n');
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 2;\n');
   const selected = selectAffectedTests(box.root, { base, commit: box.commit() });
   assert.equal(selected.full, false);
   assert.ok(selected.files.includes('test/unrelated.test.js'), 'a test importing the changed module is selected');
@@ -39,7 +39,7 @@ test('clause 1: a test that launches the CLI from the repo root still has the CL
   box.put('test/from-root.test.js', "import { run } from '../src/names-cli.js';\nconst ROOT = process.cwd();\nrun(ROOT);\n");
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\nvoid BIN;\n");
   const base = box.commit();
-  box.put('src/cockpit.js', 'export const version = 2;\n');
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 2;\n');
   const selected = selectAffectedTests(box.root, { base, commit: box.commit() });
   assert.equal(selected.full, false, selected.reason);
   assert.ok(selected.files.includes('test/from-root.test.js'), 'a test handing the repo root to a launcher module is selected by what the CLI imports');

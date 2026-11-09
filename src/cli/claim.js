@@ -1,2 +1,0 @@
-/** Preserve this module's public names through the apps/cli front door [C7]. */
-export { cliClaim$MainSpecMerged as MainSpecMerged, cliClaim$claimFreezer as claimFreezer, cliClaim$claimOrdered as claimOrdered, cliClaim$currentReworkRoutingPolicy as currentReworkRoutingPolicy, cliClaim$freezer as freezer, cliClaim$ordered as ordered, cliClaim$relayOutboxSetting as relayOutboxSetting, cliClaim$wrongLaneGuidance as wrongLaneGuidance } from '../../apps/cli/index.js';

@@ -94,7 +94,7 @@ function submittedItem({ uncovered, reasoning = false, check = true }) {
   commit(box, box.repo, 'chore: seed accept fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web');
+  ok(box, builder, 'join', 'web', '--route', 'strong');
   const criterion = reasoning
     ? '1. The page shows a greeting [test]; 2. The greeting names the visitor by first name [test]; 3. Old browsers fall back to plain text, shown by the greeting using no markup [reasoning]'
     : uncovered
@@ -132,7 +132,7 @@ function submittedItem({ uncovered, reasoning = false, check = true }) {
   // The reviewer's seat sits on main, not on the submitted commit.
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  ok(box, reviewer, 'join', 'api');
+  ok(box, reviewer, 'join', 'api', '--route', 'strong');
   return { box, id, head, packet, marker, reviewer };
 }
 
@@ -173,11 +173,11 @@ test('a packet with one uncovered clause runs the frozen check and names the cla
   // The full path checks the submitted commit out, as today.
   const reviewer = join(box.dir, 'api-review-at-head');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api');
+  ok(box, reviewer, 'join', 'api', '--route', 'strong');
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
   assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
   assert.doesNotMatch(accepted.out, /accepted from review packet/u);
-  assert.ok(existsSync(marker), 'the frozen check ran its test');
+  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
 });
 
 test('a reasoning clause the reviewer read accepts from the packet; unread, it runs the frozen check [V4,C7]', { timeout: 240_000 }, () => {
@@ -195,10 +195,10 @@ test('an unread reasoning clause still runs the frozen check and names itself [V
   const { box, id, head, marker } = submittedItem({ uncovered: false, reasoning: true });
   const reviewer = join(box.dir, 'api-review-at-head');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api');
+  ok(box, reviewer, 'join', 'api', '--route', 'strong');
   const accepted = ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'reran clause 3');
   assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run and was not read; running the frozen check`, 'u'));
-  assert.ok(existsSync(marker), 'the frozen check ran its test');
+  assert.ok(existsSync(marker), `the frozen check ran its test: ${accepted.out}`);
 });
 
 test('an uncovered free-text clause the reviewer read accepts from the packet [V4,C7]', { timeout: 240_000 }, () => {
