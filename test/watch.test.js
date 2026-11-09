@@ -20,16 +20,16 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { reserveReview } from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { followBoard } from '../../shouts/index.js';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { startFixtureChild } from '../../../test/fixture-child.js';
-import { waitForCondition } from '../../../test/runner-fixture-state.js';
-import { VERIFICATION_COMPARISON_PREFIX } from '../../verify/index.js';
+import { reserveReview } from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/index.js';
+import { followBoard } from '../packages/shouts/index.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { startFixtureChild } from './fixture-child.js';
+import { waitForCondition } from './runner-fixture-state.js';
+import { VERIFICATION_COMPARISON_PREFIX } from '../packages/verify/index.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const folders = [];
 
 after(() => {
@@ -490,7 +490,7 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
     'next: pullboard status',
   ], 'the original two harness instructions and the final interactive help action stay exact');
-  const { agentsBlock } = await import('../../doctrine/core.js');
+  const { agentsBlock } = await import('../packages/doctrine/core.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
   assert.match(listen, /run `pullboard watch --to <your id>` there/u);

@@ -2,29 +2,40 @@
 /** @pullboard-test-loads packages/runners/src/shell/runner-tooling-snapshot.js packages/runners/src/shell/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js src/runners.js */
 /** Private shipped-source fixtures; these tests do not claim execution on a physical runner [C7,P3]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { renameSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
-import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
-import { workerBundleBytes } from '../packages/runners/src/shell/runner-package.js';
-import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js';
-import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
-import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
-import { runFixtureChild } from './fixture-child.js';
-import { cellSandbox } from './cell-fixture.js';
+import { runnerPackage } from '../src/shell/runner-package.js';
+import { workerBundleBytes } from '../src/shell/runner-package.js';
+import { createRunnerModuleParser } from '../src/shell/runner-module-parser.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { runtimeUrls } from '../src/core/runner-runtime-urls.js';
+import { captureRunnerTooling } from '../src/shell/runner-tooling-snapshot.js';
+import { currentRunnerTooling } from '../src/shell/runner-tooling-snapshot.js';
+import { installRunnerPackage } from '../src/shell/runner-package-install.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
-import { toolSourcePath } from '../packages/runners/index.js';
+import { copyPackageFiles } from '../index.js';
+import { packageFiles } from '../index.js';
+import { toolSourcePath } from '../index.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
 function fixture(t, files = ['src', 'packages/*/src']) {
@@ -85,7 +96,7 @@ test('the private closure compiler preserves V8 edges and refusals without execu
 test('a loaded controller refuses changed private compiler bytes before an optional rescan [C7,P3]', async t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   const snapshot = await import(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-tooling-snapshot.js')).href);
   const loaded = snapshot.captureRunnerTooling(installed);
   for (const file of ['packages/runners/src/shell/runner-module-parser.js', 'packages/runners/src/shell/runner-module-parser-worker.js']) {
@@ -103,7 +114,7 @@ test('a loaded controller refuses changed private compiler bytes before an optio
 test('a private compiler startup failure refuses instead of supplying an empty closure [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), 'this is not valid module syntax {\n');
   const script = `import assert from 'node:assert/strict';
 const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-module-parser.js')).href)});
@@ -122,7 +133,7 @@ test('a private compiler cannot replace a requested import with a forged empty r
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'forged-reply-prepared');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
 const directory=process.argv[2];
@@ -151,7 +162,7 @@ test('a compiler swap restored before its reply cannot erase a real import [C7,P
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'swapped-compiler-executed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   const worker = join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js');
   const original = readFileSync(worker, 'utf8');
   const forged = `import {existsSync,readFileSync,writeFileSync,renameSync} from 'node:fs';
@@ -173,7 +184,8 @@ const timer=setInterval(reply,2);reply();`;
   const script = `import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import {syncBuiltinESMExports} from 'node:module';
-import {existsSync,writeFileSync} from 'node:fs';
+import { existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 const actualSpawn=childProcess.spawn;let swaps=0;
 childProcess.spawn=function(command,args,options){
   if(args?.includes('--experimental-vm-modules')){swaps++;writeFileSync(${JSON.stringify(worker)},${JSON.stringify(forged)});}
@@ -396,7 +408,7 @@ test('a warmed derived snapshot still refuses newly selected symlinks outside it
 function controllerFixture(t) {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   return { ...f, installed };
 }
 
@@ -416,7 +428,7 @@ test('controller provider freshness follows its real package composition, not un
 test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
   const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   mkdirSync(project);
   writeFileSync(join(project, 'README.md'), 'Private committed source.\n');
   writeFileSync(join(installed, 'src/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
@@ -462,7 +474,8 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:${JSON.
 test('the actual async controller retains fresh bridging and rejects a stale derived runtime before dispatch [C7,P3]', t => {
   const f = controllerFixture(t);
   const script = `import assert from 'node:assert/strict';
-import {readFileSync,writeFileSync} from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(f.installed, 'src/runners.js')).href)});
 const options={runner:{host:'private-unused.invalid',slots:1,browser:0}};
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_SOURCE_CHANGED');
@@ -551,7 +564,7 @@ test('runner closure retains the 4096 file cap independently of byte accounting 
 test('private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
   const f=fixture(t);
   const protocol=join(f.directory,'protocol');mkdirSync(protocol);
-  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../packages/runners/src/shell/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
+  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../src/shell/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
   let stderr='';worker.stderr.on('data',part=>{stderr+=part;});
   const closed=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
   t.after(async()=>{if(worker.exitCode===null&&worker.signalCode===null)worker.kill('SIGKILL');await closed;});
@@ -589,7 +602,7 @@ test('private compiler drains atomic requests when watcher notifications are los
   const protocol = join(f.directory, 'lost-notification-protocol');
   mkdirSync(protocol);
   const wrapper = join(f.directory, 'lost-notification-worker.mjs');
-  const entry = resolve(import.meta.dirname, '../packages/runners/src/shell/runner-module-parser-worker.js');
+  const entry = resolve(import.meta.dirname, '../src/shell/runner-module-parser-worker.js');
   writeFileSync(wrapper, `import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 const actualWatch = fs.watch;

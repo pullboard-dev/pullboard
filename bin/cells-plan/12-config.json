@@ -15,9 +15,6 @@
   ["src/settings-read.js","packages/config/src/core/settings-read.js","rule"],
   ["src/settings.js","packages/config/src/shell/settings.js","seed"],
   ["src/templates.js","packages/config/src/shell/templates.js","seed"],
-  ["test/config.test.js","packages/config/tests/config.test.js","seed"],
-  ["test/lanes.test.js","packages/config/tests/lanes.test.js","seed"],
-  ["test/registry.test.js","packages/config/tests/registry.test.js","seed"],
   ["test/submit-infra.test.js","packages/config/tests/submit-infra.test.js","seed"],
   ["test/submit-registry-guards.test.js","packages/config/tests/submit-registry-guards.test.js","seed"],
   ["test/submit-size.test.js","packages/config/tests/submit-size.test.js","seed"],
@@ -31,9 +28,7 @@
   ["src/config-forward-compat.js","packages/config/src/shell/config-forward-compat.js","rule"],
   ["test/config-forward-compat.test.js","packages/config/tests/config-forward-compat.test.js","rule"]
  ],
- "reexports": [
-  "src/config.js"
- ],
+ "reexports": ["src/config.js"],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
   {"cell":"git","imports":1,"before":true},
