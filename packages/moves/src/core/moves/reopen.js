@@ -18,10 +18,8 @@ import {
 } from "../../../../../src/engine-metadata.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
-import {
-  CONFLICT_ENGINE,
-  carriesConflict,
-} from "../../../../merge/src/shell/trunk-conflict.js";
+import { CONFLICT_ENGINE } from "../../../../state/core.js";
+import { carriesConflict } from "../../../../merge/src/shell/trunk-conflict.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

@@ -2329,7 +2329,7 @@
       "deep": 0
     },
     "packages/merge/src/shell/trunk-conflict.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 2
     },
     "packages/merge/src/shell/trunk-merge.js": {
@@ -4832,10 +4832,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/merge/index.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/seats/src/core/review-routing-enabled.js": {
       "cells": 1,
       "deep": 0
@@ -5373,8 +5369,7 @@
       "imports": [
         "git",
         "items",
-        "kernel",
-        "state"
+        "kernel"
       ],
       "deepImporters": 0
     },

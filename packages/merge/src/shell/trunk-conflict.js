@@ -16,9 +16,6 @@ import { Refused } from '../../../kernel/index.js';
 import { conflictNote } from '../../../kernel/src/core/registry-guards.js';
 import { shownPaths } from '../../../kernel/src/core/registry-guards.js';
 
-import { CONFLICT_ENGINE } from '../../../state/core.js';
-export { CONFLICT_ENGINE } from '../../../state/core.js';
-
 /** The label an item carries from a conflict reopen until its next verdict. */
 export const MAIN_MERGE_LABEL = 'needs main merge';
 
@@ -87,11 +84,13 @@ export function reopenConflict({ item, coordinator, values, trunkMerge }) {
  * @param {any} item
  * @param {unknown} conflict
  * @param {(accept: number) => void} found - receives the id of the accept the reopen sets aside
+ * @param {number} conflictEngine - the engine that introduced conflict reopens, passed in by the caller: the constant lives in
+ *   the state cell, and merge importing state would close a cell cycle (state reaches merge through store) [R27]
  * @returns {Refused | null}
  */
-export function conflictProblem(board, item, conflict, found) {
+export function conflictProblem(board, item, conflict, found, conflictEngine) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
-  if (engine < CONFLICT_ENGINE) return new Refused('ENGINE_VERSION', `a reopen for a main merge requires engine ${CONFLICT_ENGINE}; this board uses engine ${engine}; upgrade Pullboard before using --conflict`);
+  if (engine < conflictEngine) return new Refused('ENGINE_VERSION', `a reopen for a main merge requires engine ${conflictEngine}; this board uses engine ${engine}; upgrade Pullboard before using --conflict`);
   // A submitted head that no longer merges goes back to its builder before anyone reviews it (#807).
   // Only the automatic return names Git's trunk for a submission; a hand-written --conflict on one stays refused.
   const returning = item.item_status === 'submitted' && engine >= SUBMITTED_CONFLICT_ENGINE && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(conflict?.trunk ?? '');
