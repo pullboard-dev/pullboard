@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../../../src/board.js";
+import * as store from "../../store/index.js";
 import { openBoard } from "../../../apps/lib/index.js";
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
@@ -29,7 +29,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     execFileSync('git', ['init', '-q', '-b', 'main', root], { env });
     const file = join(root, '.git', 'board.sqlite'), board = openBoard(file);
-    store.ensureCoordinator(board, root);
+    store.board_ensureCoordinator(board, root);
     boards.push({ board, file, id: store.boardId(board) });
   }
   const [source, destination] = boards;
