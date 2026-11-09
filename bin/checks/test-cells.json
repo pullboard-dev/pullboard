@@ -1329,6 +1329,7 @@
     "pin",
     "receipt",
     "sentinels",
+    "shouts",
     "sync"
   ],
   "splits": {}
