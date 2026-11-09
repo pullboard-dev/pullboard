@@ -8,10 +8,10 @@ import { Refused } from '../../../../../packages/kernel/core.js';
 const DISPATCHER_ENTRY = fileURLToPath(new URL('../../../../../bin/handoff-worker-dispatcher.js', import.meta.url));
 
 /**
- * Wake recovery of queued dispatch without waiting on it; help, non-board repos, empty queues and a dispatcher whose
- * heartbeat is fresh stay inert. Why: the full check (listing the machine's lock holders, probing their processes)
- * ran on every command's critical path and cost 4-13 s at load 32-50, which pushed `next` past NEXT_TIMEOUT. Now a
- * one-stat heartbeat check decides, and only a stale one starts the full check as a detached process [C7].
+ * Hand queued-dispatch recovery to a background job and return at once; the command itself checks nothing about the
+ * dispatcher. Help and non-board repos stay inert, and the job starts at most once per wake spacing machine-wide.
+ * Why: recovery ran on every command's critical path and cost 4-13 s at load 32-50, which pushed `next` past
+ * NEXT_TIMEOUT; the detached job (the dispatcher entry's recover mode) owns it now [C7].
  *
  * @param {{ cwd: string, err: (line: string) => void }} io
  * @param {{ repoInfo: (cwd: string) => { commonDir: string } }} git
@@ -27,7 +27,7 @@ export async function recoverQueuedHandoffs(io, { repoInfo }, ports = {}) {
   }
   if (!existsSync(join(info.commonDir, 'pullboard', 'board.sqlite'))) return;
   try {
-    const claim = ports.claim ?? (await import('../../../../../packages/resources/index.js')).claimHandoffDispatcherWake;
+    const claim = ports.claim ?? (await import('../../../../../packages/resources/index.js')).claimHandoffRecoveryTurn;
     if (!claim()) return;
   } catch (error) {
     io.err(`queued handoff dispatcher wake unavailable: ${error.code ?? error.name}: ${error.message}`);

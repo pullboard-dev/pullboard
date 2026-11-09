@@ -112,7 +112,7 @@ test('#3839 clause 1: heartbeat, inbox and hook commit-msg never call recoverQue
 }));
 
 for (const command of [['next'], ['submit', '12']]) {
-  test(`#3839 clause 2: ${command[0]} still recovers a queued launch, starting the check detached [C7]`, () => withHome(async dir => {
+  test(`#3839 clause 1: ${command[0]} runs no recovery inline and hands it to the background job [C7]`, () => withHome(async dir => {
     queueLaunch();
     const starts = await recoveryStep(dir, command);
     assert.equal(starts.length, 1, `${command[0]} starts one recovery check`);

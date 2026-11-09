@@ -1,6 +1,7 @@
 /** Recover machine-wide queued launches without treating a board read as submit authority [C7]. */
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,26 +27,36 @@ function modifiedAt(file) {
 }
 
 /**
- * Decide, in about a millisecond, whether this command should start a detached recovery check, and claim the turn when
- * it should: true only when launches are queued, no dispatcher heartbeat is fresh, and no other command started a check
- * within HANDOFF_WAKE_SPACING_MS. Why: the full check (recoverHandoffDispatcher) reads the machine's slot database and
- * probes holder processes, which cost every board command 4-13 s at load 32-50; it now runs detached, and only here
- * when the cheap evidence says the dispatcher may be dead. A false alarm costs one detached check that starts nothing [C7].
+ * Claim this command's turn to start the background recovery job: true at most once per HANDOFF_WAKE_SPACING_MS
+ * machine-wide, whatever the queue holds. The command checks nothing about the dispatcher; one stat and, on its turn,
+ * one write are all it pays. Why: recovery on every command's path (listing the machine's lock holders, probing their
+ * processes, waiting on the launch lock) cost 4-13 s per command at load 32-50; the background job owns it now [C7].
  *
  * @param {{ now?: number }} [options]
  * @returns {boolean}
  */
-export function claimHandoffDispatcherWake({ now = Date.now() } = {}) {
+export function claimHandoffRecoveryTurn({ now = Date.now() } = {}) {
   const directory = handoffQueueDirectory();
-  let names;
-  try { names = readdirSync(directory); }
-  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-  if (!names.some(name => TICKET.test(name))) return false;
-  if (now - modifiedAt(handoffDispatcherHeartbeat()) < HANDOFF_HEARTBEAT_FRESH_MS) return false;
   const turn = join(directory, 'recovery-woken');
   if (now - modifiedAt(turn) < HANDOFF_WAKE_SPACING_MS) return false;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
   writeFileSync(turn, `${process.pid}\n`, { mode: 0o600 });
   return true;
+}
+
+/**
+ * Whether the dispatcher may be dead with work waiting: a launch is queued and no heartbeat is fresh. The background
+ * recovery job reads this first so a live dispatcher costs it one directory read and one stat, never the slot database.
+ *
+ * @param {{ now?: number }} [options]
+ * @returns {boolean}
+ */
+export function handoffDispatcherMayBeDead({ now = Date.now() } = {}) {
+  let names;
+  try { names = readdirSync(handoffQueueDirectory()); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  if (!names.some(name => TICKET.test(name))) return false;
+  return now - modifiedAt(handoffDispatcherHeartbeat()) >= HANDOFF_HEARTBEAT_FRESH_MS;
 }
 
 /** Find captured launch tooling; an unfinished reservation cannot supply executable source. */

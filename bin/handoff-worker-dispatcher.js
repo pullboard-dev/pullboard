@@ -2,7 +2,7 @@
 /** Keep machine handoff admission separate from the gate's exact process-identity provider [C7]. */
 import { exactStart } from '../packages/gate/index.js';
 import { finishAwaitingVerdicts } from '../packages/gate/index.js';
-import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
+import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, handoffDispatcherMayBeDead, recordHandoffCap, recoverHandoffDispatcher } from '../packages/resources/index.js';
 import { createGateAdmission, gateDispatcherRow, mainOwnedVerdictPorts } from '../packages/drive/index.js';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
@@ -198,15 +198,15 @@ export function reportDispatcherRetry(error, waitMs) {
 export const RECOVER_ARG = '--recover';
 
 /**
- * Run the full recovery check once: relaunch the dispatcher from a queued launch's captured tooling when no live one
- * holds the machine's lock. A board command starts this detached (its cheap heartbeat check saw no live dispatcher),
- * so a failure is written to the dispatcher log, where nobody is waiting on stderr [C7].
+ * The background recovery job a board command starts detached: when a launch is queued and no dispatcher heartbeat
+ * is fresh, relaunch the dispatcher from the queued launch's captured tooling unless a live one holds the machine's
+ * lock. Nobody waits on it, so a failure is written to the dispatcher log [C7].
  *
- * @param {{ recover?: typeof recoverHandoffDispatcher }} [ports]
+ * @param {{ mayBeDead?: () => boolean, recover?: typeof recoverHandoffDispatcher }} [ports]
  * @returns {Promise<void>}
  */
-export async function runRecoveryCheck({ recover = recoverHandoffDispatcher } = {}) {
-  try { await recover({ loadStartOf: async () => exactStart }); }
+export async function runRecoveryCheck({ mayBeDead = handoffDispatcherMayBeDead, recover = recoverHandoffDispatcher } = {}) {
+  try { if (mayBeDead()) await recover({ loadStartOf: async () => exactStart }); }
   catch (error) {
     try { appendFileSync(handoffDispatcherLog(), `${new Date().toISOString()} recovery check failed: ${error.code ?? error.name}: ${error.message}\n`, { mode: 0o600 }); }
     catch { /* an unwritable log leaves the next command's check to try again */ }
