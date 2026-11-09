@@ -190,6 +190,16 @@ async function project() {
   return { ...box, repo, initialized };
 }
 
+/**
+ * Commit one change on the checkout's trunk that cites the item. A submit whose head is main itself is EMPTY_SUBMIT
+ * unless that head is a commit citing the item (#2608), so a single-checkout fixture builds its item this way.
+ */
+async function commitItemChange(box, repo, id) {
+  writeFileSync(join(repo, `item-${id}.txt`), `change for item ${id}\n`);
+  await box.git(repo, 'add', `item-${id}.txt`);
+  await box.git(repo, 'commit', '-q', '-m', `chore: fixture change for item ${id}`, '-m', `Pullboard-Item: #${id}`);
+}
+
 /** Resolve the catalog entry for either a root command or a documented subcommand. */
 function shapeFor(command, subcommand) {
   const candidates = [
@@ -381,6 +391,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'check', ['1']);
   await json(box, repo, 'release', ['1', '--reason', 'BLOCKED', '--no-next']);
   await json(box, repo, 'claim', ['1']);
+  await commitItemChange(box, repo, 1);
   const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
   await json(box, reviewPath, 'next', ['--verify']);
@@ -836,6 +847,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const reopenItem = (await json(source, source.repo, 'add', ['coordinator', 'Reopen catalog item', '--criterion', 'Exercise the versioned reopen result.', '--check', 'true'], 'add')).item;
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
+  await commitItemChange(source, source.repo, reopenItem.item_id);
   await json(source, source.repo, 'submit', [String(reopenItem.item_id), '--no-next']);
   const comparison = await json(source, source.repo, 'verify', [String(reopenItem.item_id), '--compare'], 'compare');
   assert.equal(comparison.status, 'complete');
@@ -845,6 +857,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
     const caused = (await json(source, source.repo, 'add', ['coordinator', title, '--criterion', 'Exercise a caused reopen.', '--check', 'true'], 'add')).item;
     await json(source, source.repo, 'claim', [String(caused.item_id)]);
+    await commitItemChange(source, source.repo, caused.item_id);
     await json(source, source.repo, 'submit', [String(caused.item_id), '--no-next']);
     await json(source, source.repo, 'reopen', [String(caused.item_id), '--note', 'the bar cites the wrong row', '--cause', 'row:G1']);
   }
