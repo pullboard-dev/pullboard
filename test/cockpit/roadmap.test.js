@@ -363,7 +363,8 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
       progress: [progress.querySelector('[data-summary-segment=landed]').dataset.count, progress.dataset.total],
       index: document.querySelector('#roadmap-panel [data-roadmap-jump="m:Next"] b').textContent,
       status: document.querySelector('[data-status=release]').textContent.replace(/\\s+/g, ' ').trim(),
-      openCounts: [...document.querySelectorAll('[data-shipping-stage=waiting] dd')].map(count => count.textContent),
+      // Desktop and phone each render the shipping counts; only the panel shown at this width counts (cead5a98d7).
+      openCounts: [...document.querySelectorAll('[data-shipping-stage=waiting] dd')].filter(count => count.getClientRects().length > 0).map(count => count.textContent),
       headerWaiting: next.querySelector('[data-summary-state=waiting] b').textContent,
       shippedCount: shipped.querySelector('.milestone-count').textContent,
       shippedRows: [...shipped.querySelectorAll(':scope > .milestone-body > ul .milestone-item .id')].map(id => id.textContent),
@@ -1036,9 +1037,11 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     await chrome.waitFor('data?.project?.milestones?.length===1');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     t.diagnostic('blocked fixture items ' + await chrome.stable("JSON.stringify(data.project.items.filter(i=>i.id<=2).map(i=>({id:i.id,status:i.status,blockedBy:i.blockedBy??null,after:i.after??null})))"));
-    await chrome.waitFor(`${row('#2')}?.querySelector('.block-dot')`);
-    assert.match(await chrome.stable(`${row('#2')}.querySelector('.block-dot').getAttribute('aria-label')`), /#1 \(claimed\)/u);
-    assert.equal(await chrome.stable(`Boolean(${row('#3')}.querySelector('.block-dot'))`), false);
+    // Since the approved N26 Roadmap redesign (b83469ff53, #2056) a waiting row reads "after #1" beside its title.
+    await chrome.waitFor(`${row('#2')}?.querySelector('.roadmap-after')`);
+    assert.equal(await chrome.stable(`${row('#2')}.querySelector('.roadmap-after').textContent`), 'after #1');
+    assert.equal(await chrome.stable(`${row('#2')}.querySelector('.roadmap-after a[data-go]').dataset.go`), 'item:1');
+    assert.equal(await chrome.stable(`Boolean(${row('#3')}.querySelector('.roadmap-after, .block-dot'))`), false);
     await chrome.stable("window.__requests=[];window.__fetch=window.fetch;window.fetch=(url,options)=>{window.__requests.push(String(url));return window.__fetch(url,options);};true");
     const address = await chrome.stable('location.href');
     const blocked = await opened('#2');
@@ -1108,7 +1111,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
     const remote = await opened('blocked-roadmap-other#2');
     assert.match(remote, /Waits on#1 unclaimed/u); assert.match(remote, /Review the remote dependency/u);
     assert.match(remote, /Sent back.*Remote latest finding/u); assert.doesNotMatch(remote, /More detail stays in Items/u);
-    const metrics = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('blocked-roadmap-other#2')},d=r.querySelector('.block-dot').getBoundingClientRect(),t=r.querySelector('.t').getBoundingClientRect();return {visible:d.width>0&&d.left>=t.left&&d.right<=t.right,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
+    const metrics = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('blocked-roadmap-other#2')},d=r.querySelector('.roadmap-after').getBoundingClientRect(),t=r.querySelector('.t').getBoundingClientRect();return {visible:d.width>0&&d.left>=t.left&&d.right<=t.right,width:document.documentElement.scrollWidth,viewport:innerWidth};})())`));
     assert.ok(metrics.visible, 'the remote blocker mark stays visible on a phone'); assert.ok(metrics.width<=metrics.viewport);
     await press(chrome, `${row('blocked-roadmap-other#2')}.parentElement.querySelector('.milestone-why a[data-go]')`);
     await chrome.waitFor("view.tab==='items' && document.querySelector('#detail h2')?.textContent.includes('Remote sent-back work')");
