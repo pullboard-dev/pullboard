@@ -223,10 +223,6 @@
   "test/relay-stall-phases.test.js": {
     "tempdir": 1
   },
-  "packages/outbox/tests/relay-checkpoint.test.js": {
-    "hand-policy": 1,
-    "tempdir": 1
-  },
   "packages/outbox/tests/relay-outbox-format.test.js": {
     "tempdir": 1
   },
@@ -491,6 +487,10 @@
   },
   "packages/store/tests/milestone-placement.test.js": {
     "raw-board": 4
+  },
+  "packages/store/tests/review-family-relax.test.js": {
+    "raw-board": 6,
+    "model": 4
   },
   "packages/store/tests/review-family-relaxation.test.js": {
     "raw-board": 2
@@ -2536,7 +2536,10 @@
     "hand-policy": 2
   },
   "packages/seats/tests/projects.test.js": {
-    "tempdir": 7,
+    "tempdir": 5
+  },
+  "test/projects-init-registry.test.js": {
+    "tempdir": 2,
     "env-spread": 1,
     "model": 1
   },
@@ -2675,6 +2678,10 @@
   },
   "test/relay-canary.test.js": {
     "model": 3
+  },
+  "test/relay-checkpoint.test.js": {
+    "hand-policy": 1,
+    "tempdir": 1
   },
   "test/relay-client-fixture.js": {
     "tempdir": 3,
@@ -2973,10 +2980,6 @@
   },
   "test/review-family-cover-replay.test.js": {
     "raw-board": 1
-  },
-  "test/review-family-relax.test.js": {
-    "raw-board": 6,
-    "model": 4
   },
   "packages/kernel/tests/review-family-submitted-head.test.js": {
     "raw-board": 3

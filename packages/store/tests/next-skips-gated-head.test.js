@@ -1,9 +1,10 @@
 /** next never offers a build for an open item whose latest head already has a gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { addItem, nextFor } from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import { recordSubmitHandoff } from '../../jobs/index.js';
+import { addItem } from '../index.js';
+import { nextFor } from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const HEAD = 'a'.repeat(40);
 
