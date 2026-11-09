@@ -11,7 +11,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../packages/store/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
@@ -163,7 +163,7 @@ test('[O8] model labels follow stable agent ids into moves and configured displa
 });
 
 test('the coordinator follows the main checkout when the repo moves [B3,B34]', () => {
-  assert.equal(store.ensureCoordinator(board, '/moved/repo'), 'coordinator');
+  assert.equal(store.board_ensureCoordinator(board, '/moved/repo'), 'coordinator');
   assert.equal(store.agentAt(board, '/moved/repo').agent_id, 'coordinator');
 });
 

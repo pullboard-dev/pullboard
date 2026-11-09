@@ -89,7 +89,7 @@ function href(path) {
  */
 function landWithRefusal(box, step) {
   const source = [
-    `import * as store from ${href('../src/board.js')};`,
+    `import * as store from ${href('../packages/store/index.js')};`,
     `import { openBoard } from ${href('../apps/lib/index.js')};`,
     `import { loadConfig } from ${href('../packages/config/index.js')};`,
     `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,

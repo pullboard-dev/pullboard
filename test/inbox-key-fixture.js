@@ -30,7 +30,7 @@ function cursor(box) {
 /** Seed ordinary native decision records before relay linking; the real snapshot then carries their history. */
 export async function prepareKeylessInbox(box) {
   const result = await box.script(`
-    import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)};
     import { join } from 'node:path';
     const board = openBoard(join(process.cwd(), '.git', 'pullboard', 'board.sqlite'));
