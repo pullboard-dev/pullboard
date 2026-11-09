@@ -3,33 +3,30 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { after } from 'node:test';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
-import { appliedSequence } from '../packages/state/index.js';
-import { applyEngineMove } from '../packages/state/index.js';
-import { prepareEngineMove } from '../packages/state/index.js';
-import { exportBoard } from '../packages/store/index.js';
-import { importBoard } from '../packages/store/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
+import * as store from '../index.js';
+import { appliedSequence } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { exportBoard } from '../index.js';
+import { importBoard } from '../index.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellItem } from '../../../test/cell-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
 
 test('a rehome destination import obeys lane and claimed item grants on independent replicas [E15,E21,H16]', t => {
-  const sourceBox = helpers.project();
-  const destinationBox = helpers.project();
-  const source = openBoard(join(sourceBox.repo, '.git', 'pullboard', 'board.sqlite'));
-  const destination = openBoard(join(destinationBox.repo, '.git', 'pullboard', 'board.sqlite'));
-  const peer = openBoard(':memory:');
-  t.after(() => [source, destination, peer].forEach(board => store.closeBoard(board)));
-  const web = store.agentAt(destination, destinationBox.web).agent_id;
-  const api = store.register(destination, { lane: 'api', path: join(destinationBox.dir, 'api-seat'), model: 'fixture-model' });
+  const sourceProject = cellProject(t);
+  const destinationProject = cellProject(t);
+  const source = cellBoard(t, sourceProject.boardFile);
+  const destination = cellBoard(t, destinationProject.boardFile);
+  const peer = cellBoard(t, ':memory:');
+  const web = cellSeat(destination, { lane: 'web', path: destinationProject.repo }).id;
+  const api = cellSeat(destination, { lane: 'api', path: join(destinationProject.dir, 'api-seat') }).id;
   /** Reserve a genuine destination id and retain the exact source move's immutable record. */
   const recordFor = title => {
-    const id = store.addItem(source, { by: 'coordinator', lane: 'web', title,
-      criterion: 'The original proof file exists.', check: 'test -f web/grant-proof' });
+    const id = cellItem(source, { lane: 'web', title,
+      criterion: 'The original proof file exists.', check: 'test -f web/grant-proof' }).item_id;
     const moveId = `destination-grant-${id}`;
     const destinationItemId = store.reserveRehomeItemId(destination, store.boardId(source), moveId, { agentId: 'coordinator' });
     return store.rehomeItem(source, id, { agentId: 'coordinator', sourceMoveId: moveId,
@@ -54,7 +51,7 @@ test('a rehome destination import obeys lane and claimed item grants on independ
     assert.equal(board.db.prepare('SELECT 1 FROM item WHERE item_id=?').get(records[1].destinationItemId), undefined,
       'a refused import creates no destination item');
   }
-  const head = destinationBox.git(destinationBox.repo, 'rev-parse', 'HEAD');
+  const head = destinationProject.git(destinationProject.repo, 'rev-parse', 'HEAD');
   /** Freeze a real private Git revision before replaying identical claim bytes on both replicas. */
   const freeze = item => {
     const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion,
