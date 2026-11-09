@@ -138,4 +138,4 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
   }
   return failures;
 }
-export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/shell/module-imports.js';
+

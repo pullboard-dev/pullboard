@@ -1,6 +1,6 @@
 /** Shell boundary for checking actual import cuts and filing their independent board items [C7,D3]. */
-import { importsIn } from '../packages/gate/core.js';
-import { commonJsIn } from '../packages/gate/core.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';

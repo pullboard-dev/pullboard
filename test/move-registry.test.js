@@ -183,7 +183,7 @@ const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
   const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
-  const {importsIn}=await import('./packages/gate/core.js');
+  const {importsIn}=await import('./packages/gate/index.js');
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();
   try {
