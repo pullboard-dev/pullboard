@@ -6,7 +6,7 @@ import {
   reportFixtureChildFailure,
   runFixtureChild,
   runFixtureGit,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
@@ -29,11 +29,11 @@ import {
   test,
 } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { listResources } from "../../resources/index.js";
-import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
-import { waitForCondition } from "../../../test/runner-fixture-state.js";
+import { listResources } from "../packages/resources/index.js";
+import { SSH_SHELL_MARKERS } from "../packages/kernel/src/core/discovery.js";
+import { waitForCondition } from "./runner-fixture-state.js";
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const DIRS = [];
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 const SPEC = '# Session fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
@@ -233,13 +233,13 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_from, 'coordinator', 'an agent-shell shout keeps the coordinator as author');
   const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
   const before = readFileSync(file);
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../api/src/shell/api.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
+  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../packages/api/src/shell/api.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)});
-    const { moveArgs } = await import(${JSON.stringify(new URL('../index.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
+    const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
     const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main, undefined, undefined, undefined, apiBoardOpeners);
     const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'Which path should web-1 use?', kind: 'question' } }, main, undefined, undefined, undefined, apiBoardOpeners);

@@ -1545,6 +1545,38 @@
         "packages/resources/tests/lsof-lookups.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/person-credential-vault.test.js",
+        "packages/person/tests/person-credential-vault.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-key.test.js",
+        "packages/person/tests/relay-key.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-page-layout.test.js",
+        "packages/person/tests/relay-page-layout.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/sealed-pages.test.js",
+        "packages/person/tests/sealed-pages.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

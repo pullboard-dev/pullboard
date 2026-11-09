@@ -6,7 +6,7 @@ import {
   reportFixtureChildFailure,
   runFixtureChild,
   runFixtureGit,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
@@ -26,10 +26,10 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
-import { fetchFresh } from "../../../test/http-fixture.js";
+import { SSH_SHELL_MARKERS } from "../packages/kernel/src/core/discovery.js";
+import { fetchFresh } from "./http-fixture.js";
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = {
   CLAUDECODE: '1',
   CLAUDE_CODE_ENTRYPOINT: 'cli',

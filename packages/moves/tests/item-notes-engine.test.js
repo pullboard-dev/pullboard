@@ -2,12 +2,15 @@
 /** Typed notes preserve authority and historical replay on independent in-memory SQLite replicas [B29,B30,B31,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
-import { ITEM_NOTES_ENGINE } from '../packages/state/core.js';
-import { minimumMoveEngine } from '../packages/moves/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import * as store from '../../store/index.js';
+import { appliedSequence } from '../../state/index.js';
+import { applyRelayMove } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { exportBoard } from '../../store/index.js';
+import { importBoard } from '../../store/index.js';
+import { ITEM_NOTES_ENGINE } from '../../state/core.js';
+import { minimumMoveEngine } from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 /** Seed identical private replicas without a background writer or already-active future receipt. */
 function replicas(t) {

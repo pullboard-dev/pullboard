@@ -1,9 +1,9 @@
 /** Synthetic private unit inputs exercise attribution policy; these are not operational evidence or board receipts. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requireLocalGuardClassification } from '../packages/landing/index.js';
-import { landingPorts } from './landing-ports-fixture.js';
-import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
+import { requireLocalGuardClassification } from '../index.js';
+import { landingPorts } from '../../../test/landing-ports-fixture.js';
+import { NATIVE_FLAKE_ENGINE } from '../../state/core.js';
 
 /** Supply private in-memory ledger inputs without writing operational observations or receipts. */
 function fixture(classification, green) {
@@ -37,8 +37,8 @@ test('local-trunk attribution holds unknown diagnostics and preserves rerun-off 
 });
 
 test('clause 1: a guard run red only on SLOT_DB_LOCKED with no failing case refuses SLOT_DB_LOCKED, never LAND_DIAGNOSTIC [C7,#3314]', async () => {
-  const { requireNoLockOnlyRed } = await import('../packages/landing/src/core/land-local-guard.js');
-  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  const { requireNoLockOnlyRed } = await import('../src/core/land-local-guard.js');
+  const { landingFault } = await import('../src/shell/landing-step-diagnose.js');
   const log = 'run-tests: [SLOT_DB_LOCKED] never ran: resources.sqlite stayed locked for 10002ms';
   assert.throws(() => requireNoLockOnlyRed({ isGreen: false, failures: [], logPath: 'x.log' }, () => log),
     error => error.code === 'SLOT_DB_LOCKED' && landingFault(error));

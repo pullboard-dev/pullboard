@@ -1,14 +1,20 @@
 /** The add check baseline runs on a runner and never on the coordinator machine [C7,V2]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { policyRepository } from './board-submit-fixture.js';
-import { fixtureMachineSettings, fixtureProjectPolicy } from './testkit-fixture.js';
-import { executionServices } from './gate-execution-fixture.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
-import { measureBaseline } from '../packages/gate/src/shell/check-baseline-worker.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { policyRepository } from '../../../test/board-submit-fixture.js';
+import { fixtureMachineSettings } from '../../../test/testkit-fixture.js';
+import { fixtureProjectPolicy } from '../../../test/testkit-fixture.js';
+import { executionServices } from '../../../test/gate-execution-fixture.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+import { measureBaseline } from '../src/shell/check-baseline-worker.js';
 
 const EXPECTED = { command: 'node bin/run-tests.js test/a.test.js', main: 'a'.repeat(40) };
 

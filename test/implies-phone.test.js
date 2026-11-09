@@ -4,17 +4,17 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { relayClientFixture } from "../../../test/relay-client-fixture.js";
-import { preparePersonRequest } from "../src/core/person-request.js";
+import { relayClientFixture } from "./relay-client-fixture.js";
+import { preparePersonRequest } from "../packages/person/src/core/person-request.js";
 import {
   decodeBoardKey,
   seal,
-} from "../../kernel/src/core/seal.js";
-import { ENGINE_VERSION } from "../../state/index.js";
+} from "../packages/kernel/src/core/seal.js";
+import { ENGINE_VERSION } from "../packages/state/index.js";
 
-const outboxUrl = pathToFileURL(resolve(import.meta.dirname, '../../outbox/index.js')).href;
-const linkUrl = pathToFileURL(resolve(import.meta.dirname, '../../link/index.js')).href;
-const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;
+const outboxUrl = pathToFileURL(resolve(import.meta.dirname, '../packages/outbox/index.js')).href;
+const linkUrl = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
+const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../src/' + name + '.js')).href;
 
 /**
  * Post one genuine phone answer request through the real relay, claim it as this machine's executor,
@@ -35,10 +35,10 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(linkUrl)});
     const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(linkUrl)});
     const store=await import(${JSON.stringify(url('board'))});
-    const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../apps/lib/index.js')).href)});
+    const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href)});
     const {replay:replayConflictRecord,ACKNOWLEDGED_OPERATIONS,outboxQueueable,...outboxDoors}=await import(${JSON.stringify(outboxUrl)});
     const {loadConfig}=await import(${JSON.stringify(url('config'))});
-    const {laneNames}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../seats/index.js')).href)});
+    const {laneNames}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href)});
     const root=process.cwd(), sink={isTTY:false,write(){}};
     const io={...outboxDoors,replayConflictRecord,outboxPolicy:()=>({acknowledgedOperations:ACKNOWLEDGED_OPERATIONS,outboxQueueable}),openBoard,nativeBoardPorts,cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
     await syncRelay(root,io);

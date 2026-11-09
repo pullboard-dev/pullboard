@@ -5,7 +5,7 @@ import {
   runFixtureChild as spawnSync,
   runFixtureChild,
   runFixtureGit,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import {
   chmodSync,
   mkdirSync,
@@ -27,10 +27,10 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
-} from "../../kernel/src/core/discovery.js";
-import { assertSpecCorrectionRefreezesCitations } from "../../../test/spec-refreeze-fixture.js";
+} from "../packages/kernel/src/core/discovery.js";
+import { assertSpecCorrectionRefreezesCitations } from "./spec-refreeze-fixture.js";
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const OLD_SPEC = `# Stale frozen fixture
 

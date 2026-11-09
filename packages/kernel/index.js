@@ -1,5 +1,6 @@
 /** Pure discovery, parsing, refusal and registry obligations shared by every cell [C7]. */
 export * from './src/core/discovery.js';
+export { seal, unseal, generateBoardKey, encodeBoardKey, decodeBoardKey } from './src/core/seal.js';
 export * from './src/core/js-lex.js';
 export * from './src/core/literal-shell-words.js';
 export { Refused } from './core.js';

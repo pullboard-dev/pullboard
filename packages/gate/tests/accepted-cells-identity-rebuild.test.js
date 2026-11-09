@@ -13,22 +13,26 @@ import {
   join,
 } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { once } from 'node:events';
-import { after, test } from 'node:test';
+import { after } from 'node:test';
+import { test } from 'node:test';
 import {
   acceptedCellsIdentity,
   nudgeAcceptedCells,
   readAcceptedCells,
   toolingIsPinned,
-} from '../packages/gate/index.js';
-import { acceptedInventoryKey } from '../packages/codemap/index.js';
-import { git } from './cells-plan-fixture.js';
-import { cleanupFixtureChildren, fixtureChildMessage, runFixtureChildAsync } from './fixture-child.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
+} from '../index.js';
+import { acceptedInventoryKey } from '../../codemap/index.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { fixtureChildMessage } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 
 after(cleanupFixtureChildren);
 

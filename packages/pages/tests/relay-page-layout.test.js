@@ -2,17 +2,17 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { generateBoardKey } from "../../kernel/src/core/seal.js";
+import { generateBoardKey } from "../../kernel/index.js";
 import {
   CURRENT_SNAPSHOT_BYTES,
   currentSnapshotPresentation,
   openPagedSnapshot,
-} from "../../pages/index.js";
-import { writePagedSnapshot } from "../../pages/index.js";
+} from "../index.js";
+import { writePagedSnapshot } from "../index.js";
 import {
   readSealedDescriptor,
   writeSealedDescriptor,
-} from "../../pages/index.js";
+} from "../index.js";
 
 /** Keep synthetic cipher objects and prove every requested history path belongs to the selected root. */
 async function fixture() {

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
   runFixtureChild as spawnSync,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import {
   existsSync,
   lstatSync,
@@ -23,16 +23,16 @@ import { test } from 'node:test';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
-} from "../../kernel/src/core/discovery.js";
-import { ENGINE_VERSION } from "../../state/index.js";
-import { relayClientFixture } from "../../../test/relay-client-fixture.js";
-import { enrollProtocolPhone } from "../../../test/relay-device-enrollment-fixture.js";
+} from "../packages/kernel/src/core/discovery.js";
+import { ENGINE_VERSION } from "../packages/state/index.js";
+import { relayClientFixture } from "./relay-client-fixture.js";
+import { enrollProtocolPhone } from "./relay-device-enrollment-fixture.js";
 import {
   findChromeExecutable,
   startChrome,
-} from "../../../test/relay-browser-fixture.js";
+} from "./relay-browser-fixture.js";
 
-const CLI = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 
 /** Run a real native command while allowing a phone tap before the foreground process finishes. */
 function command(root, environment, args) {

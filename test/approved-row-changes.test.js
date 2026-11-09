@@ -7,7 +7,7 @@ import {
   fixtureChildMessage,
   runFixtureChild,
   runFixtureGit,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import {
   chmodSync,
   existsSync,
@@ -33,13 +33,13 @@ import {
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
-} from "../../kernel/src/core/discovery.js";
+} from "../packages/kernel/src/core/discovery.js";
 import {
   cleanupFailureReport,
   removeFixtureDirectory,
-} from "../../../test/cleanup-diagnostics.js";
+} from "./cleanup-diagnostics.js";
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const SPEC = `# Approved row edit fixture
 
