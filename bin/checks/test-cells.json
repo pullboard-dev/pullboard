@@ -52,7 +52,6 @@
     "test/relay-person-requests.test.js": "drives the real CLI (export, answer, status, resume, spec apply) through a relay stand-in and checks person requests, answers and exports end to end",
     "test/relay-upload-status.test.js": "drives the real CLI (relay link, status) through a relay stand-in and checks the sealed upload-status notice and snapshot recovery end to end",
     "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end",
-    "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end",
     "test/submit-registry-guards-cli.test.js": "drives the real CLI (add, claim, submit, test --affected, show, export) in private repositories with installed hooks and checks that a submit and an affected-test run refuse a move without its registry guard by name, with exit codes and board rows end to end"
   },
   "pureHelpers": {
