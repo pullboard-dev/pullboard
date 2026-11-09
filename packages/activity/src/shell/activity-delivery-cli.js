@@ -1,5 +1,5 @@
 /** Inbox and successful-submit delivery share one canonical receipt path [R2,N26,H16]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { budgetInbox } from '../core/inbox-budget.js';
 import { readActivityDelivery } from './activity-delivery-read.js';
 import { handoffMoveProblem } from '../../../state/src/core/handoff-state.js';

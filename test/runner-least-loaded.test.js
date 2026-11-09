@@ -11,12 +11,11 @@ import { recordRunnerMeasurement } from '../packages/config/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { gateRunnerLoadPolicy } from '../packages/gate/index.js';
 import { refreshRunnerMeasurements } from '../packages/runners/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 
 /** Scope real machine admission to disposable fixture storage. */
 function box(t) {
-  const helpers = createE2eHelpers();
-  const project = helpers.project('true', undefined, { withWorktree: false });
+  const project = cellProject(t, { gate: 'true' });
   mkdirSync(project.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   const keys = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PATH'];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -25,7 +24,6 @@ function box(t) {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
-    helpers.cleanup();
   });
   return project;
 }

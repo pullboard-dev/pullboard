@@ -30,6 +30,7 @@ import { requireExitActive } from '../../../packages/store/index.js';
 import { exitContinuationSummary } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
 import { EXIT_RULES_ENGINE } from '../../../packages/state/core.js';
+import { SHADOW_TIER1_ENGINE } from '../../../packages/state/core.js';
 import { prepareEngineMove } from '../../../packages/state/index.js';
 import { applyEngineMove } from '../../../packages/state/index.js';
 import { bindRefs } from '../../../packages/outbox/index.js';
@@ -209,7 +210,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
   const helpers = createE2eHelpers(), sandbox = helpers.sandbox({ declareFamilies: true });
   sandbox.env.PULLBOARD_MODEL = 'Test Model';
   isolateTestMachine(sandbox.env, sandbox.dir);
-  const check = 'node --test test/private-exit-repeat.test.cjs';
+  const check = 'node --test web/private-exit-repeat.test.cjs';
   const box = helpers.project('true', sandbox);
   t.after(helpers.cleanup);
   delete box.env.NODE_TEST_CONTEXT; // This child launches its own real Node test worker.
@@ -217,10 +218,10 @@ test('ordinary native failed checks retain cases through receipt recording and s
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.exitRules = { enabled: true, tokens: 150000000, calls: 2000 };
   writeFileSync(configPath, JSON.stringify(config));
-  mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test/private-exit-repeat.test.cjs'),
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/private-exit-repeat.test.cjs'),
     "require('node:test')('private repeated native failure [G1]', () => { require('node:assert/strict').equal(1, 2); });\n");
-  box.git(box.repo, 'add', 'pullboard.json', 'test/private-exit-repeat.test.cjs');
+  box.git(box.repo, 'add', 'pullboard.json', 'web/private-exit-repeat.test.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: enable private repeated native proof');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
@@ -244,12 +245,12 @@ test('ordinary native failed checks retain cases through receipt recording and s
   assert.equal(receipts.length, 2);
   for (const receipt of receipts) {
     assert.equal(Object.hasOwn(receipt, 'blockingVerdict'), false, 'no quarantine manufactures the failure projection');
-    assert.deepEqual(receipt.failures, [{ file: 'test/private-exit-repeat.test.cjs', name: 'private repeated native failure [G1]' }]);
+    assert.deepEqual(receipt.failures, [{ file: 'web/private-exit-repeat.test.cjs', name: 'private repeated native failure [G1]' }]);
     const raw = readGateReceipt(boardReceiptStore(board), receipt.id);
     assert.deepEqual(raw.failures, receipt.failures, 'the case identity comes from the actual native writer');
     const move = prepareEngineMove(board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }], { actor: receipt.seat });
     assert.equal(move.args[0].exitFailures, true);
-    assert.equal(minimumMoveEngine(move.operation, move.args), EXIT_RULES_ENGINE);
+    assert.equal(minimumMoveEngine(move.operation, move.args), Object.hasOwn(move.args[0].receipt ?? {}, 'shadow') ? SHADOW_TIER1_ENGINE : EXIT_RULES_ENGINE, 'the exit floor, or the shadow floor when the native receipt carries shadow proof');
     assert.deepEqual(proofRunReceipt(board, { agentId: receipt.seat, itemId: id, receiptId: receipt.id }).receipt.failures, raw.failures);
   }
   const historical = fixtureBoard(t);

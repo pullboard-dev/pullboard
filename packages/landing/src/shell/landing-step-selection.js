@@ -10,7 +10,7 @@ import { roundFailures } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { tryGit } from '../../../../src/git.js';
 import { landingLeaseState } from '../../../../src/board-landing-lease.js';
 import { sameEnvironment } from '../../../verify/core.js';

@@ -5,16 +5,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Run the pinned health command against one private SSH stand-in and machine home. */
 function remoteFixture(t, body) {
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'health-bin');
   const worker = join(box.dir, 'worker');
   const home = join(box.dir, 'remote-home');
@@ -205,9 +203,7 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
 test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const health = pathToFileURL(join(import.meta.dirname, '../packages/health/index.js')).href;
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const env = { ...box.env };
   delete env.NODE_TEST_CONTEXT;
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });

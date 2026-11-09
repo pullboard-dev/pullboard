@@ -40,7 +40,7 @@ import {
 import {
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   codeIsFromMain,
