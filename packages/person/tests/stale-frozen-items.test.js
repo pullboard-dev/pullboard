@@ -97,7 +97,7 @@ function project(t) {
   const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(initial.status, 0, `${initial.stdout}${initial.context}`);
   git(root, 'worktree', 'add', '-q', web, '-b', 'web/stale-frozen');
-  const joined = pullboard(web, 'join', 'web');
+  const joined = pullboard(web, 'join', 'web', '--route', 'strong');
   assert.equal(joined.status, 0, `${joined.stdout}${joined.context}`);
   return { dir, root, web, env, git, pullboard };
 }
