@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { sentinelCommand } from '../packages/sentinels/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

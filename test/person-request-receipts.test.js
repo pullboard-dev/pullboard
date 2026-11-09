@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
