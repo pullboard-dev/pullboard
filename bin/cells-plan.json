@@ -1951,6 +1951,9 @@
     "doctrine->git",
     "doctrine->store",
     "gate->store",
+    "gate->kernel",
+    "gate->git",
+    "gate->resources",
     "github->store",
     "items->git",
     "items->kernel",
@@ -2002,6 +2005,8 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
-    "commits->kernel"
+    "commits->kernel",
+    "rigor->store",
+    "(root)->store"
   ]
 }

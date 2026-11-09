@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { shimImportProblems } from '../index.js';
-import { stagedShimImportProblems } from '../index.js';
-import { importsIn } from '../../gate/index.js';
+import { shimImportProblems } from '../../codemap/index.js';
+import { stagedShimImportProblems } from '../../codemap/index.js';
+import { importsIn } from '../index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 

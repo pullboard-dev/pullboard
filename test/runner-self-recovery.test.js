@@ -65,7 +65,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
 });
 
-test('a live job stays unavailable and its next idle probe waits five minutes [C7]', t => {
+test('a live job stays unavailable and its next idle probe waits thirty seconds [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, ({ root }) => `
@@ -108,7 +108,7 @@ test('a live job stays unavailable and its next idle probe waits five minutes [C
   assert.equal(actual.first, false);
   assert.equal(actual.early, false);
   assert.equal(actual.held, 1);
-  assert.equal(actual.delay, 300_000); // budget: declared five-minute recovery probe cadence in #1809 [C7].
+  assert.equal(actual.delay, 30_000); // budget: declared thirty-second quarantine re-probe cadence (RECOVERY_RETRY_MAX_MS) [C7].
   assert.match(actual.reason, /runner process or job working directory/u);
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable']);
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);

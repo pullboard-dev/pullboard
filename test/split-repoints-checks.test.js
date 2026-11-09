@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/machine.js src/engine.js src/move-registry.js */
+/** @pullboard-test-loads src/machine.js src/engine.js packages/moves/src/shell/move-registry.js */
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { ENGINE_REGISTRY, ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 import { prepareTrainLanding, prepareNativeTrainLanding } from '../packages/landing/index.js';
 import { recordTrainLanding } from '../packages/landing/index.js';
@@ -49,7 +49,7 @@ test('clause 1: a future client replays move floors while refusal guidance loads
   const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves, futureWords] = await Promise.all([
     import(new URL('machine.js', oldClientUrl)), import(new URL('engine.js', oldClientUrl)),
     import(new URL('machine.js', futureClientUrl)), import(new URL('engine.js', futureClientUrl)),
-    import(new URL('move-registry.js', futureClientUrl)),
+    import(pathToFileURL(join(futureClient, 'packages/moves/src/shell/move-registry.js'))),
     import(pathToFileURL(join(futureClient, 'apps/cli/src/core/next-step-words.js'))),
   ]);
   assert.ok(oldMachine.ENGINE_VERSION < featureEngine,
