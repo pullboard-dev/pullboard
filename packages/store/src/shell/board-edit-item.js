@@ -14,7 +14,9 @@ import { twoTierReviews } from "../../../verify/index.js";
 import { REFERENCE_ENGINE } from "../../../state/core.js";
 import { validateReferences } from "../../../spec/index.js";
 import * as itemDependencies from "../../../items/index.js";
-import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
+import { editCheck } from "../../../verify/index.js";
+import { saveReviewFamily } from "../../../verify/index.js";
+import { selfWidenedFiles } from "../../../verify/index.js";
 import { itemEditBar } from "../../../items/index.js";
 import { saveCheckTiming } from "../../../../src/check-timing.js";
 import { validateCheckTiming } from "../../../../src/check-timing.js";
@@ -41,7 +43,6 @@ import { laneOf } from "../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
-import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 import { moveItem } from "./board.js";
 import { setItem } from "./board.js";
 import { insertShout } from "./board-shout.js";
@@ -100,7 +101,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     saveCheckTiming(board, id, checkTiming);
     saveExpectedBuildMinutes(board, id, expectedBuildMinutes);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
-    reviewFamilies.saveReviewFamily(board, id, reviewFamily);
+    saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
     const machineVerification = saveMachineVerification(board, { ...item, ...next }, { agentId, machineVerified, machineCommands });
@@ -162,11 +163,11 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     if (typeof reason !== 'string' || !reason.trim()) throw new Refused('BAR_REASON', 'marking strict review needs --reason explaining the gate judgment or independence risk');
   }
   let item = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8 ? current(board, itemById(board, id)) : null;
-  const widened = item && checkWiden.selfWidenedFiles(board, item, agentId, { brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming });
+  const widened = item && selfWidenedFiles(board, item, agentId, { brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming });
   if (item?.item_status === 'claimed' && agentId !== COORDINATOR && !widened) {
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
-  const command = checkWiden.editCheck(agentId, check, widened);
+  const command = editCheck(agentId, check, widened);
   if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }

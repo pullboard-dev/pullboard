@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { withMainCheckout } from '../../landing/index.js';
+import { withMainCheckout } from '../index.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
