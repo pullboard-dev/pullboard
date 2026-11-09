@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/kernel",
  "frontDoor": "packages/kernel/index.js",
+ "pureDoor": "packages/kernel/pure.js",
  "pureFrontDoor": "packages/kernel/core.js",
  "paths": [
   ["src/discovery.js","packages/kernel/src/core/discovery.js","seed"],
