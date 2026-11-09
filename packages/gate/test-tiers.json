@@ -23725,7 +23725,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/infra-code-set.test.js",
+      "file": "apps/lib/tests/infra-code-set.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26410,7 +26410,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/landing-adaptive-batch.test.js",
+      "file": "packages/landing/tests/landing-adaptive-batch.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26851,7 +26851,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/landing-bisect-base-red.test.js",
+      "file": "packages/landing/tests/landing-bisect-base-red.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26908,7 +26908,7 @@
       ]
     },
     {
-      "file": "packages/store/tests/landing-bisects-unaccounted.test.js",
+      "file": "packages/landing/tests/landing-bisects-unaccounted.test.js",
       "tier": "T3",
       "packages": [
         ".",

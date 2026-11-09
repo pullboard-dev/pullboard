@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../apps/lib/index.js";
+import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 
 const COMMIT = 'a'.repeat(40);

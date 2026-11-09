@@ -1,12 +1,12 @@
 /** Bisect sets aside cases base main fails the same way, so a batch red only in main's own reds still lands [C7,#2941]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import * as store from '../../store/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
 import {
   bisect,
   splitBaseRed,
-} from '../../landing/index.js';
+} from '../index.js';
 
 const PORTS = { quarantineWaivers: () => [] };
 const ITEMS = [{ id: 1, commit: 'c1' }, { id: 2, commit: 'c2' }];

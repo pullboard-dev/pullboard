@@ -847,7 +847,7 @@
     "repo-read": 3,
     "tempdir": 2
   },
-  "packages/store/tests/claim-health-read.test.js": {
+  "packages/health/tests/claim-health-read.test.js": {
     "raw-board": 3
   },
   "test/claim-hygiene.test.js": {
@@ -1954,13 +1954,13 @@
   "test/land-parallel-fixture.js": {
     "hand-policy": 2
   },
-  "packages/store/tests/land-why.test.js": {
+  "packages/landing/tests/land-why.test.js": {
     "raw-board": 4
   },
   "test/land.test.js": {
     "hand-policy": 1
   },
-  "packages/store/tests/landing-adaptive-batch.test.js": {
+  "packages/landing/tests/landing-adaptive-batch.test.js": {
     "raw-board": 2
   },
   "test/landing-adopts-interrupted.test.js": {
@@ -1983,10 +1983,10 @@
     "model": 1,
     "hand-policy": 1
   },
-  "packages/store/tests/landing-bisect-base-red.test.js": {
+  "packages/landing/tests/landing-bisect-base-red.test.js": {
     "raw-board": 1
   },
-  "packages/store/tests/landing-bisects-unaccounted.test.js": {
+  "packages/landing/tests/landing-bisects-unaccounted.test.js": {
     "raw-board": 1
   },
   "test/landing-blocked-retry.test.js": {
@@ -2115,7 +2115,7 @@
   "packages/gate/tests/landing-wake-log.test.js": {
     "tempdir": 1
   },
-  "packages/store/tests/landing-withdrawn-dependency.test.js": {
+  "packages/landing/tests/landing-withdrawn-dependency.test.js": {
     "tempdir": 2,
     "raw-board": 1
   },
