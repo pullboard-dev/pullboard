@@ -24,6 +24,7 @@ import { repoInfo } from '../packages/git/index.js';
 import { bindLocalSession } from '../packages/seats/index.js';
 import { recordItemSession } from '../packages/items/index.js';
 import { dispatchHealth } from '../packages/sentinels/index.js';
+import { healthReport } from '../packages/health/index.js';
 import { deliverHealthNotices } from '../packages/store/src/core/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
@@ -461,6 +462,23 @@ test('an empty next observation counts as light-seat activity, but a manual clai
   assert.equal(store.nextFor(manualBox.board, { agentId: manualBox.seats.builder.id, lane: 'web', priority: [manualLight] }).item.item_id, manualLight,
     'a manual claim without autoNextSnapshot is not mistaken for a next invocation');
   assert.equal(store.getItem(manualBox.board, manualStrong).item_status, 'open');
+});
+
+test('clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Item excluded for re-scope');
+  box.claim(id, box.seats.actor);
+  store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
+  box.advance(7 * 60_000);
+  let listed = '';
+  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, listed);
+  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const excluded = store.allItemsNeedingRescope(box.board);
+  assert.equal(excluded[0].id, id);
+  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
+  assert.match(finding.why, /released 7 min ago/u);
 });
 
 installPostMoveHandoffCases({ fixture, cli });
