@@ -43,6 +43,7 @@ test('Claude builder and OpenAI companion use one eligibility rule for live atta
     { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, REVIEW) }));
   submitFixture(board, id, { agentId: 'core-1', commit: COMMIT, tree: TREE });
   const projected = reviewEligibility(board, store.getItem(board, id), REVIEW);
+  assert.deepEqual(projected, {});
   assert.equal(projected.owner, 'core-1');
   assert.deepEqual(projected.eligible, ['core-3']);
   for (const author of ['core-1', 'core-2']) assert.ok(projected.ineligible.some(row => row.agent === author && row.code === 'SELF_VERIFY'));
