@@ -49999,7 +49999,7 @@
       ]
     },
     {
-      "file": "test/sweep.test.js",
+      "file": "apps/cli/tests/sweep.test.js",
       "tier": "T3",
       "packages": [
         ".",
