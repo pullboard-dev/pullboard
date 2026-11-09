@@ -1,4 +1,4 @@
-import { seedStaleState } from './relay-parity-stale-state.js';
+import { seedStaleState } from '../packages/health/tests/relay-parity-stale-state.js';
 /** Exercise every declared native operation through the complete current reader oracle [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

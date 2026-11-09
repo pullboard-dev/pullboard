@@ -2,7 +2,10 @@
 /** The receipt cell judges collected results purely and records the verdict before bookkeeping [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { judge, verdictStep, settle, SECTIONS } from '../packages/receipt/index.js';
+import { judge } from '../index.js';
+import { verdictStep } from '../index.js';
+import { settle } from '../index.js';
+import { SECTIONS } from '../index.js';
 
 const green = () => Object.fromEntries(SECTIONS.map((name) => [name, { outcome: 'pass' }]));
 
