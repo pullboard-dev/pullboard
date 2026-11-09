@@ -1,4 +1,6 @@
-/** Sandbox light door: committed-policy readers a test run needs, without the cell's board and state closure [C7,V4]. */
+/** Sandbox light door: the environment, committed-policy and denial readers a test run or landing needs, without the cell's board and state closure [C7,V4]. */
+export { executionEnvironment, environmentLabel, carriesLandingEnvironment, captureTestRuntimes, bindTestRuntime, testRuntimeImport } from './src/shell/execution-environment.js';
+export { fileDenialWatcher, remoteFileDenial } from './src/shell/sandbox-denial.js';
 export {
   policyGit,
   mainPolicy,
