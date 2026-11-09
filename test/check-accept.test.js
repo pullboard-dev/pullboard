@@ -1,8 +1,8 @@
 /** Accept reverts a named guard in a scratch tree and needs the frozen check red there, green restored [C7,V4]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { safeFixtureDiagnostic } from '../../../test/fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { safeFixtureDiagnostic } from './fixture-child.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -12,9 +12,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
 const SOURCE = 'export const answer = 42;\n// kept\n';
 

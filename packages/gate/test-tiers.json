@@ -116,7 +116,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/submit-handoff-worker.test.js",
+      "file": "test/submit-handoff-worker.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11851,7 +11851,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/check-accept.test.js",
+      "file": "test/check-accept.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -20031,7 +20031,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/coordinator-resume.test.js",
+      "file": "test/coordinator-resume.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -38115,7 +38115,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-receipts.test.js",
+      "file": "apps/lib/tests/relay-machine-receipts.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42082,7 +42082,7 @@
       ]
     },
     {
-      "file": "test/route-capacity.test.js",
+      "file": "apps/lib/tests/route-capacity.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -47146,7 +47146,7 @@
       ]
     },
     {
-      "file": "test/sentinel-stuck-count.test.js",
+      "file": "apps/lib/tests/sentinel-stuck-count.test.js",
       "tier": "T3",
       "packages": [
         ".",
