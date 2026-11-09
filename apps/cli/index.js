@@ -1,6 +1,7 @@
 /** Command dispatch, help, board context, presence and the commands of the cli app [C7] */
 export { agentDisplayName as cliContext$agentDisplayName, cdTo as cliContext$cdTo, context as cliContext$context, displayedRefusal, firstLineOf as cliContext$firstLineOf, idArg as cliContext$idArg, idList as cliContext$idList, itemLine as cliContext$itemLine, nativeBoardOpeners, nativePersonRequestPorts, personCommandContext, refusalNeedsBoard, sayBrief as cliContext$sayBrief, setupFiles as cliContext$setupFiles, shellWord as cliContext$shellWord, span as cliContext$span, uncommittedSetup as cliContext$uncommittedSetup, withBoard as cliContext$withBoard, withBoardRead as cliContext$withBoardRead } from "./src/shell/cli-context.js";
-export { CHECKOUT_BOARD_ONLY, CHECKOUT_LEASES as cliMain$CHECKOUT_LEASES, asksVersion, main as cliMain$main, selectedToolEntry, traceServeStartup } from "./src/shell/cli-main.js";
+export * from "./core.js";
+export { CHECKOUT_BOARD_ONLY, CHECKOUT_LEASES as cliMain$CHECKOUT_LEASES, main as cliMain$main, traceServeStartup } from "./src/shell/cli-main.js";
 export { heartbeatCommand } from "./src/shell/cli-presence.js";
 export { agentDisplayName as cliReadContext$agentDisplayName, cdTo as cliReadContext$cdTo, context as cliReadContext$context, firstLineOf as cliReadContext$firstLineOf, idArg as cliReadContext$idArg, idList as cliReadContext$idList, identifyCaller, itemLine as cliReadContext$itemLine, sayBrief as cliReadContext$sayBrief, setupFiles as cliReadContext$setupFiles, shellWord as cliReadContext$shellWord, span as cliReadContext$span, uncommittedSetup as cliReadContext$uncommittedSetup, withOpenedBoard } from "./src/shell/cli-read-context.js";
 export { retrySync, syncBefore } from "./src/shell/cli-sync.js";
@@ -40,7 +41,7 @@ export { cockpitPage as cockpitPage } from "./src/shell/cockpit.js";
 export { run as run } from "./src/shell/commands/status.js";
 export { NEXT_STEPS as NEXT_STEPS } from "./src/shell/next-steps.js";
 export { stopReplacedWorker } from "./src/shell/submit-handoff.js";
-export { assertCurrentSubmitHandoff, submitHandoffClaimProblem } from "./src/shell/submit-handoff-worker.js";
+export { assertCurrentSubmitHandoff, driveSubmitHandoff, submitHandoffClaimProblem } from "./src/shell/submit-handoff-worker.js";
 export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.js";
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';

@@ -375,7 +375,6 @@
     "test/config.test.js->src/config.js": 1,
     "test/coordinator-resume.test.js->test/fixture-child.js": 1,
     "test/cpu-callable-options.test.js->src/cpu-load-admission.js": 1,
-    "test/cpu-callable-options.test.js->src/module-imports.js": 1,
     "test/cpu-load-test-fixture.js->src/package-files.js": 1,
     "test/cpu-load-test-fixture.js->src/test-file-pool.js": 1,
     "test/cpu-load-test-fixture.js->test/fixture-child.js": 1,

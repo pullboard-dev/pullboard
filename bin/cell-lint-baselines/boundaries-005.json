@@ -201,7 +201,6 @@
     "src/corrected-bar.js->packages/kernel/src/core/refused.js": 1,
     "src/corrected-bar.js->src/automatic-dispatch-engine.js": 1,
     "src/corrected-bar.js->src/machine.js": 1,
-    "src/cpu-load-admission.js->src/module-imports.js": 1,
     "src/cpu-load-admission.js->src/settings.js": 1,
     "src/critical-path-order.js->src/brief.js": 1,
     "src/critical-path-order.js->src/critical-path-engine.js": 1,

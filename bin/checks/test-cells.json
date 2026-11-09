@@ -51,7 +51,9 @@
     "test/intake.test.js": "drives the real CLI (intake, claim, verify, accept, land) in a project checkout and checks the person intake flow, output and board rows end to end",
     "test/relay-person-requests.test.js": "drives the real CLI (export, answer, status, resume, spec apply) through a relay stand-in and checks person requests, answers and exports end to end",
     "test/relay-upload-status.test.js": "drives the real CLI (relay link, status) through a relay stand-in and checks the sealed upload-status notice and snapshot recovery end to end",
-    "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end"
+    "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end",
+    "test/submit-size-cli.test.js": "drives the real CLI (add, claim, submit, show) in a project checkout and checks the split suggestion a submit prints when it is far over its item size budget, and that it still submits end to end",
+    "test/submit-registry-guards-cli.test.js": "drives the real CLI (add, claim, submit, test --affected, show, export) in private repositories with installed hooks and checks that a submit and an affected-test run refuse a move without its registry guard by name, with exit codes and board rows end to end"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -189,7 +191,6 @@
     "apps/lib/tests/add-check-baseline-runner.test.js": "imports packages/gate/src/shell/check-baseline-worker.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/commit-message.test.js": "imports packages/commits/src/core/landing-rows.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/submit-infra.test.js": "imports test/cli-in-process-fixture.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/config/tests/submit-registry-guards.test.js": "imports test/e2e-helpers.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-landing.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-lower.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-temporary-edges.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -965,7 +966,6 @@
     "test/seat-address.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/seat-route-follows-model.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/seat-timing.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/self-session-verify-next.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/sentinel-rank.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/sentinels.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/settings-descriptions.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",

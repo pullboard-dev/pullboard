@@ -1,9 +1,9 @@
 /** The SELF_SESSION_VERIFY refusal names starting the review in a separate process or session [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Refused } from '../packages/kernel/index.js';
-import { refuseSelfSession } from '../packages/items/src/shell/item-sessions.js';
-import verify from '../packages/moves/src/core/moves/verify.js';
+import { Refused } from '../../kernel/index.js';
+import { refuseSelfSession } from '../../items/index.js';
+import { verify } from '../index.js';
 
 /** Collect the registered hint for the code from the verify move's declaration. */
 function registeredHint() {
