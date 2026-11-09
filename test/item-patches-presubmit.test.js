@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { prepareItemPatchReview } from '../packages/items/index.js';
 import { effectiveItemHead } from '../packages/verify/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';
@@ -112,7 +112,7 @@ async function repeatNativePhases(f, binding) {
   const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
   writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
-import { openBoard } from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import { openBoard } from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};

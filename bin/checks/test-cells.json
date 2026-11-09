@@ -166,7 +166,6 @@
     "packages/doctrine/tests/doctrine-hold-composed.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
     "packages/doctrine/tests/doctrine-measured-baseline.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
     "packages/doctrine/tests/ratchet-rename.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
-    "packages/flakes/tests/flake-ratchet-busy-board.test.js": "imports apps/lib/index.js, outside its own cell flakes; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/bar-coverage.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
     "packages/gate/tests/check-baseline-delivery.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/check.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -267,7 +266,6 @@
     "packages/sandbox/tests/trunk.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/sandbox/tests/trusted-policy.test.js": "imports test/e2e-helpers.js, outside its own cell sandbox; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/checkout-writers.test.js": "imports test/e2e-helpers.js, outside its own cell seats; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/seats/tests/claim-watchdog.test.js": "imports packages/health/index.js, outside its own cell seats; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/projects.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/spec/tests/doctrine-rulings.test.js": "imports test/e2e-helpers.js, outside its own cell spec; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/spec/tests/signoff.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
@@ -1369,6 +1367,7 @@
   "rootTests": 1024,
   "sealed": [
     "apps/relay",
+    "flakes",
     "github",
     "health",
     "pin",

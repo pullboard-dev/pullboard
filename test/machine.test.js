@@ -31,7 +31,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { HELP } from '../apps/cli/index.js';
