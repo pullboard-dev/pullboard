@@ -91,7 +91,6 @@
   ["src/quarantine-run-verdict.js","packages/gate/src/shell/quarantine-run-verdict.js","rule"]
  ],
  "reexports": [
-  "src/affected-tests.js",
   "src/browser-admission.js",
   "src/chrome-clone-check.js",
   "src/cpu-load-admission.js",

@@ -3956,10 +3956,6 @@
       "cells": 2,
       "deep": 0
     },
-    "src/affected-tests.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/api-http.js": {
       "cells": 1,
       "deep": 0
@@ -4296,10 +4292,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/committed-file-reader.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4445,10 +4437,6 @@
       "deep": 0
     },
     "src/known-main-autofile.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-failure-report.js": {
       "cells": 1,
       "deep": 0
     },
