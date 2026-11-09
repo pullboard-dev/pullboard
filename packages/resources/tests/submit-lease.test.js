@@ -6,6 +6,7 @@ import {
 } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  existsSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -15,7 +16,6 @@ import {
   resolve,
 } from 'node:path';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { listResources } from '../src/shell/resources.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const helpers = createE2eHelpers();
@@ -129,45 +129,40 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
     writeFileSync(bindingFile, currentBinding);
     assert.deepEqual(boardState(database), afterBoardOnly, 'a corrupt binding cannot use the board-only path');
 
+    // A missing binding takes the lease only to rebind this same session, then writes beside the running submit.
     rmSync(bindingFile, { force: true });
     missingBindingSession = launchAs(project, project.web, process.execPath,
-      [helpers.BIN, 'shout', 'all', 'missing binding must queue', '--json'], owner);
+      [helpers.BIN, 'shout', 'all', 'missing binding rebinds', '--json'], owner);
     children.push(missingBindingSession);
-    await waitFor(() => {
-      const resource = listResources({ scope: 'repo', root: project.repo }).find((entry) => entry.name.startsWith('checkout-session:'));
-      return resource?.holders.length === 1 && resource.line.length === 1;
-    }, 'same-session write with a missing binding to queue behind submit');
-    assert.equal(missingBindingSession.exitCode, null, 'a missing binding takes the normal checkout lease path');
-    writeFileSync(bindingFile, currentBinding);
+    const missingBindingResult = await within(missingBindingSession.closed, 5_000, 'same-session write with a missing binding');
+    assert.equal(missingBindingResult.code, 0, missingBindingSession.failure ?? missingBindingSession.stderrText);
+    assert.equal(JSON.parse(readFileSync(bindingFile, 'utf8')).agent, JSON.parse(currentBinding).agent);
+    const afterRebind = boardState(database);
 
+    // Another session is refused at once, with no board change, while the submit still runs.
     wrongSession = launchAs(project, project.web, process.execPath, [helpers.BIN, 'shout', 'all', 'wrong session must not write', '--json'], intruder);
     children.push(wrongSession);
-    await waitFor(() => {
-      const resource = listResources({ scope: 'repo', root: project.repo }).find((entry) => entry.name.startsWith('checkout-session:'));
-      return resource?.holders.length === 1 && resource.line.length === 2;
-    }, 'wrong-session write to queue after the missing-binding command');
+    const wrongResult = await within(wrongSession.closed, 5_000, 'wrong-session refusal');
+    assert.equal(wrongResult.code, 1);
+    assert.equal(JSON.parse(wrongSession.stdoutText).error.code, 'NOT_YOUR_CHECKOUT');
+    assert.deepEqual(boardState(database), afterRebind, 'a wrong-session write adds no board rows');
+
+    // A takeover waits for the running submit's writer record, holding the checkout so no new write slips in.
     takeover = launchAs(project, project.web, process.execPath, [helpers.BIN, 'takeover', '--json'], intruder);
     children.push(takeover);
-    await waitFor(() => {
-      const resource = listResources({ scope: 'repo', root: project.repo }).find((entry) => entry.name.startsWith('checkout-session:'));
-      return resource?.holders.length === 1 && resource.line.length === 3;
-    }, 'wrong-session write and takeover to queue behind the active submit');
-    assert.equal(missingBindingSession.exitCode, null);
-    assert.equal(wrongSession.exitCode, null, 'wrong-session write remains serialized behind the active submit');
-    assert.equal(takeover.exitCode, null, 'takeover remains serialized behind the active submit');
-    assert.deepEqual(boardState(database), afterBoardOnly, 'wrong-session write and takeover add no board rows before acquiring the checkout');
+    const intent = resolve(project.web, project.git(project.web, 'rev-parse', '--git-dir'), 'pullboard-checkout-takeover');
+    await waitFor(() => existsSync(intent) || takeover.exitCode !== null, 'takeover to wait for the active submit');
+    assert.equal(takeover.exitCode, null, 'takeover waits while the submit writes');
+    assert.equal(submit.exitCode, null);
+    assert.deepEqual(boardState(database), afterRebind, 'takeover adds no board rows before the submit finishes');
     assert.equal(helpers.gateEvents(gate).join(','), 'start');
 
     writeFileSync(gate.release, 'released');
-    const [submitResult, missingBindingResult, wrongResult, takeoverResult] = await Promise.all([
-      submit.closed, missingBindingSession.closed, wrongSession.closed, takeover.closed,
-    ]);
+    const [submitResult, takeoverResult] = await Promise.all([submit.closed, takeover.closed]);
     assert.equal(submitResult.code, 0, submit.failure ?? submit.stderrText);
     assert.match(submit.stdoutText, /submitted #1/u);
-    assert.equal(missingBindingResult.code, 0, missingBindingSession.failure ?? missingBindingSession.stderrText);
-    assert.equal(wrongResult.code, 1);
-    assert.equal(JSON.parse(wrongSession.stdoutText).error.code, 'NOT_YOUR_CHECKOUT');
     assert.equal(takeoverResult.code, 0, takeover.failure ?? takeover.stderrText);
+    assert.equal(existsSync(intent), false, 'takeover removes its intent when it ends');
     assert.equal(project.git(project.web, 'rev-parse', 'HEAD'), expectedHead, 'submit leaves the originally submitted HEAD unchanged');
     assert.equal(project.git(project.repo, 'rev-parse', `refs/pullboard/items/1/${expectedHead.slice(0, 12)}`), expectedHead,
       'the submit receipt pins exactly the original HEAD');
