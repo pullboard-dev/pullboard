@@ -1,29 +1,26 @@
 /** Runner jobs started together for one new commit share one history scan through protectHistory [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import {
-  dirname,
-  join,
-  resolve,
-} from 'node:path';
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { after, test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cellProject } from '../../../test/cell-fixture.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const RUNNERS = pathToFileURL(resolve(import.meta.dirname, '../packages/runners/index.js')).href;
-const CONFIG = pathToFileURL(resolve(import.meta.dirname, '../packages/config/index.js')).href;
+const RUNNERS = pathToFileURL(resolve(import.meta.dirname, '../../../packages/runners/index.js')).href;
+const CONFIG = pathToFileURL(resolve(import.meta.dirname, '../../../packages/config/index.js')).href;
 /** One runner job's history check, run in its own process exactly as each runner controller runs it. */
 const JOB = `import { protectHistory } from ${JSON.stringify(RUNNERS)};
 import { defaults } from ${JSON.stringify(CONFIG)};
