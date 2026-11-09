@@ -41,6 +41,11 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   remaining.memoryMB = JSON.parse(secondAdded.out).runner.memoryMB;
   removed.measuredAt = JSON.parse(firstAdded.out).runner.measuredAt;
   remaining.measuredAt = JSON.parse(secondAdded.out).runner.measuredAt;
+  removed.publicKey = JSON.parse(firstAdded.out).runner.publicKey;
+  remaining.publicKey = JSON.parse(secondAdded.out).runner.publicKey;
+  assert.match(removed.publicKey, /^[A-Za-z0-9_-]{40,}$/u, 'registration enrols the runner\'s Ed25519 public key');
+  assert.match(remaining.publicKey, /^[A-Za-z0-9_-]{40,}$/u, 'registration enrols the runner\'s Ed25519 public key');
+  assert.notEqual(removed.publicKey, remaining.publicKey, 'each registered runner enrols its own key');
   removed.fixed = true;
   remaining.fixed = true;
   assert.ok([true, false, null].includes(removed.gui));
