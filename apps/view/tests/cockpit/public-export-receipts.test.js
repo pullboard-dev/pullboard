@@ -27,6 +27,17 @@ test('a fact keeps its ref to the receipt id, and a landing lease drops its toke
   assert.deepEqual(JSON.parse(exported.state.state.events[1].event_detail), { state: 'held' });
 });
 
+test('native claim, submit and reject digests keep their exact identity widths [N26]', () => {
+  const events = [{ event_kind: 'claim', event_detail: JSON.stringify({ digest: 'a'.repeat(64), policyRefreshed: 'b'.repeat(64) }) },
+    { event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tooling: 'c'.repeat(40) }) },
+    { event_kind: 'reject', event_detail: JSON.stringify({ commit: 'a'.repeat(40), barKey: 'd'.repeat(64) }) }];
+  const document = { events: { events } };
+  assert.deepEqual(publicSnapshot(document), document);
+  for (const [kind, detail] of [['claim', { policyRefreshed: 'b'.repeat(40) }], ['submit', { tooling: 'c'.repeat(64) }], ['accept', { barKey: 'd'.repeat(64) }]]) {
+    assert.throws(() => publicSnapshot({ events: { events: [{ event_kind: kind, event_detail: JSON.stringify(detail) }] } }), error => error.code === 'PUBLIC_EXPORT_BLOCKED', kind);
+  }
+});
+
 test('the same values anywhere else are still refused [N26]', () => {
   for (const forged of [
     { main: 'c'.repeat(40) }, { submitReusePlan: 'd'.repeat(64) }, { command: 'e'.repeat(64) },

@@ -40,9 +40,9 @@ function internalShout(value) {
 const EVENT_PATH = /^(?:events\/events\/\*|state\/state\/(?:events\/\*|items\/\*\/(?:thread|history)\/\*))$/u;
 /** Exact native event fields and their hexadecimal widths; other detail fields remain prose. */
 const EVENT_IDENTITIES = Object.freeze({
-  claim: { digest: 64 }, renew: { digest: 64 },
-  submit: { commit: 40, tree: 40, policyCommit: 40, criterionDigest: 64 },
-  accept: { commit: 40, companionDigest: 64 }, reject: { commit: 40, companionDigest: 64 },
+  claim: { digest: 64, policyRefreshed: 64 }, renew: { digest: 64 },
+  submit: { commit: 40, tree: 40, policyCommit: 40, criterionDigest: 64, tooling: 40 },
+  accept: { commit: 40, companionDigest: 64 }, reject: { commit: 40, companionDigest: 64, barKey: 64 },
   merged: { commit: 40 }, reopen: { commit: 40 }, refreeze: { before: 64, after: 64 },
   edit: { correctedFrozen: 64, unfrozen: 64 },
 });
