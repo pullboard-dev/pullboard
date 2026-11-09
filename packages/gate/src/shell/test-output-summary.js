@@ -59,16 +59,26 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
   for (const row of rows) {
     if (!row.passed && !row.skip) failedTitles.set(row.name, (failedTitles.get(row.name) ?? 0) + 1);
   }
-  /** A remote location may use a unique failed source identity, never the first of several title matches. */
+  const failedFiles = new Map();
+  for (const test of outcomes) if (!test.passed && !test.skipped) failedFiles.set(test.name, [...(failedFiles.get(test.name) ?? []), test.file]);
+  const handedOut = new Map();
+  /**
+   * A remote location takes the failed outcomes' full paths only when the failed outcomes and failed cases of that title
+   * pair one to one, in the order both were observed; two files with one case title each keep their own path.
+   */
   function outcomeFile(name) {
-    if (failedTitles.get(name) !== 1) return null;
-    const matches = outcomes.filter(test => test.name === name);
-    return matches.length === 1 && !matches[0].passed && !matches[0].skipped ? matches[0].file : null;
+    const files = failedFiles.get(name) ?? [];
+    if (!files.length || files.length !== failedTitles.get(name)) return null;
+    const next = handedOut.get(name) ?? 0;
+    handedOut.set(name, next + 1);
+    return files[next];
   }
-  const failed = rows.flatMap((row, index) => row.passed || row.skip ? [] : [{
-    file: short(row.file ?? outcomeFile(row.name)) || null,
-    name: short(row.name), error: short(errors[index] || row.failureType || 'no error line recorded'),
-  }]);
+  const failed = rows.flatMap((row, index) => {
+    if (row.passed || row.skip) return [];
+    const paired = outcomeFile(row.name);
+    return [{ file: short(row.file ?? paired) || null,
+      name: short(row.name), error: short(errors[index] || row.failureType || 'no error line recorded') }];
+  });
   const unstructured = !rows.length || rows.some((row, index) => !row.passed && !row.skip && (!errors[index] || /^test failed$/iu.test(errors[index])));
   const lines = output.split('\n').filter(line => line.trim());
   const detail = unstructured ? lines.filter(line => !/^\s*(?:item check:|affected tests:|full gate:|proof:|TAP version |# (?:Subtest:|tests |suites |pass |fail |cancelled |skipped |todo |duration_ms |pullboard )|(?:not )?ok \d+|\d+\.\.\d+|---|\.\.\.)/u.test(line)) : [];
