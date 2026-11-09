@@ -10,21 +10,21 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { parseSpec } from '../src/shell/spec.js';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChild } from './fixture-child.js';
+import { parseSpec } from '../packages/spec/index.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Send one move through the agent API's executeMove, as an agent tool or the relay would. */
 function apiMove(box, cwd, move) {
-  const api = pathToFileURL(resolve(import.meta.dirname, '../../api/src/shell/api.js')).href;
-  const cli = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
-  const person = pathToFileURL(resolve(import.meta.dirname, '../../person/index.js')).href;
+  const api = pathToFileURL(resolve(import.meta.dirname, '../packages/api/index.js')).href;
+  const cli = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
+  const person = pathToFileURL(resolve(import.meta.dirname, '../packages/person/index.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(api)});
     const { main } = await import(${JSON.stringify(cli)});
     const { moveArgs } = await import(${JSON.stringify(person)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     process.stdout.write(JSON.stringify(await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, 'api', undefined, apiBoardOpeners)));
   `;
@@ -35,7 +35,7 @@ function apiMove(box, cwd, move) {
 
 /** Run the real CLI with extra environment, such as an agent shell's marker. */
 function runWith(box, cwd, env, ...args) {
-  const result = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../bin/pullboard.js'), ...args],
+  const result = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args],
     { cwd, env: { ...box.env, ...env }, encoding: 'utf8' });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
