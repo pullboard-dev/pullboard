@@ -1,4 +1,4 @@
-import { seatFamily } from '../../../../src/family-declaration.js';
+import { seatFamily } from '../../../items/core.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
 import * as store from '../../../../src/board.js';
 import { withPrivateBoard } from '../../../seats/index.js';

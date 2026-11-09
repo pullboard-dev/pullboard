@@ -4092,10 +4092,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board-landing-lease.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/board-landing-local-lease.js": {
       "cells": 1,
       "deep": 0
@@ -4257,10 +4253,6 @@
       "deep": 0
     },
     "src/board-stats.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-store.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4433,10 +4425,6 @@
       "deep": 0
     },
     "src/exit-rules-state.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/family-declaration.js": {
       "cells": 1,
       "deep": 0
     },
