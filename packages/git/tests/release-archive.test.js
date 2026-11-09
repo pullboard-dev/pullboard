@@ -1,13 +1,20 @@
 /** The released-source extraction helper tolerates tar stopping its stdin early [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { delimiter, join, resolve } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { delimiter } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { unpackRelease } from './release-archive.js';
+import { unpackRelease } from '../../../test/release-archive.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../..');
 
 test('an old release unpacks even when tar stops reading early [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-release-archive-'));

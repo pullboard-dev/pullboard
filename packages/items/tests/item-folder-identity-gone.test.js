@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 test('clause 1: src/item-folder-identity.js is gone and no tracked file imports it [C7,#3554]', () => {
   const listed = spawnSync('git', ['ls-files', '--', 'src/item-folder-identity.js'], { cwd: ROOT, encoding: 'utf8' });

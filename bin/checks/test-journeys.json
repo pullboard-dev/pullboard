@@ -7387,17 +7387,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/relay-device-http.test.js": {
-      "cells": [
-        "app:relay",
-        "kernel",
-        "keys",
-        "state"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/seal.js)"
-      ]
-    },
     "test/relay-devices.test.js": {
       "cells": [
         "app:lib",
@@ -7629,27 +7618,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/relay-client-fixture.js)",
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/relay-page-store.test.js": {
-      "cells": [
-        "app:relay",
-        "kernel",
-        "pages"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/seal.js)"
-      ]
-    },
-    "test/relay-pages-http.test.js": {
-      "cells": [
-        "app:relay",
-        "kernel",
-        "pages",
-        "state"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/seal.js)"
       ]
     },
     "test/relay-pairing.test.js": {
@@ -9261,17 +9229,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-quarantine-no-cascade.test.js": {
-      "cells": [
-        "resources",
-        "runners"
-      ],
-      "reasons": [
-        "imports past resources front door (packages/resources/src/shell/resource-recovery.js)",
-        "imports past runners front door (packages/runners/src/shell/runner-dispatch.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/runner-recovery-fixture.js": {
       "cells": [
         "app:lib",
@@ -10140,16 +10097,6 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/shell/submit-remote-gate.js)",
         "installs git hooks (test/submit-doctrine-on-runner.test.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/submit-gate-parallel-files.test.js": {
-      "cells": [
-        "gate",
-        "verify"
-      ],
-      "reasons": [
-        "imports past gate front door (packages/gate/src/shell/proof-shards.js)",
         "spawns a child process (test/fixture-child.js)"
       ]
     },

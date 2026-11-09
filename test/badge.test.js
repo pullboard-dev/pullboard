@@ -1,4 +1,4 @@
-import { requireFixtureReviewFamilies } from "../../../test/review-family-fixture.js";
+import { requireFixtureReviewFamilies } from "./review-family-fixture.js";
 /** Board-record badge counts use actual private Git/SQLite projects [B3,V1]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -6,13 +6,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { exportBoard } from "../src/shell/exchange.js";
-import { importBoard } from "../src/shell/exchange.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import { assertBadgeLanding } from "../../../test/badge-fixture.js";
-import { submitFixture } from "../../../test/board-submit-fixture.js";
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { exportBoard } from "../packages/store/src/shell/exchange.js";
+import { importBoard } from "../packages/store/src/shell/exchange.js";
+import { createE2eHelpers } from "./e2e-helpers.js";
+import { assertBadgeLanding } from "./badge-fixture.js";
+import { submitFixture } from "./board-submit-fixture.js";
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

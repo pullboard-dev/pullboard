@@ -2,35 +2,31 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createAuthHandler } from '../apps/relay/index.js';
-import { createDeviceHandler } from '../apps/relay/index.js';
-import { createDeviceStore } from '../apps/relay/index.js';
-import { createGitHubClient } from '../apps/relay/index.js';
-import {
-  ACCESS_WINDOW_MS,
-  createRelayAuth,
-} from '../apps/relay/index.js';
-import { createRelayHandler } from '../apps/relay/index.js';
-import { Refused } from '../packages/kernel/core.js';
-import { ENGINE_VERSION } from '../packages/state/index.js';
-import {
-  authenticateDeviceEnrollment,
-  createDeviceKeys,
-  signDeviceEnrollment,
-  unwrapDeviceBoardKey,
-  wrapDeviceBoardKey,
-} from '../packages/keys/index.js';
-import { githubFixture } from './relay-fixture.js';
-import { excludedInventoryId } from '../apps/relay/index.js';
-import {
-  seal,
-  unseal,
-} from '../packages/kernel/src/core/seal.js';
+import { createAuthHandler } from '../index.js';
+import { createDeviceHandler } from '../index.js';
+import { createDeviceStore } from '../index.js';
+import { createGitHubClient } from '../index.js';
+import { ACCESS_WINDOW_MS } from '../index.js';
+import { createRelayAuth } from '../index.js';
+import { createRelayHandler } from '../index.js';
+import { Refused } from '../../../packages/kernel/core.js';
+import { ENGINE_VERSION } from '../../../packages/state/index.js';
+import { authenticateDeviceEnrollment } from '../../../packages/keys/index.js';
+import { createDeviceKeys } from '../../../packages/keys/index.js';
+import { signDeviceEnrollment } from '../../../packages/keys/index.js';
+import { unwrapDeviceBoardKey } from '../../../packages/keys/index.js';
+import { wrapDeviceBoardKey } from '../../../packages/keys/index.js';
+import { githubFixture } from '../../../test/relay-fixture.js';
+import { excludedInventoryId } from '../index.js';
+import { seal } from '../../../packages/kernel/index.js';
+import { unseal } from '../../../packages/kernel/index.js';
 
 test('excluded inventories keep names sealed, isolate accounts and refuse revoked devices [H5,H15,H17]', async t => {
   const box = await relayDeviceFixture(t);

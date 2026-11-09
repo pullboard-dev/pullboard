@@ -1,7 +1,7 @@
 /** Private-child progress waits retain liveness and hang controls [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { waitForFixtureProgress } from './fixture-progress.js';
+import { waitForFixtureProgress } from '../../../test/fixture-progress.js';
 
 test('a progressing fixture may cross the old total deadline [C7]', async () => {
   let clock = 0;

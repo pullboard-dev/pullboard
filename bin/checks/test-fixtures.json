@@ -459,7 +459,7 @@
     "tempdir": 1,
     "raw-board": 10
   },
-  "packages/store/tests/badge.test.js": {
+  "test/badge.test.js": {
     "raw-board": 7
   },
   "packages/store/tests/board-capture.test.js": {
@@ -470,17 +470,17 @@
     "tempdir": 1,
     "raw-board": 8
   },
-  "packages/store/tests/commit-metadata.test.js": {
+  "test/commit-metadata.test.js": {
     "raw-board": 2
   },
   "packages/store/tests/infra-release.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
-  "packages/store/tests/item-notes.test.js": {
+  "test/item-notes.test.js": {
     "model": 2
   },
-  "packages/store/tests/landing-noop.test.js": {
+  "test/landing-noop.test.js": {
     "raw-board": 1
   },
   "packages/store/tests/milestone-placement.test.js": {
@@ -496,20 +496,20 @@
   "packages/store/tests/shout-item.test.js": {
     "raw-board": 3
   },
-  "packages/store/tests/shout-readable.test.js": {
+  "test/shout-readable.test.js": {
     "raw-board": 1
   },
-  "packages/store/tests/stacked-submit.test.js": {
+  "test/stacked-submit.test.js": {
     "raw-board": 2
   },
-  "packages/store/tests/verdict-check.test.js": {
+  "test/verdict-check.test.js": {
     "tempdir": 1,
     "model": 2,
     "hand-policy": 6,
     "raw-board": 2,
     "hex64": 135
   },
-  "packages/store/tests/verify.test.js": {
+  "test/verify.test.js": {
     "raw-board": 3,
     "hand-policy": 1
   },
@@ -867,7 +867,7 @@
   "test/clarify-stale-fixture.js": {
     "repo-read": 3
   },
-  "test/clarify-workflows.test.js": {
+  "packages/github/tests/clarify-workflows.test.js": {
     "repo-read": 2
   },
   "test/cli-help.test.js": {
@@ -2666,7 +2666,7 @@
     "tempdir": 5,
     "repo-read": 1
   },
-  "test/relay-device-http.test.js": {
+  "apps/relay/tests/relay-device-http.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-http.test.js": {
@@ -2711,10 +2711,10 @@
   "test/relay-page-client.test.js": {
     "tempdir": 1
   },
-  "test/relay-page-store.test.js": {
+  "apps/relay/tests/relay-page-store.test.js": {
     "tempdir": 1
   },
-  "test/relay-pages-http.test.js": {
+  "apps/relay/tests/relay-pages-http.test.js": {
     "tempdir": 1
   },
   "test/relay-parity-clock.test.js": {
@@ -2827,13 +2827,13 @@
   "test/relay.test.js": {
     "tempdir": 1
   },
-  "test/release-archive.test.js": {
+  "packages/git/tests/release-archive.test.js": {
     "tempdir": 1
   },
   "test/release-clears-claim.test.js": {
     "model": 1
   },
-  "packages/store/tests/release-focus.test.js": {
+  "test/release-focus.test.js": {
     "raw-board": 15
   },
   "test/release-producer-cases.js": {

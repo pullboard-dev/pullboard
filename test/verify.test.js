@@ -8,12 +8,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../src/shell/board.js";
-import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
-import { joinFixtureSeat } from "../../../test/testkit-fixture.js";
-import { submitFixture } from "../../../test/board-submit-fixture.js";
-import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import * as store from "../packages/store/src/shell/board.js";
+import { openCellBoard as openBoard } from "./cell-fixture.js";
+import { joinFixtureSeat } from "./testkit-fixture.js";
+import { submitFixture } from "./board-submit-fixture.js";
+import { createE2eHelpers } from "./e2e-helpers.js";
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read a successful JSON CLI response; setup failures must not masquerade as eligibility failures. */
 function document(result) {

@@ -1,16 +1,20 @@
 /** Durable upload publication, pinned readers and quota refusal preserve opaque snapshot graphs [H15,H17,H18]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { createRelayPages } from '../apps/relay/index.js';
-import { createRelayJournal } from '../apps/relay/index.js';
-import { Refused } from '../packages/kernel/core.js';
-import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
-import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../packages/pages/index.js';
+import { createRelayPages } from '../index.js';
+import { createRelayJournal } from '../index.js';
+import { Refused } from '../../../packages/kernel/core.js';
+import { generateBoardKey } from '../../../packages/kernel/index.js';
+import { PAGE_BYTES } from '../../../packages/pages/index.js';
+import { readSealedValue } from '../../../packages/pages/index.js';
+import { writeSealedValue } from '../../../packages/pages/index.js';
 
 const machine = { kind: 'machine', userId: '1', machine: 'fixture-native' };
 const agent = { kind: 'agent', userId: '1', agent: 'fixture-reader' };
