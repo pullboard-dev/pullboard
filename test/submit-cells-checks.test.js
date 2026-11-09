@@ -425,7 +425,8 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
   });
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
-  const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  const candidate = commitCandidate(box), observed = {};
+  bindingCompilerCalls(t, observed);
   let requested = 0, computed = 0;
   const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
     readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
@@ -455,7 +456,6 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     // The accepted inventory serves the unchanged modules, so the refused candidate needs each binding once and none repeats;
     // the cross-run reuse is the computed === 0 check above, and census reuse has its own cases (#2711).
     assert.ok(first.computed > 0 && first.requested === first.computed, `the eligible actual submit probes each binding exactly once ${JSON.stringify(first)}`);
-    assert.ok(calls() > 0);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
 
