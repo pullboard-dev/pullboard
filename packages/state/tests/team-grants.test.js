@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/store/src/shell/board.js src/engine.js src/exchange.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js */
 /** Computed grants preserve actual authority and exact historical replicas [E21,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
