@@ -1702,7 +1702,7 @@
   "packages/resources/tests/handoff-cap-runner-slots.test.js": {
     "tempdir": 1
   },
-  "test/handoff-cap-status-line.test.js": {
+  "packages/resources/tests/handoff-cap-status-line.test.js": {
     "hand-policy": 1
   },
   "packages/resources/tests/handoff-dispatcher-capacity.test.js": {
@@ -1739,7 +1739,7 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "test/handoff-worker-cap-runners-only.test.js": {
+  "packages/resources/tests/handoff-worker-cap-runners-only.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -1928,7 +1928,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "test/land-engine-numbers.test.js": {
+  "packages/landing/tests/land-engine-numbers.test.js": {
     "tempdir": 1
   },
   "test/land-no-remote-fixture.js": {
@@ -2029,7 +2029,7 @@
   "packages/landing/tests/landing-merge-attribution.test.js": {
     "tempdir": 1
   },
-  "test/landing-move-closure.test.js": {
+  "packages/landing/tests/landing-move-closure.test.js": {
     "tempdir": 2
   },
   "packages/landing/tests/landing-new-test-file-bisects.test.js": {
