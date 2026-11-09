@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileIdleHung } from '../core/file-watchdog-policy.js';
 import { processTreeCpu } from './file-watchdog-tree.js';
 import { treeCpuDelta } from './file-watchdog-tree.js';
+import { processTreeDescendants } from './file-watchdog-tree.js';
 import { statSync } from 'node:fs';
 
 const tests = new Map();
@@ -27,7 +28,17 @@ function finishedSummary() {
   return JSON.stringify(finished);
 }
 
-/** Signal only this worker's own process; the existing runner custody drains its descendants. */
+/**
+ * Stop the file's whole tree, descendants first, then the worker itself, so no grandchild keeps the output pipe open.
+ * Why: the run resolves on the worker's exit; a survivor holding the pipe would stall it far past the cap.
+ */
+async function killTree() {
+  try { for (const pid of await processTreeDescendants(process.pid)) { try { process.kill(pid, 'SIGKILL'); } catch { /* Already gone. */ } } }
+  catch { /* A failed census still ends the worker below. */ }
+  process.kill(process.pid, 'SIGKILL');
+}
+
+/** Report the hang or wall timeout, then stop the file's tree; a bounded stop never waits on the census. */
 function hung(reason, wall = false) {
   if (killed) return;
   killed = true;
@@ -37,11 +48,11 @@ function hung(reason, wall = false) {
     const [slowest] = [...startedAt].sort((a, b) => a[1] - b[1]);
     const running = slowest ? `${tests.get(slowest[0])} (running ${Math.round(performance.now() - slowest[1])}ms)` : name;
     writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case ${JSON.stringify(running)}: ${reason}; finished cases ${finishedSummary()}\n`);
-    process.kill(process.pid, 'SIGKILL');
+    void killTree();
     return;
   }
   writeSync(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}; finished cases ${finishedSummary()}\n`);
-  process.kill(process.pid, 'SIGKILL');
+  void killTree();
 }
 
 /** Output begins a fresh quiet/CPU window; a lifecycle name alone is not output. */

@@ -33,7 +33,7 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
-import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
+import { isWorkerProcessIdentityTimeout, workerProcessIdentityQuery, parseWorkerProcessIdentity } from '../packages/drive/core.js';
 import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
 import { optionTakesValue } from '../packages/gate/src/shell/test-file-dispatch.js';
@@ -346,7 +346,7 @@ function landingWorkerCancellationError(cause) {
 /** Retry a worker's initial process-identity receipt without blocking its event loop or exceeding the file-start ceiling. */
 async function landingWorkerIdentity(pid, timeoutMs = LANDING_WORKER_IDENTITY_TIMEOUT_MS) {
   if (process.platform === 'win32') return null;
-  const { args: snapshotArgs } = landingWorkerIdentityQuery(pid);
+  const { args: snapshotArgs } = workerProcessIdentityQuery(pid);
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
   let retryNoticeReported = false;
@@ -374,7 +374,7 @@ async function landingWorkerIdentity(pid, timeoutMs = LANDING_WORKER_IDENTITY_TI
           if (stopping) child.kill('SIGTERM');
         });
         if (stopping) throw landingWorkerCancellationError();
-        const identity = parseLandingWorkerIdentity(output);
+        const identity = parseWorkerProcessIdentity(output);
         if (identity?.pid === pid) {
           if (stopping) throw landingWorkerCancellationError();
           return identity;
@@ -384,7 +384,7 @@ async function landingWorkerIdentity(pid, timeoutMs = LANDING_WORKER_IDENTITY_TI
         lastError = error;
         if (!retryNoticeReported) {
           retryNoticeReported = true;
-          const timedOut = isLandingWorkerIdentityTimeout(error, pid);
+          const timedOut = isWorkerProcessIdentityTimeout(error, pid);
           process.stderr.write(timedOut
             ? 'run-tests: worker identity snapshot timed out; retrying before file execution\n'
             : `run-tests: worker identity snapshot failed (${error.code ?? 'unknown'}); retrying before file execution\n`);
