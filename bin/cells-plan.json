@@ -2065,6 +2065,8 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
+    "sandbox->config",
+    "sandbox->git",
     "commits->kernel",
     "rigor->store",
     "(root)->store",
