@@ -11,7 +11,7 @@ import { writeFormatTable } from '../../../state/index.js';
 import { refreshLandingDocs } from './landing-docs.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { git } from '../../../../src/git.js';
 import { headCommit } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';

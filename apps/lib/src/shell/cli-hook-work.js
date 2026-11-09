@@ -25,7 +25,7 @@ async function dispatch(args) {
 async function inspect() {
   const { repoInfo, headCommit, tryGit } = await import('../../../../src/git.js');
   const { join } = await import('node:path');
-  const store = await import('../../../../src/board.js');
+  const store = await import('../../../../packages/store/index.js');
   const { openBoardForRead } = await import('../core/native-board.js');
   const info = repoInfo(process.cwd());
   const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));

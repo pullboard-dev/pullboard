@@ -2,7 +2,7 @@ import { presentationShout } from '../core/relay-presentation.js';
 /** Device-sealed presentation uses the same API state as the local view [A4,H5,H15]. */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import * as store from "../../../../src/board.js";
+import * as store from "../../../store/index.js";
 import { exportBoard } from "../../../store/index.js";
 import {
   codeIsFromMain,
