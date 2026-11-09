@@ -66,9 +66,6 @@
     "repo-read": 2,
     "hex64": 1
   },
-  "packages/api/tests/shout-item-cli.test.js": {
-    "raw-board": 4
-  },
   "packages/blueprints/tests/blueprint-fixture.js": {
     "repo-read": 2,
     "tempdir": 2,
@@ -85,6 +82,9 @@
     "model": 1,
     "tempdir": 1,
     "hand-policy": 2
+  },
+  "packages/gate/tests/gate-stages-concurrent.test.js": {
+    "repo-read": 1
   },
   "packages/gate/tests/root-allowlist.test.js": {
     "tempdir": 2
@@ -1653,9 +1653,6 @@
   },
   "packages/gate/tests/gate-red-names-failures.test.js": {
     "tempdir": 1
-  },
-  "test/gate-stages-concurrent.test.js": {
-    "repo-read": 1
   },
   "test/gate.test.js": {
     "tempdir": 11,
@@ -3441,6 +3438,9 @@
   },
   "test/ship-command.test.js": {
     "raw-board": 1
+  },
+  "test/shout-item-cli.test.js": {
+    "raw-board": 4
   },
   "test/shout-report-refusal.test.js": {
     "raw-board": 5
