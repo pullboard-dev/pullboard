@@ -46,7 +46,7 @@ test('a ruling the person approves reaches every agent once [D1,D3,B27]', (t) =>
   const box = e2e.project('true');
   const other = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', other);
-  const joined = fixtureJoin(box.run, other, 'web', '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, other, 'web', '--model', 'Fixture', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const checkouts = [box.repo, box.web, other];
   const oldHeads = checkouts.map(path => box.git(path, 'rev-parse', 'HEAD'));

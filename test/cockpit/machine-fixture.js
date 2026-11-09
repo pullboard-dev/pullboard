@@ -22,6 +22,8 @@ import { withoutPullboardEnv } from '../e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../../bin/pullboard.js');
 const scratch = [];
+/** The model later agent commands run under; init and the exposed env carry none, as a scratch machine has no seat identity [C7,N26]. */
+const MACHINE_MODEL = 'Test Model';
 
 after(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
@@ -67,7 +69,7 @@ function machine() {
     return result.stdout;
   };
   /** Run the CLI with the machine environment used by later agent commands. */
-  const run = (cwd, ...args) => runWithEnv(cwd, env, ...args);
+  const run = (cwd, ...args) => runWithEnv(cwd, { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, ...args);
   /** Produce a fresh private snapshot through the actual CLI; no existing or caller-supplied root is adopted. */
   function exportSnapshot(cwd, leaf) {
     assert.match(leaf, /^[A-Za-z0-9][A-Za-z0-9_-]*$/u, 'snapshot output has one private leaf');

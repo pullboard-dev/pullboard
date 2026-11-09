@@ -4,7 +4,7 @@ const { openBoardForRead } = nativeBoard;
 import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
-import { eventCauses } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
 import { context } from '../apps/cli/index.js';
 import { ordered } from '../apps/cli/index.js';

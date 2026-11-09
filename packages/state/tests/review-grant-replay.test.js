@@ -2,7 +2,7 @@
 /** A cross-lane verdict is review from its engine on, and older verdicts replay as they were recorded [E21,V2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,

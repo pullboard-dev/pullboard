@@ -12,7 +12,7 @@ import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
-import { strayNextStep } from '../packages/codemap/index.js';
+import { strayNextStep } from '../packages/codemap/core.js';
 import { mainCommit } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
 import { lowerCellLintBaseline } from '../packages/codemap/index.js';

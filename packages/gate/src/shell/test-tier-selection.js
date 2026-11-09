@@ -18,6 +18,7 @@ import { sealStoreFile } from './seals.js';
 import { sealsExist } from './seals.js';
 import { checkSkippedSeals } from './seals.js';
 import { refusalFloor } from './refusal-floor.js';
+import { codeMapGraph } from './affected-tests.js';
 import { readTierSnapshot } from './test-tier-snapshot-cache.js';
 import { writeTierSnapshot } from './test-tier-snapshot-cache.js';
 
@@ -150,7 +151,12 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   }
   const after = snapshotAt(root, commit), before = base ? snapshotAt(root, base) : after;
   const packages = new Set();
-  const global = !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || file.startsWith('bin/cells-plan'));
+  // Cells the test-cell check records as sealed (bin/checks/test-cells.json): their tests conform, so the plan names them [C7].
+  const sealedCells = sealedTestCells(root, commit);
+  // A cell's own plan shard is a listing that rides with its work, so only the other plan files are global here (#4633).
+  const hardGlobal = !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || (file.startsWith('bin/cells-plan') && !PLAN_SHARD.test(file)));
+  const confined = hardGlobal ? null : sealedConfinement(actual, sealedCells, (file, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${file}`], true));
+  const global = hardGlobal || (!confined && actual.some(file => PLAN_SHARD.test(file)));
   if (global) for (const row of after.manifest.files) for (const name of row.packages) packages.add(name);
   else for (const file of actual) {
     for (const snapshot of [before, after]) {
@@ -179,11 +185,117 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
-  const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
-  const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  // Cells the test-cell check records as sealed (bin/checks/test-cells.json): their tests conform, so the plan names them [C7].
-  const sealedCells = sealedTestCells(root, commit);
+  const selects = row => confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
+  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
+  // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
+  // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).
+  const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
+  const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
+    : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
+const PLAN_SHARD = /^bin\/cells-plan\/\d+-[^/]+\.json$/u;
+const COMMITTED_LISTINGS = new Set(['bin/checks/test-cells.json', 'bin/checks/cells-edges.json', TEST_TIERS_FILE]);
+/**
+ * The listing sections a tool regenerates from the tree (`--write`), by file; `true` means every section. A static check
+ * and the tests that read the file compare them with a fresh run, so a hand edit or a raised ratchet is caught there and
+ * a change to them hides no test from selection. The rest, such as journey reasons, audited helpers and plan shards,
+ * are policy a person writes, so only a changed cell's own rows count as part of its change (#4633).
+ */
+const GENERATED_SECTIONS = { 'bin/checks/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), 'bin/checks/cells-edges.json': true, [TEST_TIERS_FILE]: true };
+
+/** Whether a changed path is a listing file a cell's work regenerates beside its code. */
+function isListing(file) { return COMMITTED_LISTINGS.has(file) || PLAN_SHARD.test(file); }
+
+/** The name the test-cell listing gives a cell root: `<cell>` for `packages/<cell>`, `apps/<name>` for `apps/<name>`. */
+function listedCellName(root) { return root.startsWith('apps/') ? root : root.slice('packages/'.length); }
+
+/**
+ * The cell roots (`packages/<cell>`, `apps/<cell>`) a change touches when every changed path lies inside a sealed cell,
+ * else null; with the listing files that rode along. Why: a sealed cell's tests conform and no outside file imports past
+ * its front door, so a change confined to it can reach outside only through that front door (#4003). The listing names an
+ * apps cell `apps/<name>`, so that is the name a root is looked up by. A listing file counts as part of the change only
+ * when each row it adds, drops or edits belongs to a changed cell (#4633).
+ *
+ * @param {string[] | null} changed
+ * @param {string[]} sealedCells
+ * @param {(file: string, side: 'base' | 'head') => string | null} read the file's committed text on the base or the head
+ * @returns {{ roots: Set<string>, listings: string[] } | null}
+ */
+function sealedConfinement(changed, sealedCells, read) {
+  if (!changed?.length || !sealedCells.length) return null;
+  const sealed = new Set(sealedCells), roots = new Set(), listings = [];
+  for (const file of changed) {
+    if (isListing(file)) { listings.push(file); continue; }
+    const match = /^((?:packages|apps)\/([^/]+))\//u.exec(file);
+    if (!match || !sealed.has(listedCellName(match[1]))) return null;
+    roots.add(match[1]);
+  }
+  if (!roots.size || !listings.every(file => listingIsOwn(file, roots, read))) return null;
+  return { roots, listings };
+}
+
+/** One keyed entry per row of a listing, so two versions compare row by row; a section that is no list of rows is one entry. */
+function listingRows(listing) {
+  const rows = new Map();
+  const add = (section, key, row) => rows.set(`${section}\0${key}`, `${rows.get(`${section}\0${key}`) ?? ''}${JSON.stringify(row)}`);
+  for (const [section, value] of Object.entries(listing ?? {})) {
+    if (Array.isArray(value)) for (const row of value) add(section, typeof row === 'string' ? row : Array.isArray(row) ? row[1] : row?.file ?? JSON.stringify(row), row);
+    else if (value && typeof value === 'object') for (const [key, row] of Object.entries(value)) add(section, key, row);
+    else add(section, '', value);
+  }
+  return rows;
+}
+
+/**
+ * Whether a listing file's change is part of the changed cells' work: its generated sections are, and every other row
+ * must belong to a changed cell, by a file path under its root or its listed name. A shard must be a changed cell's own.
+ * A listing that cannot be read refuses.
+ */
+function listingIsOwn(file, roots, read) {
+  const parse = side => { try { const text = read(file, side); return text === null ? null : JSON.parse(text); } catch { return undefined; } };
+  const [before, after] = [parse('base'), parse('head')];
+  if (before === undefined || after === undefined) return false;
+  if (PLAN_SHARD.test(file) && !roots.has((after ?? before)?.root)) return false;
+  const names = new Set([...roots].map(listedCellName));
+  const owns = key => names.has(key.replace(/^<-/u, '')) || [...roots].some(root => key === root || key.startsWith(`${root}/`));
+  const [was, now] = [listingRows(before), listingRows(after)];
+  const generated = section => GENERATED_SECTIONS[file] === true || GENERATED_SECTIONS[file]?.has(section);
+  return [...new Set([...was.keys(), ...now.keys()])].filter(key => was.get(key) !== now.get(key))
+    .every(key => generated(key.slice(0, key.indexOf('\0'))) || owns(key.slice(key.indexOf('\0') + 1)));
+}
+
+/**
+ * The files that read a listing the change carried: any module naming it, and the tests importing that module. A test that
+ * reads a listing as input must run when the listing changes, even though a confined change runs no other journey (#4633).
+ */
+function listingReaders(root, base, commit, listings) {
+  const needles = [...new Set(listings.map(file => PLAN_SHARD.test(file) ? 'cells-plan/' : posix.basename(file)))];
+  const before = base ? codeMapGraph(root, base) : null;
+  const readers = new Set();
+  for (const graph of [before, codeMapGraph(root, commit, before)]) {
+    if (!graph) continue;
+    for (const [path, source] of graph.modules) {
+      if (!needles.some(needle => source.includes(needle))) continue;
+      readers.add(path);
+      for (const importer of graph.reverse.get(path) ?? []) readers.add(importer);
+    }
+  }
+  return readers;
+}
+
+/**
+ * A test a confined change selects: one under a changed sealed cell's own tests folder or a unit reaching only the changed
+ * cells, or, when a changed cell's front door changed, a contract test of a cell that reaches it. No root journey or other cell's test rides along (#4003).
+ */
+function confinedUnit(row, roots, doors) {
+  if ([...roots].some(cell => row.file.startsWith(`${cell}/tests/`))) return true;
+  // A unit that reaches only the changed cells is theirs wherever it sits; anything reaching further waits for its own change.
+  if (row.tier === 'T1' && row.packages.length && row.packages.every(name => roots.has(name))) return true;
+  const contract = /^((?:packages|apps)\/[^/]+)\/contract\//u.exec(row.file);
+  return Boolean(contract) && [...roots].some(cell => doors.has(`${cell}/index.js`) && row.packages.includes(cell));
 }
 
 /** The cells the committed test-cell listing at `commit` records as sealed; none when it is absent or unreadable. */

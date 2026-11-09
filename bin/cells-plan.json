@@ -632,10 +632,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "bin/cells-move-closure.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/bar-corrections.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
@@ -1920,6 +1916,7 @@
     }
   ],
   "allowedEdges": [
+    "(root)->gate",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -1933,6 +1930,8 @@
     "runners->resources",
     "runners->transport",
     "activity->store",
+    "(root)->apps/cli",
+    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->items",
@@ -1948,6 +1947,9 @@
     "doctrine->git",
     "doctrine->store",
     "gate->store",
+    "gate->kernel",
+    "gate->git",
+    "gate->resources",
     "github->store",
     "items->git",
     "items->kernel",
@@ -1999,6 +2001,8 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
-    "commits->kernel"
+    "commits->kernel",
+    "rigor->store",
+    "(root)->store"
   ]
 }

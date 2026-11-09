@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
+import { cellSandbox } from './cell-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { toolSourcePath } from '../packages/runners/index.js';
@@ -41,7 +42,7 @@ console.log(JSON.stringify({ atImport, afterUse: seen }));
 const toolingFile = file => /(?:bin\/runner-controller\.js|src\/runner-worker\.js)$/u.test(file);
 
 test('clause 1: importing packages/runners parses no source and captures no tooling until first use [C7,#3070]', t => {
-  const dir = helpers.sandbox().dir;
+  const dir = cellSandbox(t).dir;
   const probe = join(dir, 'probe.mjs');
   writeFileSync(probe, PROBE);
   const result = runFixtureChild(process.execPath, [probe, INDEX], { encoding: 'utf8' });
@@ -63,8 +64,8 @@ try { runners.pinRunnerTooling(); runners.loadedToolingFiles({ rescan: false });
 catch (error) { console.log(error.code); }
 `;
 
-test('a closure file written after import, before first use, still refuses as changed tooling [C7,#3070]', () => {
-  const dir = helpers.sandbox().dir;
+test('a closure file written after import, before first use, still refuses as changed tooling [C7,#3070]', t => {
+  const dir = cellSandbox(t).dir;
   const installed = join(dir, 'installed');
   copyPackageFiles(ROOT, installed);
   const probe = join(dir, 'stale.mjs');

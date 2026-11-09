@@ -195,3 +195,4 @@ export { CLAUSE_EVIDENCE_ENGINE } from './src/core/engines/clause-evidence-engin
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/core/engines/forced-merge-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/core/next-step-defaults.js';
+export { INFRA_RELEASE_ENGINE } from './src/core/engines/infra-release-engine.js';

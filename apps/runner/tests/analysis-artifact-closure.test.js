@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runnerWorkerFiles } from '../../../bin/cells-move-closure.js';
+import { runnerWorkerFiles } from '../../../packages/codemap/index.js';
 import { commonJsIn } from '../../../packages/gate/index.js';
 import { importsIn } from '../../../packages/gate/index.js';
 import { packageFiles } from '../../../packages/runners/index.js';

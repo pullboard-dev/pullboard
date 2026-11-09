@@ -41,7 +41,7 @@ function href(path) {
  */
 function landRuns(box, entry, { mode, runs }) {
   const source = [
-    `import * as store from ${href('../src/board.js')};`,
+    `import * as store from ${href('../packages/store/index.js')};`,
     `import { openBoard } from ${href('../apps/lib/index.js')};`,
     `import { loadConfig } from ${href('../packages/config/index.js')};`,
     `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,
@@ -130,7 +130,7 @@ test('an adopted batch carrying a held verified item is retired, the item keeps 
  */
 function trunkCrashRuns(box, entry) {
   const source = [
-    `import * as store from ${href('../src/board.js')};`,
+    `import * as store from ${href('../packages/store/index.js')};`,
     `import { openBoard } from ${href('../apps/lib/index.js')};`,
     `import { loadConfig } from ${href('../packages/config/index.js')};`,
     `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,

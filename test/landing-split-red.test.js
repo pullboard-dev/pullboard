@@ -17,7 +17,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 /** Run one real landing pass; return its lines, the last batch record and each item's status, verdict and merge. */
 function landOnce(box, ids) {
   const source = [
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
+    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/store/index.js')).href)};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,

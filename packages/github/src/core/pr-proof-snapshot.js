@@ -1,5 +1,5 @@
 /** Capture one native receipt cohort without retaining it beyond a publication pass [B3,R3]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Preserve native row order while making per-item reads independent of the board's total size. */

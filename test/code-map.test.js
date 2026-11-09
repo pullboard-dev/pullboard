@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { buildCodeMap, renderItemSlice } from '../packages/codemap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -181,7 +181,7 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   assert.equal(added.code, 0, added.out + added.err);
   const itemId = JSON.parse(added.out).item.item_id;
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  store.ensureCoordinator(board, box.repo);
+  store.board_ensureCoordinator(board, box.repo);
   const agent = store.agentAt(board, box.web);
   assert.ok(agent, 'the fixture builder remains joined to its web lane');
   const agentId = agent.agent_id;

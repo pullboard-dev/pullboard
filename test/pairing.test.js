@@ -399,7 +399,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
   const box = await relayClientFixture(t);
   await box.link();
   const result = await box.script(`
-    const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
+    const store = await import(${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
@@ -433,7 +433,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
   const box = await relayClientFixture(t);
   await box.link();
   const result = await box.script(`
-    const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
+    const store = await import(${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
@@ -467,7 +467,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
   const box=await relayClientFixture(t);
   await box.link();
   const result=await box.script(`
-    const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
+    const store=await import(${JSON.stringify(new URL('../packages/store/index.js',import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../packages/keys/index.js',import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
@@ -503,7 +503,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
   await box.link();
   const result=await box.script(`
     const {webcrypto}=await import('node:crypto');
-    const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
+    const store=await import(${JSON.stringify(new URL('../packages/store/index.js',import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../packages/keys/index.js',import.meta.url).href)});
     const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});

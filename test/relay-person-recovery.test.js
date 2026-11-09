@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../packages/link/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
@@ -16,7 +16,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
-const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/src/core/native-board.js')).href;
 const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/store/index.js')).href;
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;

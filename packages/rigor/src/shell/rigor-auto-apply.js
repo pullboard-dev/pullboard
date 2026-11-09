@@ -10,7 +10,7 @@ import {
   automaticDecisionSource,
   automaticSourceFromText,
   sameAutomaticRow,
-} from '../../../../src/board-rigor-auto-source.js';
+} from '../../../store/index.js';
 import {
   rowDecisionContext,
   staleRowDecision,
