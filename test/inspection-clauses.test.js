@@ -21,12 +21,12 @@ const HOUR = 3_600_000;
 const THREE = 'the bar is met when:\n1. the list renders [test]\n2. the count shows 3 [command]\n3. the page is clear at 375px [screenshot]';
 
 /** A claimed item whose criterion is the given text. */
-function fixture(t, criterion) {
+function fixture(t, criterion, check = 'true') {
   const board = openBoard(':memory:');
   store.register(board, { lane: 'coordinator', path: '/fixture/main' });
   store.register(board, { lane: 'core', path: '/fixture/builder' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Clause fixture', criterion, route: 'mid',
-    brief: 'Files: src/a.js\nTest: one named case', check: 'true' });
+    brief: 'Files: src/a.js\nTest: one named case', ...(check ? { check } : {}) });
   store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 2 * HOUR, freeze: item => ({ text: item.item_criterion, digest: 'clauses' }) });
   t.after(() => store.closeBoard(board));
   return { board, id };
@@ -224,4 +224,22 @@ test('a test tick naming a file the commit\'s green proof ran is proven without 
   assert.match(problem(f).message, /needs a named test case citing clause 1/u, 'no proof yet');
   assert.equal(problem(f, { greenFiles: new Set(['test/page.test.js']) }), null, 'the green proof of this commit ran that file');
   assert.match(problem(f, { greenFiles: new Set(['test/other.test.js']) }).message, /citing clause 1/u, 'another file proves nothing for it');
+});
+
+test('clause 1: an unticked [test] clause on an item with a frozen check is refused with pullboard check <id> as the step and the next line [C7]', t => {
+  const f = fixture(t, 'the bar is met when:\n1. the list renders [test]\n2. the count shows 3 [command]');
+  const refused = problem(f);
+  assert.equal(refused.code, 'CLAUSE_UNTICKED');
+  assert.match(refused.message, new RegExp(`run pullboard check ${f.id}, which runs the frozen check and ticks every test clause`, 'u'));
+  assert.equal(refused.next, `pullboard check ${f.id}, then submit again`);
+  tick(f, 'clause 1 [test]: green pullboard check run of true at abc');
+  assert.equal(problem(f).next, undefined, 'a command clause alone keeps the plain tick step');
+});
+
+test('clause 2: an unticked [test] clause on an item with no check is refused with pullboard test <file> on the file the clause names [C7]', t => {
+  const f = fixture(t, 'the bar is met when:\n1. test/page.test.js passes [test]', '');
+  const refused = problem(f);
+  assert.equal(refused.code, 'CLAUSE_UNTICKED');
+  assert.match(refused.message, /run pullboard test test\/page\.test\.js, then tick the clause with its green run/u);
+  assert.equal(refused.next, 'pullboard test test/page.test.js, then tick the clause and submit again');
 });
