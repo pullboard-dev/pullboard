@@ -210,7 +210,7 @@ What the matrix says today:
 
 ## State machines
 
-Every move the loop makes, written down from the code as it is on 9 November 2026, so nothing can happen that is not on this page. Each row cites the function that does it (`function` in `file`) and the harness that proves it, or NONE where nothing does; a NONE row is open debt. `test/state-machines.json` holds the same tables as data, and `test/state-machines.test.js` fails when the code names a status, a move, a job kind or a job step that the map lacks, or the map names one the code lacks.
+Every move the loop makes, written down from the code as it is on 9 November 2026, so nothing can happen that is not on this page. Each row cites the function that does it (`function` in `file`) and the harness that proves it, or NONE where nothing does; a NONE row is open debt. `test/state-machines.json` holds the same tables as data, and `packages/state/tests/state-machines.test.js` fails when the code names a status, a move, a job kind or a job step that the map lacks, or the map names one the code lacks.
 
 One invariant runs through all of it: **a job, a lease or an offer whose item is no longer in the state it serves ends at once.** Where the code breaks it, the row says violated and names a gap from the list at the end.
 
