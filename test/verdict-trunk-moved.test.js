@@ -11,7 +11,7 @@ import { fixtureJoin } from './testkit-fixture.js';
 const PAD = Array.from({ length: 8 }, (_, i) => `export const pad${i} = ${i};`).join('\n');
 
 /**
- * A web item whose check runs test/page.test.js (imports web/lib.js and web/shared.js); test/other.test.js reads only
+ * A web item whose check runs web/page.test.js (imports web/lib.js and web/shared.js); test/other.test.js reads only
  * api/other.js. While the frozen check runs it lands commits on main appending to `landing`, once or on every run.
  */
 function reviewWithLandings(t, { landing, every }) {
@@ -20,9 +20,9 @@ function reviewWithLandings(t, { landing, every }) {
   const box = helpers.project('true');
   delete box.env.NODE_TEST_CONTEXT; // This independent CLI launches its own test runner.
   const armed = join(box.dir, 'landing-armed');
-  for (const folder of ['test', 'web', 'api', 'bin']) mkdirSync(join(box.repo, folder), { recursive: true });
+  for (const folder of ['test', 'web', 'api']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
-  writeFileSync(join(box.repo, 'bin/run-tests.js'), `import { spawnSync } from 'node:child_process';
+  writeFileSync(join(box.repo, 'web/run-tests.js'), `import { spawnSync } from 'node:child_process';
 const child = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' });
 if (child.error) throw child.error;
 if (child.signal) process.kill(process.pid, child.signal);
@@ -32,11 +32,11 @@ else process.exitCode = child.status ?? 1;
   writeFileSync(join(box.repo, 'web/lib.js'), `export const page = 'draft';\n${PAD}\n`);
   writeFileSync(join(box.repo, 'api/other.js'), `export const other = 1;\n${PAD}\n`);
   writeFileSync(join(box.repo, 'test/other.test.js'), "import { test } from 'node:test'; import { other } from '../api/other.js'; test('other', () => { if (!other) throw new Error('no'); });\n");
-  writeFileSync(join(box.repo, 'test/page.test.js'), `import { test } from 'node:test';
+  writeFileSync(join(box.repo, 'web/page.test.js'), `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, rmSync } from 'node:fs';
-import { page } from '../web/lib.js';
-import { shared } from '../web/shared.js';
+import { page } from './lib.js';
+import { shared } from './shared.js';
 test('page is built', () => {
   if (page !== 'built' || !shared) throw new Error('page is not built');
   if (!existsSync(${JSON.stringify(armed)})) return;
@@ -49,12 +49,12 @@ test('page is built', () => {
 });
 `);
   const config = JSON.parse(box.git(box.repo, 'show', 'HEAD:pullboard.json'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...(config.verify ?? {}), unrelatedTrunkMoves: true } }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { policy: config.verify, unrelatedTrunkMoves: true } }, null, 2));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with recorded landings [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node web/run-tests.js web/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), `export const page = 'built';\n${PAD}\n`);
   box.git(box.web, 'add', 'web/lib.js');
