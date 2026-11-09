@@ -2,14 +2,29 @@
 /** @pullboard-world-pin: clause 1 reads the shipped production callers to prove none nudges or waits on a producer process. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, privateFixtureFiles, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
-import { acceptedCellsFromJob, closeBoard, openBoard, submitUntilSettled } from '../apps/lib/index.js';
-import { LEASE_MS, createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
-import { CELLS_INVENTORY_KIND, cellsInventoryJob, keyedJobId, keyedResult } from '../packages/drive/index.js';
-import { treeOf } from '../packages/pin/index.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { acceptedCellsFromJob } from '../index.js';
+import { closeBoard } from '../index.js';
+import { openBoard } from '../index.js';
+import { submitUntilSettled } from '../index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { takeJob } from '../../../packages/jobs/index.js';
+import { writeStep } from '../../../packages/jobs/index.js';
+import { CELLS_INVENTORY_KIND } from '../../../packages/drive/index.js';
+import { cellsInventoryJob } from '../../../packages/drive/index.js';
+import { keyedJobId } from '../../../packages/drive/index.js';
+import { keyedResult } from '../../../packages/drive/index.js';
+import { treeOf } from '../../../packages/pin/index.js';
 
 const files = privateFixtureFiles('pullboard-durable-inventory-');
 after(async () => { await cleanupFixtureChildren(); rmSync(files.root, { recursive: true, force: true }); });
@@ -136,7 +151,7 @@ test('clause 1: a queued gate whose cells inventory is cold gets it through the 
     assert.equal(rebuilt.available, true, 'a stored result whose artifact is missing here is rebuilt, never a stall');
     assert.equal(rebuilt.state, 'rebuilt');
 
-    for (const source of ['../apps/lib/src/shell/submit-handoff-worker.js', '../apps/cli/src/shell/submit-cells-remote.js', '../packages/gate/src/shell/main-audit-nudge.js']) {
+    for (const source of ['../src/shell/submit-handoff-worker.js', '../../cli/src/shell/submit-cells-remote.js', '../../../packages/gate/src/shell/main-audit-nudge.js']) {
       const code = readFileSync(new URL(source, import.meta.url), 'utf8');
       assert.doesNotMatch(code, /\b(?:nudgeAcceptedCells|waitForAcceptedCells)\b/u, `${source} no longer starts or waits on a background producer`);
     }
@@ -171,7 +186,7 @@ test('clause 2: killing the producing driver mid-run loses nothing; the next dri
   const tree = treeOf(fixture.root, fixture.first);
   let killed = false;
   const run = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', CHILD, '--', boardFile, fixture.root, fixture.first,
-    new URL('../apps/lib/index.js', import.meta.url).href, new URL('../packages/drive/index.js', import.meta.url).href], {
+    new URL('../index.js', import.meta.url).href, new URL('../../../packages/drive/index.js', import.meta.url).href], {
     onStderrChunk: (part, child) => { if (!killed && part.includes('saved')) { killed = true; child.kill('SIGKILL'); } },
   });
   const ended = await run;
