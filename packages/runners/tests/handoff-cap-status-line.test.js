@@ -4,11 +4,13 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { currentCapacity } from '../../../bin/handoff-worker-dispatcher.js';
-import { liveCapacity } from '../../../bin/handoff-worker-dispatcher.js';
-import { handoffCapLine } from '../index.js';
-import { handoffWorkerCapacityDetail } from '../index.js';
-import { DISPATCH_WORKER_BOUND } from '../src/shell/handoff-worker-cap.js';
+import { currentCapacity } from '../index.js';
+import { liveCapacity } from '../index.js';
+import { handoffCapLine } from '../../resources/index.js';
+import { handoffWorkerCapacityDetail } from '../../resources/index.js';
+
+/** The dispatcher's bound on workers (DISPATCH_WORKER_BOUND in the resources cell): the contract, asserted by value. */
+const DISPATCH_WORKER_BOUND = 16;
 
 /** Run work with the machine home pointed at a fresh folder and an inherited cap of 1. */
 function withMachine(work) {

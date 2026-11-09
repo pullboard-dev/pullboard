@@ -7,14 +7,17 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { dispatcherPass } from '../../../bin/handoff-worker-dispatcher.js';
-import { handOver } from '../../../bin/handoff-worker-dispatcher.js';
-import { staleDispatcherTools } from '../../../bin/handoff-worker-dispatcher.js';
-import { drainHandoffQueue } from '../index.js';
-import { finishRunningWorkers } from '../index.js';
-import { listResources } from '../index.js';
-import { queueHandoffLaunch } from '../index.js';
-import { reserveHandoffTicket } from '../index.js';
+import { dispatcherPass } from '../index.js';
+import { handOver } from '../index.js';
+import { staleDispatcherTools } from '../index.js';
+import { drainHandoffQueue } from '../../resources/index.js';
+import { finishRunningWorkers } from '../../resources/index.js';
+import { listResources } from '../../resources/index.js';
+import { queueHandoffLaunch } from '../../resources/index.js';
+import { reserveHandoffTicket } from '../../resources/index.js';
+
+/** The commit a tool root's HEAD names, read with real git as the dispatcher binary does. */
+const head = root => runFixtureGit(['-C', root, 'rev-parse', 'HEAD']);
 
 /** A tool root at one commit, and two waiting launches: one captured at an older tooling commit, one at its HEAD. */
 function launchesAtTwoCommits(t) {
@@ -41,10 +44,10 @@ function launchesAtTwoCommits(t) {
 
 test('clause 1: a dispatcher whose tools snapshot is not its tool root\'s current main tooling names the current tooling, and one on main names none [C7]', t => {
   const { launches, old, current } = launchesAtTwoCommits(t);
-  assert.equal(staleDispatcherTools({ own: old, launches: () => launches }), current, 'a dispatcher on older tools is handed the snapshot captured at main\'s HEAD');
-  assert.equal(staleDispatcherTools({ own: current, launches: () => launches }), null, 'a dispatcher on main tooling keeps launching, though an older launch still waits');
-  assert.equal(staleDispatcherTools({ own: '/Users/someone/pullboard', launches: () => launches }), null, 'a dispatcher run from a checkout never hands over');
-  assert.equal(staleDispatcherTools({ own: old, launches: () => [launches[0]] }), null, 'with no launch captured at main\'s HEAD there is nothing to hand over to');
+  assert.equal(staleDispatcherTools({ own: old, launches: () => launches, head }), current, 'a dispatcher on older tools is handed the snapshot captured at main\'s HEAD');
+  assert.equal(staleDispatcherTools({ own: current, launches: () => launches, head }), null, 'a dispatcher on main tooling keeps launching, though an older launch still waits');
+  assert.equal(staleDispatcherTools({ own: '/Users/someone/pullboard', launches: () => launches, head }), null, 'a dispatcher run from a checkout never hands over');
+  assert.equal(staleDispatcherTools({ own: old, launches: () => [launches[0]], head }), null, 'with no launch captured at main\'s HEAD there is nothing to hand over to');
 });
 
 test('clause 1: a stale dispatcher stops taking jobs, frees the machine lock, launches one on main tooling, lets its workers finish and exits [C7]', async () => {
