@@ -1253,7 +1253,7 @@ export async function takeResource(options) {
         };
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
           ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
-          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
+          waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt, ...(Number.isSafeInteger(options.runnerWaitMs) ? { runnerStartupMs: options.runnerWaitMs } : {}) } : {}),
           ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, handOver, timingEvidence,
           ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
       }
