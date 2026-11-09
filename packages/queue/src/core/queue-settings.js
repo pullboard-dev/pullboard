@@ -1,5 +1,5 @@
 /** The gate queue's machine settings, parsed and checked without touching a file so a runner's trusted runtime can ship them [O5]. */
-import { Refused } from '../../../kernel/pure.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Canonical coordinator identity shared by queue and configuration. */
 export const COORDINATOR = 'coordinator';
