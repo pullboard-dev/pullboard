@@ -8,21 +8,21 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { readBlueprint } from '../index.js';
-import { parseSpec } from '../../spec/index.js';
-import { PUBLISHED } from './blueprint-fixture.js';
-import { LEGACY_FRAMEWORK } from './blueprint-fixture.js';
-import { freshBoard } from './blueprint-fixture.js';
-import { json } from './blueprint-fixture.js';
-import { emptyRepo } from './blueprint-fixture.js';
-import { RUNNERS } from './blueprint-fixture.js';
-import { FRAMEWORKS } from './blueprint-fixture.js';
-import { bundled } from './blueprint-fixture.js';
-import { draftedTexts } from './blueprint-fixture.js';
-import { ok } from './blueprint-fixture.js';
-import { refusal } from './blueprint-fixture.js';
-import { boardCreated } from './blueprint-fixture.js';
+import { runFixtureGit } from './fixture-child.js';
+import { readBlueprint } from '../packages/blueprints/index.js';
+import { parseSpec } from '../packages/spec/index.js';
+import { PUBLISHED } from './blueprint-cli-fixture.js';
+import { LEGACY_FRAMEWORK } from './blueprint-cli-fixture.js';
+import { freshBoard } from './blueprint-cli-fixture.js';
+import { json } from './blueprint-cli-fixture.js';
+import { emptyRepo } from './blueprint-cli-fixture.js';
+import { RUNNERS } from './blueprint-cli-fixture.js';
+import { FRAMEWORKS } from './blueprint-cli-fixture.js';
+import { bundled } from './blueprint-cli-fixture.js';
+import { draftedTexts } from './blueprint-cli-fixture.js';
+import { ok } from './blueprint-cli-fixture.js';
+import { refusal } from './blueprint-cli-fixture.js';
+import { boardCreated } from './blueprint-cli-fixture.js';
 
 /** The text of the one pending row in the repo's SPEC.md whose question starts with the ask. */
 function pendingQuestion(repo, ask) {
