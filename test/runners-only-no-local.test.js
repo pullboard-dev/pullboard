@@ -165,7 +165,7 @@ test('runner-only release refuses its captured local placement before acquiring 
 import { randomUUID } from 'node:crypto';
 import { runGate } from ${module('packages/gate/index.js')};
 import { runLandingShards, releaseExecutors, LANDING_COLLECT_ALL_ENV } from ${module('packages/landing/index.js')};
-import { RELEASE_EXECUTORS_ENV } from ${module('src/gate-run-receipt.js')};
+import { RELEASE_EXECUTORS_ENV } from ${module('packages/gate/index.js')};
 import { parseProcessCensus } from ${module('packages/kernel/src/core/process-census.js')};
 import { listResources } from ${module('packages/resources/index.js')};
 const release = { version: 1, id: randomUUID(), executors: releaseExecutors() };
