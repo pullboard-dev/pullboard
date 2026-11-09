@@ -14,6 +14,8 @@ import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
+// The reopen move reads the conflict predicate through the merge core door, which re-exports this body.
+const CARRIAGE = 'packages/merge/src/core/conflict-carriage.js';
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
 function closure(read, identities) {
@@ -56,7 +58,9 @@ test('conflict shim preserves the accepted main move closure and the broad index
   assert.ok(!importsIn([read(MOVED)])[0].some(specifier => /(?:^|\/)state\//u.test(specifier)), 'the moved conflict body imports nothing from the state cell');
   const before = closure(read, identities);
   assert.ok(!importsIn([read(MOVED)])[0].includes('node:child_process'), 'the moved conflict body itself imports no process launcher');
-  const broad = closure(file => file === MOVED
+  assert.ok(before.files.includes(CARRIAGE), 'the move closure reaches the exact conflict predicate through the core door');
+  assert.ok(!importsIn([read(CARRIAGE)])[0].includes('node:child_process'), 'the conflict predicate imports no process launcher');
+  const broad = closure(file => file === CARRIAGE
     ? "export * from '../../index.js';\n" : read(file), identities);
   assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the exact moved body');
   assert.ok(broad.native.includes('node:child_process'), 'the negative control reaches actual process launchers');
