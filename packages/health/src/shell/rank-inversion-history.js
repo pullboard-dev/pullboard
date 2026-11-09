@@ -5,9 +5,11 @@ const MOVES = new Set([...FREE, 'claim', 'renew', 'submit', 'accept', 'withdraw'
 
 /** Read ordering evidence once; event ids distinguish moves recorded at the same clock time. */
 export function rankInversionHistory(board) {
+  // Two index ranges, not an OR with LIKE, which made SQLite scan every event [C7].
   const events = board.db.prepare(`SELECT event_id, event_at, event_kind, event_by, item_id, event_detail
     FROM event WHERE event_kind IN ('add','release','reopen','lapse','claim','renew','submit','accept','withdraw','reject','hold_item','unhold_item')
-      OR event_kind LIKE 'milestone_%' ORDER BY event_id`).all();
+    UNION ALL SELECT event_id, event_at, event_kind, event_by, item_id, event_detail
+    FROM event WHERE event_kind > 'milestone' AND event_kind < 'milestonf' AND event_kind LIKE 'milestone_%' ORDER BY event_id`).all();
   const details = new Map();
   const byItem = new Map();
   const milestones = [];

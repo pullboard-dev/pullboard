@@ -1,10 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { setImmediate as yieldEventLoop } from 'node:timers/promises';
+import { fileChangeWaiter } from '../../../../../packages/activity/index.js';
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
+import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
-import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -19,6 +25,7 @@ import {
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
+  retainedGateAssertions,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -69,6 +76,26 @@ function inboxReasons(ctx) {
   });
 }
 
+/** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
+function nextChangeInputs(ctx) {
+  const heads = [...new Set([join(ctx.info.gitDir, 'HEAD'), join(ctx.info.commonDir, 'HEAD')])];
+  const refs = heads.flatMap(path => {
+    try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(ctx.info.commonDir, ref[1])] : []; }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  });
+  return [ctx.file, ctx.file + '-wal', ...heads, ...refs, join(ctx.info.commonDir, 'packed-refs'),
+    join(ctx.info.root, 'pullboard.json'), join(ctx.info.root, ctx.config.spec || 'SPEC.md'), join(ctx.info.root, ctx.config.practice || 'DOCTRINE.md')];
+}
+
+/**
+ * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
+ * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
+ */
+function ownWaitingLines(board, me) {
+  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
+    .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
+}
+
 /** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
 function answerFirstReasons(reasons) {
   return ['no item is free', ...heldCounted(reasons)];
@@ -76,9 +103,12 @@ function answerFirstReasons(reasons) {
 
 /** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
 function heldCounted(reasons) {
+  // The review-cover pause explains why new builds stop, so it leads every count line and is never folded away [#3741].
+  const paused = reasons.filter(reason => reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
+  reasons = reasons.filter(reason => !reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...paused, ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
 }
 
 /**
@@ -111,12 +141,35 @@ export async function nextHere(io, values) {
   if (defaultLoop) io.defaultLoop = true;
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
-  try { return await nextWithProgress(io, values, progress); }
+  try {
+    const code = await nextWithProgress(io, values, progress);
+    sayCoordinatorCallouts(io);
+    return code;
+  }
+  catch (error) {
+    // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    sayCoordinatorCallouts(io);
+    throw error;
+  }
   finally {
     progress.stop(); await monitor?.close();
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * Last line of every next: unanswered coordinator call-outs older than 15 minutes, so a builder passes them on [N2,C7].
+ * Why: sentinel and builder shouts to the coordinator sat unanswered for hours with nothing telling anyone.
+ * Best effort and read-only: a board that cannot be read adds no line.
+ *
+ * @param {any} io
+ */
+function sayCoordinatorCallouts(io) {
+  try {
+    const line = withBoardRead(context(io), board => coordinatorCalloutLine(board, board.clock.now().getTime()));
+    if (line) io.say(line);
+  } catch { /* a missing or unreadable board has no call-outs to report */ }
 }
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
@@ -146,11 +199,11 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
-  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
+  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, reviewFamilyBuildPause };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, shoutReviewCoverStuck };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -168,7 +221,9 @@ async function nextWithProgress(io, values, progress) {
   const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
-  for (;;) {
+  let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
+  let wakeVersion = wake?.version();
+  try { for (;;) {
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -218,7 +273,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
-      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...inboxReasons(ctx)];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
@@ -238,8 +293,13 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
+      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
+        const record = store.returnedRecord(board, item.item_id);
+        return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
+      });
+      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -262,6 +322,14 @@ async function nextWithProgress(io, values, progress) {
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        if (returned) {
+          if (returned.gate) {
+            io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
+          }
+          if (returned.reject) io.say(`rejected ${returned.reject.reason} by ${returned.reject.by} at ${String(returned.reject.commit).slice(0, 12)}: ${returned.reject.note}`);
+          for (const fact of returned.facts) io.say(`  builder fact, ${fact}`);
+        }
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
@@ -280,11 +348,15 @@ async function nextWithProgress(io, values, progress) {
     const idleReason = found.idleReason ?? 'unknown';
     const idleObservation = { reason: idleReason, skips: found.skips ?? [] };
     const idleKey = JSON.stringify(idleObservation);
+    let recordedIdle = false;
     if (!found.retry && idleKey !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
           { agentId: whoAmI(ctx, board).id, ...idleObservation }));
-        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
+        if (changed) {
+          await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
+          recordedIdle = true;
+        }
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
@@ -310,9 +382,39 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
+    // An item whose folder another live session holds stays out of this next's selection (#3688).
+    if (found.skipItem && found.retryDetail?.code === 'ITEM_FOLDER_UNFINISHED') io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
-    else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
-  }
+    else {
+      if (recordedIdle && wake) {
+        // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
+        // its own notification is not mistaken for external work, while changes during rearming remain visible.
+        await yieldEventLoop();
+        wake.close();
+        wake = fileChangeWaiter(nextChangeInputs(ctx));
+        wakeVersion = wake.version();
+        continue;
+      }
+      wake.update(nextChangeInputs(ctx));
+      const until = withBoardRead(ctx, board => {
+        const now = ctx.clock.now().toISOString();
+        const row = board.db.prepare(`SELECT MIN(expiry) AS expiry FROM (
+          SELECT item_lease_until AS expiry FROM item WHERE item_status='claimed' AND item_lease_until>?
+          UNION ALL SELECT item_review_until AS expiry FROM item WHERE item_status='submitted' AND item_review_until>?)`).get(now, now);
+        const due = row?.expiry ? [Date.parse(row.expiry)] : [];
+        const cooldown = (ctx.config.claims?.releaseCooldownMinutes ?? 30) * 60_000;
+        if (cooldown > 0) {
+          const release = board.db.prepare("SELECT MIN(event_at) AS at FROM event WHERE event_kind='release' AND event_by=? AND event_at>?")
+            .get(whoAmI(ctx, board).id, new Date(ctx.clock.now().getTime() - cooldown).toISOString());
+          if (release?.at) due.push(Date.parse(release.at) + cooldown);
+        }
+        return due.length ? Math.min(deadline, Date.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
+      });
+      await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
+      wakeVersion = wake.version();
+    }
+  } } finally { wake?.close(); }
 }
 
 /** Run `pullboard next` and return its exit code. */

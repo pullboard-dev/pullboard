@@ -18,11 +18,14 @@ import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';
+import { budgetState } from '../packages/stats/index.js';
+import { DatabaseSync } from 'node:sqlite';
 import { replayHistory } from '../packages/stats/index.js';
 import { projectAgentActivity } from '../src/board-activity-feed.js';
 import { activityInterests } from '../src/board-activity-feed.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { assertUsagePresentation } from './cockpit/usage-history-control.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
@@ -61,12 +64,24 @@ function seatUsage(box, cwd, identity) {
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }
 
+/**
+ * A project whose web seat joins with the model the case attributes usage to.
+ * Why: the shared project already joins web-1 with the fixture model, and rejoining one seat with another model is refused ALREADY_JOINED (04384c0971).
+ * The seat joins on the strong route: the model table maps these fixture names to mid, and the fixture items need strong (b95e1aa538).
+ */
+function costProject(model) {
+  const box = helpers.project('true', undefined, { withWorktree: false });
+  const web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  assert.equal(fixtureJoin(box.run, web, 'web', '--model', model, '--route', 'strong').code, 0);
+  return { ...box, web };
+}
+
 test('an item records the tokens and cost its seats spent [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -170,8 +185,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
 });
 
 test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -234,11 +248,10 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
 });
 
 test('an item records the tokens and cost its seats spent with a shared native session [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-codex').code, 0);
+  const box = costProject('fixture-codex');
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex').code, 0);
+  assert.equal(fixtureJoin(box.run, second, 'web', '--model', 'fixture-codex', '--route', 'strong').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(boardFile);
@@ -269,8 +282,8 @@ test('an item records the tokens and cost its seats spent with a shared native s
   usage(150, 15);
   seatRun(box, second, identity, ['claim', String(last)]);
   const sharing = detail();
-  assert.equal(sharing.shared, true, 'a peer’s shared record marks this item without impersonating this seat');
-  assert.equal(sharing.inputTokens, null);
+  assert.equal(sharing.splitByTime, true, 'a peer’s shared record splits this item’s share by claimed time without impersonating this seat');
+  assert.equal(sharing.shared, false);
   usage(250, 25);
   seatUsage(box, box.web, identity);
   usage(300, 30);
@@ -288,13 +301,12 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.deepEqual(shared.seats.sort(), seats);
   const a = JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).usage;
   const b = JSON.parse(box.run(box.repo, 'show', String(last), '--json').out).usage;
-  assert.equal(a.shared, true);
-  assert.equal(b.shared, true);
-  assert.equal(a.inputTokens, null);
-  assert.equal(b.inputTokens, null);
-  assert.equal(a.knownInputTokens, 70, '50 solo before overlap and 20 after; shared150 is not charged again');
-  assert.equal(b.knownInputTokens, 0);
-  assert.equal(shared.inputTokens + a.knownInputTokens + b.knownInputTokens, 220);
+  assert.equal(a.splitByTime, true);
+  assert.equal(b.splitByTime, true);
+  assert.equal(a.shared, false);
+  assert.equal(b.shared, false);
+  assert.equal(a.inputTokens + b.inputTokens, 220, '50 solo before overlap and 20 after, plus the shared 150 split once by claimed time');
+  assert.ok(a.inputTokens >= 70, 'the first item keeps its own solo tokens');
   assert.equal(totals.models.find((row) => row.model === 'fixture-codex').knownInputTokens, 220, 'model known subtotal counts shared usage once');
   assert.equal(JSON.stringify({ totals, a, b }).includes(session), false);
   assert.equal(JSON.stringify({ totals, a, b }).includes(file), false);
@@ -307,8 +319,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
 
 
 test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', () => {
-  const box = helpers.project('true');
-  assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
+  const box = costProject('fixture-claude');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const ids = [];
@@ -398,9 +409,8 @@ test('an item records the tokens and cost its seats spent when metadata precedes
 
 test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', () => {
   for (const provider of ['claude', 'codex']) {
-    const box = helpers.project('true');
     const model = `fixture-${provider}`;
-    assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', model).code, 0);
+    const box = costProject(model);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
     const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     let unknownId;
@@ -452,4 +462,50 @@ test('usage totals use existing stats and show surfaces without a separate cost 
   for (const values of Object.values(document.usage)) assert.deepEqual(values, [], 'a fresh board invents no usage');
   const separate = box.run(box.repo, 'cost', '--json');
   assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
+});
+
+test('clause 1: a budget setting is optional, off by default and validated [N2]', () => {
+  const fixture = privateFixtureFiles('pullboard-budget-setting-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = fixture.root;
+  try {
+    assert.equal(loadMachineSettings().budget, undefined, 'no budget unless one is set');
+    fixture.write('settings.json', JSON.stringify({ budget: { dailyUsd: 5, totalUsd: 50 } }));
+    assert.deepEqual(loadMachineSettings().budget, { dailyUsd: 5, totalUsd: 50 });
+    for (const [budget, field] of [[{ dailyUsd: 0 }, 'budget.dailyUsd'], [{ totalUsd: -1 }, 'budget.totalUsd'], [{ dailyUsd: '5' }, 'budget.dailyUsd'], [{ weekUsd: 5 }, 'budget']]) {
+      fixture.write('settings.json', JSON.stringify({ budget }));
+      assert.throws(() => loadMachineSettings(), error => error.code === 'BAD_MACHINE_SETTINGS' && error.message.includes(field), `refuses ${JSON.stringify(budget)} naming ${field}`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+  }
+});
+
+const model = 'm';
+
+test('clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  const now = Date.parse('2026-11-08T12:00:00Z');
+  const put = (key, observedAt, outputTokens) => db.prepare('INSERT INTO board_meta VALUES(?,?)').run(key,
+    JSON.stringify({ observedAt, shared: false, records: [{ model, inputTokens: 0, outputTokens }] }));
+  // One dollar per output token, so spend reads straight off the token counts.
+  const prices = { [model]: { output: 1_000_000 } };
+  const board = { db };
+  const board_ = (budget) => budgetState(board, prices, budget, now);
+  put('cost:1:a', now - 86_400_000 * 2, 50);
+  put('cost:2:a', now - 1000, 7);
+  assert.deepEqual(board_({ dailyUsd: 10 }), { state: 'ok', spend: 7, limit: 10, which: 'dailyUsd' }, 'old days stay out of the daily spend');
+  assert.equal(board_({ dailyUsd: 8 }).state, 'warn', '7 of 8 is above 80 percent');
+  assert.equal(board_({ dailyUsd: 7 }).state, 'stop', 'spend at the limit stops');
+  assert.deepEqual(board_({ dailyUsd: 100, totalUsd: 60 }), { state: 'warn', spend: 57, limit: 60, which: 'totalUsd' }, 'the total counts every day');
+  assert.equal(board_({ dailyUsd: 7, totalUsd: 1000 }).state, 'stop', 'either limit stops');
+});
+
+test('clause 2: with no budget set budgetState returns ok with no limit [N2]', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
+  db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: 0, records: [{ model, inputTokens: 0, outputTokens: 5 }] }));
+  assert.deepEqual(budgetState({ db }, { [model]: { output: 1_000_000 } }, undefined, Date.now()), { state: 'ok', spend: 5, limit: null, which: null });
+  assert.equal(budgetState({ db }, { [model]: { output: 1_000_000 } }, {}, Date.now()).limit, null);
 });

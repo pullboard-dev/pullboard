@@ -1,4 +1,5 @@
 import { prepareFlakeLanding } from './landing-step-publish.js';
+import { checkFlakeRatchet } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -66,6 +67,9 @@ export function provenTreeGate(board, items, tree) {
   const job = submitHandoff(board, items[0].id);
   if (!item || !job || job.state !== 'green' || job.gateGreen === false || job.executionTree !== tree
     || job.commit !== items[0].commit || job.digest !== item.item_frozen_digest) return null;
+  // A submit that deferred affected files to landing never ran them, so its green proves only part of this tree.
+  const state = { board, batch: { items } };
+  if (deferredSelections(state).length) return null;
   return { isGreen: true, tree, failures: [], logPath: null, reusedSubmitGate: job.id };
 }
 
@@ -192,6 +196,18 @@ export async function flakeRatchetOrBlock(state) {
     await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
     return false;
+  }
+}
+
+/**
+ * Ask the flake ratchet before the batch merges or gates. A refusal records the batch blocked FLAKE_RATCHET, starts no
+ * gate run and is thrown so the landing exits as refused. The publish step still checks again for a flake proven during
+ * the gate. Why: a batch the ratchet would refuse spent a whole gate first [C7].
+ */
+export async function flakeRatchetBeforeGate(state) {
+  try { checkFlakeRatchet(state); } catch (error) {
+    if (error?.code === 'FLAKE_RATCHET') await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    throw error;
   }
 }
 

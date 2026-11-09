@@ -1,0 +1,10 @@
+{
+  "kind": "test-quarantine",
+  "entries": [
+    {
+      "order": 42,
+      "actor": "reporting agent",
+      "detail": "`engine`, `file`, `name`, `tree`, `runs`, ledger `ledger` (true when the typed flake ledger filed it), automatic-Submit `autoSubmit`"
+    }
+  ]
+}
