@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
@@ -15,7 +15,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
-const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/src/core/native-board.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href;
