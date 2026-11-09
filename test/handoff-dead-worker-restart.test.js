@@ -10,7 +10,7 @@ import { recordJobRow } from '../packages/drive/index.js';
 import { drainHandoffQueue, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
 import { capturedLaunchUnseen, sweepOrder } from '../apps/cli/src/shell/submit-handoff.js';
 import { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from '../packages/resources/index.js';
-import { recordTicketSafely } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { recordTicketSafely } from '../apps/cli/src/shell/submit-handoff-worker.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
 /** A worker that dies at once with no result, as a crashed gate driver does. */

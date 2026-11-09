@@ -54,7 +54,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {git} from './src/git.js';
 import {runGate} from './packages/gate/index.js';
 import {receiptRecorder} from './packages/flakes/index.js';
-import {context,ordered,withBoard,resourceAgent} from './src/cli.js';
+import {context,cli$ordered as ordered,withBoard,resourceAgent} from './apps/cli/index.js';
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './packages/landing/index.js';
 import {readGateReceipt,receiptStore} from './packages/gate/index.js';

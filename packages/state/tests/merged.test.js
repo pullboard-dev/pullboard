@@ -31,6 +31,7 @@ import {
   prepareEngineMove,
 } from '../src/shell/engine.js';
 import { exportBoard } from '../../store/index.js';
+import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 const TEMP_DIRS = [];
@@ -79,8 +80,8 @@ async function fixture(t) {
   const base = git('rev-parse', 'HEAD');
   const builder = join(dir, 'builder');
   git('worktree', 'add', '-q', builder, '-b', 'web/builder');
-  const joined = await command({ repo, env }, ['join', 'web'], builder);
-  assert.equal(joined.code, 0, `${joined.stdout}${joined.stderr}`);
+  const joined = joinFixtureSeat({}, builder, 'web', { run: (root, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 30_000 }) });
+  assert.equal(joined.code, 0, `${joined.out}${joined.err}`);
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.board_ensureCoordinator(board, repo);

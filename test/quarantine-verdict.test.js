@@ -51,7 +51,7 @@ import {policyAt} from './tooling/src/trusted-policy-read.js';
 import {git} from './tooling/src/git.js';
 import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
 import {receiptRecorder} from './tooling/packages/flakes/index.js';
-import {context,ordered,withBoard,resourceAgent,freezer,queuedItemLease} from './tooling/src/cli.js';
+import {context,cli$ordered as ordered,withBoard,resourceAgent,cli$freezer as freezer,queuedItemLease} from './tooling/apps/cli/index.js';
 import {runnerExecutionServices} from './tooling/src/runners.js';
 import {landingExecutionServices} from './tooling/packages/landing/index.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/packages/gate/index.js';

@@ -299,7 +299,7 @@ test('every command comes from its own module [C7,V4]', async () => {
   assert.deepEqual(files, [...names].sort(), 'every module under src/commands/ is registered, and every registered command has its module');
   for (const name of [...resultCommands(), 'mcp']) assert.ok(names.includes(name), `${name} comes from its own module`);
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
-  assert.doesNotMatch(cli, /function (?:setup|read|work)Commands\(/u, 'src/cli.js holds no command table');
+  assert.doesNotMatch(cli, /function (?:setup|read|work)Commands\(/u, 'apps/cli/src/shell/cli.js holds no command table');
   // Dispatch lives in cli-main/run-command.js, the entry that loads only the command in hand.
   const entry = readFileSync(join(source, 'cli-main', 'run-command.js'), 'utf8');
   const dispatch = entry.slice(entry.indexOf('async function runCommand('), entry.indexOf('\n}\n', entry.indexOf('async function runCommand(')));
@@ -311,7 +311,7 @@ test('every command comes from its own module [C7,V4]', async () => {
   }
 });
 
-test('each command body lives in its own module, not in src/cli.js [C7,V4]', async () => {
+test('each command body lives in its own module, not in apps/cli/src/shell/cli.js [C7,V4]', async () => {
   const source = resolve(import.meta.dirname, '../apps/cli/src/shell');
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
   const bodies = {
@@ -320,7 +320,7 @@ test('each command body lives in its own module, not in src/cli.js [C7,V4]', asy
   };
   const declaration = (name) => new RegExp(`^(?:export )?(?:async )?function ${name}\\(`, 'mu');
   for (const [command, body] of Object.entries(bodies)) {
-    assert.doesNotMatch(cli, declaration(body), `${body} no longer lives in src/cli.js`);
+    assert.doesNotMatch(cli, declaration(body), `${body} no longer lives in apps/cli/src/shell/cli.js`);
     const module = readFileSync(join(source, 'commands', `${command}.js`), 'utf8');
     assert.match(module, declaration(body), `src/commands/${command}.js holds the ${body} body`);
   }
