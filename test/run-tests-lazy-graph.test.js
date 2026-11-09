@@ -84,7 +84,7 @@ test('clause 2: the runner reads the worker process identity from the drive ligh
   assert.match(readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/packages\/drive\/core\.js'/u);
 });
 
-const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
+const RUNNER_TARGETS = ['src/board.js', 'packages/state/src/shell/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
 const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
 
 /**
