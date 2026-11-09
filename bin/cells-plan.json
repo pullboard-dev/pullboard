@@ -1920,6 +1920,7 @@
     }
   ],
   "allowedEdges": [
+    "(root)->gate",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",

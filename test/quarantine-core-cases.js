@@ -57,7 +57,7 @@ import {receiptRecorder} from './packages/flakes/index.js';
 import {context,ordered,withBoard,resourceAgent} from './src/cli.js';
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './packages/landing/index.js';
-import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
+import {readGateReceipt,receiptStore} from './packages/gate/index.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
 import {QUARANTINE_CORE_ENGINE} from './packages/state/src/core/engines/quarantine-core-engine.js';
 import {quarantineWaivers} from './packages/flakes/index.js';

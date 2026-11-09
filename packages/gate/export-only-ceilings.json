@@ -31,7 +31,6 @@
     "src/doctrine.js",
     "src/engine.js",
     "src/family-declaration.js",
-    "src/gate-run-receipt.js",
     "src/landing-failure-report.js",
     "src/landing-shards.js",
     "src/landing-test-policy.js",
