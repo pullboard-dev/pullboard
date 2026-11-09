@@ -525,7 +525,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './packages/api/index.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
     import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;

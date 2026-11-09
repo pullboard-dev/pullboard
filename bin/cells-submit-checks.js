@@ -2,7 +2,7 @@ import { withImportParseCache as withSubmitParseCache } from '../packages/gate/i
 import { withCellGitObjects } from './cells-snapshot-git.js';
 import { cellsObjectSnapshots } from './cells-object-snapshots.js';
 import { withCellSourceSnapshots } from '../packages/codemap/index.js';
-import { shimCountProblems } from '../packages/codemap/index.js';
+import { shimCountProblems } from '../packages/codemap/core.js';
 import { shimImportProblems } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { cellsCacheDirectory } from './cells-inventory-cache.js';

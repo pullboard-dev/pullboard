@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/index.js';
+import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/src/core/native-board.js';
 /** Local API projection for private relay-canary alerts; never part of the sealed relay view. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
