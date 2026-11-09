@@ -74,7 +74,7 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'analysis-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, {
-    runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline,
+    runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs,
     browser: lease.browser, checkedSource, privateCheck: policy,
     ...(inventory ? { analysisArtifact: { file: inventory.file, bytes: inventory.bytes.length, sha256: inventory.digest, context: policy.sha256 } } : {}),
     metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal,
