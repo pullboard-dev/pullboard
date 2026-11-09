@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { transport } from '../packages/outbox/index.js';
-import { runRelaySender } from '../src/relay-sender-worker.js';
+import { runRelaySender } from '../packages/outbox/index.js';
 import { intakeFixture, advanceOutsideFixture, fixtureJSON } from './intake-fixture.js';
 
 test('computed relay transport validates through the native board before opening actor transport [H16,V4]', () => {

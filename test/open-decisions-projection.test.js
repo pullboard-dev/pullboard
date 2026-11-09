@@ -1,12 +1,9 @@
 /** Recipient seeks preserve decision visibility before indexed metadata projection [B21,B27,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import {
-  COORDINATION_SHOUT,
-  itemShoutReader,
-} from '../src/board-shout-audience.js';
+import { COORDINATION_SHOUT, itemShoutReader } from '../packages/store/index.js';
 import { shoutItemId } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Compare the optimized query to the previous all-project-then-filter semantics. */

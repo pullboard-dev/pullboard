@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { itemById, firstRefusal } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
