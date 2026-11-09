@@ -5,6 +5,7 @@ export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.j
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
+export { CLI_FRONT_DOORS, packageCliReach, newPackageCliReach } from "./src/core/package-cli-reach.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/shell/browser-admission.js";
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/shell/browser-slot-guard.js";
@@ -91,3 +92,4 @@ export { STATIC_CHECKS, runStaticRegistry } from './src/shell/static-check-regis
 export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
+export { freeRunnerSlots } from "./src/shell/proof-shards.js";
