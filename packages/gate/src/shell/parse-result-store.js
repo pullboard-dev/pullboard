@@ -4,14 +4,14 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { userInfo } from 'node:os';
-import { gateMachineHome } from '../core/preload-policy.js';
+import { machineHome } from '../../../kernel/index.js';
 
 const MAX_ROWS = 400_000;
 
 /** The directory every checkout and runner job on this machine shares; tests isolate it with their account home. */
 function storeDirectory() {
   const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
-  const home = gateMachineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
+  const home = machineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
   return join(home, 'parse-cache');
 }
 
