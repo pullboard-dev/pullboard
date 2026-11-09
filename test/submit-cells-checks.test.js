@@ -228,7 +228,7 @@ test('submit ignores candidate checker code and refuses a forged overlapping own
 
 test('submit requires real controller services before reading any input [C7,D3]', async t => {
   const box = fixture(t), commit = git(box.root, 'rev-parse', 'HEAD').trim();
-  await assert.rejects(preflight(box.root, commit, commit, {}), /canonical checkout and parser services are required/u);
+  await assert.rejects(preflight(box.root, commit, commit, {}), /canonical parser and cache services are required/u);
   // The cell object scope itself needs an actual repository before anything else (#2711).
   await assert.rejects(preflight(null, null, null, null), /cells object scope needs a repository and action/u);
 });
@@ -452,7 +452,9 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     assert.equal(observed.imports ?? 0, 0, 'the refusal does no import-parser work');
     assert.equal(observed.bindings ?? 0, 0, 'the refusal does no binding compiler work');
     assert.equal(requested, 0, 'the refusal requests no binding probe');
-    assert.ok(first.requested > first.computed, `eligible actual submit reuses binding probes within the census ${JSON.stringify(first)}`);
+    // The accepted inventory serves the unchanged modules, so the refused candidate needs each binding once and none repeats;
+    // the cross-run reuse is the computed === 0 check above, and census reuse has its own cases (#2711).
+    assert.ok(first.computed > 0 && first.requested === first.computed, `the eligible actual submit probes each binding exactly once ${JSON.stringify(first)}`);
     assert.ok(calls() > 0);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
