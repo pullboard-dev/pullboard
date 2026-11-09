@@ -10,13 +10,11 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { committedRunnerController } from '../packages/runners/index.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 
 test('a clean commit\'s source scan and tag selection are kept per tooling tree and answered again with the same result; a refused scan keeps nothing and refuses again [C7]', async t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.sandbox();
+  const box = cellSandbox(t);
   const tooling = join(box.dir, 'tooling'), project = join(box.dir, 'project'), home = join(box.dir, 'home');
   for (const folder of [tooling, project, home]) mkdirSync(folder, { recursive: true });
   copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);

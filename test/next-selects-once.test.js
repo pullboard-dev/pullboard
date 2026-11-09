@@ -1,10 +1,9 @@
-/** next selects once on its read snapshot; the write runs only the chosen item's guards [C7]. */
+/** next selects once on its read snapshot; the write runs only the chosen item's guards [C7]. The --take cases live in the sandbox cell. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { cli, fixture } from './next-take-fixture.js';
 import { nextSelection } from '../packages/moves/index.js';
-import { takeSelection } from '../packages/sandbox/src/shell/next-take.js';
 
 /** Count calls to each entry of a selection seam, optionally running a hook after each, and restore it after the test. */
 function counted(t, seam, after = {}) {
@@ -26,15 +25,13 @@ function counted(t, seam, after = {}) {
 const actorClaims = box => store.listItems(box.board)
   .filter(item => item.item_status === 'claimed' && item.item_owner === box.seats.actor.id).map(item => item.item_id);
 
-test('next --take and next call their selection and review offer once each [C7]', async t => {
+test('next calls its selection and review offer once each [C7]', async t => {
   const box = await fixture(t);
   const first = box.add('First open item');
   const second = box.add('Second open item');
-  const take = counted(t, takeSelection);
+  // The seat first takes and returns a claim through next --take, as before; the take counts live in the sandbox cell.
   const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(taken.document.item.item_id, first);
-  assert.deepEqual(take, { selected: 1, reviewOffer: 1 }, 'the write transaction selected nothing');
   store.release(box.board, first, box.seats.actor.id, 'Return the fixture claim for the plain next run', 'OTHER');
   box.advance(31 * 60_000);
   const plain = counted(t, nextSelection);
@@ -45,16 +42,14 @@ test('next --take and next call their selection and review offer once each [C7]'
   assert.deepEqual(plain, { pick: 1, reviewOffer: 0, defaultOffer: 1 }, 'nextPick ran once, outside the write');
 });
 
-test('a holding seat returns its claim without the mandatory review offer or another selection [C7]', async t => {
+test('a holding seat returns its claim from next without another selection [C7]', async t => {
   const box = await fixture(t);
   const held = box.add('Already held');
   box.add('Another open item');
   box.claim(held, box.seats.actor);
-  const take = counted(t, takeSelection);
+  // The seat first runs next --take on its held claim, as before; the take counts live in the sandbox cell.
   const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(taken.document.item.item_id, held);
-  assert.deepEqual(take, { selected: 1, reviewOffer: 0 });
   const plain = counted(t, nextSelection);
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
@@ -63,7 +58,7 @@ test('a holding seat returns its claim without the mandatory review offer or ano
   assert.deepEqual(actorClaims(box), [held]);
 });
 
-for (const [args, seam, name] of [[['next', '--take'], takeSelection, 'selected'], [['next'], nextSelection, 'pick']]) {
+for (const [args, seam, name] of [[['next'], nextSelection, 'pick']]) {
   test(`${args.join(' ')}: the write runs only the chosen item claim guards and selects again only when they refuse [C7]`, async t => {
     const box = await fixture(t);
     const raced = box.add('Raced by a peer');
