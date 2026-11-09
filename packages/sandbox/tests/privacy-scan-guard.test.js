@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '..');
-const SELF = 'test/privacy-scan-guard.test.js';
+const ROOT = resolve(import.meta.dirname, '../../..');
+const SELF = 'packages/sandbox/tests/privacy-scan-guard.test.js';
 // The view lane's paths, as `pullboard lanes` prints them.
 const VIEW = ['apps/cli/src/shell/cockpit.js', 'apps/view', 'test/cockpit.test.js', 'test/cockpit', 'test/journeys.test.js'];
 // Names written in pieces so this file never contains them whole; the scan also finds the pieces joined.
