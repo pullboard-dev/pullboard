@@ -5,9 +5,9 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { createDeviceKeys } from '../src/core/relay-device-keys.js';
-import { signDeviceEnrollment } from '../src/core/relay-device-keys.js';
+import { relayClientFixture } from './relay-client-fixture.js';
+import { createDeviceKeys } from '../packages/keys/index.js';
+import { signDeviceEnrollment } from '../packages/keys/index.js';
 
 /** Observe real enrollment state and optional foreground output before acting on the owned child. */
 async function enrollment(file, command, ready = '') {

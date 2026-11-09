@@ -4,9 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { gateRunnerLoadPolicy } from '../packages/gate/index.js';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { gateRunnerLoadPolicy } from '../index.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 /** Run a body against a real private machine queue; fake runner names exercise admission with no network. */
 async function scenario(t, body) {
@@ -17,7 +17,7 @@ async function scenario(t, body) {
   const source = `import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
-import { takeResource } from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
+import { takeResource } from ${JSON.stringify(new URL('../../resources/index.js', import.meta.url).href)};
 const root = process.cwd();
 const at = new Date().toISOString();
 // quiet-b has the most measured headroom (16 cores, load 2); the others are busier or smaller.

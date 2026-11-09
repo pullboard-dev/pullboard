@@ -30,3 +30,4 @@ export { predictItemFunctions, compareItemFunctions } from './src/core/item-func
 export { createFixtureMemo } from './src/shell/cells-fixture-memo.js';
 export { acceptedInventoryKey, acceptedInventoryRuntimeIdentity, readAcceptedInventory, validateAcceptedInventory, warmAcceptedInventory } from './src/shell/accepted-inventory-cache.js';
 export { cellExistsSync, cellLstatSync, cellReadFileSync, cellReaddirSync, cellSourceSnapshot, withCellSourceSnapshots } from './src/shell/cell-source-snapshot.js';
+export { moveDeclarationFiles, runnerWorkerFiles } from './src/shell/cells-move-closure.js';
