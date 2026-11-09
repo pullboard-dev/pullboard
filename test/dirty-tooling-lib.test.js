@@ -4,12 +4,10 @@ import { test } from 'node:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { observeDirtyRunnerTooling } from '../packages/runners/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 
 test('a dirty apps/lib/src edit warns and an unrelated path does not [O5,C7]', t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.sandbox(), root = join(box.dir, 'tooling');
+  const box = cellSandbox(t), root = join(box.dir, 'tooling');
   mkdirSync(join(root, 'apps/lib/src'), { recursive: true });
   mkdirSync(join(root, 'docs'));
   writeFileSync(join(root, 'apps/lib/src/runtime.js'), '// shipped\n');

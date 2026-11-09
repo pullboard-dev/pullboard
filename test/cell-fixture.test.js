@@ -11,10 +11,13 @@ import { cellRepo } from './cell-fixture.js';
 import { CELL_CONFIG } from './cell-fixture.js';
 import { cellClaim } from './cell-fixture.js';
 import { cellItem } from './cell-fixture.js';
+import { cellSandbox } from './cell-fixture.js';
 import { cellSeat } from './cell-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { criterionFreezer } from '../packages/moves/index.js';
 import { getItem } from '../packages/store/index.js';
 import { runFixtureGit } from './fixture-child.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
 
 const FORBIDDEN = [
   ['bin/pullboard.js', /\/bin\/pullboard\.js['"]/u],
@@ -82,4 +85,20 @@ test('clause 3: cellClaim freezes the criterion with the claim move\'s one freez
   assert.equal(claimed.item_frozen, expected.text);
   assert.equal(claimed.item_frozen_digest, expected.digest);
   assert.equal(JSON.parse(claimed.item_frozen).policy.commit, repo.commit, 'the freeze pins the committed main policy');
+});
+
+test('clause 1: cellSandbox\'s env equals the e2e sandbox\'s env except PATH, the per-run dir paths and the fixture model its seats share [C7]', t => {
+  const cell = cellSandbox(t);
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const e2e = helpers.sandbox();
+  const perRun = ['PATH', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL'];
+  assert.deepEqual(Object.keys(cell.env).sort(), Object.keys(e2e.env).sort());
+  for (const key of Object.keys(e2e.env)) if (!perRun.includes(key)) assert.equal(cell.env[key], e2e.env[key], key);
+  assert.equal(cell.env.PATH, process.env.PATH, 'no pullboard shim is put on PATH');
+  assert.equal(cell.env.PULLBOARD_HOME, join(cell.dir, 'pullboard-home'));
+  assert.equal(cell.env.PULLBOARD_MACHINE_HOME, join(cell.dir, 'machine-home'));
+  assert.equal(cell.env.PULLBOARD_MODEL, FIXTURE_MODEL, 'the session model is the one cellSeat registers seats with, so a cell project agrees with its own seats');
+  assert.equal(cell.env.PULLBOARD_USAGE_CHECKPOINT, 'inline');
+  assert.equal(cell.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS, '0');
 });

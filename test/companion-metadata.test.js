@@ -13,14 +13,16 @@ import { commitMsgProblems } from '../packages/commits/index.js';
 import { defaults } from '../packages/config/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each sandbox's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Real Git history without installed hooks models old recorded messages, never a live-board write. */
 function historyFixture() {
-  const box = helpers.sandbox();
+  const box = cellSandbox(owner);
   const root = join(box.dir, 'metadata');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
