@@ -8,17 +8,19 @@ import {
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { spawnSync } from 'node:child_process';
 
-const helpers = createE2eHelpers();
-after(() => helpers.cleanup());
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 const REAL = join(import.meta.dirname, '..', 'bin', 'checks');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
 function staticProject(accepted = {}) {
-  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   for (const [file, source] of Object.entries(accepted)) {
     mkdirSync(join(box.repo, file, '..'), { recursive: true });
     writeFileSync(join(box.repo, file), source);
