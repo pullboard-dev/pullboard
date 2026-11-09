@@ -22,7 +22,8 @@ function itemWorktree(box, number) {
   const added = json(box, box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--route', 'strong',
     '--criterion', `land fixture ${number} remains valid`, '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`);
   const item = added.item.item_id;
-  assert.equal(box.run(path, 'claim', String(item)).code, 0);
+  const claimed = box.run(path, 'claim', String(item));
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
   return { path, item, file };
 }
 
