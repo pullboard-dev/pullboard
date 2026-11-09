@@ -52,7 +52,7 @@ export { testValueCosts, journeyReason, placeTest, placementReport, testsAtStage
 export { dispatchTestFiles, reportDispatchedTests, nativeFileArguments, testFileOptions, optionTakesValue, knownNodeOption, legacyFileMode, legacyNativeFileRun } from "./src/shell/test-file-dispatch.js";
 export { testFilePool, testFilePoolValue, occupiedPlaces, takeTestFileToken, reserveTestFileToken, awaitNestedRun, longestFirst, TEST_FILE_POOL_ENV, TEST_FILE_CORES_ENV } from "./src/shell/test-file-pool.js";
 export { isolateTestMachine, foreignNodeOptions, ACCOUNT_HOME_ENV, RUNNER_PRELOAD_ENV } from "./src/shell/test-isolation.js";
-export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/shell/coordinator-test-guard.js";
+export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./core.js";
 export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTestOutcomes, trailer, notify, testOutcomeFields } from "./src/shell/test-outcomes.js";
 export { refreshTestPlacement } from "./src/shell/test-placement-report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/shell/test-placement.js";
