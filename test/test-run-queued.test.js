@@ -125,7 +125,8 @@ test('--wait still blocks for a non-seat caller and prints the result itself [C7
 
 test('an item check that runs pullboard test on a red file fails, never a queued pass [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for the check and its nested runner run.
   const box = runnerProject();
-  fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--check', `"${process.execPath}" "${BIN}" test test/red.test.js`);
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--check', `"${process.execPath}" "${BIN}" test test/red.test.js`);
+  assert.equal(added.code, 0, `add: ${added.out}${added.err}`);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);
   const checked = asSeat(box, 'check', '--yes');
