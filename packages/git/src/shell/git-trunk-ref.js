@@ -6,7 +6,7 @@ import {
   invalidateGitFacts,
   localConfigIs,
 } from './git.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Retain the local primary branch outside replicated board data and read-only diagnostics [B34,V6]. */
 export function trunkRef(root, branch) {

@@ -42,7 +42,7 @@ import {
   machineSettingsFile,
   withMachineHomeWrite,
 } from './machine-home.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { capturedRequestOf } from './holder-liveness.js';
 import { dispatchRelaunch } from './holder-liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';

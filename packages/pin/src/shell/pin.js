@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitExecFileSync } from '../../../git/index.js';
 import { gitSpawn } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { bundleName } from '../core/pin-names.js';
 import { isObjectId } from '../core/pin-names.js';
 
