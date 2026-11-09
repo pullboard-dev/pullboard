@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { FIXTURE_MODEL, FIXTURE_MODEL_EARLIER, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 /**
@@ -23,6 +23,13 @@ function add(box, title) {
   const result = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', title, '--json');
   assert.equal(result.code, 0, result.out + result.err);
   return Number(JSON.parse(result.out).item.item_id);
+}
+
+/** Join a real worktree under the current admission rules and require the seat to be in the named lane. */
+function joinSeat(box, root, lane, options) {
+  const joined = joinFixtureSeat(box, root, lane, options);
+  assert.equal(joined.code, 0, joined.out + joined.err);
+  assert.match(JSON.parse(joined.out).agent, new RegExp(`^${lane}-`, 'u'));
 }
 
 /** Create and commit one distinct path in the supplied real worktree. */
@@ -59,21 +66,21 @@ function submittedSiblingHistory() {
   const itemB = add(box, 'B based on A old head');
   const bWorktree = join(box.dir, 'web-b-from-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/b-candidate', bWorktree, oldHead);
-  assert.match(fixtureJoin(box.run, bWorktree, 'web').out, /joined as web-/u);
+  joinSeat(box, bWorktree, 'web', { model: FIXTURE_MODEL });
   const claimedB = box.run(bWorktree, 'claim', String(itemB));
   assert.equal(claimedB.code, 0, claimedB.out + claimedB.err);
   const bHead = commitFile(box, bWorktree, 'web/b-candidate.txt', 'B candidate based on old A');
 
   const oldReview = join(box.dir, 'review-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReview, oldHead);
-  assert.match(fixtureJoin(box.run, oldReview, 'api').out, /joined as api-/u);
+  joinSeat(box, oldReview, 'api');
   const rejected = box.run(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'A old submitted head', '--note', 'revise A before acceptance', '--json');
   assert.equal(rejected.code, 0, rejected.out + rejected.err);
 
   const base = box.git(box.repo, 'rev-parse', `${oldHead}^`);
   const retryWorktree = join(box.dir, 'web-a-sibling-retry');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/a-retry', retryWorktree, base);
-  assert.match(fixtureJoin(box.run, retryWorktree, 'web').out, /joined as web-/u);
+  joinSeat(box, retryWorktree, 'web', { model: FIXTURE_MODEL });
   assert.equal(box.run(retryWorktree, 'claim', String(itemA)).code, 0);
   const latestAHead = commitFile(box, retryWorktree, 'web/a-new.txt', 'A newer sibling submission');
   assert.notEqual(latestAHead, oldHead);
@@ -102,7 +109,7 @@ test('[V17,V1] accepting the latest sibling submission clears every historical s
   const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = submittedSiblingHistory();
   const latestReview = join(box.dir, 'review-latest-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', latestReview, latestAHead);
-  assert.match(fixtureJoin(box.run, latestReview, 'api').out, /joined as api-/u);
+  joinSeat(box, latestReview, 'api');
   const accepted = box.run(latestReview, 'verify', String(itemA), 'accept', '--note', 'accepted A latest sibling head', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
