@@ -5,14 +5,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { gateRunnerLoadPolicy } from '../packages/gate/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 
 /** Run a body against a real private machine queue; fake runner names exercise admission with no network. */
 async function scenario(t, body) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project();
+  const box = cellProject(t);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
