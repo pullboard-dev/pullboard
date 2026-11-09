@@ -1779,7 +1779,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-no-nested-shards.test.js",
+      "file": "packages/landing/tests/landing-no-nested-shards.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1821,7 +1821,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-stage-composition.test.js",
+      "file": "packages/landing/tests/landing-stage-composition.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51760,7 +51760,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/timing-outcomes-accounting.test.js",
+      "file": "packages/landing/tests/timing-outcomes-accounting.test.js",
       "tier": "T3",
       "packages": [
         ".",
