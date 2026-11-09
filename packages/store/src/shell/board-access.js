@@ -10,7 +10,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { AGENT_SHELL_MARKERS } from "../../../kernel/src/core/discovery.js";
+import { AGENT_SHELL_MARKERS } from "../../../kernel/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** The markers a Codex session sets; its sandbox needs the board folder named to Codex itself. */

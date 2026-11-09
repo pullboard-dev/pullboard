@@ -594,10 +594,6 @@
     "hand-policy": 3,
     "raw-board": 7
   },
-  "packages/kernel/tests/attach-submit-eligibility.test.js": {
-    "model": 1,
-    "raw-board": 2
-  },
   "test/automatic-landing-cadence.fixture.js": {
     "raw-board": 1
   },
@@ -642,9 +638,6 @@
   "test/board-fixture.js": {
     "tempdir": 1,
     "raw-board": 1
-  },
-  "packages/kernel/tests/board-in-memory.test.js": {
-    "raw-board": 4
   },
   "test/board-link-fixture.js": {
     "tempdir": 3,
@@ -2372,9 +2365,6 @@
     "tempdir": 3,
     "env-spread": 1
   },
-  "packages/kernel/tests/open-decisions-projection.test.js": {
-    "raw-board": 3
-  },
   "test/outbox-ports.test.js": {
     "raw-board": 1
   },
@@ -2907,7 +2897,7 @@
     "raw-board": 2,
     "model": 1
   },
-  "test/reserve-next-review-lock.test.js": {
+  "packages/store/tests/reserve-next-review-lock.test.js": {
     "model": 3,
     "raw-board": 4
   },
@@ -2960,9 +2950,6 @@
   "test/review-family-cover-replay.test.js": {
     "raw-board": 1
   },
-  "packages/kernel/tests/review-family-submitted-head.test.js": {
-    "raw-board": 3
-  },
   "test/review-packet-fixture-cases.test.js": {
     "hand-policy": 1
   },
@@ -2998,9 +2985,6 @@
     "raw-board": 2,
     "model": 1,
     "repo-read": 2
-  },
-  "packages/kernel/tests/rework-same-family.test.js": {
-    "raw-board": 6
   },
   "test/rigor-auto.test.js": {
     "tempdir": 2,
@@ -3060,10 +3044,6 @@
   "test/row-decision-guidance.test.js": {
     "hand-policy": 2
   },
-  "packages/kernel/tests/row-decisions-replay.test.js": {
-    "tempdir": 1,
-    "raw-board": 5
-  },
   "test/rule-proof-counts.test.js": {
     "hand-policy": 4,
     "raw-board": 1
@@ -3089,7 +3069,7 @@
   "packages/gate/tests/run-tests-options.test.js": {
     "tempdir": 3
   },
-  "test/run-tests-reporter.test.js": {
+  "packages/runners/tests/run-tests-reporter.test.js": {
     "tempdir": 3
   },
   "test/run-tests-timeout.test.js": {
@@ -3364,9 +3344,6 @@
   },
   "packages/gate/tests/selection-fallbacks.test.js": {
     "tempdir": 2
-  },
-  "packages/kernel/tests/selector-gap-verdict.test.js": {
-    "raw-board": 4
   },
   "apps/lib/tests/sentinel-cpu.test.js": {
     "tempdir": 2,
@@ -3675,7 +3652,7 @@
   "test/team-verification-repair.test.js": {
     "raw-board": 1
   },
-  "test/test-action-cache.test.js": {
+  "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
   "test/test-cache-receipts.test.js": {
@@ -3937,5 +3914,28 @@
   },
   "test/next-answer-first.test.js": {
     "raw-board": 1
+  },
+  "packages/store/tests/attach-submit-eligibility.test.js": {
+    "model": 1,
+    "raw-board": 2
+  },
+  "packages/store/tests/board-in-memory.test.js": {
+    "raw-board": 4
+  },
+  "apps/lib/tests/open-decisions-projection.test.js": {
+    "raw-board": 3
+  },
+  "packages/store/tests/review-family-submitted-head.test.js": {
+    "raw-board": 3
+  },
+  "packages/store/tests/rework-same-family.test.js": {
+    "raw-board": 6
+  },
+  "apps/lib/tests/row-decisions-replay.test.js": {
+    "tempdir": 1,
+    "raw-board": 5
+  },
+  "packages/store/tests/selector-gap-verdict.test.js": {
+    "raw-board": 4
   }
 }

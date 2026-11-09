@@ -5,7 +5,7 @@ import { fixtureBoard } from '../../../test/board-fixture.js';
 import {
   exportBoard,
   importBoard,
-} from '../../store/index.js';
+} from '../index.js';
 
 /** Export a board as a fresh copy that drops the job tables and their counter, like an export made before them. */
 function exportWithoutJobTables(board) {
