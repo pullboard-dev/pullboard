@@ -130,6 +130,8 @@ test('clause 1: one background measurement runs at a time and writes the figures
   assert.equal(worker.status, 0, worker.stderr);
   assert.ok(!existsSync(join(dir, MEASURE_LOCK)), 'the measurement freed its lock');
   const shown = cachedDiskUse(dir, { start: () => assert.fail('a fresh measurement starts nothing') });
-  assert.equal(shown.total, diskUse(dir).total);
+  // The measurement wrote its own cache file after walking, so only the stores it measured are compared.
+  const now = diskUse(dir);
+  assert.deepEqual(shown.stores.filter(row => row.name !== 'other'), now.stores.filter(row => row.name !== 'other'));
   assert.ok(shown.stores.some(row => row.name === 'test actions'));
 });

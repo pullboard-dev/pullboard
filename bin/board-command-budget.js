@@ -223,8 +223,8 @@ export function breachItem(breach, { lane, tip, lastPassTip }) {
   const added = breach.added.length ? ` Modules it newly loads: ${breach.added.slice(0, 12).join(', ')}${breach.added.length > 12 ? `, and ${breach.added.length - 12} more` : ''}.` : '';
   return { by: 'coordinator', lane, title: breachTitle(breach), route: 'mid', specIds: ['C7'], parentId: null, after: [], expectedBuildMinutes: 30,
     criterion: `The main audit at ${tip} measured pullboard ${breach.command}: it ${measured}. Commits since the last passing check: ${range}.${added} `
-      + `1. pullboard ${breach.command} is back at or under ${breach.ceiling}${breach.kind === 'modules' ? ' modules' : ' ms'} in node bin/board-command-budget.js. [test] `
-      + '2. The import or work that raised it loads lazily, only where it is used. [review]',
+      + `1. pullboard ${breach.command} is back at or under ${breach.ceiling}${breach.kind === 'modules' ? ' modules' : ' ms'} as node bin/hop-matrix.js --only board-commands measures it. [measurement] `
+      + '2. The import or work that raised it loads lazily, only where it is used. [reasoning]',
     brief: `Files: bin/board-command-ceilings.json\nSource: board-command budget, main audit ${range}\nRun: node bin/hop-matrix.js --only board-commands` };
 }
 
