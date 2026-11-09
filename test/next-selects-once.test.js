@@ -41,7 +41,8 @@ test('next --take and next call their selection and review offer once each [C7]'
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
   assert.ok([first, second].includes(next.document.item.item_id), next.out);
-  assert.deepEqual(plain, { pick: 1, reviewOffer: 1 }, 'nextPick ran once, outside the write');
+  // Plain next is the default loop: its one review offer is the default-loop review, never the build-intent offer (deb8696e48).
+  assert.deepEqual(plain, { pick: 1, reviewOffer: 0, defaultOffer: 1 }, 'nextPick ran once, outside the write');
 });
 
 test('a holding seat returns its claim without the mandatory review offer or another selection [C7]', async t => {
@@ -58,7 +59,7 @@ test('a holding seat returns its claim without the mandatory review offer or ano
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
   assert.equal(next.document.item.item_id, held);
-  assert.deepEqual(plain, { pick: 1, reviewOffer: 1 });
+  assert.deepEqual(plain, { pick: 1, reviewOffer: 0, defaultOffer: 1 });
   assert.deepEqual(actorClaims(box), [held]);
 });
 
