@@ -79,7 +79,7 @@ test('runner static graph avoids landing and legacy selection routes into the ga
 });
 
 test('clause 2: the gate-free landing identity entry is placed in the cells plan as a sanctioned re-export [C7]', () => {
-  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/30-landing.json', import.meta.url), 'utf8'));
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/36-landing.json', import.meta.url), 'utf8'));
   assert.ok(plan.reexports.includes('src/landing-worker-identity.js'), 'pre-commit accepts the entry as a placed re-export, not a stray shim');
   assert.ok(plan.paths.some(move => move[0] === 'src/landing-worker-identity.js'), 'the plan places it with its moved implementation');
 });
