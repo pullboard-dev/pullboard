@@ -23,7 +23,7 @@ import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
 import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
 import { startItemPatchObjectionWindow } from "../../../items/index.js";
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { requireStrictBuilderFamily } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { submissionItemValues } from "./submission-record.js";
 import { submissionChildrenProblem } from "./submission-record.js";
@@ -152,7 +152,7 @@ export function submit(board, id, options) {
     }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE && options.machineReceipts !== undefined
       && (!Array.isArray(options.machineReceipts) || options.machineReceipts.some(receipt => !receiptFields(receipt)))) throw new Refused('MACHINE_PROOF', 'machine evidence must contain valid native receipts');
-    reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    requireStrictBuilderFamily(board, id, agentId);
     const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
     if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });

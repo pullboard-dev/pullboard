@@ -1,4 +1,4 @@
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { seatFamily } from "../../../verify/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { heartbeatSeat } from "./seat-presence.js";
@@ -59,7 +59,7 @@ export function register(board, who) {
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
       // The stored column is compared, not the derived value: a seat whose session already derived this family still
       // gets the column written, so a join that names it is never a silent no-op (#2889).
-      if (family !== undefined && !locked && family !== reviewRouting.seatFamily(board, existing.agent_id)) {
+      if (family !== undefined && !locked && family !== seatFamily(board, existing.agent_id)) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
       } else if (locked && storedBlank && typeof family === 'string' && family.trim() !== '' && engine >= FAMILY_DECLARE_ENGINE) {
