@@ -66,7 +66,7 @@
     "packages/spec/src/shell/signature.js": 2,
     "packages/store/src/shell/board-write-lock.js": 1,
     "packages/store/src/shell/history.js": 1,
-    "packages/store/src/shell/native-user-directory.js": 1,
+    "packages/gate/src/shell/native-user-directory.js": 1,
     "packages/verify/src/shell/comparison-worker.js": 1,
     "packages/verify/src/shell/evidence.js": 2,
     "packages/verify/src/shell/verdict-trunk.js": 1
