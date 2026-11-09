@@ -121,6 +121,7 @@
     "src/spec-verdict-engine.js": 1,
     "src/spec-verdict-format.js": 1,
     "src/spec-verdicts.js": 1,
+    "src/spec.js": 1,
     "src/stale-claim-release.js": 1,
     "src/stale-run-observation.js": 1,
     "src/stale-state-blockers.js": 1,

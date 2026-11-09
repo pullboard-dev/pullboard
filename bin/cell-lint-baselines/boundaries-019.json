@@ -57,6 +57,7 @@
     "test/view.test.js->src/cli.js": 1,
     "test/view.test.js->src/projects.js": 1,
     "test/view.test.js->src/public-export-guard.js": 1,
+    "test/view.test.js->src/spec.js": 1,
     "test/view.test.js->src/view-session.js": 1,
     "test/view.test.js->src/view.js": 1,
     "test/view.test.js->test/fixture-child.js": 1,

@@ -41,6 +41,7 @@
     "src/main-red.js->src/main-failure-matches.js": 1,
     "src/main-red.js->src/resources.js": 1,
     "src/main-red.js->src/settings.js": 1,
+    "src/main-red.js->src/spec.js": 1,
     "src/main-red.js->src/trusted-policy.js": 1,
     "src/map-slice-say.js->src/cli.js": 1,
     "src/map-slice-say.js->src/code-map.js": 1,

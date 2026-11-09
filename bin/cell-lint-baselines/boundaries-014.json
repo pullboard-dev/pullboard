@@ -290,6 +290,7 @@
     "test/needs.test.js->src/cli.js": 1,
     "test/needs.test.js->src/needs-state.js": 1,
     "test/needs.test.js->src/needs.js": 2,
+    "test/needs.test.js->src/spec.js": 1,
     "test/needs.test.js->test/e2e-helpers.js": 1,
     "test/newcomer.test.js->src/agent-session.js": 1,
     "test/newcomer.test.js->src/git.js": 1,

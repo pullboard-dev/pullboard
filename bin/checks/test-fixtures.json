@@ -527,7 +527,7 @@
   "test/accept-reuses-receipt.test.js": {
     "model": 2
   },
-  "test/accepted-cells-identity-rebuild.test.js": {
+  "apps/lib/tests/accepted-cells-identity-rebuild.test.js": {
     "hand-policy": 1
   },
   "test/accepted-green-relands.test.js": {
@@ -623,7 +623,7 @@
     "model": 2,
     "raw-board": 3
   },
-  "test/bar-replay.test.js": {
+  "apps/lib/tests/bar-replay.test.js": {
     "raw-board": 5
   },
   "test/blueprint-web-defaults.test.js": {
@@ -665,7 +665,7 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "test/board-scale-1000-seats.test.js": {
+  "apps/lib/tests/board-scale-1000-seats.test.js": {
     "tempdir": 1,
     "raw-board": 6
   },
@@ -707,11 +707,11 @@
     "tempdir": 3,
     "hand-policy": 1
   },
-  "test/builder-family-required.test.js": {
+  "apps/lib/tests/builder-family-required.test.js": {
     "hand-policy": 1,
     "raw-board": 5
   },
-  "test/capacity-cache.test.js": {
+  "apps/lib/tests/capacity-cache.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -854,10 +854,10 @@
   "test/claim-progress-static.test.js": {
     "hand-policy": 1
   },
-  "test/claim-release-reason.test.js": {
+  "apps/lib/tests/claim-release-reason.test.js": {
     "raw-board": 1
   },
-  "test/claim-reopen.test.js": {
+  "apps/lib/tests/claim-reopen.test.js": {
     "tempdir": 1,
     "raw-board": 21
   },
@@ -1591,7 +1591,7 @@
   "test/flow-report-api.test.js": {
     "raw-board": 4
   },
-  "test/flow-report-cache.test.js": {
+  "apps/lib/tests/flow-report-cache.test.js": {
     "tempdir": 2,
     "raw-board": 8
   },
@@ -1688,7 +1688,7 @@
     "tempdir": 3,
     "repo-read": 1
   },
-  "test/gui-runner-stage.test.js": {
+  "apps/lib/tests/gui-runner-stage.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 1
@@ -1837,7 +1837,7 @@
   "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
-  "test/item-notes-engine.test.js": {
+  "apps/lib/tests/item-notes-engine.test.js": {
     "raw-board": 3
   },
   "test/item-patch-cli.test.js": {
@@ -2320,7 +2320,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "test/next-lapsed-gated-claim.test.js": {
+  "apps/lib/tests/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
   "test/next-no-review-for-builder.test.js": {
@@ -2549,14 +2549,14 @@
     "model": 1,
     "hand-policy": 2
   },
-  "test/queue-fairness.test.js": {
+  "apps/lib/tests/queue-fairness.test.js": {
     "raw-board": 3
   },
   "test/queue-order.test.js": {
     "tempdir": 2,
     "raw-board": 2
   },
-  "test/queue-preempt.test.js": {
+  "packages/sandbox/tests/queue-preempt.test.js": {
     "raw-board": 4
   },
   "packages/queue/tests/queue-settings-port.test.js": {
@@ -2850,7 +2850,7 @@
   "test/release-clears-claim.test.js": {
     "model": 1
   },
-  "test/release-focus.test.js": {
+  "packages/store/tests/release-focus.test.js": {
     "raw-board": 15
   },
   "test/release-producer-cases.js": {
@@ -3103,7 +3103,7 @@
   "test/runner-browser-need-single-decision.test.js": {
     "hand-policy": 2
   },
-  "test/runner-cache-prune.test.js": {
+  "apps/lib/tests/runner-cache-prune.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/runner-cancel-on-red.test.js": {
@@ -3324,7 +3324,7 @@
     "hand-policy": 4,
     "env-spread": 2
   },
-  "test/seal-selection.test.js": {
+  "apps/cli/tests/seal-selection.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/seals.test.js": {
@@ -3440,7 +3440,7 @@
     "model": 2,
     "tempdir": 1
   },
-  "test/spec-draft-refreeze.test.js": {
+  "apps/lib/tests/spec-draft-refreeze.test.js": {
     "raw-board": 4
   },
   "test/spec-refreeze-fixture.js": {
@@ -3611,7 +3611,7 @@
   "test/submit-replaces-gate.test.js": {
     "raw-board": 1
   },
-  "test/submit-runner-plan.test.js": {
+  "apps/cli/tests/submit-runner-plan.test.js": {
     "tempdir": 2
   },
   "test/submit-spec-row-proof.test.js": {

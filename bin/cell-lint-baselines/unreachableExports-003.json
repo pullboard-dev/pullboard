@@ -292,6 +292,8 @@
     "src/spec-revisions.js#revisionReference": 1,
     "src/spec-verdict-engine.js#SPEC_VERDICT_ENGINE": 1,
     "src/spec-verdicts.js#recordRowVerification": 1,
+    "src/spec.js#SPEC_GRAMMAR_VERSION": 1,
+    "src/spec.js#TIERS": 1,
     "src/static-import-style.js#importStyleViolations": 1,
     "src/static-prose-commands.js#declaredProseCommands": 1,
     "src/stats-flow-report.js#safeReportPolicy": 1,
