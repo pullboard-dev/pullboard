@@ -31,6 +31,11 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+    // The explicit-file classifier only reads checks run through bin/run-tests.js, so the web lane owns the runner and the test dir here.
+    const configPath = join(box.repo, 'pullboard.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    config.lanes.web.owns = [...config.lanes.web.owns, 'bin/', 'test/'];
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
     mkdirSync(join(box.repo, 'bin'));
     mkdirSync(join(box.repo, 'test'));
     writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
