@@ -4,10 +4,7 @@
  * `merged` that ran tests. These tests use a real Git checkout, the real resource queue and a real SQLite board.
  */
 import assert from 'node:assert/strict';
-import {
-  after,
-  test,
-} from 'node:test';
+import { test } from 'node:test';
 import {
   spawn,
   spawnSync,
@@ -25,7 +22,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { repoInfo } from '../../git/index.js';
 import { listResources } from '../../resources/index.js';
 import {
@@ -39,9 +36,6 @@ import {
   checkoutWritersDirectory,
   liveCheckoutWriters,
 } from '../src/shell/agent-session.js';
-
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
 
 const OWNER = createHash('sha256').update('checkout-writers-owner').digest('hex');
 const NEWCOMER = createHash('sha256').update('checkout-writers-newcomer').digest('hex');
@@ -68,9 +62,11 @@ async function settlesWithin(promise, ms) {
   try { return (await Promise.race([promise.then(() => 'settled'), late])) === 'settled'; } finally { clearTimeout(timer); }
 }
 
-test('same-session writes in one checkout run side by side while a takeover still waits for them [B3,C7]', { timeout: 60_000 }, async () => {
-  const box = helpers.project();
-  const info = repoInfo(box.web);
+test('same-session writes in one checkout run side by side while a takeover still waits for them [B3,C7]', { timeout: 60_000 }, async t => {
+  const box = cellProject(t);
+  const web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/one', web, 'main');
+  const info = repoInfo(web);
   await inBox(box, async () => {
     const slow = await bindLocalSession(info, { agent: 'web-1', digest: OWNER, keepLease: true });
     const started = performance.now();
@@ -113,8 +109,8 @@ function boardChild(source, board) {
   return child;
 }
 
-test('a board write lands in under 1 s past stale holder records, a long reader and a busy gate worker [C7]', { timeout: 60_000 }, async () => {
-  const box = helpers.project(undefined, undefined, { withWorktree: false });
+test('a board write lands in under 1 s past stale holder records, a long reader and a busy gate worker [C7]', { timeout: 60_000 }, async t => {
+  const box = cellProject(t);
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // Stale records like the 23 found on 9 Nov: dead writers, and a live pid whose start time is not the record's.
   const holders = board + '.write-holders';
