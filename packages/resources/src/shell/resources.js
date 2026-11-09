@@ -23,6 +23,7 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
   basename,
@@ -42,6 +43,10 @@ import { Refused } from '../../../kernel/index.js';
 import { capturedRequestOf } from './holder-liveness.js';
 import { dispatchRelaunch } from './holder-liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';
+import { PS_IDENTITY_ARGS } from './holder-liveness.js';
+import { PS_IDENTITY_ENV } from './holder-liveness.js';
+import { parsePsIdentity } from './holder-liveness.js';
+import { processIdentityAsync } from './holder-liveness.js';
 import { reclaimHolders } from './holder-liveness.js';
 import { pinLegacyReclaimInputs } from './holder-liveness.js';
 import {
@@ -276,12 +281,13 @@ function slotDatabaseLocked(error) {
 }
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine, so it gets 10 s. */
-function slotDatabaseOpeners(file) {
+async function slotDatabaseOpeners(file) {
   const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
   if (!lsof) return [];
-  let output = '';
-  try { output = execFileSync(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }); }
-  catch (error) { output = typeof error.stdout === 'string' ? error.stdout : ''; }
+  // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
+  const output = await new Promise(resolve => {
+    execFile(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000 }, (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
+  });
   const openers = [];
   for (const line of output.split('\n')) {
     if (line.startsWith('p')) openers.push({ pid: Number(line.slice(1)), command: '' });
@@ -301,7 +307,7 @@ async function retryLockedSlotDatabase(file, work) {
       if (!slotDatabaseLocked(error)) throw error;
       const elapsed = Date.now() - startedAt;
       if (elapsed >= deadline) {
-        const openers = slotDatabaseOpeners(file);
+        const openers = await slotDatabaseOpeners(file);
         const holder = openers.length ? `held by one of: ${openers.map(({ pid, command }) => `pid ${pid}${command ? ` (${command})` : ''}`).join(', ')}` : 'lock holder unknown';
         const stopped = new Refused('SLOT_DB_LOCKED', `never ran: the gate slot database ${file} stayed locked for ${elapsed}ms, past the ${deadline}ms deadline (${holder}). The run did not start, so this is not a test failure; rerun it.`);
         stopped.neverRanExitCode = NEVER_RAN_EXIT_CODE;
@@ -324,14 +330,11 @@ function processIdentity(pid) {
   if (cached && Date.now() - cached.checkedAt < PROCESS_IDENTITY_CACHE_MS) return cached.identity;
   let identity = null;
   try {
-    const output = execFileSync('/bin/ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], {
+    identity = parsePsIdentity(execFileSync('/bin/ps', [...PS_IDENTITY_ARGS, String(pid)], {
       encoding: 'utf8',
-      env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+      env: { ...process.env, ...PS_IDENTITY_ENV },
       stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    const fields = output.split(/\s+/u);
-    const state = fields.pop();
-    if (fields.length) identity = { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false };
+    }));
   } catch { identity = platformIdentity(pid); }
   processIdentities.set(pid, { identity, checkedAt: Date.now() });
   if (processIdentities.size > 1024) {
@@ -340,6 +343,30 @@ function processIdentity(pid) {
     }
   }
   return identity;
+}
+
+/**
+ * Read the identities of these processes into the cache without blocking the event loop, so the synchronous reads a
+ * database transaction makes a moment later find them fresh and never spawn ps on the loop [C7,#3837].
+ *
+ * @param {Iterable<number>} pids - Processes whose identity the next transaction will read.
+ * @param {{ probe?: (pid: number) => Promise<object|null> }} [options] - A replacement reader, for tests.
+ * @returns {Promise<void>}
+ */
+export async function warmProcessIdentities(pids, { probe = processIdentityAsync } = {}) {
+  const wanted = [...new Set(pids)].filter(pid => Number.isSafeInteger(pid) && pid > 0);
+  await Promise.all(wanted.map(async pid => {
+    const cached = processIdentities.get(pid);
+    if (cached && Date.now() - cached.checkedAt < PROCESS_IDENTITY_CACHE_MS) return;
+    processIdentities.set(pid, { identity: await probe(pid), checkedAt: Date.now() });
+  }));
+}
+
+/** Warm the identity of every process the slot database lists as a holder or a waiter. A failed read only leaves the cache cold. */
+async function warmListedIdentities(db) {
+  try {
+    await warmProcessIdentities([...db.prepare('SELECT pid FROM holder').all(), ...db.prepare('SELECT pid FROM waiter').all()].map(row => row.pid));
+  } catch { /* A closed or busy database leaves the synchronous read to do its own work. */ }
 }
 
 /** Read the start identity to store with a lease when the OS can provide it. */
@@ -1024,6 +1051,7 @@ export async function takeResource(options) {
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
       await options.beforeAdmission?.(); const order = queueOrder(scope);
+      await warmListedIdentities(db);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
@@ -1139,7 +1167,9 @@ export async function takeResource(options) {
         let heartbeat;
         /** Keep the active holder lease alive while its executor is running. */
         const startHeartbeat = () => {
-          heartbeat = loopHeartbeat ? undefined : setInterval(() => {
+          heartbeat = loopHeartbeat ? undefined : setInterval(async () => {
+            if (released || transferred || lost) return;
+            await warmListedIdentities(db);
             if (released || transferred || lost) return;
             try {
               const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);

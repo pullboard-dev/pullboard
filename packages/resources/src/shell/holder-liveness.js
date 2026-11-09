@@ -1,5 +1,6 @@
 /** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
@@ -111,6 +112,41 @@ export function capturedRequestOf(value) {
     throw new Refused('BAD_RESOURCE_METADATA', 'capturedRequest needs argv, a non-empty array of strings, and an optional absolute cwd');
   }
   return JSON.stringify({ argv: [...value.argv], cwd: value.cwd ?? '' });
+}
+
+/** The environment ps reads a start time in, so every reader sees one format whatever the machine's locale or zone. */
+export const PS_IDENTITY_ENV = Object.freeze({ TZ: 'UTC', LC_ALL: 'C', LANG: 'C' });
+
+/** The arguments that make ps print one process's start time and state. */
+export const PS_IDENTITY_ARGS = Object.freeze(['-o', 'lstart=', '-o', 'stat=', '-p']);
+
+/**
+ * Read one ps answer: the start time then the state, as an identity, or null when ps printed nothing usable.
+ *
+ * @param {string} output - What `ps -o lstart= -o stat= -p <pid>` printed.
+ * @returns {{ started: string, zombie: boolean } | null}
+ */
+export function parsePsIdentity(output) {
+  const fields = String(output).trim().split(/\s+/u);
+  const state = fields.pop();
+  return fields.length ? { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false } : null;
+}
+
+/**
+ * The start identity of a process, read without blocking the event loop: ps runs as a child process and this resolves
+ * when it exits. Same answer as the synchronous read, including the platform fallback where ps fails.
+ * Why: the synchronous read froze a gate worker's timers for as long as ps took, 6-26 s at Mac load 25-33 (#3837, 8 Nov).
+ *
+ * @param {number} pid - The process to read.
+ * @returns {Promise<{ started: string, zombie: boolean } | null>}
+ */
+export function processIdentityAsync(pid) {
+  return new Promise(resolve => {
+    execFile('/bin/ps', [...PS_IDENTITY_ARGS, String(pid)], { encoding: 'utf8', env: { ...process.env, ...PS_IDENTITY_ENV } }, (error, stdout) => {
+      if (error) return resolve(platformIdentity(pid));
+      resolve(parsePsIdentity(stdout) ?? platformIdentity(pid));
+    });
+  });
 }
 
 /** Which reader produced a start identity: a platform fallback tags its value, and ps lstart has no tag. */
