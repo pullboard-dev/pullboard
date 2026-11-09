@@ -475,7 +475,16 @@ export async function runTestShards({ root, runner, files, args = [], count, inh
       if (entry.claimed || entry.done) return;
       // A host quarantined in this landing gets no more shards; queue again for a local slot.
       if (lease.runner && quarantined.has(lease.runner.host)) {
-        if (runnerOnly) throw new Refused('RUNNER_SOURCE', `runner-only landing refuses quarantined runner ${lease.runner.host}; no local fallback`);
+        if (runnerOnly) {
+          // No local fallback and the pool offers only a quarantined runner: the shard ends as a typed infrastructure result, never a throw out of the run [C7].
+          write(`landing shard ${entry.label}: runner-only landing refuses quarantined runner ${lease.runner.host}; there is no local fallback\n`);
+          entry.done = true;
+          entry.status = 'infrastructure';
+          firstFailure ??= entry.label;
+          stopper.abort();
+          signalChange();
+          return;
+        }
         return 'divert';
       }
       entry.claimed = true;

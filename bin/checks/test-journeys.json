@@ -3549,25 +3549,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/family-read-scope.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "items",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/fixture-copiers.test.js": {
       "cells": [
         "codemap",
@@ -3837,7 +3818,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/gate-shard-reuse.test.js": {
+    "packages/gate/tests/gate-shard-reuse.test.js": {
       "cells": [
         "app:lib",
         "gate"
@@ -4366,25 +4347,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/inbox-starts-at-join.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/infra-retry.test.js": {
+    "packages/gate/tests/infra-retry.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -6934,7 +6897,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/precommit-static-parity.test.js": {
+    "packages/gate/tests/precommit-static-parity.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9150,7 +9113,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/run-tests-empty-selection.test.js": {
+    "packages/gate/tests/run-tests-empty-selection.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9292,7 +9255,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-cleanup-recovery.test.js": {
+    "packages/runners/tests/runner-cleanup-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9376,7 +9339,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-history-single-flight.test.js": {
+    "packages/runners/tests/runner-history-single-flight.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9848,7 +9811,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-warm-pool.test.js": {
+    "packages/runners/tests/runner-warm-pool.test.js": {
       "cells": [
         "gate",
         "kernel",
@@ -9876,7 +9839,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-work-spec-refresh.test.js": {
+    "packages/runners/tests/runner-work-spec-refresh.test.js": {
       "cells": [
         "app:lib",
         "gate",
@@ -10026,20 +9989,6 @@
       "reasons": [
         "imports past items front door (packages/items/src/shell/item-sessions.js)",
         "imports past moves front door (packages/moves/src/core/moves/verify.js)"
-      ]
-    },
-    "test/sentinel-machine-stall.test.js": {
-      "cells": [
-        "app:lib",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "imports past health front door (packages/health/src/core/machine-stall.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/sentinel-rank.test.js": {

@@ -578,7 +578,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   writeFileSync(guardedSource, unguardedText);
   const mutationProbe = join(unguarded, '.schema-mutation-probe.mjs');
   writeFileSync(mutationProbe, `
-    import { closeBoard } from './src/board.js';
+    import { closeBoard } from './packages/store/index.js';
     import { openBoard } from './apps/lib/index.js';
     const board = openBoard(process.env.PULLBOARD_FIXTURE_BOARD, undefined, { isMain: false });
     closeBoard(board);

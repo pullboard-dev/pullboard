@@ -52,6 +52,6 @@ export function assertCommitShimRefusals(codeWalk, read, editedSource, codeProbl
   }
   assert.throws(() => machineSourceModule('hooks.js', file => file === 'hooks.js' ? realShim + "\nthrow new Error('extra shim code');\n" : read(file)),
     /whole re-export shim/u, 'extra shim code cannot acquire mapped-body authority');
-  assert.throws(() => machineSourceModule('hooks.js', file => file === 'hooks.js' ? 'export * from "../src/board.js";\n' : read(file)),
+  assert.throws(() => machineSourceModule('hooks.js', file => file === 'hooks.js' ? 'export * from "../packages/store/index.js";\n' : read(file)),
     /whole re-export shim/u, 'a different export target cannot acquire mapped-body authority');
 }
