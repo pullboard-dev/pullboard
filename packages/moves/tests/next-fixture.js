@@ -88,8 +88,8 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   const git = (...args) => project.git(project.repo, ...args);
   return {
     board, seats, ctx, ports, project, advance: ms => { at += ms; }, claim, git, clock, root: project.repo, config: ctx.config,
-    /** Make a named seat the one that runs next from now on. */
-    as: name => { current = seats[name]; },
+    /** Make a seat the one that runs next from now on, by its name here or as a registered seat with an id and a lane. */
+    as: who => { current = typeof who === 'string' ? seats[who] : who; },
     /** File an ordinary runnable item in the actor's lane, or another configured lane. */
     add: (title, options = {}) => cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
       brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
