@@ -37,39 +37,39 @@ export function functionsIn(source) {
 
 /** Board functions handed a function to call, and the one the CLI and the runner hand them. */
 export const MACHINE_CALLBACKS = {
-  'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
-  'board-refreeze.js': { freeze: 'cli.js#freezer' },
-  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict' },
-  'board-reopen.js': {
+  '../packages/store/src/shell/board-claim.js': { freeze: '../apps/cli/src/shell/cli.js#freezer', foreignBlockers: '../packages/store/src/shell/board.js#foreignBlockers' },
+  '../packages/store/src/shell/board-refreeze.js': { freeze: '../apps/cli/src/shell/cli.js#freezer' },
+  '../packages/store/src/shell/board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict' },
+  '../packages/store/src/shell/board-reopen.js': {
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
-  'board-record-landing-batch.js': {
+  '../packages/store/src/shell/board-record-landing-batch.js': {
     'board.nativePorts.landingEnvironment.requireBatch': '../packages/landing/src/core/landing-environment-guards.js#requireBatch',
     'board.nativePorts.landingEnvironment.requireRevision': '../packages/landing/src/core/landing-environment-guards.js#requireRevision',
   },
-  'board-finish-landing-batch.js': {
+  '../packages/store/src/shell/board-finish-landing-batch.js': {
     'board.nativePorts.landingEnvironment.requireTrunk': '../packages/landing/src/core/landing-environment-guards.js#requireTrunk',
     'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
-  'gate-execution.js': {
-    'gateLease.executionServices.runners.runOnRunner': 'runners.js#runOnRunner',
-    'gateLease.executionServices.runners.runOnRunnerAsync': 'runners.js#runOnRunnerAsync',
+  '../packages/gate/src/shell/gate-execution.js': {
+    'gateLease.executionServices.runners.runOnRunner': '../packages/runners/src/shell/runners.js#runOnRunner',
+    'gateLease.executionServices.runners.runOnRunnerAsync': '../packages/runners/src/shell/runners.js#runOnRunnerAsync',
   },
   // Explicit item ports preserve these canonical authority and sandbox refusal paths.
-  'reopen-authority.js': {
+  '../packages/items/src/core/reopen-authority.js': {
     verdictWithdrawalTarget: '../packages/verify/src/shell/verdict-withdrawal.js#verdictWithdrawalTarget',
     computedConflictProblem: '../packages/landing/src/shell/computed-conflict-receipt.js#computedConflictProblem',
   },
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
-  'board-health.js': {
+  '../packages/store/src/shell/board-health.js': {
     normalizedDispatch: '../packages/sentinels/src/shell/dispatch-health.js#normalizedDispatch',
     rejectedWorkReturns: '../packages/sentinels/src/shell/rejected-work-return.js#rejectedWorkReturns',
   },
-  'outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
-  'item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
+  '../packages/items/src/shell/outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
+  '../packages/items/src/shell/item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
   '../packages/verify/src/core/proof-cli.js': { proofRunReceipt: '../packages/store/src/shell/proof-receipts.js#proofRunReceipt' },
   '../packages/verify/src/shell/proof-counters.js': {
@@ -77,13 +77,13 @@ export const MACHINE_CALLBACKS = {
     ensureRigorCounters: '../packages/rigor/src/shell/rigor-counters.js#ensureRigorCounters',
   },
   // The native root supplies these setup guards through the physical store's explicit ports.
-  'board-store.js': {
+  '../packages/store/src/shell/board-store.js': {
     readEventLogVersion: '../packages/store/src/shell/board-read-open.js#readEventLogVersion',
     boardNotWritable: '../packages/store/src/shell/board-access.js#boardNotWritable',
     boardBusyError: '../packages/store/src/shell/board-access.js#boardBusyError',
   },
-  'board.js': {
-    freeze: 'cli.js#freezer',
+  '../packages/store/src/shell/board.js': {
+    freeze: '../apps/cli/src/shell/cli.js#freezer',
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
@@ -97,9 +97,9 @@ export const MACHINE_CALLBACKS = {
     'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   '../packages/seats/src/core/line-capacity-board.js': {
-    nextFor: 'board.js#nextFor',
-    reviewerChecks: 'board.js#reviewerChecks',
-    reviewReleaseCooldown: 'board.js#reviewReleaseCooldown',
+    nextFor: '../packages/store/src/shell/board.js#nextFor',
+    reviewerChecks: '../packages/store/src/shell/board.js#reviewerChecks',
+    reviewReleaseCooldown: '../packages/store/src/shell/board.js#reviewReleaseCooldown',
   },
 };
 
@@ -232,7 +232,7 @@ export function declaredBoardOrder(machineRules, prechecked, verb) {
 
 /** Preserve actual Git refusal reachability and detect a newly planted moved-body refusal. */
 export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
-  const entry = 'git.js#repoInfo';
+  const entry = '../packages/git/src/shell/git.js#repoInfo';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('NOT_A_REPO'));
   const planted = editedSource('../packages/git/src/shell/git.js', /^export function repoInfo\(cwd, options = \{\}\) \{$/m,
     "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
@@ -248,38 +248,4 @@ export function assertPostVerdictLandingAudit(editedSource, codeProblems, machin
   const uncaught = editedSource('../apps/cli/src/shell/commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
-}
-
-/** Exact relocated provider identities for the existing caller-specific audit metadata. */
-const SOURCE_AUDIT_IDENTITIES = {
-  "../packages/link/src/shell/relay.js": "relay.js",
-  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
-  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
-  "../packages/gate/src/shell/gate.js": "gate.js",
-  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
-  "../packages/store/src/shell/board-access.js": "board-access.js",
-  "../packages/store/src/shell/board-health.js": "board-health.js",
-  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
-  "../packages/store/src/shell/board-query.js": "board-query.js",
-  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
-  "../packages/store/src/shell/board.js": "board.js",
-  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
-  "../packages/store/src/shell/board-store.js": "board-store.js",
-  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
-  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
-  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
-  "../packages/store/src/shell/board-claim.js": "board-claim.js",
-  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
-  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
-  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
-  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
-  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
-  "../packages/store/src/shell/board-verify.js": "board-verify.js"
-};
-
-/** Compare physical aliases without changing function names or expanding any caught boundary. */
-export function auditKey(key) {
-  const [file, name] = key.split('#');
-  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
-  return `${SOURCE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
 }

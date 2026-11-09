@@ -187,8 +187,11 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     journeyDeadline.setPhase(journeyPhase);
     // Pair the real board key in the fragment; the relay client consumes it into device storage before local discovery.
     await chrome.send('Page.navigate', { url: JOURNEY_HOSTED + '/#board=' + linkedId + '&key=' + encodeURIComponent(linkedKey) });
-    await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(remoteTitle) + ')', 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
+    await chrome.waitFor("!!document.querySelector('[data-tab=\"items\"]') && typeof data === 'object' && !!data?.project", 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
+    // The pairing fragment is consumed before a person opens Items, whose tab address then becomes the page's own hash.
     await chrome.waitFor('location.hash === ""', 10_000); // budget: 10s hang ceiling for relay-fragment consumption after the board renders.
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
+    await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(remoteTitle) + ')', 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
 
     journeyPhase = 'pair-duplicate-board';
     journeyDeadline.setPhase(journeyPhase);
@@ -207,6 +210,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     await stopOrigins.leavePage();
     await chrome.send('Page.navigate', { url: JOURNEY_HOSTED + '/' });
     await chrome.waitFor("[...document.querySelectorAll('#proj-list .proj.repo')].some(row => row.textContent.includes('fixture/repository')) && [...document.querySelectorAll('#proj-list .proj.repo')].some(row => row.textContent.includes('local-machine-b')) && [...document.querySelectorAll('#proj-list .proj.repo')].some(row => row.textContent.includes('local-machine-c'))");
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     const localList = await (await fetchLive(localView.base + '/api/v1/boards', { headers: { 'x-pullboard-key': localView.key } })).json();
     const localId = localList.boards.find((board) => board.name === 'local-machine-b').id;
     const duplicateId = localList.boards.find((board) => board.name === 'local-machine-c').id;

@@ -15,7 +15,7 @@ import {
   test,
 } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../apps/lib/index.js";
+import { openCellBoard as openBoard } from "../../../test/cell-fixture.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 import { FIXTURE_MODEL } from "../../../test/e2e-helpers.js";
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
