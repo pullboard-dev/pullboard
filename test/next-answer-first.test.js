@@ -1,6 +1,7 @@
 /** `next` leads with its answer and keeps held queues readable [N2,C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
@@ -80,4 +81,32 @@ test('a returned red gate starts with the fix action [N2,C7]', async t => {
 
   assert.equal(result.code, 0, result.text);
   assert.match(first, new RegExp(`^red queued gate on #${id} A failed gate returns to its builder: GATE_RED:`,'u'));
+});
+
+/** Capture the actual next command's human output without acknowledging its inbox preview. */
+async function nextAnswerAt(box, cwd) {
+  let out = '', err = '';
+  const code = await main(['next', '--build'], { cwd, clock: box.clock,
+    stdout: { isTTY: false, write: part => { out += part; } },
+    stderr: { write: part => { err += part; } } });
+  return { code, text: `${out}${err}` };
+}
+
+test('clause 2: native next omits pre-join unread counts and reports genuine post-join mail [C7]', async t => {
+  const box = await fixture(t);
+  store.shout(box.board, { from: 'coordinator', to: 'all', text: 'history before the fresh seat joined' });
+  const path = join(box.root, '..', 'fresh-inbox-seat');
+  box.git(box.root, 'worktree', 'add', '-q', '-b', 'web/fresh-inbox-seat', path);
+  const seat = store.register(box.board, { lane: 'web', path, route: 'strong', family: 'Family Alpha', parent: 'fixture-fresh-inbox' });
+  store.heartbeatSeat(box.board, seat);
+  box.add('A real item for the new inbox seat');
+  const before = await nextAnswerAt(box, path);
+  assert.equal(before.code, 0, before.text);
+  assert.doesNotMatch(before.text, /\d+ unread messages?|history before the fresh seat joined/u);
+  store.shout(box.board, { from: 'coordinator', to: seat, text: 'new message after the join', lanes: Object.keys(box.config.lanes) });
+  const after = await nextAnswerAt(box, path);
+  assert.equal(after.code, 0, after.text);
+  assert.match(after.text, /1 unread message/u);
+  assert.match(after.text, /new message after the join/u);
+  assert.doesNotMatch(after.text, /history before the fresh seat joined/u);
 });
