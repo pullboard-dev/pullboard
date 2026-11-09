@@ -127,8 +127,28 @@ function fullGatePlan(state, owed = []) {
   return { config: { ...config, gate: command, [VALUE_GATE]: true }, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
-/** Bind each cached result to its exact full-gate or local-trunk guard plan. */
+/**
+ * Bind each cached result to its exact full-gate or local-trunk guard plan. A plan read with the board's own readers is
+ * kept on the state for its tree, base, items and focus, so a candidate's gate claim and its gate share one selection.
+ * Why: each selection walks every test's import closure, about 20 s on this repository, and a candidate made it twice
+ * before its gate started on 9 Nov [C7].
+ */
 export function batchGatePlan(state, options = {}) {
+  const key = Object.keys(options).every(name => name === 'focus') ? planKey(state, options.focus) : null;
+  if (key && state.plans?.has(key)) return state.plans.get(key);
+  const plan = choosePlan(state, options);
+  if (key) (state.plans ??= new Map()).set(key, plan);
+  return plan;
+}
+
+/** The key a kept plan is filed under, or null when the batch's tree cannot be read, so nothing is kept. */
+function planKey(state, focus) {
+  try { return JSON.stringify([headTree(state.batch.root), state.batch.base, state.batch.items.map(entry => [entry.id, entry.commit]), focus ?? null]); }
+  catch { return null; }
+}
+
+/** The plan batchGatePlan keeps: the selected plan, or the full gate for a per-item landing with no narrower plan. */
+function choosePlan(state, options) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
