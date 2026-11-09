@@ -7,7 +7,6 @@
     "packages/landing/src/core/landing-batch-history.js",
     "packages/merge/src/shell/train-mechanical-merge.js",
     "packages/person/src/shell/person-pairing-limit.js",
-    "packages/queue/core.js",
     "packages/state/src/core/engine-metadata.js",
     "src/affected-tests.js",
     "src/board-landing-lease.js",

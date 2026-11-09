@@ -296,7 +296,6 @@
     "packages/store/tests/stacked-submit.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/verdict-check.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/verify.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/verify/tests/queue-readiness-indexed.test.js": "imports packages/items/src/core/item-files.js, outside its own cell verify; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "test/accept-from-packet.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/accept-reuses-receipt.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/accepted-cells-identity-rebuild.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1208,7 +1207,8 @@
     "spec",
     "stats",
     "sync",
-    "transport"
+    "transport",
+    "verify"
   ],
   "splits": {}
 }
