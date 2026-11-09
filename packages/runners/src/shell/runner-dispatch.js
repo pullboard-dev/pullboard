@@ -9,6 +9,7 @@ import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
 import { readCleanupTimeoutDetails } from '../core/cleanup-diagnostics.js';
@@ -123,9 +124,16 @@ export async function runOnRunnerAsync(root, command, options) {
   child.on('error', caught => { error ??= caught; });
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
+  // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
+  const span = { startedAt: Date.now(), host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
-    return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ?? null });
+    return result;
+  } catch (failure) {
+    recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
+    throw failure;
   } finally { signal?.removeEventListener('abort', abort); }
   } finally { installation?.cleanup(); }
 }

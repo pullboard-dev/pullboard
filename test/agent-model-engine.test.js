@@ -3,7 +3,7 @@ import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 /** Declared models replay with their recorded engine and survive board exchange [O8,O3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
@@ -16,8 +16,8 @@ import {
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
 import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../packages/sentinels/index.js';
-import { RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
-import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
+import { RIGOR_NOTICE_ENGINE } from '../packages/store/index.js';
+import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { configProblems, defaults, loadConfig } from '../packages/config/index.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

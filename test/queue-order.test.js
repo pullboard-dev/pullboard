@@ -1,5 +1,5 @@
-import * as queueStore from '../src/board.js';
-import { roadmap, addMilestone, orderMilestoneItems } from '../src/board-milestones.js';
+import * as queueStore from '../packages/store/index.js';
+import { roadmap, addMilestone, orderMilestoneItems } from '../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 /** Local release completion and deterministic ordering boundaries [C7,V4]. */

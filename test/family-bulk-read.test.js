@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { fixtureBoard } from './board-fixture.js';
-import { derivedFamily, seatFamily, withDerivedFamilies } from '../src/family-declaration.js';
+import { derivedFamily } from '../packages/items/index.js';
+import { seatFamily } from '../packages/items/index.js';
+import { withDerivedFamilies } from '../packages/items/index.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 
 /** Seed historical rows without executing a registration whose modern guards would forbid that history. */

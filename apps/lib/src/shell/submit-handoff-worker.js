@@ -28,10 +28,15 @@ import {
   submitHandoffRoot,
   isSubmitHandoffWorker,
 } from '../../../../src/submit-handoff-origin.js';
-import { submitHandoff } from '../../../../src/submit-handoff-read.js';
+import { submitHandoff } from '../../../../packages/store/index.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { closeGateSpans } from '../../../../packages/resources/index.js';
+import { gateSpanCause } from '../../../../packages/resources/index.js';
+import { gateSpanFolder } from '../../../../packages/jobs/index.js';
+import { openGateSpans } from '../../../../packages/resources/index.js';
+import { recordGateSpan } from '../../../../packages/resources/index.js';
 import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
@@ -202,6 +207,8 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
     // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
     onInfrastructure: async rerun => {
+      const now = Date.now();
+      recordGateSpan({ phase: 'rerun', start: now, end: now, host: rerun.hosts[0], outcome: 'retry', cause: 'infra-retry', code: rerun.code });
       try {
         await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
           text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]));
@@ -400,6 +407,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
   let stalled = false;
+  let queuedAt = NaN;
   try {
     // A killed driver can leave this job's own checkout behind in an unknown state; the admitted driver discards it.
     if (existsSync(root)) discardGateCheckout(gateGit, request.commonDir, root);
@@ -412,9 +420,13 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
+    // Every phase this process runs records a span for the job, and gate-health reads them [C7].
+    openGateSpans({ folder: gateSpanFolder(request.commonDir), job: request.job, item: request.item });
+    queuedAt = Date.parse(job.at);
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
     // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
     if (!started.started && started.job?.state !== 'running') return;
+    if (started.started) recordGateSpan({ phase: 'queued', start: queuedAt, end: Date.parse(started.job?.startedAt) || Date.now() });
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     // The dispatcher admitted the drive job by its place in line; the captured request names what it drives.
@@ -429,7 +441,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     try {
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
-      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult });
+      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null } });
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
       stalled = last.job.steps.some(step => step.name === 'gate.stalled');
@@ -438,16 +450,24 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
     // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
     // A red gate stays with the seat that built it, in its item folder; only a driver that failed hands the claim back (#3796).
+    const resultStart = Date.now();
     if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result, { keepSeat: true });
     else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    const code = result.code === 0 ? null : result.error?.code ?? null;
+    recordGateSpan({ phase: 'result', start: resultStart, outcome: result.code === 0 ? 'ok' : 'failed', code });
+    recordGateSpan({ phase: 'gate', start: queuedAt, outcome: result.code === 0 ? 'green' : 'red', code });
     withBoard(ctx, board => finishJob(board.db, drive, owner));
     return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
     if (stopper.signal.aborted) return { stopped: true };
+    const resultStart = Date.now();
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
+    recordGateSpan({ phase: 'result', start: resultStart, outcome: 'failed', code: error?.code });
+    recordGateSpan({ phase: 'gate', start: queuedAt, outcome: 'error', cause: gateSpanCause(error), code: error?.code ?? error?.name });
     throw error;
   } finally {
+    closeGateSpans();
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }

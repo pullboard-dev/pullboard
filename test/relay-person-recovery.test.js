@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../packages/link/index.js';

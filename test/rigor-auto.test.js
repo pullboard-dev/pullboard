@@ -2,7 +2,7 @@
 import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -26,7 +26,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
-import { automaticDecisionSource, rigorDecisionKey } from '../src/board-rigor-auto-source.js';
+import { automaticDecisionSource, rigorDecisionKey } from '../packages/store/index.js';
 
 const roots = [];
 /** Bind real upper health providers for direct digest reads without changing their board snapshot. */

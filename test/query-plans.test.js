@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { submitFixture } from './board-submit-fixture.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { openBoardForRead } from '../apps/lib/index.js';
 import { healthReport } from '../packages/health/index.js';

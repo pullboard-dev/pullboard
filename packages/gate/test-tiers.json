@@ -8037,7 +8037,7 @@
       ]
     },
     {
-      "file": "test/attach-submit-eligibility.test.js",
+      "file": "packages/kernel/tests/attach-submit-eligibility.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8961,7 +8961,7 @@
       ]
     },
     {
-      "file": "test/board-in-memory.test.js",
+      "file": "packages/kernel/tests/board-in-memory.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9133,7 +9133,7 @@
       ]
     },
     {
-      "file": "test/board-lock-hold.test.js",
+      "file": "packages/verify/tests/board-lock-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11177,7 +11177,7 @@
       ]
     },
     {
-      "file": "test/check-proves-nothing.test.js",
+      "file": "packages/verify/tests/check-proves-nothing.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12313,7 +12313,7 @@
       ]
     },
     {
-      "file": "test/cockpit/activity-codegen.test.js",
+      "file": "apps/view/tests/cockpit/activity-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12476,7 +12476,7 @@
       ]
     },
     {
-      "file": "test/cockpit/activity-sentences.test.js",
+      "file": "apps/view/tests/cockpit/activity-sentences.test.js",
       "tier": "T3",
       "packages": [
         "apps/view"
@@ -12658,7 +12658,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agent-floor.test.js",
+      "file": "apps/view/tests/cockpit/agent-floor.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -12723,7 +12723,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agents-panel-codegen.test.js",
+      "file": "apps/view/tests/cockpit/agents-panel-codegen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12772,7 +12772,7 @@
       ]
     },
     {
-      "file": "test/cockpit/agents-panel-pure.test.js",
+      "file": "apps/view/tests/cockpit/agents-panel-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -12952,7 +12952,7 @@
       ]
     },
     {
-      "file": "test/cockpit/auxiliary-pure.test.js",
+      "file": "apps/view/tests/cockpit/auxiliary-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13017,7 +13017,7 @@
       ]
     },
     {
-      "file": "test/cockpit/claim-overlap-pure.test.js",
+      "file": "apps/view/tests/cockpit/claim-overlap-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -13351,7 +13351,7 @@
       ]
     },
     {
-      "file": "test/cockpit/dashboard-holds.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-holds.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13359,7 +13359,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/dashboard-model.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-model.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -13441,7 +13441,7 @@
       ]
     },
     {
-      "file": "test/cockpit/dashboard-runtime.test.js",
+      "file": "apps/view/tests/cockpit/dashboard-runtime.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -14166,7 +14166,7 @@
       ]
     },
     {
-      "file": "test/cockpit/group-pure.test.js",
+      "file": "apps/view/tests/cockpit/group-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -14174,7 +14174,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/home-capacity-pure.test.js",
+      "file": "apps/view/tests/cockpit/home-capacity-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -14858,7 +14858,7 @@
       ]
     },
     {
-      "file": "test/cockpit/lifecycle-chart-pure.test.js",
+      "file": "apps/view/tests/cockpit/lifecycle-chart-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -14980,7 +14980,7 @@
       ]
     },
     {
-      "file": "test/cockpit/live-headline.test.js",
+      "file": "apps/view/tests/cockpit/live-headline.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -15274,7 +15274,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-actions-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-actions-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -15294,7 +15294,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-focus-approval-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-focus-approval-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -15400,7 +15400,7 @@
       ]
     },
     {
-      "file": "test/cockpit/needs-revision-pure.test.js",
+      "file": "apps/view/tests/cockpit/needs-revision-pure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -17005,7 +17005,7 @@
       ]
     },
     {
-      "file": "test/cockpit/roadmap-pure.test.js",
+      "file": "apps/view/tests/cockpit/roadmap-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -17184,7 +17184,7 @@
       ]
     },
     {
-      "file": "test/cockpit/row-component-pure.test.js",
+      "file": "apps/view/tests/cockpit/row-component-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -17420,7 +17420,7 @@
       ]
     },
     {
-      "file": "test/cockpit/segmented-control-pure.test.js",
+      "file": "apps/view/tests/cockpit/segmented-control-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -18545,7 +18545,7 @@
       ]
     },
     {
-      "file": "test/cockpit/verdict-pure.test.js",
+      "file": "apps/view/tests/cockpit/verdict-pure.test.js",
       "tier": "T1",
       "packages": [
         "apps/view"
@@ -18553,7 +18553,7 @@
       "reasons": []
     },
     {
-      "file": "test/cockpit/view-pure.test.js",
+      "file": "apps/view/tests/cockpit/view-pure.test.js",
       "tier": "T3",
       "packages": [
         "apps/view",
@@ -21195,7 +21195,7 @@
       ]
     },
     {
-      "file": "test/flake-ratchet-busy-board.test.js",
+      "file": "packages/flakes/tests/flake-ratchet-busy-board.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22782,7 +22782,7 @@
       ]
     },
     {
-      "file": "test/handoff-urgent-first.test.js",
+      "file": "packages/kernel/tests/handoff-urgent-first.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -23725,7 +23725,7 @@
       ]
     },
     {
-      "file": "test/infra-code-set.test.js",
+      "file": "packages/store/tests/infra-code-set.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24467,7 +24467,7 @@
       ]
     },
     {
-      "file": "test/item-list-retained-claim.test.js",
+      "file": "packages/kernel/tests/item-list-retained-claim.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26410,7 +26410,7 @@
       ]
     },
     {
-      "file": "test/landing-adaptive-batch.test.js",
+      "file": "packages/store/tests/landing-adaptive-batch.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26851,7 +26851,7 @@
       ]
     },
     {
-      "file": "test/landing-bisect-base-red.test.js",
+      "file": "packages/store/tests/landing-bisect-base-red.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26908,7 +26908,7 @@
       ]
     },
     {
-      "file": "test/landing-bisects-unaccounted.test.js",
+      "file": "packages/store/tests/landing-bisects-unaccounted.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27349,7 +27349,7 @@
       ]
     },
     {
-      "file": "test/landing-history-plan.test.js",
+      "file": "packages/kernel/tests/landing-history-plan.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29478,7 +29478,7 @@
       ]
     },
     {
-      "file": "test/main-audit-attribution.test.js",
+      "file": "packages/gate/tests/main-audit-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29592,7 +29592,7 @@
       ]
     },
     {
-      "file": "test/main-audit-plain-commit.test.js",
+      "file": "packages/gate/tests/main-audit-plain-commit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30180,7 +30180,7 @@
       ]
     },
     {
-      "file": "test/merge-read-ports.test.js",
+      "file": "packages/kernel/tests/merge-read-ports.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30237,7 +30237,7 @@
       ]
     },
     {
-      "file": "test/merged-plan-check.test.js",
+      "file": "packages/git/tests/merged-plan-check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32245,7 +32245,7 @@
       ]
     },
     {
-      "file": "test/open-decisions-projection.test.js",
+      "file": "packages/kernel/tests/open-decisions-projection.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33182,7 +33182,7 @@
       ]
     },
     {
-      "file": "test/person-request.test.js",
+      "file": "packages/kernel/tests/person-request.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34747,7 +34747,7 @@
       ]
     },
     {
-      "file": "test/queue-settings-port.test.js",
+      "file": "packages/queue/tests/queue-settings-port.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37440,7 +37440,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-auth.test.js",
+      "file": "packages/state/tests/relay-machine-auth.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39004,7 +39004,7 @@
       ]
     },
     {
-      "file": "test/relay-storage-quota.test.js",
+      "file": "packages/state/tests/relay-storage-quota.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39236,7 +39236,7 @@
       ]
     },
     {
-      "file": "test/relay-version.test.js",
+      "file": "packages/state/tests/relay-version.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42430,7 +42430,7 @@
       ]
     },
     {
-      "file": "test/runner-capacity-read.test.js",
+      "file": "packages/config/tests/runner-capacity-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42923,7 +42923,7 @@
       ]
     },
     {
-      "file": "test/runner-history-bound.test.js",
+      "file": "packages/config/tests/runner-history-bound.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -45841,7 +45841,7 @@
       ]
     },
     {
-      "file": "test/seat-family-indexed.test.js",
+      "file": "packages/kernel/tests/seat-family-indexed.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46071,7 +46071,7 @@
       ]
     },
     {
-      "file": "test/selector-gap-verdict.test.js",
+      "file": "packages/kernel/tests/selector-gap-verdict.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51733,7 +51733,7 @@
       ]
     },
     {
-      "file": "test/timing-outcomes-accounting.test.js",
+      "file": "packages/gate/tests/timing-outcomes-accounting.test.js",
       "tier": "T3",
       "packages": [
         ".",

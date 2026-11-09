@@ -4,7 +4,7 @@ import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../
 /** Native view state against the sealed relay presentation, field by field [H5,H17]. Run it explicitly: the default gate skips *.study.js. */
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';

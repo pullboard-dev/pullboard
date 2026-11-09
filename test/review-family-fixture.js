@@ -1,6 +1,6 @@
 /** Unknown vendor registration and historical verdict snapshots keep separate review contracts [O2,O3,V4,H16]. */
 import assert from 'node:assert/strict';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
 
 /** Prove fresh refusal without writes, then preserve the predecessor's null-family native verdict. */

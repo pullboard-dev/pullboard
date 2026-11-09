@@ -10,7 +10,7 @@ import { copyPackageFiles } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readGateReceipt, receiptFields, receiptStore } from '../packages/gate/index.js';
-import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX, timingAccountingStages } from '../src/run-timing.js';
+import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX, timingAccountingStages } from '../packages/gate/index.js';
 import { RUN_TIMING_ENGINE } from '../src/run-timing-engine.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
@@ -20,7 +20,7 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import { COLLECTION_REPORT_PREFIX } from '../packages/gate/index.js';
 import { formatCollectionReport } from '../packages/gate/index.js';
 import { randomUUID } from 'node:crypto';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoardForRead, openBoard } from '../apps/lib/index.js';
 
 /** Keep a real installed runtime but give the fixture its own two-file committed test universe. */

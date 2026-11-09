@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { SEALED_SNAPSHOT_BYTES as RELAY_LIMIT, SNAPSHOT_BODY_BYTES as BODY_LIMIT } from '../packages/link/index.js';

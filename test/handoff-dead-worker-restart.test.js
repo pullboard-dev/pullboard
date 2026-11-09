@@ -9,6 +9,7 @@ import { createJob, takeJob, jobView } from '../packages/jobs/index.js';
 import { recordJobRow } from '../packages/drive/index.js';
 import { drainHandoffQueue, exitedWithoutResult, HANDOFF_SWEEP_EVERY_MS, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
 import { capturedLaunchUnseen, sweepOrder } from '../apps/cli/src/shell/submit-handoff.js';
+import { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from '../packages/resources/index.js';
 import { recordTicketSafely } from '../apps/lib/src/shell/submit-handoff-worker.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
@@ -103,4 +104,21 @@ test('a lease renewal that meets a locked board answers not held and the driver 
   assert.equal(recordTicketSafely(renew, () => recordJobRow(writer, renew)), true, 'the next tick renews once the board is free');
   assert.equal(jobView(writer, 'gate-drive:j1').leaseOwner, 'driver-1');
   writer.close();
+});
+
+test('a queued job keeps its place: a sweep reading another machine queue never calls it lost, and a lost place is re-placed once [C7]', () => {
+  const box = fixture();
+  try {
+    const directory = join(box.dir, 'jobs', 'queued');
+    mkdirSync(directory, { recursive: true });
+    recordHandoffQueue(directory);
+    assert.equal(queuedElsewhere(directory), false, 'the queue that holds the place may judge it');
+    const home = process.env.PULLBOARD_MACHINE_HOME;
+    process.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'other-home');
+    try { assert.equal(queuedElsewhere(directory), true, 'a dispatcher with another machine home cannot see this ticket, so it leaves the job alone'); }
+    finally { process.env.PULLBOARD_MACHINE_HOME = home; }
+    assert.equal(queuedElsewhere(join(box.dir, 'jobs', 'unrecorded')), false, 'a job from before the record is judged as before');
+    assert.equal(replaceLostTicketOnce(directory), true, 'the first loss re-places the ticket');
+    assert.equal(replaceLostTicketOnce(directory), false, 'a second loss is an infrastructure stop');
+  } finally { box.cleanup(); }
 });

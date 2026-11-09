@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import { personNeedsState } from '../apps/view/index.js';
 import {
   BLOCK_AUDIENCE,
