@@ -22,6 +22,8 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { closeCellBoard } from '../../../test/cell-fixture.js';
+import { openCellBoard } from '../../../test/cell-fixture.js';
 import { cellProject } from '../../../test/cell-fixture.js';
 import { repoInfo } from '../../git/index.js';
 import { listResources } from '../../resources/index.js';
@@ -111,6 +113,7 @@ function boardChild(source, board) {
 
 test('a board write lands in under 1 s past stale holder records, a long reader and a busy gate worker [C7]', { timeout: 60_000 }, async t => {
   const box = cellProject(t);
+  closeCellBoard(openCellBoard(box.boardFile));
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // Stale records like the 23 found on 9 Nov: dead writers, and a live pid whose start time is not the record's.
   const holders = board + '.write-holders';
