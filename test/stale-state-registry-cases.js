@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { MOVE_REGISTRY, minimumMoveEngine } from '../packages/moves/index.js';
 import { nativeBoardPorts } from '../apps/lib/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
+import { STALE_STATE_ENGINE } from '../packages/state/core.js';
 
 export const STALE_STATE_OPERATIONS = Object.freeze(['maintainStaleState']);
 export const STALE_STATE_STEPS = Object.freeze({

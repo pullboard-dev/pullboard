@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "wallMs": 200,
+  "modules": {
+    "next": 1674,
+    "show": 1415,
+    "claim": 1674,
+    "status": 1670,
+    "whoami": 1671,
+    "inbox": 1672
+  }
+}

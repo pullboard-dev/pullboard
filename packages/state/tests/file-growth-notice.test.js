@@ -11,7 +11,7 @@ import {
   prepareEngineMove,
 } from '../src/shell/engine.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
-import { FILE_GROWTH_NOTICE_ENGINE } from '../../../src/file-growth-notice-engine.js';
+import { FILE_GROWTH_NOTICE_ENGINE } from '../src/core/engines/file-growth-notice-engine.js';
 import {
   exportBoard,
   importBoard,

@@ -5,7 +5,7 @@ import * as store from '../packages/store/index.js';
 import * as outbox from '../packages/outbox/index.js';
 import { repoInfo } from '../packages/git/index.js';
 import { landAfterAcceptance } from '../apps/cli/index.js';
-import { scheduleAutomaticLanding, resumeAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
+import { scheduleAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
 import { readFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { join } from 'node:path';
 
@@ -46,28 +46,15 @@ const io = { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: 
   outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
   say() {}, err: console.error };
 const ctx = { info: repoInfo(root), io };
-let wakes = 0, authentications = 0;
+let wakes = 0;
 /** Capture the timer boundary while retaining the production durable queue and exact native due time. */
 const schedule = (project, due, worker) => scheduleAutomaticLanding(project, due, worker, {
   now: () => now,
   schedule: async () => { wakes++; },
 });
 await landAfterAcceptance(ctx, { schedule });
-assert.equal(wakes, 1);
-assert.equal(observe(board => store.getItem(board, Number(item))).item_merged_commit, null);
-const file = join(automaticLandingDirectory(root), 'pending.json');
-const job = JSON.parse(readFileSync(file, 'utf8'));
-now = Date.parse(job.dueAt);
-await resumeAutomaticLanding(root, 'fixture-authenticated-wake', job.dueAt, async () => landAfterAcceptance(ctx, { schedule }), {
-  wait: async () => { authentications++; return true; },
-});
-assert.equal(authentications, 1);
-if (observe(board => store.getItem(board, Number(item))).item_merged_commit) {
-  assert.equal(wakes, 1, 'a mature native worker completes without another timer');
-  assert.equal(existsSync(file), false);
-} else {
-  assert.equal(wakes, 2, 'a still-deferred native worker queues a fresh wake');
-  assert.notEqual(JSON.parse(readFileSync(file, 'utf8')).id, job.id);
-}
+// A landing the automatic lander starts after an accept never waits on the cadence (360988c63f), so no wake is queued.
+assert.equal(wakes, 0);
+assert.ok(observe(board => store.getItem(board, Number(item))).item_merged_commit, 'the second acceptance lands at once, inside the cadence');
 
 }

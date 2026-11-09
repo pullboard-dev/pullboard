@@ -142,6 +142,7 @@ Work
   pullboard sentinel run [--health-only]  run due approved watches, or only scan board health
   pullboard sentinel decline <name> --reason "<why>"   person: prevent future runs
   pullboard sentinels                   approvals, owners and the last result; does not run checks
+  pullboard waits [record]              every hold, wait, queue and process against its budget; record reclaims and files
   pullboard loop declare <name> --every 10m --owner <seat or lane>   coordinator: declare a recurring job's cadence
   pullboard loop ran <name>             record that a recurring job just ran; health flags one silent for 1.5 cadences
   pullboard loop                        list the recurring jobs and their last runs
@@ -183,6 +184,9 @@ Work
                                         one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
+                                        in an agent seat it queues on the board and returns at once with a run id;
+                                        the result comes back through pullboard next; --wait blocks
+  pullboard test --status <run id>      print a queued test run's state once
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -267,7 +271,7 @@ Coordinator
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason "why"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
-  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
+  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3] [--forced "<why>"]  record verified work with its native batch receipt; --forced records hand-landed work as landed without a verify
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
@@ -318,10 +322,15 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
+  pullboard ledger --since 2h [--item <id>]
+                                        pipeline ledger: time per hop (p50, p90, sum, share), runner and coordinator
+                                        compute, agent minutes and tokens per role and model, per landing; --json
   pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
+  pullboard gate-health [--since 2h]    queued gates in the window: count, total p50/p90, time per phase,
+                                        top failure causes with hosts, and the 10 slowest with their dominant phase; --json
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default
@@ -390,7 +399,7 @@ Lifecycle, read from src/machine.js
 
 
 Additional commands
-  pullboard heartbeat                 record this seat's local session activity; no board move
+  pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard seats                     current seat states and local 24-hour timing ledger
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives
@@ -398,6 +407,7 @@ Additional commands
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
+  pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.

@@ -7,8 +7,8 @@ import { loadMachineSettings } from '../../../config/index.js';
 import {
   environmentLabel,
   executionEnvironment,
-  sameEnvironment,
 } from '../../../sandbox/src/shell/execution-environment.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Check one machine's own choice; a board policy never opts another machine in. */

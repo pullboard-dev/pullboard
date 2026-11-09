@@ -11,21 +11,21 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
-import { cleanGitEnvironment } from '../src/git.js';
+import { cleanGitEnvironment } from '../packages/git/index.js';
 import { conflictFiles } from '../packages/health/index.js';
 import { recordedTrunkMerge, trunkMerge } from '../packages/merge/index.js';
 import { resolveMechanicalMerge } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { json } from './land-board-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../packages/landing/index.js';
 import { withRecordedConflictContext } from '../packages/state/index.js';
 import { reopen as reopenMove } from '../packages/moves/index.js';
-import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { MECHANICAL_MERGE_ENGINE } from '../packages/state/core.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 
 console.log('# MECHANICAL_RUNTIME ' + JSON.stringify({ node: process.version, execPath: process.execPath,
   platform: process.platform, arch: process.arch, host: hostname(), binarySha256: createHash('sha256').update(readFileSync(nodeExecutable)).digest('hex') }));

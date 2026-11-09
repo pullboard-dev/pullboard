@@ -6,15 +6,15 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { itemPatchRecords } from '../packages/items/index.js';
 import { itemPatchAuthors } from '../packages/items/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { PATCH_FOLLOW_ENGINE } from '../src/patch-follow-engine.js';
+import { PATCH_FOLLOW_ENGINE } from '../packages/state/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Require the real CLI result, preserving setup refusal diagnostics. */

@@ -94,7 +94,7 @@ test('clause 1: an agent grant narrows at claim and expires identically on indep
 });
 
 test('clause 1: an agent grant narrows at claim without changing old receipts or permitting an old-engine bypass [E21,H16]', async t => {
-  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../src/agent-grant-engine.js');
+  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../src/core/engines/agent-grant-engine.js');
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-01T00:00:00.000Z') };
   const boards = ['legacy-authority.sqlite', 'legacy-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock));
@@ -345,7 +345,7 @@ test('clause 1: an agent grant narrows at claim but any joined seat can append a
 
 /** The activation boundary is an ordered engine prefix, not a client opening the database. */
 test('clause 1: an agent grant narrows at claim after the recorded engine high-water mark [E21,H16]', async t => {
-  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../src/agent-grant-engine.js');
+  const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../src/core/engines/agent-grant-engine.js');
   const box = helpers.project();
   const directory = join(box.dir, 'actual-pre-grant-writer');
   mkdirSync(directory);

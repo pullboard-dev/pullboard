@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { MOVE_REGISTRY, minimumMoveEngine } from '../packages/moves/index.js';
 import { nativeBoardPorts } from '../apps/lib/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
+import { TYPED_REQUESTS_ENGINE } from '../packages/state/core.js';
 export const TYPED_REQUEST_OPERATIONS=Object.freeze(['fileTypedRequest','answerTypedRequests']);
 export const TYPED_REQUEST_STEPS=Object.freeze({
   "BAD_TYPED_REQUEST": "use request reopen|hold|withdraw|reroute <id> --cause <key>, or request answer <ids> done|declined",

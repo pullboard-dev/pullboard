@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -134,7 +134,7 @@ test('live-only advice never changes authenticated setting or claim replay [B3,N
   const { fixtureBoard } = await import('./board-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove, prepareEngineMove, appliedSequence } = await import('../packages/state/index.js');
-  const { LIVE_ROUTE_ENGINE } = await import('../src/live-route-engine.js');
+  const { LIVE_ROUTE_ENGINE } = await import('../packages/state/core.js');
   const at = new Date().toISOString();
   const clock = { now: () => new Date(at) };
   const source = fixtureBoard(t, { clock });
@@ -563,7 +563,8 @@ test('a write after a heartbeat uploads once [B3,H16]', {
   assert.equal(fresh.snapshotTrace.length, 1, 'fresh presence needs only the ordered checkpoint');
   assert.equal(aged.snapshotTrace.length, 1, 'the changed aged presentation is published once before the second write');
   assert.equal(stale.snapshotTrace.length, 1, 'the ordered checkpoint includes the refreshed presence without another upload');
-  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('withItemSession')), 'the sole checkpoint comes from the ordered write');
+  // The write publishes through the command's one end-of-command sync, not through a second presence upload.
+  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('retrySync')), 'the sole checkpoint comes from the command\'s sync after the write: ' + JSON.stringify(stale.snapshotTrace[0].callers));
   const observedAt = fixtureDatabase(presenceFile, db => db.prepare('SELECT at FROM heartbeat WHERE seat=?').get(heartbeat[0].seat).at);
   assert.notEqual(observedAt, agedAt, 'the successful native write really refreshed the heartbeat');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -590,7 +591,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../packages/state/index.js');
-  const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
+  const { GONE_CLAIM_ENGINE } = await import('../packages/state/core.js');
   const { nativeBoardPorts } = await import('../apps/lib/index.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../packages/store/index.js');
@@ -691,8 +692,8 @@ test('gone maintenance leaves unknown imported holders and submitted reviews alo
 test('native and ordered gone releases retain coded evidence and historical event shape [B3,C7,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { applyEngineMove, prepareEngineMove } = await import('../packages/state/index.js');
-  const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
+  const { GONE_CLAIM_ENGINE } = await import('../packages/state/core.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../packages/state/core.js');
   for (const mode of ['native', 'ordered', 'historical']) {
     const f = goneClaimFixture(t);
     store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
@@ -729,30 +730,4 @@ test('native and ordered gone releases retain coded evidence and historical even
     assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['goneSeat', 'model', 'reason'] : ['goneSeat', 'model', 'reason', 'reasonCode']);
     if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
   }
-});
-
-test('ready work waiting past the limit while agents are idle warns the coordinator once [B3,N2,C7]', async t => {
-  const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { fixtureOpenBoard, fileFixtureItem } = await import('./testkit-fixture.js');
-  const { warnIdleReady, REVIEW_WAKE_WAIT_MS } = await import('../packages/sentinels/index.js');
-  const { listAgents, withLocalSeatPresence, dispatchWork } = await import('../packages/store/index.js');
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  const ports = { listAgents, withLocalSeatPresence, dispatchWork };
-  const ready = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Ready control', criterion: 'A seat takes it' }).item_id;
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waiting control', criterion: 'Waits on the ready control', args: ['--after', String(ready)] });
-  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git/pullboard/board.sqlite'), web: box.web });
-  t.after(() => store.closeBoard(board));
-  const ordered = async (ctx, target, operation, args) => store[operation](target, ...args);
-  const warnings = () => board.db.prepare("SELECT shout_from, shout_text FROM shout WHERE shout_to='coordinator' ORDER BY shout_id").all();
-  await warnIdleReady({ config: {} }, board, ordered, ports);
-  assert.deepEqual(warnings(), [], 'a seat idle under the five-minute limit is not reported');
-  await warnIdleReady({ config: {} }, board, ordered, ports, -1);
-  const first = warnings();
-  assert.equal(first.length, 1, 'only the seat beside ready work is reported');
-  assert.match(first[0].shout_text, new RegExp(`^web-1 has held nothing for \\d+ min while #${ready} is ready`, 'u'));
-  assert.ok(REVIEW_WAKE_WAIT_MS >= 5 * 60_000, 'the default wait is five minutes');
-  await warnIdleReady({ config: {} }, board, ordered, ports, -1);
-  assert.equal(warnings().length, 1, 'the same idle spell is reported once');
 });

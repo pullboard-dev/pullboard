@@ -10,12 +10,12 @@ import { checkLoosening } from '../packages/doctrine/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, draftSpecRow, recordRowVerification } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
+import { SPEC_VERDICT_ENGINE } from '../packages/state/core.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -27,7 +27,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
 import { preCommitProblems } from '../packages/commits/index.js';
-import { standardDoctrine } from '../src/doctrine.js';
+import { standardDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { requireRelayOnChannel } from '../packages/person/index.js';
 import { RECORDED_GENERIC_NEXT } from '../packages/state/index.js';
@@ -387,9 +387,11 @@ function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practi
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_HOME: join(root, '.home'),
-    PULLBOARD_MACHINE_HOME: join(root, '.home'),
+    // Beside the repo, not in it: the board write log lives in the machine home and must not dirty the committed tree.
+    PULLBOARD_HOME: `${root}-home`,
+    PULLBOARD_MACHINE_HOME: `${root}-home`,
   };
+  t.after(() => rmSync(`${root}-home`, { recursive: true, force: true }));
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
@@ -881,16 +883,17 @@ test('spec unmet and signoff do not create a board when reading a repo without o
   const box = specBox(t);
   const boardDir = join(box.root, '.git', 'pullboard');
   rmSync(boardDir, { recursive: true, force: true });
-  assert.equal(existsSync(boardDir), false);
+  const boardFile = join(boardDir, 'board.sqlite');
+  assert.equal(existsSync(boardFile), false);
 
   const unmet = box.run('unmet');
   assert.equal(unmet.status, 0, unmet.stderr);
-  assert.equal(existsSync(boardDir), false);
+  assert.equal(existsSync(boardFile), false, 'only the run trace may appear beside a missing board (faad62a688)');
 
   const signoff = box.run('signoff', 'G1', '--by', 'CO');
   assert.equal(signoff.status, 1);
   assert.match(signoff.stderr, /NO_EVIDENCE/);
-  assert.equal(existsSync(boardDir), false);
+  assert.equal(existsSync(boardFile), false, 'only the run trace may appear beside a missing board (faad62a688)');
 });
 
 test('signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', (t) => {
@@ -904,7 +907,10 @@ test('signoff refuses missing evidence atomically, and unmet shows every stage t
   assert.equal(added.status, 0, added.stderr);
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— building/);
   assert.equal(box.command('claim', '1').status, 0);
-  const submitted = box.command('submit', '1');
+  // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
+  writeFileSync(join(box.root, 'greeting.txt'), 'hello\n');
+  box.git('add', 'greeting.txt'); box.git('commit', '-q', '-m', 'chore: add the greeting [G1]');
+  const submitted = box.command('submit', '1', '--wait', '--no-next');
   assert.equal(submitted.status, 0, submitted.stderr);
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— awaiting a verdict/);
   const made = box.command('worktree', 'review');

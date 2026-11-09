@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** Process composition has explicit app ownership; ordinary libraries keep their real edges [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,6 +23,8 @@ import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
 import { fixtureBoard } from './board-fixture.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
@@ -153,7 +156,9 @@ function acceptedEntry(t, { declared = false } = {}) {
 }
 
 /** Run the real trusted controller over immutable commits, without trusting the placement writer. */
-function inspectEntry(value) {
+async function inspectEntry(value) {
+  // The accepted-main inventory is produced by a background job on a runner; the test produces its own (a test never waits on one).
+  await warmAcceptedCells(value.root, value.main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: value.main });
   git(value.root, 'add', '-A');
   git(value.root, 'commit', '-q', '--allow-empty', '-m', 'candidate process ownership');
   return requireSubmitCells(value.root, value.main, git(value.root, 'rev-parse', 'HEAD').trim(),
@@ -199,13 +204,12 @@ test('clause 1: main\'s committed plan places every process entry, bin/main-red-
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });
 
-test('clause 1: the plan places src/infra-release-engine.js and src/main-red-focus-engine.js as canonical engine stays [C7]', () => {
+test('clause 1: infra-release and main-red-focus engines live in the state engines folder, with no src/ stay left [C7,V4]', () => {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
   const plan = readPlan(root);
-  for (const path of ['src/infra-release-engine.js', 'src/main-red-focus-engine.js']) {
-    const stay = plan.stays.find(entry => entry.path === path);
-    assert.ok(stay, path);
-    assert.match(stay.reason, /canonical feature engine identity/u);
+  for (const name of ['infra-release-engine.js', 'main-red-focus-engine.js']) {
+    assert.ok(existsSync(join(root, 'packages/state/src/core/engines', name)), name);
+    assert.equal(plan.stays.some(entry => entry.path === `src/${name}`), false, `no stay row names src/${name}`);
   }
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });

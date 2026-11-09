@@ -51,7 +51,7 @@ test('a second copy of the worker front door keeps its own process state, not th
 
 /** Existing review authority follows every moved runner body [C7]. */
 test('runner move preserves strict review for every strict planned source [C7]', () => {
-  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/40-app-runner.json', import.meta.url), 'utf8'));
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/46-app-runner.json', import.meta.url), 'utf8'));
   const strict = plan.paths.filter(([old]) => gateJudgmentPath(old));
   assert.ok(strict.length > 0, 'the plan includes existing strict paths');
   for (const [old, moved] of strict) assert.equal(gateJudgmentPath(moved), true, old);

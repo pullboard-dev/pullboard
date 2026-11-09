@@ -1,9 +1,9 @@
 /** Exercise native binding and replay only with a real runGate receipt supplied by the actual audit fixture [C7,H16]. */
 import assert from 'node:assert/strict';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages/state/index.js';
-import { MAIN_AUDIT_ENGINE } from '../src/main-audit-engine.js';
+import { MAIN_AUDIT_ENGINE } from '../packages/state/core.js';
 import { getItem } from '../packages/store/index.js';
-import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
+import { recordLandingTestDefect } from '../packages/store/index.js';
 import { gateRuns, recordGateRun } from '../packages/flakes/index.js';
 
 /** Caller supplies two native boards with the same genuinely recorded landing history, plus the real stored run. */

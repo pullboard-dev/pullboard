@@ -10,8 +10,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -84,7 +85,8 @@ test('[V1,B3] verdicts record independent assurance only for recorded different 
       assert.equal(store.verdictsFor(box.board, procedural.id)[0].assurance, 'procedural', 'later parent enrollment cannot upgrade an old verdict');
     }
   }
-  const historical = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true });
+  // Authors are the committed authors from the two-tier review engine on; an earlier claimant counts only before it.
+  const historical = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true, engine: REVIEW_INDEPENDENCE_ENGINE - 1 });
   assert.equal(store.verdictsFor(box.board, historical.id)[0].assurance, 'procedural', 'an earlier unknown author still limits assurance');
   const legacy = accepted(box, 'parent-P', 'parent-Q', { engine: 80 });
   assert.equal(store.verdictsFor(box.board, legacy.id)[0].assurance, 'procedural', 'old verdicts never invent parent assurance');
@@ -101,4 +103,14 @@ test('[V1,B3] verdicts record independent assurance only for recorded different 
     stderr: { write: part => { stderr += part; } } });
   assert.equal(code, 0, stderr);
   assert.match(stdout, /assurance: independent/u);
+});
+
+test('[V1,B3] at the current engine an earlier claimant who committed nothing does not limit assurance, and a committed author does', async (t) => {
+  const box = fixture(t);
+  const claimedOnly = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true });
+  assert.equal(store.verdictsFor(box.board, claimedOnly.id)[0].assurance, 'independent',
+    'an earlier unknown claimant that submitted no commit is not an author');
+  const committedUnknown = accepted(box, undefined, 'parent-Q');
+  assert.equal(store.verdictsFor(box.board, committedUnknown.id)[0].assurance, 'procedural',
+    'the committed author with no recorded parent still limits assurance');
 });

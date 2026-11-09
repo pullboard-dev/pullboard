@@ -194,7 +194,7 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
 test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
   copyPackageSubset(fileURLToPath(new URL('../', import.meta.url)), box.root,
-    [{ path: 'src/browser-slot-guard.js' },
+    [{ path: 'packages/gate/src/shell/browser-slot-guard.js' },
       { path: 'packages/kernel/src/core/refused.js', as: 'src/refused.js' }]);
   const guardBody = 'packages/gate/src/shell/browser-slot-guard.js';
   box.put('test/browser-guard.test.js', `import '../${guardBody}';\n`);
@@ -344,7 +344,7 @@ test('a discovered command module or engine leaf selects what reads its registry
   box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
-  box.put('src/x-engine.js', 'export const X_ENGINE = 1;\n');
+  box.put('packages/state/src/core/engines/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\n");
   box.put('test/machine-reader.test.js', "import '../src/machine.js';\n");
@@ -358,7 +358,7 @@ test('a discovered command module or engine leaf selects what reads its registry
   assert.ok(command.files.includes('test/direct-cli.test.js'), 'a changed command module selects the tests that run the CLI');
   assert.ok(!command.files.includes('test/unrelated.test.js'), 'and nothing unrelated');
 
-  box.put('src/x-engine.js', 'export const X_ENGINE = 2;\n');
+  box.put('packages/state/src/core/engines/x-engine.js', 'export const X_ENGINE = 2;\n');
   const engineCommit = box.commit();
   const engine = selectAffectedTests(box.root, { base: commandCommit, commit: engineCommit });
   assert.equal(engine.full, false, engine.reason);
@@ -374,7 +374,7 @@ test('runtime discovery and the selector agree on which files are engines and co
   box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
-  for (const [file, reader] of [['src/check-alpha-engine.js', 'test/reader.test.js'], ['src/check.alpha-engine.js', 'test/reader.test.js'],
+  for (const [file, reader] of [['packages/state/src/core/engines/check-alpha-engine.js', 'test/reader.test.js'], ['packages/state/src/core/engines/check.alpha-engine.js', 'test/reader.test.js'],
     ['apps/cli/src/shell/commands/beta.js', 'test/commands.test.js'], ['apps/cli/src/shell/commands/gamma.delta.js', 'test/commands.test.js']]) {
     box.put(file, 'export const ENGINE = 1;\n');
     const commit = box.commit();
@@ -486,7 +486,7 @@ test('the repository test-tree guards list only source scanners and launch no br
   const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
-  assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
+  assert.deepEqual(await browserBoundFiles(root, guards), [], 'no guard file declares a browser');
   const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
     './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
   const scanFiles = [

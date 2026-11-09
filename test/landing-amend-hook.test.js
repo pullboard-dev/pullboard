@@ -22,11 +22,12 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   box.env.PULLBOARD_MODEL = 'Landing hook fixture';
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/'])];
+  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/', 'packages/state/src/core/engines/'])];
   config.landing = { ...config.landing, parallel: false, publish: 'separate' };
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   for (const name of ['src', 'docs', 'web']) mkdirSync(join(box.repo, name), { recursive: true });
-  writeFileSync(join(box.repo, 'src/base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
+  mkdirSync(join(box.repo, 'packages/state/src/core/engines'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/state/src/core/engines/base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
   writeFileSync(join(box.repo, 'docs/formats.md'), '| Format | Version |\n| --- | --- |\n| `move engine` | `80` | fixture |\n');
   box.git(box.repo, 'add', '-A');
   const configured = box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: configure hook fixture');
@@ -34,7 +35,8 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   box.git(box.repo, 'push', '-q', 'origin', 'main');
 
   const entry = itemWorktree(box, 1, 'web/land-1.test.js');
-  writeFileSync(join(entry.path, 'src/alpha-engine.js'), unlandedEngine('alpha'));
+  mkdirSync(join(entry.path, 'packages/state/src/core/engines'), { recursive: true });
+  writeFileSync(join(entry.path, 'packages/state/src/core/engines/alpha-engine.js'), unlandedEngine('alpha'));
   submitItem(box, entry);
   acceptItem(box, entry);
 
@@ -54,7 +56,7 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   const item = JSON.parse(shown.out);
   assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', item.item_merged_commit).split(' ').length, 3,
     'the automatic engine amendment remains inside the landed merge');
-  assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:src/alpha-engine.js`), /ALPHA_ENGINE = 81;/u,
+  assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:packages/state/src/core/engines/alpha-engine.js`), /ALPHA_ENGINE = 81;/u,
     "the installed commit-msg hook allowed the landing's verified item trailer");
   assert.match(box.git(box.repo, 'show', `${item.item_merged_commit}:docs/formats.md`), /`move engine` \| `81`/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), item.item_merged_commit, 'the amended merge reaches actual main');

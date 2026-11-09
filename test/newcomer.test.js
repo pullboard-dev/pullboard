@@ -10,7 +10,7 @@ import {
   bindLocalSession,
   CHECKOUT_SESSION_TOKEN_ENV,
 } from '../packages/seats/index.js';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 

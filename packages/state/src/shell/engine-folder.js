@@ -1,4 +1,4 @@
-/** Keep engine identities outside moving cells until per-package engines are decided [C7]. */
+/** Keep every engine identity in the one engines folder of the state cell, one leaf per engine [C7,V4]. */
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -7,6 +7,11 @@ import { posix } from 'node:path';
 import { lex } from '../../../kernel/index.js';
 
 import { engineBindings } from "../core/engine-declarations.js";
+
+/** The one folder engine leaves live in; a leaf anywhere else, or a declaration outside it and src/, is refused. */
+const ENGINE_FOLDER = 'packages/state/src/core/engines';
+/** A path where an engine may be declared: a leaf in the engines folder, or a legacy src/ module that still holds constants. */
+const HOME = new RegExp(`^(?:src|${ENGINE_FOLDER})/[^/]+\\.[cm]?js$`, 'u');
 
 /** Name reserved engine declarations in source, excluding filenames and imported re-exports. */
 export function engineDeclarationNames(source) {
@@ -21,7 +26,7 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
   if (rows.length !== 1) return false;
   const { code, strings } = lex(rows[0].source);
   const declarations = engineBindings(code);
-  if (file === 'src/exit-rules-engine.js') {
+  if (file === `${ENGINE_FOLDER}/exit-rules-engine.js`) {
     return declarations.some(binding => binding[0] === 'EXIT_RULES_ENGINE')
       && /\bexport\s+const\s+EXIT_RULES_ENGINE\s*=/u.test(code);
   }
@@ -40,18 +45,26 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
   return targets.length === 1 && stateExitRuleExport(sources, targets[0], seen);
 }
 
-/** Trust only the state's exact named forwarding of an existing canonical root declaration. */
+/** The state cell's two front doors, either of which may forward an engine leaf. */
+const STATE_DOORS = new Set(['packages/state/index.js', 'packages/state/core.js']);
+
+/** Trust only the state front doors' exact named forwarding of an existing canonical leaf declaration. */
 function stateEngineExports(sources) {
-  const entries = sources.filter(row => row.file === 'packages/state/index.js');
-  if (entries.length !== 1) return new Set();
-  const { code, strings } = lex(entries[0].source), names = new Set();
+  const names = new Set();
+  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) for (const name of doorEngineExports(sources, entry.source)) names.add(name);
+  return names;
+}
+
+/** The engine names one state front door forwards straight from a leaf that declares them. */
+function doorEngineExports(sources, source) {
+  const { code, strings } = lex(source), names = new Set();
   const literals = new Map(strings.map(literal => [literal.start, literal.text]));
   for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
     const end = list.index + list[0].length, from = /^\s*from\b\s*/u.exec(code.slice(end));
     const target = from ? literals.get(end + from[0].length) : null;
     if (!target || !/^\.{1,2}\//u.test(target) || target.includes('\\')) continue;
     const file = posix.normalize(posix.join('packages/state', target));
-    if (!/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
+    if (!HOME.test(file)) continue;
     const definitions = sources.filter(row => row.file === file);
     if (definitions.length !== 1) continue;
     const canonical = lex(definitions[0].source).code;
@@ -68,7 +81,7 @@ export function engineFolderViolations(sources) {
   const problems = [], stateExports = stateEngineExports(sources);
   for (const { file, source } of sources) {
     if (!/^(?:src|packages|apps)\//u.test(file)) continue;
-    if (/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
+    if (HOME.test(file)) continue;
     const { code, strings } = lex(source);
     const literals = new Map(strings.map(literal => [literal.start, literal.text]));
     const declarations = engineBindings(code);
@@ -78,12 +91,12 @@ export function engineFolderViolations(sources) {
       const from = /^\s*from\b\s*/u.exec(code.slice(end));
       const target = from ? literals.get(end + from[0].length) : null;
       if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
-        && /^src\/[^/]+\.[cm]?js$/u.test(posix.normalize(posix.join(posix.dirname(file), target)))) continue;
+        && HOME.test(posix.normalize(posix.join(posix.dirname(file), target)))) continue;
       for (const entry of list[1].split(',')) {
         const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
         if (!exported || declared.has(exported[1])) continue;
         if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
-          && posix.normalize(posix.join(posix.dirname(file), target)) === 'packages/state/index.js'
+          && STATE_DOORS.has(posix.normalize(posix.join(posix.dirname(file), target)))
           && entry.trim() === exported[1] && stateExports.has(exported[1])) continue;
         if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
           && entry.trim() === 'EXIT_RULES_ENGINE'
@@ -94,9 +107,9 @@ export function engineFolderViolations(sources) {
     }
     if (declarations.length) {
       for (const match of declarations) problems.push({ file, line: code.slice(0, match.index).split('\n').length,
-        text: `${match[0]} must stay in src/ with the engine leaves; move the feature without its engine declaration` });
+        text: `${match[0]} must be declared in its own leaf in ${ENGINE_FOLDER}; move the feature without its engine declaration` });
     } else if (/-engine\.js$/u.test(file)) {
-      problems.push({ file, line: 1, text: 'engine leaves must stay directly in src/; move the feature without its engine leaf' });
+      problems.push({ file, line: 1, text: `engine leaves live directly in ${ENGINE_FOLDER}; move the feature without its engine leaf` });
     }
   }
   return problems;

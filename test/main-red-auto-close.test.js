@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
 import { fixtureProjectPolicy } from './testkit-fixture.js';
-import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
+import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/src/core/native-board.js';
 import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck, withAuditedMain } from '../packages/gate/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
 import { repoInfo } from '../packages/git/index.js';

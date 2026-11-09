@@ -1,33 +1,31 @@
-import { REVIEW_REQUEST_ENGINE } from '../../../../../src/review-request-engine.js';
-import {
-  frozenBar,
-  namedClause,
-  wording,
-} from '../../../../verify/src/core/frozen-clause.js';
-import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
-import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
-import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
+import { REVIEW_REQUEST_ENGINE } from '../../../../state/core.js';
+import { frozenBar } from '../../../../verify/index.js';
+import { namedClause } from '../../../../verify/index.js';
+import { wording } from '../../../../verify/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../state/core.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/core.js';
+import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
 import { checkTimingEngine } from "../../../../items/core.js";
-import { REJECT_CLAUSE_ENGINE } from "../../../../../src/reject-clause-engine.js";
-import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.js";
-import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
-import { ITEM_PATCH_ENGINE } from "../../../../../src/item-patch-engine.js";
-import { requiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
-import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../../src/review-head-builder-family-engine.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
+import { REJECT_CLAUSE_ENGINE } from "../../../../state/core.js";
+import { SOURCE_ADVANCE_ENGINE } from "../../../../state/core.js";
+import { itemReviewPolicyEngine } from "../../../../verify/index.js";
+import { ITEM_PATCH_ENGINE } from "../../../../state/core.js";
+import { requiredReviewFamilyEngine } from "../../../../verify/index.js";
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/core.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   CAUSE_ENGINE,
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERDICT_REVIEW_ENGINE,
 } from "../../../../../src/engine-metadata.js";
-import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";
-import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
+import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";
+import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { IMPLIES_ENGINE } from "../../../../../src/move-engine-constants.js";
 import { carriesImplies } from "../../../../state/src/core/move-implies.js";
-import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.js";
+import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/core.js";
 import { outsideSource } from "../../../../items/core.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

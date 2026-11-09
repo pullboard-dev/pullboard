@@ -52,11 +52,9 @@ test('conflict shim preserves the accepted main move closure and the broad index
     return sources.get(file);
   };
   const identities = new Map([...readPathMap(ROOT)].map(([old, moved]) => [moved, old]));
-  const movedExport = "export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';";
-  assert.ok(read(MOVED).includes(movedExport), 'the moved body re-exports the same engine leaf');
-  const before = closure(file => file === MOVED ? read(MOVED).replace(movedExport, 'export { CONFLICT_ENGINE };') : read(file), identities);
-  const after = closure(read, identities);
-  assert.deepEqual(after, before, 'the exact moved body adds no dependency or native capability');
+  // The conflict engine is passed in by its store caller, so merge never imports the state cell and no cell cycle forms [R27].
+  assert.ok(!importsIn([read(MOVED)])[0].some(specifier => /(?:^|\/)state\//u.test(specifier)), 'the moved conflict body imports nothing from the state cell');
+  const before = closure(read, identities);
   assert.ok(!importsIn([read(MOVED)])[0].includes('node:child_process'), 'the moved conflict body itself imports no process launcher');
   const broad = closure(file => file === MOVED
     ? "export * from '../../index.js';\n" : read(file), identities);

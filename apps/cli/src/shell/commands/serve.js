@@ -1,5 +1,10 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../cli-context.js';
+import { openBoard } from '../../../../lib/index.js';
+import { openBoardForRead } from '../../../../lib/index.js';
+import { loadKeyedResult } from '../../../../../packages/pin/index.js';
+import { saveKeyedResult } from '../../../../../packages/pin/index.js';
+import { savedKeyedResults } from '../../../../../packages/pin/index.js';
 /** The pullboard serve command, in its own module so an item adding another command never edits these lines. */
 import {
   serveApi,
@@ -42,7 +47,7 @@ export async function serveHere(io, values) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   traceServeStartup('serve-listen-start');
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
-    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
+    settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url });
   traceServeStartup('serve-listen-ready');
   io.result?.({ url: api.url, port: api.port });
   io.say(`Pullboard API v1: ${api.url}`);
@@ -56,6 +61,16 @@ export async function serveHere(io, values) {
   });
   await api.close();
   return 0;
+}
+
+/**
+ * The ports the state worker builds with, the view's projections and the native board openers, and the store it
+ * saves board snapshots in, the pin cell's keyed results; composed inside the worker thread, which cannot be handed
+ * functions from the request thread [A2,C7].
+ */
+export function boardStatePorts() {
+  return { viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead },
+    snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
 }
 
 /** Run `pullboard serve` and return its exit code. */

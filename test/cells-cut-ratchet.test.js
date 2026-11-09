@@ -1,4 +1,4 @@
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -16,6 +16,8 @@ import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
@@ -23,9 +25,13 @@ import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 
 /** Bind the real controller services, as submit does. */
-const requireSubmitCells = (root, main, commit, item, readCutItems = () => acceptedCutItems(root, main)) => preflight(root, main, commit, item,
-  { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems,
-    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+const requireSubmitCells = async (root, main, commit, item, readCutItems = () => acceptedCutItems(root, main)) => {
+  // The accepted-main inventory is produced by a background job on a runner; the test produces its own (a test never waits on one).
+  await warmAcceptedCells(root, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: main });
+  return preflight(root, main, commit, item,
+    { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems,
+      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+};
 
 /** Commit a planned fixture with its real lint baseline, so main is a clean accepted snapshot. */
 function plannedFixture(t, prepare = () => {}) {
@@ -134,15 +140,16 @@ test('landed front-door enforcement does not mistake older upward debt for an un
     /stats imports lower kernel past its front door .*src\/stats.js -> src\/refused.js/u);
 });
 
-test('existing cut debt is reported without refusing an unchanged candidate [C7,D3]', async t => {
+test('existing cut debt does not refuse an unchanged candidate [C7,D3]', async t => {
   const box = plannedFixture(t);
   const result = await requireSubmitCells(box.root, box.main, box.main, box.item, () => []);
   assert.deepEqual(result.problems, []);
-  // A touched file retains the same older edge, so it appears as debt rather than a new refusal.
+  // A touched file retains the same older edge: it is no new refusal, and submit no longer lists the accepted backlog
+  // (it belongs to the main audit: 7a6b37bef3, cutDeltaProblems).
   box.put('src/board.js', "import { Refused } from './refused.js'; import { claims } from './claims.js'; export const board = () => [Refused, claims, 2];\n");
   const changed = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => []);
   assert.deepEqual(changed.problems, []);
-  assert.ok(changed.existingCuts.some(row => /store still imports later items: src\/board.js -> src\/claims.js/u.test(row)), 'the actual existing upward edge is reported');
+  assert.deepEqual(changed.existingCuts, [], 'the accepted cut backlog is left to the main audit, not listed on every submit');
 });
 
 test('current main cannot conceal a candidate new edge that was absent at its actual merge base [C7,D3]', async t => {

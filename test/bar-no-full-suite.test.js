@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { openBoard } from '../apps/lib/index.js';
 import { listItems, setItem, closeBoard, editItem } from '../packages/store/index.js';
 import { checkPerItemCriterion } from '../packages/items/index.js';
-import { PER_ITEM_FULL_SUITE_ENGINE } from '../src/per-item-full-suite-engine.js';
+import { PER_ITEM_FULL_SUITE_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';

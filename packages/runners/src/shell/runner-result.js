@@ -1,6 +1,6 @@
 /** Authenticate a runner receipt and its complete output before trusting any remote status [C7]. */
 import { environmentProblem } from '../../../config/index.js';
-import { testRuntimeRows } from '../../../sandbox/src/shell/execution-environment.js';
+import { testRuntimeRows } from '../../../verify/core.js';
 import { RunnerDropped } from '../../../gate/src/core/gate-policy-load.js';
 import { gateStages } from '../../../gate/src/shell/gate-stages.js';
 import { readStages } from '../../../gate/src/shell/gate-stages.js';

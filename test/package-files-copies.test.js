@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
+import { workerBundleBytes } from '../packages/runners/src/shell/runner-package.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
@@ -239,7 +240,7 @@ test('a computed runner copy follows a new packages import without a hand-kept l
   assert.equal(result.stdout.trim(), '42', 'the installed worker really loads the newly reached package');
 });
 
-test('runner closure refuses the named unshipped import and the unchanged transfer bound [C7,P3]', t => {
+test('runner closure refuses the named unshipped import, and a closure past 1 MiB raw is returned whole for the capsule bound and the raw ratchet to judge (#4140) [C7,P3]', t => {
   const f = fixture(t, ['src']);
   f.write('src/runner-worker.js', "import '../packages/leaf/src/value.js';\n");
   assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES'
@@ -256,8 +257,7 @@ test('runner closure refuses the named unshipped import and the unchanged transf
       && error.message.includes('src/runner-worker.js') && error.message.includes('CommonJS'));
   }
   f.write('src/runner-worker.js', `export const large = ${JSON.stringify('x'.repeat(1_048_576))};\n`);
-  assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES'
-    && error.message.includes('src/runner-worker.js') && error.message.includes('1 MiB'));
+  assert.ok(Buffer.byteLength(JSON.stringify(runnerPackage(f.root).files)) > 1_048_576, 'the raw size is measured, not refused, here');
 });
 
 test('runner installation rejects a correctly hashed escaping path without writing outside its capsule [C7,P3]', t => {
@@ -403,7 +403,7 @@ function controllerFixture(t) {
 test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
   const { installed } = controllerFixture(t);
   const loaded = captureRunnerTooling(installed);
-  const unrelated = join(installed, 'src/check-timing-engine.js');
+  const unrelated = join(installed, 'packages/state/src/core/engines/check-timing-engine.js');
   writeFileSync(unrelated, readFileSync(unrelated, 'utf8') + '\n// unrelated private generation\n');
   assert.deepEqual(currentRunnerTooling(installed, loaded), runnerPackage(installed),
     'an unrelated shipped file is not part of this controller generation');
@@ -519,7 +519,7 @@ test('runner closure byte accounting preserves escaped bytes without growing-obj
   assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('leaves package.json files'),'existing line-separator path refusal is preserved');
 });
 
-test('runner closure preserves the exact JSON byte transfer boundary for ASCII and Unicode [C7,P3]', t => {
+test('the worker bundle size the raw ratchet records is the exact JSON byte count for ASCII and Unicode (#4140) [C7,P3]', t => {
   for(const unicode of [false,true]) {
     const f=fixture(t,['src']);
     f.write('src/entry.js',"import './payload.txt';\n");
@@ -528,9 +528,9 @@ test('runner closure preserves the exact JSON byte transfer boundary for ASCII a
     const exact=prefix+'x'.repeat(1_048_576-bytes(prefix));
     assert.equal(bytes(exact),1_048_576);
     f.write('src/payload.txt',exact);
-    assert.equal(Buffer.byteLength(JSON.stringify(runnerPackage(f.root,'src/entry.js').files)),1_048_576);
+    assert.equal(workerBundleBytes(f.root,'src/entry.js'),1_048_576);
     f.write('src/payload.txt',exact+'x');
-    assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('1 MiB'));
+    assert.equal(workerBundleBytes(f.root,'src/entry.js'),1_048_577,'one more byte is measured as one more byte');
   }
 });
 

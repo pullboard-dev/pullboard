@@ -6,6 +6,9 @@ import { blockedPaths } from '../../../commits/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
+import { loadKeyedResult } from './runner-keyed-store.js';
+import { saveKeyedResult } from './runner-keyed-store.js';
+import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
@@ -48,8 +51,59 @@ export function sourceGit(root, args, options = {}) {
   return result.stdout;
 }
 
-/** Scan every current blob and the commit message before any source bytes leave the controller. */
+/** The tooling export manifest a controller runs from; its tree names the scanner rules that made a verdict. */
+const TOOLING_MANIFEST = fileURLToPath(new URL('../../../../.pullboard-runner-source.json', import.meta.url));
+let toolingTree;
+
+/**
+ * The tree of the committed tooling this process runs, or null when it runs from no export. Why: a cached scan verdict
+ * holds only for the rules that made it, and an export's tree names those rules exactly.
+ */
+function scannerTree() {
+  if (toolingTree === undefined) {
+    try { toolingTree = JSON.parse(readFileSync(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(toolingTree ?? '')) toolingTree = null;
+  }
+  return toolingTree;
+}
+
+/**
+ * Answer a clean scan from its saved verdict, or run it and save a clean answer. A verdict is keyed by the immutable
+ * objects it read, the scanner's tooling tree and `parts`; a refusal is never saved, so it is thrown again by the scan.
+ * Why: every runner dispatch rescanned every current blob and walked every tag with five Git calls each, about 4 s
+ * when idle and far more at load, though one commit's answer never changes (9 Nov) [C7].
+ *
+ * @param {string} kind
+ * @param {unknown[]} parts - What the verdict depends on beyond the scanner.
+ * @param {() => any} scan - Returns a JSON value.
+ * @returns {any}
+ */
+export function cachedScan(kind, parts, scan) {
+  const tree = scannerTree();
+  if (!tree) return scan();
+  const folder = join(process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard'), 'source-scan');
+  const key = JSON.stringify([kind, tree, ...parts]);
+  try {
+    const saved = loadKeyedResult(folder, key);
+    if (saved) {
+      const entry = JSON.parse(saved.toString('utf8'));
+      if (entry?.key === key) return entry.value;
+    }
+  } catch { /* An unreadable verdict only costs this scan its shortcut. */ }
+  const value = scan();
+  try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
+  catch { /* An unwritable cache only costs the next scan its shortcut. */ }
+  return value;
+}
+
+/** Scan every current blob and the commit message before any source bytes leave the controller; a clean commit's verdict is kept (cachedScan). */
 export function sourceObjects(root, source) {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '')) return scanSourceObjects(root, source);
+  return cachedScan('source-objects', [source.commit, source.protect ?? null], () => scanSourceObjects(root, source));
+}
+
+/** Scan every current blob and the commit message before any source bytes leave the controller. */
+function scanSourceObjects(root, source) {
   const records = sourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', source.commit]).split('\0').filter(Boolean);
   // Protection is pinned to the admitted commit, never a concurrently edited working file.
   const configRecord = records.find(record => record.endsWith('\tpullboard.json'));

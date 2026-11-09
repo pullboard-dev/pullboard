@@ -14,5 +14,7 @@
   "test/privacy-words.test.js": "packages/sandbox/tests/privacy-words.test.js",
   "test/trunk.test.js": "packages/sandbox/tests/trunk.test.js",
   "test/trusted-policy-ancestry.test.js": "packages/sandbox/tests/trusted-policy-ancestry.test.js",
-  "test/trusted-policy.test.js": "packages/sandbox/tests/trusted-policy.test.js"
+  "test/trusted-policy.test.js": "packages/sandbox/tests/trusted-policy.test.js",
+  "src/submit-handoff-origin.js": "packages/sandbox/src/shell/submit-handoff-origin.js",
+  "src/submit-handoff-seal.js": "packages/sandbox/src/shell/submit-handoff-seal.js"
 }

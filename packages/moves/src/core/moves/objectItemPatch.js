@@ -1,4 +1,4 @@
-import { ITEM_PATCH_AUTO_ENGINE } from "../../../../../src/item-patch-auto-engine.js";
+import { ITEM_PATCH_AUTO_ENGINE } from "../../../../state/core.js";
 
 /** Objections require the engine that understands the automatic companion lifecycle. */
 function minimumEngine() { return ITEM_PATCH_AUTO_ENGINE; }

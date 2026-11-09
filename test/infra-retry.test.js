@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
@@ -13,8 +13,7 @@ import { deadlineRetrySource, lateTransportRetrySource } from './infra-retry-sou
 
 /** Build a private runner pool with no configured host or relay connection. */
 function fixture(t) {
-  const e2e = createE2eHelpers(); t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'infra-retry-bin'), worker = join(box.dir, 'infra-retry-worker');
   const home = join(box.dir, 'infra-retry-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });

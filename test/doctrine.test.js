@@ -7,7 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { packText } from '../packages/runners/index.js';
-import { doctrineText, loadDoctrine, standardDoctrine, STANDARD_VERSION } from '../src/doctrine.js';
+import { doctrineText } from '../packages/doctrine/src/shell/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
+import { standardDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
+import { STANDARD_VERSION } from '../packages/doctrine/src/shell/doctrine.js';
 import { lintSpec, parseSpec } from '../packages/spec/index.js';
 import { renderSpecView } from '../apps/view/index.js';
 

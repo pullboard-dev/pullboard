@@ -204,15 +204,50 @@ function sharedPolicy(file) {
     || file === 'bin/cell-lint-transition.json';
 }
 
+/** The plan's own settings, without its per-cell rows, so a row edit is told apart from a global one. */
+function planSettings(plan) {
+  const { cells, files, tests, ...settings } = plan ?? {};
+  return JSON.stringify(settings);
+}
+
+/**
+ * Split the changed policy files into the cells they name and a reason to recheck everything.
+ * A cell's own plan shard, path-map shard or baseline shard, and an index edit that only adds, removes or edits
+ * cell rows, name just those cells; any other shared file, or an index edit that names no row, still means all
+ * cells, so an unknown policy file always fails safe.
+ *
+ * Why: 12 of the 21 slow cells steps on 8 Nov rechecked every cell for a one-row policy edit.
+ *
+ * @returns {{ all: string|undefined, cells: Set<string> }}
+ */
+function policyScope(files, plans) {
+  const [before, after] = plans, cells = new Set(), names = new Map((after?.cells ?? []).map(cell => [cell.name, cell]));
+  const rows = plan => new Map((plan?.cells ?? []).map(cell => [cell.name, JSON.stringify(cell)]));
+  const oldRows = rows(before), newRows = rows(after);
+  const changedRows = [...newRows].filter(([name, row]) => oldRows.get(name) !== row).map(([name]) => name);
+  const settingsSame = planSettings(before) === planSettings(after);
+  for (const file of files) {
+    if (plans.some(plan => plan.stays?.some(row => row.path === file))) return { all: file, cells };
+    if (!sharedPolicy(file)) continue;
+    if (file === 'bin/cells-plan.json' && settingsSame && changedRows.length) { for (const name of changedRows) cells.add(name); continue; }
+    const keyed = /^(?:bin\/cells-plan\/path-map|bin\/cell-lint-baselines\/cells)\/([a-z][a-z0-9-]*)\.json$/u.exec(file)?.[1];
+    const own = [...names.values()].find(cell => shardFile(cell) === file || keyed !== undefined && cell.name.replace(':', '-') === keyed);
+    if (own) { cells.add(own.name); continue; }
+    return { all: file, cells };
+  }
+  return { all: undefined, cells };
+}
+
 function allCellsReason(files, plans) {
-  return files.find(file => sharedPolicy(file) || plans.some(plan => plan.stays?.some(row => row.path === file)));
+  return policyScope(files, plans).all;
 }
 
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
   // Shared metadata or an unowned root-tool stay can alter every reachable cell.
-  if (allCellsReason(files, plans)) {
+  const scope = policyScope(files, plans);
+  if (scope.all) {
     return after.cells.map(cell => cell.name);
   }
   const byPath = new Map();
@@ -223,7 +258,7 @@ export function touchedCells(files, before, after, inventories) {
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
-  const touched = new Set(files.flatMap(owners));
+  const touched = new Set([...files.flatMap(owners), ...scope.cells]);
   const selected = new Set(touched);
   // A cut follows pure re-export shims across cell boundaries. Treat the effective
   // importer through those shims as direct; never traverse a real implementation.
@@ -369,6 +404,28 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
 }
 
+/**
+ * Run one side's cut check, turning a plan the cut tooling cannot read into a CELLS_SUBMIT refusal that names the side
+ * and the error. Why: on 9 Nov #3689 renumbered the cell order and importCuts threw "cut links must name an earlier
+ * importing cell"; the uncaught throw killed the remote analysis and every section came back RUNNER_RESULT_INVALID, a
+ * machine fault, when the candidate's own plan was the problem.
+ *
+ * @template T
+ * @param {'candidate' | 'accepted main'} side
+ * @param {string} cell
+ * @param {() => T} check
+ * @returns {T}
+ */
+export function readableCuts(side, cell, check) {
+  try { return check(); }
+  catch (error) {
+    if (error instanceof Refused) throw error;
+    throw new Refused('CELLS_SUBMIT', `the ${side} cells plan cannot be cut-checked for ${cell}: ${error?.message ?? error}; ${side === 'candidate'
+      ? 'make every cut link in bin/cells-plan name an importing cell ordered before its target (renumber the cuts with the cells), then commit the plan'
+      : 'accepted main\'s cells plan is inconsistent; tell the coordinator, who repairs main\'s plan'}`);
+  }
+}
+
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
 function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {}, collectBacklog = false }) {
   if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [], later: [] };
@@ -389,7 +446,7 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
       oldCuts = [...cached];
       onCellObservation('base-reused', name);
     } else {
-      oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+      oldCuts = previous ? readableCuts('accepted main', name, () => checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory })) : [];
       if (previous && cacheEligible?.() && observations instanceof Map && observations.size < 32768) {
         const bytes = Buffer.byteLength(cacheKey) + Buffer.byteLength(JSON.stringify(oldCuts));
         if (bytes <= 1024 * 1024) observations.set(cacheKey, { value: [...oldCuts], bytes });
@@ -399,7 +456,7 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
     // The full accepted cut backlog belongs to the main audit, not every submit.
     if (collectBacklog) existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
-    const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
+    const newCuts = readableCuts('candidate', name, () => checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory }));
     for (const problem of additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
       newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))) {
       const edge = / still imports later [\w:-]+: ([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
@@ -407,9 +464,9 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
         warning: warning(edge[1], importLine(sourceRoot, edge[1], edge[2]), `${name} --cuts: ${problem}`, 'import a lower cell or take a port') });
       else problems.push(`${name} --cuts: ${problem}; import a lower cell or take a port`);
     }
-    const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
+    const oldDoors = previous ? readableCuts('accepted main', name, () => frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory })) : new Map();
     const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
-    for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
+    for (const [key, text] of readableCuts('candidate', name, () => frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory }))) {
       if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
     }
   }

@@ -1,6 +1,6 @@
 /** Empty-next observations use the existing authenticated ordered protocol [R2,N2]. */
-import { NEXT_IDLE_ENGINE } from "../../../../../src/next-idle-engine.js";
-import { FOCUS_BOUNDARY_ENGINE } from '../../../../../src/focus-boundary-engine.js';
+import { NEXT_IDLE_ENGINE } from "../../../../state/core.js";
+import { FOCUS_BOUNDARY_ENGINE } from '../../../../state/core.js';
 /** Older replicas must not silently omit a prospective observation. */
 function minimumEngine(args) { return args[0]?.reason === 'focus' ? FOCUS_BOUNDARY_ENGINE : NEXT_IDLE_ENGINE; }
 /** Bind the observation to its authenticated native actor. */

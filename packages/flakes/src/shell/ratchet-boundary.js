@@ -1,7 +1,7 @@
 /** Where the landing flake ratchet starts counting, shared by the ratchet and quarantine backfill [C7,D1]. */
 import { flakePairs } from '../core/flake-ratchet.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { QUARANTINE_BACKFILL_ENGINE } from '../../../../src/quarantine-backfill-engine.js';
+import { QUARANTINE_BACKFILL_ENGINE } from '../../../state/core.js';
 
 /** The last landed batch or merged ratchet receipt, its recorded snapshot, and the event its pairs count after [C7]. */
 export function ratchetBoundary(board) {

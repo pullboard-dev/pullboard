@@ -8,9 +8,6 @@ export {
   testRuntimeOption,
   bindTestRuntime,
   captureTestRuntimes,
-  sameEnvironment,
-  testRuntimeRows,
-  testRuntimeEnvironment,
 } from './src/shell/execution-environment.js';
 export {
   mainRedBuildOffer,
@@ -72,3 +69,5 @@ export {
 } from './src/shell/trusted-policy.js';
 export { regenerateToolChange } from './src/shell/tool-regeneration.js';
 export { spawnCaptured } from './src/shell/captured-child.js';
+export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from './src/shell/submit-handoff-origin.js';
+export { sealSubmitHandoffQueue } from './src/shell/submit-handoff-seal.js';

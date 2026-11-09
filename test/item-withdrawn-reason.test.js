@@ -1,14 +1,14 @@
 /** Withdrawal facts survive capped activity feeds in the shared native projection [A2,C15,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { projectItemState } from '../packages/api/index.js';
 import { itemSummary } from '../packages/items/index.js';
 import { withdrawnFrom } from '../packages/items/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
-import { openBoard } from '../apps/lib/index.js';
-import { closeBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
+import { closeBoard } from '../apps/lib/src/core/native-board.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
