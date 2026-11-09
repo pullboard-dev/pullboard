@@ -156,6 +156,9 @@ test('[B29,B31,N29] a decision reaches the items it implies', () => {
 test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superseding fact tells the items; unknown ids are refused by name', () => {
   const box = fixture();
   box.json(box.web, 'claim', '1');
+  // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit first.
+  writeFileSync(join(box.web, 'web', 'shared.txt'), 'draft\n');
+  runFixtureGit(['commit', '-q', '-am', 'feat: the fixture draft [G1]'], { cwd: box.web, env: box.env });
   box.json(box.web, 'submit', '1', '--no-next');
   const review = box.json(box.repo, 'worktree', 'web', '--route', 'strong').path;
   box.json(review, 'next', '--verify');
