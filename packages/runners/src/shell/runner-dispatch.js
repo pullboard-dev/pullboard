@@ -265,6 +265,28 @@ export function startupDeadline(options, startedAt) {
   return Math.max(options.runnerWaitDeadline, startedAt + options.runnerStartupMs);
 }
 
+/** How long a gate's run may execute after READY with no result when its request names no timeout of its own. */
+export const RUN_CEILING_MS = 20 * 60_000;
+
+/**
+ * The longest this run may execute after READY before the controller ends it as hung, or null when the run carries
+ * its own timeout (a landing or trusted check) or is a main comparison, whose files may legitimately run longer.
+ * PULLBOARD_RUNNER_RUN_CEILING_MS overrides the ceiling; 0 turns it off.
+ * Why: a gate's item check had no run budget, so a hanging test held #2828's gate and its runner slot for 55 minutes
+ * and other gates' for 9 and 11 hours, its heartbeats keeping every watch satisfied (9 Nov) [C7].
+ *
+ * @param {{ timeoutMs?: number, trustedMode?: { timeoutMs?: number }, landing?: boolean, kind?: string }} spec
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number|null}
+ */
+export function runCeilingMs(spec, env = process.env) {
+  if (spec.timeoutMs || spec.trustedMode?.timeoutMs || spec.landing === true || spec.kind === 'main-red') return null;
+  const configured = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
+  if (configured === undefined || configured === '') return RUN_CEILING_MS;
+  const ms = Number(configured);
+  return Number.isSafeInteger(ms) && ms > 0 ? ms : null;
+}
+
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
@@ -275,7 +297,7 @@ async function runInController(root, command, options, ports) {
   const deadline = ports.controllerCustody;
   deadline?.job?.(request.spec.recovery);
   let removeAbort = () => {};
-  let runnerWaitTimer;
+  let runnerWaitTimer, runCeilingTimer;
   let jobWatch, heartbeatWatch, transport, receiptSeen = false, receiptTimer;
   const jobCancellation = new AbortController();
   let rawFd = null;
@@ -370,6 +392,14 @@ async function runInController(root, command, options, ports) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
         if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
           mark('ready'); heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
+          const ceiling = runCeilingMs(request.spec);
+          if (ceiling !== null) runCeilingTimer = setTimeout(() => {
+            if (receiptSeen || error) return;
+            const last = Buffer.concat(output).toString('utf8').trimEnd().split('\n').slice(-5).join('\n').slice(-600);
+            error = new Refused('RUNNER_RUN_TIMEOUT', `the run on ${request.runner.host} passed its ${Math.round(ceiling / 60_000)}-minute ceiling with no result, so a test hangs; it was stopped and is not retried. Its last output:\n${last || '(none)'}\nFind the hanging test, make it finish, commit, and submit again`);
+            error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'run-ceiling').diagnostic;
+            transport.stop();
+          }, ceiling);
           try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
           catch (failure) { error ??= failure; abort(); }
         }
@@ -427,7 +457,7 @@ async function runInController(root, command, options, ports) {
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally {
-    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
   }
 }
