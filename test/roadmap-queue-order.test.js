@@ -1,9 +1,9 @@
 /** The roadmap lists a milestone's open items in pullboard queue order, with queue positions [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone, orderMilestoneItems, roadmap } from '../src/board-milestones.js';
+import { addMilestone, orderMilestoneItems, roadmap } from '../packages/store/index.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { workQueue } from '../packages/items/index.js';

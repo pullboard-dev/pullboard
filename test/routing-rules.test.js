@@ -8,7 +8,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { RELEASE_REASONS } from '../src/release-reasons.js';
+import { RELEASE_REASONS } from '../packages/store/index.js';
 import { effectiveAgentParent } from '../packages/seats/index.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
 import { applyEngineMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
