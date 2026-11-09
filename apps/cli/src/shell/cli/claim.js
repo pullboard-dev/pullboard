@@ -1,5 +1,5 @@
 import { seatAt } from '../item-folder-identity.js';
-import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
+import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
