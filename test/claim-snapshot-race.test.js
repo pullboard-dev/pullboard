@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
 import { context } from '../apps/cli/index.js';
 import { writeBoardCommand } from '../packages/store/index.js';

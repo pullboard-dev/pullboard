@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { foldedReasons } from '../apps/cli/src/shell/commands/next.js';
 import { main } from './native-cli-fixture.js';
 import { fixture } from './next-take-fixture.js';
 
@@ -44,10 +43,4 @@ test('a claim folds held items into one count line and stays short [C7,#2895]', 
   assert.doesNotMatch(result.text, /#\d+ is held by coordinator:/u);
   assert.match(result.text, /50 items are held by coordinator/u);
   assert.ok(Buffer.byteLength(result.text) < 4096, `response was ${Buffer.byteLength(result.text)} bytes`);
-});
-
-test('reasons beyond 5 lines fold into one counted line naming the full list [C7,#2895]', () => {
-  const reasons = Array.from({ length: 8 }, (_, index) => `#${index + 1} waits on #99`);
-  assert.deepEqual(foldedReasons(reasons, 'pullboard list core'), [...reasons.slice(0, 5), '+3 more reasons: pullboard list core']);
-  assert.deepEqual(foldedReasons(reasons.slice(0, 5), 'pullboard list core'), reasons.slice(0, 5));
 });

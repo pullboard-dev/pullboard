@@ -7,13 +7,15 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each sandbox's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Return the named workflow job's block so assertions apply to each job independently. */
 function job(name) {
@@ -84,7 +86,7 @@ function contributorWorkflows() {
 test('the named DCO check runs for pull requests [I1]', contributorWorkflows);
 
 test('a pull request with an unsigned commit fails DCO and a signed replacement passes [I1]', (t) => {
-  const box = e2e.sandbox();
+  const box = cellSandbox(owner);
   const repo = join(box.dir, 'dco-workflow');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
@@ -162,7 +164,7 @@ function dcoWorkflowFixture(box) {
 }
 
 test('DCO rejects unsigned PR and push commits even when the contribution replaces its checker [I1]', () => {
-  const box = e2e.sandbox();
+  const box = cellSandbox(owner);
   box.env.GIT_AUTHOR_NAME = 'Maintainer';
   box.env.GIT_AUTHOR_EMAIL = 'maintainer@example.test';
   const { repo, base, check } = dcoWorkflowFixture(box);

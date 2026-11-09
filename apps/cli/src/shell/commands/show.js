@@ -17,7 +17,7 @@ import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,
   testRuntimeRows,
-} from '../../../../../packages/sandbox/index.js';
+} from '../../../../../packages/verify/core.js';
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,

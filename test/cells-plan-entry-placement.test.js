@@ -23,6 +23,8 @@ import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
 import { fixtureBoard } from './board-fixture.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
@@ -154,7 +156,9 @@ function acceptedEntry(t, { declared = false } = {}) {
 }
 
 /** Run the real trusted controller over immutable commits, without trusting the placement writer. */
-function inspectEntry(value) {
+async function inspectEntry(value) {
+  // The accepted-main inventory is produced by a background job on a runner; the test produces its own (a test never waits on one).
+  await warmAcceptedCells(value.root, value.main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: value.main });
   git(value.root, 'add', '-A');
   git(value.root, 'commit', '-q', '--allow-empty', '-m', 'candidate process ownership');
   return requireSubmitCells(value.root, value.main, git(value.root, 'rev-parse', 'HEAD').trim(),

@@ -20,7 +20,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main as cli } from './native-cli-fixture.js';
 import { digestOf, testConcurrency } from '../packages/gate/index.js';
 import { runGate } from '../packages/gate/index.js';

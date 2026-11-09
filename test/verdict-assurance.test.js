@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';

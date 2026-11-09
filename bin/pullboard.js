@@ -83,6 +83,14 @@ if (handed !== null) process.exit(handed);
 const resident = await (await import('./resident-client.js')).runResident(process.argv.slice(2));
 if (resident !== null) process.exitCode = resident;
 else {
+  // Mark this command as the outermost live pullboard for every child it starts, unless a live outer one already
+  // did: a pullboard test under a gate, check or landing then blocks and returns its real exit code [C7].
+  const outer = Number(process.env.PULLBOARD_CLI_PID);
+  let outerAlive = false;
+  if (Number.isSafeInteger(outer) && outer > 0 && outer !== process.pid) {
+    try { process.kill(outer, 0); outerAlive = true; } catch (error) { outerAlive = error?.code === 'EPERM'; }
+  }
+  if (!outerAlive) process.env.PULLBOARD_CLI_PID = String(process.pid);
   const { main } = await import('../apps/cli/src/shell/cli-main.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
   process.exitCode = await main(process.argv.slice(2), {

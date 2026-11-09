@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { setDriverUnstarted } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { cleanupToolSnapshot } from '../apps/lib/src/shell/submit-handoff-worker.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { HANDOFF_DISPATCHER_RESOURCE, handoffQueueDirectory, takeResource } from '../packages/resources/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

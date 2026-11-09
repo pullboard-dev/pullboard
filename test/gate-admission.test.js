@@ -241,8 +241,8 @@ test('busy parent', async () => {
 });
 
 test('an async parent lends its token through awaitNestedRun [C7]', async (t) => {
-  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
-  const api = await import('../src/test-file-pool.js');
+  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const api = await import('../packages/gate/index.js');
   assert.equal(typeof api.awaitNestedRun, 'function', 'an explicit yielding-wait helper is available');
   const { root, env, log } = fixture(t, 1);
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
@@ -303,7 +303,7 @@ test('parent without the explicit wait', { timeout: 10_000 }, async (t) => {
 
 test('an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
+  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
   writeFileSync(join(root, 'parent.test.js'), `import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -348,7 +348,7 @@ test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
 
 test('async offers preserve spawn argument overloads and Node validation [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
+  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
   const probe = join(root, 'options.sh');
   const marker = join(root, 'options-output');
   writeFileSync(probe, String.raw`#!/bin/sh
@@ -437,7 +437,7 @@ test('offered spawn matches independently loaded Node', async () => {
 
 test('an async loan whose cleanup fails exits without resuming its parent [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
+  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 test('borrowed child', async () => {

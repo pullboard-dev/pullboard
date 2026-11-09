@@ -19,7 +19,8 @@ function document(result) {
 async function seat(box, root, environment, name, cli) {
   const path = join(root, '..', name);
   runFixtureGit(['worktree', 'add', '--detach', path, 'main'], { cwd: root, env: environment });
-  const joined = document(await cli(path, 'join', box.lane, '--model', 'fixture-agent'));
+  // The fixture's open item is unrouted, so strong; its seats join strong to claim it.
+  const joined = document(await cli(path, 'join', box.lane, '--model', 'fixture-agent', '--route', 'strong'));
   return { path, id: joined.agent };
 }
 

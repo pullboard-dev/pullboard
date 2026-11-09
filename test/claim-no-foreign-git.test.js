@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { recordedClaimWorktrees } from '../packages/activity/index.js';
 import { sweepClaims } from '../packages/health/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

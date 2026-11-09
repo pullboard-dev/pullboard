@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob, jobView, takeJob, writeStep, LEASE_MS } from '../packages/jobs/index.js';
 import { DISPATCHER_JOB, reclaimPass } from '../packages/drive/index.js';
 

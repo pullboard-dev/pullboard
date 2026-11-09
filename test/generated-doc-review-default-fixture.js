@@ -1,5 +1,5 @@
 /** Exercise the migration's actual event for the format manifest, without claiming gate evidence [A5,V4,H16]. */
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { board_ensureCoordinator as ensureCoordinator } from '../packages/store/index.js';
 import { register } from '../packages/store/index.js';
 import { addItem } from '../packages/store/index.js';

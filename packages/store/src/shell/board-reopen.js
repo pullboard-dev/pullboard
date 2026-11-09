@@ -5,7 +5,7 @@ import { requireBoardWriteSnapshot } from "./board-write-preparation.js";
 import { verdictWithdrawalTarget } from "../../../verify/index.js";
 import { sourceAdvanceReturnProblem } from "../core/source-advance-return.js";
 import { reopenAuthority } from "../../../items/index.js";
-import * as verdictWithdrawal from "../../../verify/src/shell/verdict-withdrawal.js";
+import { checkOptions } from "../../../verify/index.js";
 import { current } from "./board-query.js";
 import { getItem } from "./board-query.js";
 import { events } from "./board-query.js";
@@ -60,7 +60,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     let supersedes, landingFailure, withdrawnVerdict;
     const forWithdrawal = withdrawVerdict === true;
     const currentEngine = board.executionEngineVersion ?? ENGINE_VERSION;
-    verdictWithdrawal.checkOptions(withdrawVerdict, forMerge, currentEngine);
+    checkOptions(withdrawVerdict, forMerge, currentEngine);
     const declaredTransition = MOVES.find((entry) => entry.verb === 'reopen');
     const transition = currentEngine >= 10 ? declaredTransition : { ...declaredTransition, from: ['submitted'] };
     const item = moveItem(board, id, 'reopen', {

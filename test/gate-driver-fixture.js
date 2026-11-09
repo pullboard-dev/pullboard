@@ -1,5 +1,5 @@
 /** Read and set a submit gate's driver record, the drive job the dispatcher writes on the board, in tests [C7]. */
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { admitGateDrive } from '../packages/drive/index.js';
 import { endGateDriveUnstarted } from '../packages/drive/index.js';
 import { readGateDrive } from '../packages/drive/index.js';

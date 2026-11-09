@@ -6,9 +6,7 @@ import {
 } from '../../../../../packages/sandbox/index.js';
 import { captureLapsedClaims } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
-import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../../../packages/store/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import { laneSeatContext } from '../../../../../packages/seats/index.js';
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
@@ -16,11 +14,6 @@ import { sessionSeatReaders } from './seat-ports.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { requireHandoffActive } from '../../../../../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from '../../../../../packages/state/index.js';
-import { barReadinessRequired } from '../../../../../packages/verify/index.js';
-import { barReadiness } from '../../../../../packages/verify/index.js';
-import { barCoverageCommand } from '../../../../../packages/verify/index.js';
-import { machineVerification } from '../../../../../packages/verify/index.js';
-import { barCoverageForPolicy } from '../../../../../packages/verify/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';
 
@@ -46,26 +39,16 @@ import { main } from '../cli-main.js';
 import { CONFIG_FILE } from '../../../../../packages/config/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { configFromSource } from '../../../../../packages/config/index.js';
-import { loadDoctrine } from '../../../../../packages/doctrine/index.js';
-import { agentDoctrine } from '../../../../../packages/doctrine/index.js';
 import { signedMoveProblem } from '../../../../../packages/person/index.js';
 import { bindLocalSession } from '../../../../../packages/seats/index.js';
 import { localSessionMatches } from '../../../../../packages/seats/index.js';
-import { headCommit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { frozenCriterion } from '../../../../../packages/spec/index.js';
-import { mainCriterionFacts } from '../../../../../src/main-criterion-facts.js';
-import { liveCriterionSpec } from '../../../../../src/main-criterion-facts.js';
-import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
-import { loadSpec } from '../../../../../packages/spec/index.js';
-import { refuseAgentApprovedRows } from '../../../../../packages/spec/index.js';
 import { ensureSpecApprovalCoordinator } from '../../../../../packages/spec/index.js';
 import { initialSpecApprovalBaseline } from '../../../../../packages/spec/index.js';
 import { refuseClaimProvesNothing } from '../../../../../packages/verify/index.js';
 import { firstRefusalArgs } from '../../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { policyAt } from '../../../../../packages/sandbox/index.js';
-import { itemPolicy } from '../../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../../packages/link/index.js';
 import { relayOperation } from '../../../../../packages/link/index.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
@@ -75,6 +58,7 @@ import { sealReworkRoutingPolicy } from '../../../../../packages/store/index.js'
 import { SEAT_LIVE_WINDOW_MS } from '../../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
 import { contains } from '../../../../../packages/git/index.js';
+import { criterionFreezer } from '../../../../../packages/moves/index.js';
 import { isDeepStrictEqual } from 'node:util';
 import { sessionRoute } from '../model-tier-route.js';
 
@@ -310,63 +294,14 @@ export async function claimOrdered(ctx, board, args) {
 }
 
 /**
- * Freeze a criterion from committed policy, refreshing trunk policy only on an explicit refreeze.
+ * Freeze a criterion with the claim move's one freezer, read from this checkout's root and config [C7].
  *
  * @param {any} ctx
- * @param {{ captureVerifyPolicy?: boolean }} [options]
+ * @param {{ captureVerifyPolicy?: boolean, board?: any, applyingDecisions?: any[] }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecisions = [] } = {}) {
-  const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
-  /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
-  return (item) => {
-    // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
-    const readsMain = board && !(ctx.info.isMain && !headCommit(ctx.info.root));
-    let sourcePolicy = null;
-    if (readsMain) {
-      try { sourcePolicy = mainPolicy(ctx.info.root); }
-      catch (error) {
-        if (!(error instanceof Refused) || error.code !== 'NO_POLICY') throw error;
-        // A primary detached for review still has its retained accepted trunk; never use candidate rows as authority.
-      }
-    }
-    const facts = readsMain ? mainCriterionFacts(ctx.info.root,
-      { ...(sourcePolicy ? { commit: sourcePolicy.commit } : {}), cacheEligible }) : null;
-    const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
-    const needsPinnedPolicy = !prior || captureVerifyPolicy;
-    let policy = prior?.policy ?? null;
-    if (needsPinnedPolicy && !(ctx.info.isMain && !headCommit(ctx.info.root))) {
-      policy = { version: 1, commit: sourcePolicy?.commit ?? mainPolicy(ctx.info.root).commit };
-    }
-    let config;
-    if (policy && needsPinnedPolicy) {
-      const commit = /^[0-9a-f]{40,64}$/.test(policy.commit ?? '')
-        ? policy.commit
-        : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(ctx.info.root).commit);
-      config = policyAt(ctx.info.root, commit).config;
-      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family,
-        ...(Number.isSafeInteger(config.verify.familyRelaxAt) && config.verify.familyRelaxAt > 0 ? { familyRelaxAt: config.verify.familyRelaxAt } : {}) } };
-    } else {
-      config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
-    }
-    // Only spec apply's already validated native decision events are being materialized now [S18,V2].
-    const applying = new Map(applyingDecisions.map(record => [record.event, record]));
-    const decisions = board ? store.rowDecisions(board).map(record => {
-      const planned = applying.get(record.event);
-      const exact = planned && ['kind', 'file', 'id', 'source', 'replacement', 'text', 'decision'].every(key => planned[key] === record[key]);
-      return exact ? { ...record, applied: true } : record;
-    }) : [];
-    const doctrine = board ? agentDoctrine(ctx, board, { facts, decisions }) : loadDoctrine(ctx.info.root, config);
-    if (board) refuseAgentApprovedRows(ctx.info.root, { board, config: facts?.config ?? config, item }, { store, verifiedPasskeyRowDecision });
-    const spec = board && facts ? liveCriterionSpec(ctx.info.root, facts, item, decisions) : loadSpec(ctx.info.root, config);
-    const frozen = frozenCriterion(spec, item, doctrine);
-    if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
-    const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
-    const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
-    const machine = board ? machineVerification(board, item) : null;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
-    return { text, digest: createHash('sha256').update(text).digest('hex') };
-  };
+export function freezer(ctx, options = {}) {
+  return criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */
