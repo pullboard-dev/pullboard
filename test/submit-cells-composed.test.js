@@ -1,6 +1,7 @@
 import { acceptedCutItems } from './cells-plan-fixture.js';
 /** Immutable submit census composes later accepted placement authority [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture, git } from './cells-plan-fixture.js';
 import { computePlan, readPlan, writePlan, shardFile } from '../bin/cells-plan.js';
@@ -10,9 +11,13 @@ import { importsIn, commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { privateFixtureFiles } from './fixture-child.js';
+import { withFileLock } from '../packages/outbox/index.js';
 
-const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-  readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };
+/** The submit services with the accepted inventory its background producer has already published for main. */
+const servicesFor = acceptedArtifact => ({ withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, acceptedArtifact,
+  readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 const item = { item_frozen: JSON.stringify({ criterion: 'Preserve accepted placement authority and all cell boundaries.' }) };
 
 /** Commit only actual fixture files through ordinary Git. */
@@ -23,7 +28,14 @@ function commit(box, message) {
 }
 
 /** Main adds a real placed source after the candidate's base, in a different shard from deletion controls. */
-function diverged(t, change) {
+async function diverged(t, change) {
+  // The accepted inventory is produced off-path by a background producer (#3533), so this test publishes it in a private machine home.
+  const previous = process.env.PULLBOARD_MACHINE_HOME, machine = privateFixtureFiles('cells-composed-machine-').root;
+  process.env.PULLBOARD_MACHINE_HOME = machine;
+  t.after(() => {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
+    rmSync(machine, { recursive: true, force: true });
+  });
   const box = fixture(t);
   writePlan(box.root, computePlan(box.root));
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
@@ -33,10 +45,13 @@ function diverged(t, change) {
   cell.paths.push(['src/later.js', `${cell.root}/src/core/later.js`, 'rule']);
   writePlan(box.root, plan);
   const main = commit(box, 'accepted main adds source and placement');
+  const trunk = git(box.root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  const artifact = await warmAcceptedCells(box.root, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk });
+  assert.equal(artifact.available, true, 'the producer published the accepted inventory of main');
   git(box.root, 'checkout', '--detach', base);
   change(box);
   const candidate = commit(box, 'candidate based on earlier main');
-  return { ...box, main, candidate };
+  return { ...box, main, candidate, services: servicesFor(artifact) };
 }
 
 /** Record caller authority and mutable Git state before immutable inspection. */
@@ -46,9 +61,9 @@ function state(box) {
 }
 
 test('an older candidate preserves a later accepted source and row in its immutable census [C7,D3,CD64]', async t => {
-  const box = diverged(t, box => box.put('bin/tool.js', "import '../src/cli.js'; // independent candidate\n"));
+  const box = await diverged(t, box => box.put('bin/tool.js', "import '../src/cli.js'; // independent candidate\n"));
   const before = state(box);
-  const result = await requireSubmitCells(box.root, box.main, box.candidate, item, services);
+  const result = await requireSubmitCells(box.root, box.main, box.candidate, item, box.services);
   assert.deepEqual(result.problems, []);
   assert.equal(result.acceptedMain, box.main);
   assert.equal(result.source, box.candidate);
@@ -61,22 +76,22 @@ test('an older candidate preserves a later accepted source and row in its immuta
 });
 
 test('composing later main never forgives a candidate deletion of accepted ownership [C7,D3,CD64]', async t => {
-  const box = diverged(t, box => {
+  const box = await diverged(t, box => {
     const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
     const row = kernel.paths.shift();
     plan.stays.push({ path: row[0], reason: 'candidate attempts to remove accepted authority' });
     writePlan(box.root, plan);
   });
   const before = state(box);
-  await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, services),
+  await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, box.services),
     /accepted row src\/refused.js disappeared/u);
   assert.deepEqual(state(box), before);
 });
 
 test('a conflicting candidate cannot substitute a guessed cells composition [C7,D3,CD64]', async t => {
-  const box = diverged(t, box => box.put('src/later.js', 'export const later = false;\n'));
+  const box = await diverged(t, box => box.put('src/later.js', 'export const later = false;\n'));
   const before = state(box);
-  await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, services),
+  await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, box.services),
     /cannot compose cleanly with pinned accepted main/u);
   assert.deepEqual(state(box), before);
 });
