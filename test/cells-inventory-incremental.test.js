@@ -20,6 +20,8 @@ import { commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -123,6 +125,8 @@ function addFileCandidate(job, main, name) {
 
 /** Run the submit cells check exactly as the remote analysis entry does, returning its inventory modes and seconds. */
 async function cellsStep(job, main, source) {
+  // The accepted-main inventory is produced by a background job on a runner; the test produces its own and never waits on one.
+  await warmAcceptedCells(job, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: main });
   const modes = [], started = performance.now();
   let result;
   try {
