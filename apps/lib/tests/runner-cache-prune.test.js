@@ -10,15 +10,15 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { cellSandbox } from './cell-fixture.js';
-import { runFixtureChildAsync } from './fixture-child.js';
-import { runFixtureGit } from './fixture-child.js';
-import { takeResource } from '../packages/resources/index.js';
-import { pinSourceCacheJob } from '../packages/runners/index.js';
-import { pruneSourceCache } from '../packages/runners/index.js';
-import { SOURCE_CACHE_CANDIDATES } from '../packages/runners/index.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { takeResource } from '../../../packages/resources/index.js';
+import { pinSourceCacheJob } from '../../../packages/runners/index.js';
+import { pruneSourceCache } from '../../../packages/runners/index.js';
+import { SOURCE_CACHE_CANDIDATES } from '../../../packages/runners/index.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
@@ -186,7 +186,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
   const command = `node --input-type=module -e ${JSON.stringify(`import fs from 'node:fs';import cp from 'node:child_process';const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();fs.writeFileSync(${JSON.stringify(started)},head);while(!fs.existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,25));console.log('SOURCE_HEAD:'+head)`)}`;
   /** Dispatch through the real controller, work spec, native worker and source scanner in private fixture storage. */
   async function execute(command, expected) {
-    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
+    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../src/runners.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
     const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {
       cwd: repo, env: { ...box.env, PATH: `${bin}:${box.env.PATH}` }, encoding: 'utf8',
     });
