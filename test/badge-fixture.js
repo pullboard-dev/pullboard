@@ -8,7 +8,12 @@ import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require both documents in the exact landed, clean tip of a real private project's complete lifecycle. */
 export function assertBadgeLanding(e2e) {
-  const box = e2e.project('node --test web/badge.test.cjs');
+  // The project's own web seat joins as the fixture model and a rejoin cannot change a seat's model or parent, so this
+  // landing creates its web worktree unjoined and joins it once with the builder identity.
+  const bare = e2e.project('node --test web/badge.test.cjs', undefined, { withWorktree: false });
+  const web = join(bare.dir, 'web-1');
+  bare.git(bare.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  const box = { ...bare, web };
   const builder = fixtureJoin(box.run, box.web, 'web', '--model', 'Badge fixture', '--parent', 'badge-parent-P');
   assert.equal(builder.code, 0, builder.err);
   const reviewer = fixtureJoin(box.run, box.repo, 'coordinator', '--model', 'Badge fixture', '--parent', 'badge-parent-Q');
