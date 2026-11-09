@@ -2,7 +2,7 @@
 import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -32,6 +32,21 @@ function state(box) {
 function workerLog(box, job) {
   const log = join(box.repo, '.git/pullboard/submit-handoffs', job?.id ?? 'none', 'worker.log');
   return existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : 'no worker log';
+}
+
+/**
+ * Wait until the queued job has removed what it owns: its source checkout and, for a private tool copy, that copy.
+ * A clean checkout's tools snapshot is keyed by the tooling tree and shared by every later submit (#3339), so it
+ * stays by design and the job leaves it in place.
+ */
+async function ownedCleanup(helpers, box, jobId) {
+  const directory = join(box.repo, '.git/pullboard/submit-handoffs', jobId);
+  const request = join(directory, 'request.json');
+  await helpers.waitFor(() => existsSync(request) && !existsSync(join(directory, 'source')), // budget: owned worker cleanup hang ceiling; no throughput claim.
+    'owned queued worker source cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  const tools = JSON.parse(readFileSync(request, 'utf8')).tools;
+  if (/^pullboard-handoff-tools-[0-9a-f]+$/u.test(basename(tools))) assert.ok(existsSync(tools), 'the shared tools snapshot stays for the next submit');
+  else await helpers.waitFor(() => !existsSync(tools), 'owned queued worker private tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
 }
 
 /**
@@ -131,11 +146,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
   const landed = state(box).item;
   assert.ok(landed.item_verdict === 'ACCEPT' || ['accepted', 'merged'].includes(landed.item_status), JSON.stringify(landed));
   const job = state(box).job;
-  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-    const request = join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'request.json');
-    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'source'));
-  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  await ownedCleanup(helpers, box, job.id);
 });
 
 test('queued submit refuses when a non-submit pullboard.json policy field changes during its gate [V4,H16,C7]', async t => {
@@ -152,9 +163,5 @@ test('queued submit refuses when a non-submit pullboard.json policy field change
   const refusal = readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8');
   assert.match(refusal, /NO_POLICY/u);
   assert.match(refusal, /accepted submit policy changed: shared/u);
-  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-    const request = join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'request.json');
-    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'source'));
-  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+  await ownedCleanup(helpers, box, completed.job.id);
 });
