@@ -11,7 +11,7 @@ async function heartbeat() {
 
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
-  const { main } = await import('./cli.js');
+  const { cli$main: main } = await import('../../index.js');
   const { launchRelaySender } = await import('../../../lib/index.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
     loadNativeBoard: () => import('../../../lib/index.js'), hookWorker: HOOK_WORKER,
