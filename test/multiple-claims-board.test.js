@@ -1,7 +1,7 @@
 /** Modern claims and historical guards [B5,B12,H16]. */
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 const HOUR = 3_600_000;

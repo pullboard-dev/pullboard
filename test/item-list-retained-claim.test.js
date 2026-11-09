@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { logEvent } from '../packages/store/index.js';
 import { withListFields } from '../packages/items/index.js';
 import { projectItemState } from '../packages/api/index.js';
