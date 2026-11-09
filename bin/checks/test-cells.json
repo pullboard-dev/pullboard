@@ -1,6 +1,8 @@
 {
   "journeys": {},
-  "pureHelpers": [],
+  "pureHelpers": [
+    "test/fixture-child.js"
+  ],
   "leaves": [],
   "findings": {
     "apps/cli/tests/cli-io-gate-wait-default.test.js": "imports apps/cli/index.js, outside its own cell cli; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -244,9 +246,6 @@
     "packages/person/tests/row-decisions.test.js": "imports test/fixture-child.js, outside its own cell person; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/sealed-pages.test.js": "imports packages/kernel/src/core/seal.js, outside its own cell person; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/stale-frozen-items.test.js": "imports test/fixture-child.js, outside its own cell person; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/pin/tests/durable-pin-5.test.js": "imports test/fixture-child.js, outside its own cell pin; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/pin/tests/durable-pin-6.test.js": "imports test/fixture-child.js, outside its own cell pin; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/pin/tests/durable-pin-7.test.js": "imports test/fixture-child.js, outside its own cell pin; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/queue/tests/queue-settings-port.test.js": "imports packages/resources/index.js, outside its own cell queue; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/resources/tests/admission-latency.test.js": "imports test/e2e-helpers.js, outside its own cell resources; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/resources/tests/follow-up-admission.test.js": "imports packages/queue/index.js, outside its own cell resources; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -1406,6 +1405,7 @@
   "rootTests": 1024,
   "sealed": [
     "github",
+    "pin",
     "receipt"
   ]
 }
