@@ -2,14 +2,17 @@
 /** Required-family builds admit derived families before claiming and never submit an unknown builder [C7,#3078]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
-import * as store from '../packages/store/index.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
-import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../packages/state/core.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import * as store from '../../../packages/store/index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { repositoryBoardFile } from '../../../test/board-submit-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../packages/state/core.js';
 
 const FIXTURE_MODEL = 'Fixture';
 

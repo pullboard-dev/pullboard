@@ -1,18 +1,23 @@
 /** Route work shortages reach the coordinator through the existing durable observer [A6,N2,B13]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { scanHealthSentinel } from '../packages/sentinels/index.js';
-import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
-import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { itemWaits } from '../packages/queue/index.js';
-import { readyItems } from '../packages/queue/index.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { scanHealthSentinel } from '../../../packages/sentinels/index.js';
+import { loadConfig } from '../../../packages/config/index.js';
+import { loadDoctrine } from '../../../packages/doctrine/core.js';
+import { frozenCriterion } from '../../../packages/spec/index.js';
+import { loadSpec } from '../../../packages/spec/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { itemWaits } from '../../../packages/queue/index.js';
+import { readyItems } from '../../../packages/queue/index.js';
 
 /** Keep the board, Git and injected observation clock private to this case. */
 function fixture(t) {

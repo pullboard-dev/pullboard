@@ -116,7 +116,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/submit-handoff-worker.test.js",
+      "file": "test/submit-handoff-worker.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10264,7 +10264,7 @@
       ]
     },
     {
-      "file": "test/capacity-cache.test.js",
+      "file": "apps/lib/tests/capacity-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11930,7 +11930,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/check-accept.test.js",
+      "file": "test/check-accept.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -12625,7 +12625,7 @@
       ]
     },
     {
-      "file": "test/claim-release-reason.test.js",
+      "file": "apps/lib/tests/claim-release-reason.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -12682,7 +12682,7 @@
       ]
     },
     {
-      "file": "test/claim-reopen.test.js",
+      "file": "apps/lib/tests/claim-reopen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20110,7 +20110,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/coordinator-resume.test.js",
+      "file": "test/coordinator-resume.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -23401,7 +23401,7 @@
       ]
     },
     {
-      "file": "test/gui-runner-stage.test.js",
+      "file": "apps/lib/tests/gui-runner-stage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35163,7 +35163,7 @@
       ]
     },
     {
-      "file": "test/queue-fairness.test.js",
+      "file": "apps/lib/tests/queue-fairness.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -38214,7 +38214,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-receipts.test.js",
+      "file": "apps/lib/tests/relay-machine-receipts.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42124,7 +42124,7 @@
       ]
     },
     {
-      "file": "test/route-capacity.test.js",
+      "file": "apps/lib/tests/route-capacity.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -47188,7 +47188,7 @@
       ]
     },
     {
-      "file": "test/sentinel-stuck-count.test.js",
+      "file": "apps/lib/tests/sentinel-stuck-count.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -54990,7 +54990,7 @@
       ]
     },
     {
-      "file": "test/next-lapsed-gated-claim.test.js",
+      "file": "apps/lib/tests/next-lapsed-gated-claim.test.js",
       "tier": "T3",
       "packages": [
         ".",
