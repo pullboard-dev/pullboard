@@ -29505,7 +29505,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/main-audit-attribution.test.js",
+      "file": "apps/lib/tests/main-audit-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29619,7 +29619,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/main-audit-plain-commit.test.js",
+      "file": "apps/lib/tests/main-audit-plain-commit.test.js",
       "tier": "T3",
       "packages": [
         ".",
