@@ -61,8 +61,8 @@ async function plannedProject(t, { companionLanes = false } = {}) {
   box.git(box.repo, 'add', 'bin/cell-lint-baselines');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  enforcePlacementTrial(box);
   await publishAcceptedInventory(box);
+  enforcePlacementTrial(box);
   return { ...box, marker };
 }
 
