@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { briefSections } from '../packages/spec/index.js';
 import * as store from '../packages/store/index.js';
-import { openBoard, nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { REFERENCE_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';
