@@ -270,3 +270,20 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
   assert.ok(best < 20, `a 20 MB ledger read in ${best.toFixed(1)} ms`);
   assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');
 });
+
+test('clause 1: a ledger that names none of a completed move\'s keys is never parsed, and one that names a key reads as before [C7]', t => {
+  const commonDir = privateFixtureFiles('pullboard-blocks-mention-').root;
+  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  fs.mkdirSync(join(commonDir, 'pullboard'));
+  const lines = [];
+  for (let i = 0; i < 20_000; i++) lines.push(JSON.stringify({ at: '2026-11-09T00:00:00.000Z', code: 'B1', id: `b${i}`, moveKey: `${'a'.repeat(63)}${i % 10}` }));
+  fs.writeFileSync(join(commonDir, 'pullboard', 'blocks.jsonl'), lines.join('\n') + '\n');
+  const parse = JSON.parse; let parsed = 0;
+  JSON.parse = function(...args) { parsed++; return parse.apply(this, args); };
+  let absent;
+  try { absent = readBlocks(commonDir, { mentioning: ['f'.repeat(64)] }); } finally { JSON.parse = parse; }
+  assert.deepEqual(absent, []);
+  assert.equal(parsed, 0, 'no ledger line was parsed for a key it does not hold');
+  const named = readBlocks(commonDir, { mentioning: [`${'a'.repeat(63)}3`] });
+  assert.deepEqual(named, readBlocks(commonDir), 'a key the ledger names reads every block, as an unfiltered read does');
+});

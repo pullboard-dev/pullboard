@@ -629,3 +629,17 @@ test('attribution signatures bypass namespaced refs and external blame configura
   box.git(box.repo, 'config', 'blame.ignoreRevsFile', join(box.dir, 'external-ignore-list'));
   assert.equal(signature(), null, 'external revision lists are unsupported rather than cached incompletely');
 });
+
+test('show reads the origins of only the rows its item cites, the same origins status gives them [C7,S1]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const needs = document(box, box.repo, 'status').needs.filter(need => need.kind === 'agent-approved');
+  assert.ok(needs.some(need => need.id === 'G1') && needs.some(need => need.id !== 'G1'), JSON.stringify(needs.map(need => need.id)));
+  const id = document(box, box.repo, 'add', 'web', 'Cites one unconfirmed row', '--specs', 'G1', '--criterion', 'A real fixture.').item.item_id;
+  const shown = document(box, box.repo, 'show', String(id));
+  assert.deepEqual(shown.agentApproved.map(row => row.id), ['G1'], 'only the cited row is in the item view');
+  const status = needs.find(need => need.id === 'G1');
+  assert.equal(shown.agentApproved[0].commit, status.commit, 'the cited row keeps the Git origin the whole view gives it');
+  assert.equal(shown.agentApproved[0].agent, status.agent);
+});

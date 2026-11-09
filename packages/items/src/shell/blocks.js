@@ -96,11 +96,14 @@ function stampOf(line) {
  * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
  * cannot change a block inside the window [C7].
  *
+ * With `mentioning`, a ledger whose text holds none of those strings has no matching block and is never parsed:
+ * the clear after every successful command parsed a 29 MB ledger to find nothing [C7].
+ *
  * @param {string} commonDir
- * @param {{ since?: Date }} [options]
+ * @param {{ since?: Date, mentioning?: string[] }} [options]
  * @returns {any[]}
  */
-export function readBlocks(commonDir, { since } = {}) {
+export function readBlocks(commonDir, { since, mentioning } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
@@ -111,6 +114,7 @@ export function readBlocks(commonDir, { since } = {}) {
     text = readFrom(file, offset);
     if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
   }
+  if (mentioning && !mentioning.some(word => text.includes(word))) return [];
   const blocks = new Map();
   let legacy = 0;
   for (const line of text.split('\n')) {
@@ -215,7 +219,8 @@ export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.cloc
   if (info.isMain) owners.add('coordinator');
   try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
   try {
-    const ids = readBlocks(info.commonDir).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
+    // A move key is a hex digest, so a block naming it holds it verbatim in its line.
+    const ids = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
       && owners.has(block.owner) && Date.parse(block.at) <= now.getTime()).map(block => block.id);
     if (!ids.length) return;
     appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');

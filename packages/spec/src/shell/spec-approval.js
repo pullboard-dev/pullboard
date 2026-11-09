@@ -19,18 +19,22 @@ import {
 const ORIGIN_CACHE_LIMIT = 32;
 const originCache = new Map();
 
-/** Read each line's actual commit and Git author; neither identifies a person approval. */
-function rowOrigins(root, file) {
+/**
+ * Read each line's actual commit and Git author; neither identifies a person approval. Given lines, blame only
+ * those lines: a whole-file blame of the spec took over a second on every show [C7].
+ */
+function rowOrigins(root, file, lines = null) {
   const signature = () => gitReadSignature(root, [file, '.mailmap'], { attribution: true });
   const before = signature();
-  const key = before === null ? null : JSON.stringify([root, file, before]);
+  const key = before === null ? null : JSON.stringify([root, file, before, lines]);
   if (key !== null && originCache.has(key)) {
     const cached = originCache.get(key);
     originCache.delete(key);
     originCache.set(key, cached);
     return cached;
   }
-  const result = tryGit(root, ['blame', '--line-porcelain', '--', file]);
+  const ranges = (lines ?? []).flatMap(line => ['-L', `${line},${line}`]);
+  const result = tryGit(root, ['blame', '--line-porcelain', ...ranges, '--', file]);
   const origins = new Map();
   let line;
   let commit;
@@ -90,8 +94,11 @@ export function captureSpecApprovalBaseline(root, config) {
     rows: spec.rows.filter(row => row.status === 'approved').map(row => ({ id: row.id, text: row.text, source: source[row.line - 1] })) };
 }
 
-/** Load one provenance view for a command; no observation here manufactures an approval event. */
-export function specApprovalState(root, { board, config, spec = loadSpec(root, config) }, { store, verifiedPasskeyRowDecision }) {
+/**
+ * Load one provenance view for a command; no observation here manufactures an approval event. With ids, the view
+ * holds only those rows: a command about one item reads its cited rows' origins, never the whole spec's [C7].
+ */
+export function specApprovalState(root, { board, config, spec = loadSpec(root, config), ids = null }, { store, verifiedPasskeyRowDecision }) {
   const mode = config.specAgentApproval ?? 'flag';
   let baseline;
   let baselineInvalid = false;
@@ -107,7 +114,8 @@ export function specApprovalState(root, { board, config, spec = loadSpec(root, c
   const source = readFileSync(join(root, config.spec), 'utf8').split(/\r?\n/u);
   const decisions = store.rowDecisions(board).filter(record => record.kind === 'spec' && record.file === config.spec);
   const signed = approvalEvidence(root, evidenceErrors);
-  const unconfirmed = spec.rows.filter(row => row.status === 'approved').filter(row => {
+  const wanted = ids ? new Set(ids) : null;
+  const unconfirmed = spec.rows.filter(row => row.status === 'approved' && (!wanted || wanted.has(row.id))).filter(row => {
     const current = { row, file: config.spec, source: source[row.line - 1] };
     if (baseline?.file === current.file && baseline.rows.some(old => old.id === row.id && old.text === row.text && old.source === current.source)) return false;
     const decision = decisions.findLast(record => record.id === row.id);
@@ -117,14 +125,19 @@ export function specApprovalState(root, { board, config, spec = loadSpec(root, c
     }
     return !matchesApproval(signed.findLast(record => record.kind === 'spec' && record.file === config.spec && record.id === row.id), current);
   });
-  const origins = unconfirmed.length ? rowOrigins(root, config.spec) : new Map();
+  const origins = unconfirmed.length ? rowOrigins(root, config.spec, wanted ? unconfirmed.map(row => row.line) : null) : new Map();
   return { mode, baselinePending: false, baselineInvalid, evidenceErrors, rows: unconfirmed.map(row => ({ id: row.id, text: row.text, gate: row.gate,
     status: 'agent-approved', ...(origins.get(row.line) ?? { commit: null, approvedAt: null, agent: 'unknown', attribution: 'Git author, seat unknown' }) })) };
 }
 
+/** The spec row ids a raw board item or an API item projection cites. */
+export function itemSpecIds(item) {
+  return item.specs ?? (item.item_spec_ids ?? '').split(',').filter(Boolean);
+}
+
 /** Current unconfirmed citations for a raw board item or an API item projection. */
 export function itemAgentApprovals(item, approval) {
-  const ids = new Set(item.specs ?? (item.item_spec_ids ?? '').split(',').filter(Boolean));
+  const ids = new Set(itemSpecIds(item));
   return approval.rows.filter(row => ids.has(row.id));
 }
 
@@ -150,6 +163,6 @@ export function projectSpecApprovals(state, approval) {
 /** An explicit refuse setting blocks unconfirmed citations; flag and allow always keep work moving. */
 export function refuseAgentApprovedRows(root, { board, config, item }, ports) {
   if (config.specAgentApproval !== 'refuse') return;
-  const rows = itemAgentApprovals(item, specApprovalState(root, { board, config }, ports));
+  const rows = itemAgentApprovals(item, specApprovalState(root, { board, config, ids: itemSpecIds(item) }, ports));
   if (rows.length) throw new Refused('AGENT_APPROVAL_REQUIRED', `${rows.map(row => row.id).join(', ')} is agent-approved and spec.agentApproval is refuse; ask the coordinator to arrange confirmation or decline in the Spec view`);
 }
