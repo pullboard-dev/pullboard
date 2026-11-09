@@ -13,6 +13,7 @@ import { cellItem } from '../../../test/cell-fixture.js';
 import { cellProject } from '../../../test/cell-fixture.js';
 import { cellSeat } from '../../../test/cell-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { nextTake } from '../../sandbox/index.js';
 import { nextOnce } from '../index.js';
 
 /** Count calls to each entry of a selection seam, optionally running a hook after each, and restore it after the test. */
@@ -134,6 +135,22 @@ export async function next(box, flags = {}) {
     if (found.skipItem) values = { ...values, omitIds: [...(values.omitIds ?? []), found.skipItem] };
   }
   throw new Error('next kept retrying');
+}
+
+/**
+ * Run next --take loops until one is not a retry, as the command does, leaving out items a loop skipped. The sandbox
+ * front door's nextTake runs on the fixture's ports, with no main red work and no review reopen to compute.
+ */
+export async function take(box) {
+  const services = { ...box.ports, claimFreezer: () => undefined, mainRedReviewItems: () => [], mainRedReworkItems: () => [],
+    agentSessionDigest: () => 'next-fixture-session', computedReturnArgs: (_, args) => args };
+  let values = { take: true, observeIdle: true };
+  for (let loop = 0; loop < 5; loop++) {
+    const found = await nextTake(box.ctx, values, services);
+    if (!found.retry) return found;
+    if (found.skipItem) values = { ...values, omitIds: [...(values.omitIds ?? []), found.skipItem] };
+  }
+  throw new Error('next --take kept retrying');
 }
 
 /** The items the actor seat holds as build claims. */
