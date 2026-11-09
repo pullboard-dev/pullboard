@@ -1,7 +1,7 @@
 /**
  * What a landing reads about its exceptions [B3,R3]: which kind a person's waiver is, whether it
  * covers one failure, and the flaky tests the coordinator filed. Each needs only its arguments, so
- * it lives beside the board's store, and src/board.js re-exports it for every existing caller.
+ * it lives beside the board's store, and the store door re-exports it for every existing caller.
  */
 
 /**
