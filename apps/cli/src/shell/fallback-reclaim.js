@@ -1,6 +1,8 @@
 /** Run the drive cell's fallback reclaim pass for a board command before it answers (RFC 0008 DJ15) [C7]. */
 import { lapsedGateJobs } from '../../../../packages/drive/index.js';
 import { reclaimPass } from '../../../../packages/drive/index.js';
+import { GATE_DRIVE_KIND } from '../../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../../packages/drive/index.js';
 import { withBoardRead } from './cli-board-read.js';
 import { writeFallback } from './cli-board-read.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
@@ -40,7 +42,7 @@ export async function fallbackReclaim(ctx, command) {
  * stale (#4070, state-machine gap SM4).
  *
  * @param {any} board - The open board.
- * @param {{ item: number | null, candidate: string | null }} view
+ * @param {{ id: string, kind: string, item: number | null, candidate: string | null }} view
  * @returns {boolean | null}
  */
 export function servingNow(board, view) {
@@ -48,6 +50,8 @@ export function servingNow(board, view) {
   const row = board.db.prepare('SELECT item_status, item_owner, item_frozen_digest, item_commit FROM item WHERE item_id = ?').get(view.item);
   if (!row) return false;
   const handoff = submitHandoff(board, view.item);
+  // A gate-drive job serves exactly one hand-off: it is stale once that hand-off ended or another replaced it (#4071).
+  if (view.kind === GATE_DRIVE_KIND && (!handoff || gateDriveJobId(handoff.id) !== view.id || !['queued', 'running'].includes(handoff.state))) return false;
   if (handoff && ['queued', 'running'].includes(handoff.state)) {
     return row.item_status === 'claimed' && row.item_owner === handoff.agentId && row.item_frozen_digest === handoff.digest;
   }
