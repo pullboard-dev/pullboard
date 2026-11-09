@@ -1,10 +1,11 @@
 /** A red gate's comparison with main reports gate progress while it runs, and nothing outside a driven gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { fixtureProjectPolicy } from './testkit-fixture.js';
-import { withGateProgress } from '../packages/gate/index.js';
-import { compareMainFailures } from '../packages/landing/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { fixtureProjectPolicy } from '../../../test/testkit-fixture.js';
+import { withGateProgress } from '../../gate/index.js';
+import { compareMainFailures } from '../index.js';
 
 /** A real repository whose committed main has a Pullboard policy and no focused test runner. */
 function repository() {

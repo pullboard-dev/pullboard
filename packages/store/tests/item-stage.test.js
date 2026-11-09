@@ -1,9 +1,9 @@
 /** The board names each item's pipeline stage from its status and latest hand-off, one helper for every reader [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import { recordSubmitHandoff } from '../../jobs/index.js';
+import * as store from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const freeze = () => ({ text: '{}', digest: 'stage-fixture' });
 
