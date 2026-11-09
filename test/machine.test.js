@@ -1345,8 +1345,8 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(computed), ['../packages/store/src/core/board-record-attempt.js#reopenByKey']);
   const besideCatalog = editedSource('../packages/config/src/core/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
-  const besideShim = editedSource('spec.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
-  assert.deepEqual(statusWriters(besideShim), ['spec.js#reopenByKey'], 'a retained legacy shim remains scanned alongside its moved body');
+  const besideShim = editedSource('config.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
+  assert.deepEqual(statusWriters(besideShim), ['config.js#reopenByKey'], 'a retained legacy shim remains scanned alongside its moved body');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
