@@ -48,7 +48,10 @@ function fixture(t) {
   const services = {
     withBoardRead: (_, work) => work(board),
     withBoard: (_, work) => work(board),
-    whoAmI: () => ({ ...store.agentById(board, seats.actor.id), id: seats.actor.id, lane: seats.actor.lane }),
+    whoAmI: () => {
+      const row = store.agentById(board, seats.actor.id);
+      return { id: row.agent_id, lane: row.agent_lane, route: row.agent_route, family: row.agent_family, model: row.agent_model };
+    },
     idArg: value => Number(value),
     checkMainVerifier() {},
     claimFreezer: () => undefined,
