@@ -1,11 +1,14 @@
 /** The hand-off dispatcher reads runnersOnly and the runner slot count from the real machine settings [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { handoffWorkerCapacity } from '../packages/resources/index.js';
-import { currentCapacity } from '../bin/handoff-worker-dispatcher.js';
+import { handoffWorkerCapacity } from '../index.js';
+import { currentCapacity } from '../../../bin/handoff-worker-dispatcher.js';
 
 const RUNNERS = [{ host: 'one@runner-one', slots: 9, browser: 2, node: '/usr/bin/node' }, { host: 'two@runner-two', slots: 9, browser: 2, node: '/usr/bin/node' },
   { host: 'three@runner-three', slots: 10, browser: 2, node: '/usr/bin/node' }];
