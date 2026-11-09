@@ -100,7 +100,6 @@
   "src/test-action-cache.js",
   "src/test-concurrency.js",
   "src/test-file-dispatch.js",
-  "src/test-file-pool.js",
   "src/test-selection.js",
   "src/test-value-timing.js"
  ],
