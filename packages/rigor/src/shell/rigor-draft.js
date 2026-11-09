@@ -5,7 +5,7 @@
  * proof is the check run on real commits: red on the bad one, green on the fix. Nothing here
  * approves or applies a row.
  */
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import { PERSON } from '../../../store/index.js';
 import {
   historyPathMap,
