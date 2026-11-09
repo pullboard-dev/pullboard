@@ -73,8 +73,9 @@ test('board lock timing closes on success and refusal [C7,N2]', () => {
   const prior = globalThis[port]; let started = 0, ended = 0;
   globalThis[port] = () => { started++; return () => { ended++; }; };
   try {
-    beginImmediateQueued({ exec() {} }, Date.now());
-    assert.throws(() => beginImmediateQueued({ exec() { throw new Error('broken'); } }, Date.now()), /broken/u);
+    const pragma = { prepare: () => ({ get: () => ({ timeout: 5000 }) }) };
+    beginImmediateQueued({ ...pragma, exec() {} }, Date.now());
+    assert.throws(() => beginImmediateQueued({ ...pragma, exec(sql) { if (sql === 'BEGIN IMMEDIATE') throw new Error('broken'); } }, Date.now()), /broken/u);
     assert.equal(started, 2); assert.equal(ended, 2);
   } finally { if (prior) globalThis[port] = prior; else delete globalThis[port]; }
 });
