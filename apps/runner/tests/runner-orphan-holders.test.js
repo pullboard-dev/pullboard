@@ -8,9 +8,9 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { runnerIdleReply } from '../src/shell/runner-transport.js';
+import { runnerIdleReply } from '../../../packages/runners/index.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { orphanObserver } from '../../../apps/runner/src/shell/runner-orphan-observe.js';
+import { orphanObserver } from '../src/shell/runner-orphan-observe.js';
 
 const CONTROLLER = '10.20.30.40';
 const ORPHAN_AGE_MS = 10 * 60_000;
