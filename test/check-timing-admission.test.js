@@ -78,7 +78,7 @@ for (const timing of [true, false]) {
   });
 }
 
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { frozenCriterion } from '../packages/spec/index.js';
 import { parseSpec } from '../packages/spec/index.js';
@@ -94,7 +94,7 @@ function freeze(item) {
 
 test('timing is coordinator-only boolean bar data, corrected atomically and absent from historical criteria [C7,V4,H16]', t => {
   const board = fixtureBoard(t);
-  store.ensureCoordinator(board, '/fixture/main');
+  store.board_ensureCoordinator(board, '/fixture/main');
   const builder = store.register(board, { lane: 'web', path: '/fixture/builder' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'timing declaration', criterion: 'actual domain contract', check: 'true' });
   const old = freeze(store.getItem(board, id));
@@ -132,7 +132,7 @@ import { minimumMoveEngine } from '../packages/moves/index.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
   const board = fixtureBoard(t);
-  store.ensureCoordinator(board, '/fixture/main');
+  store.board_ensureCoordinator(board, '/fixture/main');
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'ordered timing bar', check: 'true' });
   const historical = { ...prepareEngineMove(board, 'editItem', [id, { agentId: 'coordinator', criterion: 'old criterion' }], { id: 'historical-unflagged-timing-edit' }), engine: CHECK_TIMING_ENGINE - 1 };
   const first = applyEngineMove(board, historical, { sequence: 1, at: '2026-10-28T00:01:00.000Z' });

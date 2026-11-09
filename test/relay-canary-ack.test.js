@@ -14,7 +14,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
-const POLICY = new URL('../src/cli.js', import.meta.url).href;
+const POLICY = new URL('../apps/cli/index.js', import.meta.url).href;
 const OPENERS = new URL('./board-fixture.js', import.meta.url).href;
 
 /** Commit the actual absent-setting default before real device sign-in; no environment-token shortcut is used. */
@@ -42,7 +42,7 @@ async function linkedBoard(t) {
 function move(box, text, relayCanary) {
   const source = `
     const { relayOperation } = await import(${JSON.stringify(RELAY)});
-    const { relayOutboxSetting } = await import(${JSON.stringify(POLICY)});
+    const { cli$relayOutboxSetting: relayOutboxSetting } = await import(${JSON.stringify(POLICY)});
     const { apiBoardOpeners } = await import(${JSON.stringify(OPENERS)});
     const root = process.cwd();
     const io = { ...apiBoardOpeners, err() {}, relayCanary: ${JSON.stringify(relayCanary)}, relayOutbox: () => relayOutboxSetting(root) };
