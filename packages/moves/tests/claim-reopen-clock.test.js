@@ -3,7 +3,7 @@ import { prepareEngineMove } from '../../state/index.js';
 import { REJECTION_RETURN_ENGINE } from '../../state/index.js';
 import { MOVE_REGISTRY } from '../index.js';
 import { requireFixtureReviewFamilies } from "../../../test/review-family-fixture.js";
-/** @pullboard-test-loads src/board.js src/claims.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
 import assert from 'node:assert/strict';
 import {
