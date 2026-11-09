@@ -4,8 +4,9 @@
  "kind": "package",
  "root": "packages/queue",
  "frontDoor": "packages/queue/index.js",
+ "pureFrontDoor": "packages/queue/core.js",
  "paths": [
-  ["src/queue-order.js","packages/queue/src/shell/queue-order.js","seed"],
+  ["src/queue-order.js","packages/queue/src/core/queue-order.js","seed"],
   ["src/queue-settings.js","packages/queue/src/shell/queue-settings.js","seed"],
   ["src/routing-capacity.js","packages/queue/src/core/routing-capacity.js","imports"]
  ],
