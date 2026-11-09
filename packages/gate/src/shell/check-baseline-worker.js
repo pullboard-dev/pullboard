@@ -13,7 +13,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { runnerBaseline } from './check-baseline.js';
 import { runnerBaselineCommand } from './check-baseline.js';
 import { withGateSlot } from './gate-slot.js';

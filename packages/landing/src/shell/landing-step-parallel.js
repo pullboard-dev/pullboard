@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { git } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';

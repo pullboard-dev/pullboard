@@ -57,7 +57,7 @@ import {
   gunzipSync,
   gzipSync,
 } from 'node:zlib';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { exportBoard } from '../../../store/index.js';
 import { importBoard } from '../../../store/index.js';
 import { restoreRelaySnapshot } from '../../../store/index.js';

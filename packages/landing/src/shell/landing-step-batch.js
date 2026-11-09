@@ -14,7 +14,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { hostname } from 'node:os';
 import { createHash } from 'node:crypto';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { git } from '../../../../src/git.js';
 import { tryGit } from '../../../git/index.js';
 import { isClean } from '../../../../src/git.js';

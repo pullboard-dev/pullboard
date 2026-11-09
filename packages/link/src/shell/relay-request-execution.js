@@ -4,7 +4,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { loadConfig } from '../../../config/index.js';
 import { codeIsFromMain } from '../../../../src/git.js';
 import { git } from '../../../../src/git.js';

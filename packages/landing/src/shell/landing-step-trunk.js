@@ -10,7 +10,7 @@ import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireNoLockOnlyRed } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
 import { headTree } from '../../../git/index.js';

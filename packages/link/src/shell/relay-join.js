@@ -1,7 +1,7 @@
 /** relay on in a clone joins the board its pullboard.json names, and never links a second one [E12,E17]. */
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { importBoard } from '../../../store/index.js';
 import { isInitialBoard } from '../../../store/index.js';
 import { appliedSequence } from '../../../state/index.js';

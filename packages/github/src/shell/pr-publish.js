@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   git,
   repoInfo,
