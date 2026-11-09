@@ -1,5 +1,6 @@
 /** Disk use is reported per store with a warning threshold, and retention ages out raw material but never a referenced record [C7]. */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -91,6 +92,23 @@ test('retention removes an aged raw log but never a referenced receipt or record
   assert.ok(log.every(row => row.store && row.entry && row.bytes > 0 && /older than/u.test(row.reason)));
 });
 
+test('a folder that cannot be removed is kept with its reason and the prune goes on [C7]', (t) => {
+  const dir = fixture(t);
+  const locked = join(dir, 'test-actions', 'locked-6666');
+  put(join(locked, 'inner.log'), 1, 40);
+  utimesSync(locked, DAYS(40), DAYS(40));
+  chmodSync(locked, 0o555);
+  if (process.getuid?.() === 0) return t.skip('root removes a read-only folder');
+  let result;
+  try { result = pruneDisk(dir, { now: NOW }); } finally { chmodSync(locked, 0o755); }
+  const row = result.kept.find(item => item.entry === 'locked-6666');
+  assert.ok(row && /written to during removal/u.test(row.reason), 'the failed entry is kept with a reason');
+  assert.ok(existsSync(join(locked, 'inner.log')));
+  assert.ok(!result.removed.some(item => item.entry === 'locked-6666'), 'its bytes are not counted as freed');
+  assert.deepEqual(result.removed.map(item => item.entry).sort(), ['action-old-2222.log', 'arch-old-1111', 'flake-old-5555']);
+  assert.ok(!existsSync(join(dir, 'test-actions', 'action-old-2222.log')), 'the others are still removed');
+});
+
 test('retention over a size limit removes the oldest unreferenced entries first and a dry run removes nothing [C7]', (t) => {
   const dir = fixture(t);
   writeFileSync(join(dir, 'disk-policy.json'), JSON.stringify({ retention: { 'test actions': { maxAgeDays: 3650, maxBytes: 7 * MB } } }));
@@ -138,4 +156,20 @@ test('clause 1: one background measurement runs at a time and writes the figures
   const now = diskUse(dir);
   assert.deepEqual(shown.stores.filter(row => row.name !== 'other'), now.stores.filter(row => row.name !== 'other'));
   assert.ok(shown.stores.some(row => row.name === 'test actions'));
+});
+
+test('retention walks a folder of 200000 entries without a stack overflow and finds its newest file [C7]', (t) => {
+  const dir = fixture(t);
+  const big = join(dir, 'flake-evidence', 'flake-big-6666');
+  mkdirSync(big, { recursive: true });
+  for (let i = 0; i < 200_000; i++) {
+    const file = join(big, `f${i}`);
+    writeFileSync(file, '');
+    utimesSync(file, DAYS(90), DAYS(90));
+  }
+  // The one fresh file is the newest; if the walk lost it the entry would look 90 days old and be removed.
+  utimesSync(join(big, 'f123456'), DAYS(5), DAYS(5));
+  const result = pruneDisk(dir, { now: NOW, dryRun: true });
+  assert.ok(!result.removed.some(row => row.entry === 'flake-big-6666'), 'a folder holding a fresh file is not aged');
+  assert.ok(result.removed.some(row => row.entry === 'flake-old-5555'), 'an all-old folder is still removed');
 });

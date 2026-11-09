@@ -81,7 +81,7 @@ const legacy = Object.fromEntries(STORE_NAMES.map(name => [name, door[WRITE_VARI
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
     assert.equal(library[name], native[name], 'the public board API names the one native operation definition');
-    assert.equal(legacy[name], undefined, 'the store no longer re-exports the native operation');
+    assert.equal(door[name], undefined, 'the store no longer re-exports the native operation');
   }
   const board = fixtureBoard(t);
   const agentId = legacy.register(board, { lane: 'core', path: '/fixture/spec-port-author' });
@@ -160,7 +160,7 @@ function observedPorts(label, calls) {
 }
 
 test('the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
-  assert.equal(legacy.openBoard, undefined, 'the store no longer re-exports the native root');
+  assert.equal(door.openBoard, undefined, 'the store no longer re-exports the native root');
   assert.equal(library.openBoard, native.openBoard);
   for (const [name, value] of Object.entries(legacy)) assert.equal(library[name], value, `the library surface keeps the store export ${name}`);
   const calls = [], ports = observedPorts('one', calls);
@@ -276,7 +276,7 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
   assert.equal(read.db.prepare("SELECT name FROM sqlite_master WHERE name='forbidden'").get(), undefined);
   assert.equal(native.openBoardForRead(join(directory, 'absent.sqlite')), null);
   assert.equal(library.openBoardForRead, native.openBoardForRead);
-  assert.equal(legacy.openBoardForRead, undefined);
+  assert.notEqual(door.openBoardForRead, native.openBoardForRead, 'the store door keeps its own read opener; it never re-exports the native one');
 });
 
 
@@ -355,7 +355,7 @@ test('the native operation bag and counted public bridge retain actual authority
   const board = fixtureBoard(t);
   for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
     assert.equal(board.enginePorts.store[name], operation, name);
-    assert.equal(legacy[name], undefined, 'the store no longer bridges the native operation');
+    assert.equal(door[name], undefined, 'the store no longer bridges the native operation');
     assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
   }
   assert.equal(Object.isFrozen(board.enginePorts.store), true);

@@ -1,4 +1,4 @@
-import { AGENT_SESSION_IDS } from '../../../kernel/src/core/discovery.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { repoInfo } from '../../../../src/git.js';
 import { sameCommonDir } from '../../../git/index.js';
 import { isClean } from '../../../../src/git.js';

@@ -4,6 +4,7 @@
  "kind": "app",
  "root": "apps/view",
  "frontDoor": "apps/view/index.js",
+ "lightFrontDoor": "apps/view/core.js",
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],
@@ -114,7 +115,7 @@
   {"cell":"app:cli","imports":6,"before":false}
  ],
  "cuts": [
-  {"cell":"api","imports":2,"edges":["src/api.js->src/serve.js","src/api.js->src/view-state-summary.js"]}
+  {"cell":"api","imports":1,"edges":["src/api.js->src/view-state-summary.js"]}
  ],
  "ratchets": {
   "legacySource": -3,

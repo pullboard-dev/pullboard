@@ -8,7 +8,7 @@ import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { bundleFor } from './pin.js';
 import { isObjectId } from '../core/pin-names.js';
 

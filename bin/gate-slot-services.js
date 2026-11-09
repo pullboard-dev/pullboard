@@ -8,7 +8,7 @@ import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Build the execution services withGateSlot validates, loading only what it calls synchronously.
- * Why: the runner and landing front doors statically reach gate.js, src/board.js and src/machine.js,
+ * Why: the runner and landing front doors statically reach gate.js, packages/store/src/shell/board.js and packages/state/src/shell/machine.js,
  * which an ordinary run never uses. Async runner probes load the runner front door on first use;
  * the release queue loads its own shell file, not the landing front door, only when current-release-first policy is on.
  * Full gates keep the canonical runnerExecutionServices and landingExecutionServices.
