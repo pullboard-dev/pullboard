@@ -744,7 +744,7 @@
   "test/cells-data-reads.test.js": {
     "tempdir": 2
   },
-  "test/cells-inventory-incremental.test.js": {
+  "packages/landing/tests/cells-inventory-incremental.test.js": {
     "tempdir": 1
   },
   "apps/lib/tests/checkout-authority-schema.test.js": {
@@ -787,7 +787,7 @@
   "test/cells-shims.test.js": {
     "tempdir": 1
   },
-  "test/cells-temporary-edges.test.js": {
+  "packages/gate/tests/cells-temporary-edges.test.js": {
     "tempdir": 1
   },
   "test/cells-tools.test.js": {
@@ -1702,7 +1702,7 @@
   "packages/resources/tests/handoff-cap-runner-slots.test.js": {
     "tempdir": 1
   },
-  "test/handoff-cap-status-line.test.js": {
+  "packages/resources/tests/handoff-cap-status-line.test.js": {
     "hand-policy": 1
   },
   "packages/resources/tests/handoff-dispatcher-capacity.test.js": {
@@ -1739,7 +1739,7 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "test/handoff-worker-cap-runners-only.test.js": {
+  "packages/resources/tests/handoff-worker-cap-runners-only.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -2588,7 +2588,7 @@
     "raw-board": 4,
     "hand-policy": 1
   },
-  "test/ratchet-against-main.test.js": {
+  "packages/landing/tests/ratchet-against-main.test.js": {
     "tempdir": 3
   },
   "packages/doctrine/tests/ratchet-rename.test.js": {
@@ -3554,7 +3554,7 @@
   "test/submit-auto-merge.test.js": {
     "tempdir": 2
   },
-  "test/submit-cells-incremental.test.js": {
+  "packages/landing/tests/submit-cells-incremental.test.js": {
     "tempdir": 2
   },
   "apps/cli/tests/submit-cells-remote.test.js": {
