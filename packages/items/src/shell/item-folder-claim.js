@@ -11,7 +11,7 @@ import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** The registered seat row alone; the model label is not needed to judge a folder. */
-function agentRow(board, id) { return board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id); }
+function agentRow(board, id) { return board.db.prepare('SELECT agent_id, agent_lane, agent_path FROM agent WHERE agent_id = ?').get(id); }
 
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */
 export function itemFolderPath(root, id) { return join(dirname(root), `${basename(root)}-item-${id}`); }

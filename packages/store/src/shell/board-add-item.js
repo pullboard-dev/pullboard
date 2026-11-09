@@ -9,7 +9,8 @@ import { saveItemReviewPolicy } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { REFERENCE_ENGINE } from "../../../state/core.js";
 import { validateReferences } from "../../../spec/index.js";
-import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
+import { editCheck } from "../../../verify/index.js";
+import { saveReviewFamily } from "../../../verify/index.js";
 import { saveCheckTiming } from "../../../../src/check-timing.js";
 import { validateCheckTiming } from "../../../../src/check-timing.js";
 import { validateItemDependencies } from "./board-item-dependencies.js";
@@ -30,7 +31,6 @@ import { COORDINATOR } from "../../../config/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { requireOwnLaneCheck } from "../../../verify/core.js";
 import { laneOf } from "../../../seats/index.js";
-import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 
 /**
  * Add an item to a lane, optionally under a parent in the same lane, with a brief for whoever
@@ -69,7 +69,7 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
   saveExpectedBuildMinutes(board, id, item.expectedBuildMinutes);
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
-  reviewFamilies.saveReviewFamily(board, id, reviewFamily);
+  saveReviewFamily(board, id, reviewFamily);
   logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}), ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
@@ -79,7 +79,7 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
 export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
-    : checkWiden.editCheck(by, check) ?? '';
+    : editCheck(by, check) ?? '';
   if (board.gitRoot && by !== COORDINATOR) {
     const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(by);
     requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command, laneOf);

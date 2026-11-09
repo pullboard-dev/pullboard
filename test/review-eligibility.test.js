@@ -434,7 +434,7 @@ function joinSeat(board, id, family, parent) {
   store.register(board, { id, lane: 'core', path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
 }
 
-test('a companion patch author of another spelling blocks that vendor from reviewing a strict item [V4,B26,H16]', t => {
+test('a companion patch author of another spelling blocks only itself; the head builder alone sets the judged family [V4,B26,H16]', t => {
   const f = fixture(t), id = f.add({ sensitive: true });
   joinSeat(f.board, 'core-6', 'OpenAI', '6');
   joinSeat(f.board, 'core-7', 'gemini', '7');
@@ -442,14 +442,15 @@ test('a companion patch author of another spelling blocks that vendor from revie
   const author = { agentId: 'core-1', parentSession: null, session: null };
   f.board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
     JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author }] }));
-  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), false, 'the built-in vendor table excludes the codex companion vendor without project configuration');
+  // Strict review judges the submitted head builder's family only (a9f6ac5f19, #2868): a companion's vendor excludes no one else.
+  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), true, 'the built-in vendor table does not extend the companion author vendor to other seats');
   f.board.familyAliases = familyIndex({ openai: ['codex'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
-  assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
-  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'SAME_FAMILY'));
+  assert.ok(projected.eligible.includes('core-6'), 'the alias list adds no exclusion for the companion author vendor');
+  assert.ok(!projected.ineligible.some(row => row.agent === 'core-6'));
   assert.ok(projected.ineligible.some(row => row.agent === 'core-1'), 'the companion author is itself excluded');
   assert.ok(projected.eligible.includes('core-7'), 'a third vendor remains eligible');
-  assert.throws(() => f.reserve(id, 'core-6'), { code: 'SAME_FAMILY' });
+  assert.doesNotThrow(() => f.reserve(id, 'core-6'));
 });
 
 test('the real withOpenedBoard installs the alias list from accepted main and the projection keeps it [V4,B26]', t => {
