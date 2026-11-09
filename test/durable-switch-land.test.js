@@ -1,6 +1,7 @@
 /** Durable switch C: `pullboard land` runs its batch as a drive-cell job in its own process, never through bin/landing-worker.js [C7]. */
 import assert from 'node:assert/strict';
-import { createRequire, syncBuiltinESMExports } from 'node:module';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -12,8 +13,6 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
 import { removeSandboxes } from './submit-handoff-fixture.js';
 import { main } from './native-cli-fixture.js';
-
-const childProcess = createRequire(import.meta.url)('node:child_process');
 
 /**
  * Record every node:child_process spawn while `work` runs, through the live ESM bindings every module imported.
