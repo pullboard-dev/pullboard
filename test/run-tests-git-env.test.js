@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runShell } from '../packages/gate/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const SELECTORS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY'];
@@ -16,9 +16,7 @@ const RUNNER = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
 /** Create only disposable repositories; every deliberately supplied Git selector stays inside this fixture. */
 function fixture(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.sandbox();
+  const box = cellSandbox(t);
   const scratch = join(box.dir, 'scratch');
   const work = join(box.dir, 'work');
   mkdirSync(scratch);

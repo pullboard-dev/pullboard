@@ -90,18 +90,19 @@ export { closeBoard as closeCellBoard };
 const PROJECT_GATE = 'test ! -f RED';
 
 /**
- * A cell-level stand-in for the e2e project: the same policy files in a real Git repo, the same isolated Git identity
- * and private PULLBOARD_HOME and PULLBOARD_MACHINE_HOME, with no `pullboard init`, no hooks, no CLI shim on PATH and no
- * joined worktree. `dir` is a private scratch folder for the test's own files. Cleanup goes through `t.after`.
+ * A private scratch folder and the isolated environment a cell test runs git in: the machine's PULLBOARD_* variables and
+ * agent and SSH shell markers are stripped, git reads no machine config and signs as a fixed identity, and PULLBOARD_HOME,
+ * PULLBOARD_MACHINE_HOME, the usage checkpoint, the infrastructure back-off and the model are fixed. There is no
+ * `pullboard` shim on PATH. Cleanup goes through `t.after` and waits for a detached writer a fixture command started. It is the one source of this environment, so cellProject
+ * and a test that needs no project share it and cannot drift apart.
  *
- * @param {import('node:test').TestContext} t
- * @param {{ gate?: string, config?: object, spec?: string, model?: string }} [options]
- * @returns {{ dir: string, repo: string, boardFile: string, env: Record<string, string>, git: (cwd: string, ...args: string[]) => string, tryGit: (cwd: string, ...args: string[]) => object }}
+ * @param {import('node:test').TestContext | { after: (cleanup: () => void) => void }} t
+ * @param {{ model?: string }} [options]
+ * @returns {{ dir: string, env: Record<string, string>, git: (cwd: string, ...args: string[]) => string, tryGit: (cwd: string, ...args: string[]) => object }}
  */
-export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_SPEC, model = FIXTURE_MODEL } = {}) {
+export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
   const scratch = privateFixtureFiles('pullboard-cell-project-');
-  t.after(() => rmSync(scratch.root, { recursive: true, force: true }));
-  const repo = cellRepo(t, { config: { ...CELL_CONFIG, gate, ...config }, spec });
+  t.after(() => rmSync(scratch.root, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 }));
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_')
     && !AGENT_SHELL_MARKERS.includes(key) && !SSH_SHELL_MARKERS.includes(key)));
   Object.assign(env, {
@@ -116,7 +117,22 @@ export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_S
   });
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
-  return { dir: scratch.root, repo: repo.root, boardFile: repo.boardFile, env, git, tryGit };
+  return { dir: scratch.root, env, git, tryGit };
+}
+
+/**
+ * A cell-level stand-in for the e2e project: the same policy files in a real Git repo, the same isolated Git identity
+ * and private PULLBOARD_HOME and PULLBOARD_MACHINE_HOME, with no `pullboard init`, no hooks, no CLI shim on PATH and no
+ * joined worktree. `dir` is a private scratch folder for the test's own files. Cleanup goes through `t.after`.
+ *
+ * @param {import('node:test').TestContext} t
+ * @param {{ gate?: string, config?: object, spec?: string, model?: string }} [options]
+ * @returns {{ dir: string, repo: string, boardFile: string, env: Record<string, string>, git: (cwd: string, ...args: string[]) => string, tryGit: (cwd: string, ...args: string[]) => object }}
+ */
+export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_SPEC, model = FIXTURE_MODEL } = {}) {
+  const sandbox = cellSandbox(t, { model });
+  const repo = cellRepo(t, { config: { ...CELL_CONFIG, gate, ...config }, spec });
+  return { dir: sandbox.dir, repo: repo.root, boardFile: repo.boardFile, env: sandbox.env, git: sandbox.git, tryGit: sandbox.tryGit };
 }
 
 /**
