@@ -1,21 +1,30 @@
 /** Durable gate 24/20: review reservations are leases in the jobs cell and lapse on the 2-minute rule [C7]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { reserveReview, renewReview, reclaimLapsedReviews, reviewOffer, jobView, LEASE_MS } from '../packages/jobs/index.js';
-import * as store from '../packages/store/index.js';
-import { cli, fixture } from './next-take-fixture.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { closeCellBoard } from '../../../test/cell-fixture.js';
+import { openCellBoard } from '../../../test/cell-fixture.js';
+import { LEASE_MS } from '../../jobs/index.js';
+import { jobView } from '../../jobs/index.js';
+import { reclaimLapsedReviews } from '../../jobs/index.js';
+import { renewReview } from '../../jobs/index.js';
+import { reserveReview } from '../../jobs/index.js';
+import { reviewOffer } from '../../jobs/index.js';
+import * as store from '../../store/index.js';
+import { fixture } from './next-fixture.js';
+import { next } from './next-fixture.js';
 
 const files = privateFixtureFiles('pullboard-durable-review-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
 function withBoard(name, body) {
-  const board = openBoard(join(files.root, `${name}.sqlite`));
-  try { return body(board.db); } finally { closeBoard(board); }
+  const board = openCellBoard(join(files.root, `${name}.sqlite`));
+  try { return body(board.db); } finally { closeCellBoard(board); }
 }
 
 test('clause 1: a silent reviewer loses the reservation within 2 minutes, the item is offered again and the lapse is recorded [C7]', () => {
@@ -54,29 +63,29 @@ test('clause 1: a reviewer that keeps renewing keeps the reservation and nothing
 
 /** Register a review seat with its own worktree and parent, and record its first heartbeat. */
 function reviewSeat(box, name) {
-  const path = join(box.root, '..', `durable-review-${name}`);
-  box.git(box.root, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
+  const path = join(box.project.dir, `durable-review-${name}`);
+  mkdirSync(path);
   const id = store.register(box.board, { lane: 'review', path, parent: `durable-review-${name}`, family: 'Family Beta', route: 'strong' });
   store.heartbeatSeat(box.board, id);
-  return { id, path };
+  return { id, lane: 'review', path };
 }
 
 test('clause 1: next --verify holds the review as a jobs-cell lease and reclaims a silent reviewer after 2 minutes with the lapse recorded [C7]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const id = box.add('Review whose reviewer goes silent');
   box.submit(id);
   const silent = reviewSeat(box, 'silent');
   const successor = reviewSeat(box, 'successor');
-  const reserved = await cli(box, silent.path, ['next', '--verify', String(id)]);
-  assert.equal(reserved.code, 0, reserved.out + reserved.err);
+  box.as(silent);
+  await next(box, { verify: true, verifyId: String(id) });
   const lease = jobView(box.board.db, `review:${id}`);
   assert.equal(lease.kind, 'review');
   assert.equal(lease.leaseOwner, silent.id, 'the reservation is a lease in the jobs cell');
 
   box.advance(LEASE_MS + 1);
-  const reclaimed = await cli(box, successor.path, ['next', '--verify']);
-  assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
-  assert.equal(reclaimed.document.item.item_id, id, 'the item is offered again');
+  box.as(successor);
+  const reclaimed = await next(box, { verify: true });
+  assert.equal(reclaimed.item.item_id, id, 'the item is offered again');
   assert.equal(store.getItem(box.board, id).item_review_by, successor.id);
   const steps = jobView(box.board.db, `review:${id}`).steps;
   assert.deepEqual(steps.map(step => step.name), ['reserved', 'lapsed', 'reserved']);

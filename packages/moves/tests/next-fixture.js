@@ -88,8 +88,8 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   const git = (...args) => project.git(project.repo, ...args);
   return {
     board, seats, ctx, ports, project, advance: ms => { at += ms; }, claim, git, clock, root: project.repo, config: ctx.config,
-    /** Make a named seat the one that runs next from now on. */
-    as: name => { current = seats[name]; },
+    /** Make a seat the one that runs next from now on, by its name here or as a registered seat with an id and a lane. */
+    as: who => { current = typeof who === 'string' ? seats[who] : who; },
     /** File an ordinary runnable item in the actor's lane, or another configured lane. */
     add: (title, options = {}) => cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
       brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
@@ -111,7 +111,8 @@ export async function next(box, flags = {}) {
   let values = { ...flags, defaultLoop: plain, observeIdle: true };
   for (let loop = 0; loop < 5; loop++) {
     const found = await nextOnce(box.ctx, values, box.ports);
-    if (!found.retry) return found;
+    // The command reports a review step for --verify even when the move leaves the flag unset.
+    if (!found.retry) return found.item ? { ...found, review: found.review ?? Boolean(flags.verify) } : found;
     if (found.skipItem) values = { ...values, omitIds: [...(values.omitIds ?? []), found.skipItem] };
   }
   throw new Error('next kept retrying');
