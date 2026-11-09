@@ -2,12 +2,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync, readdirSync, renameSync, utimesSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryDirectory } from './board-fixture.js';
-import { memoizedActionKeys } from '../packages/gate/src/shell/test-action-key-memo.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { memoizedActionKeys } from '../src/shell/test-action-key-memo.js';
 
-const MODULE = new URL('../packages/gate/src/shell/test-action-key-memo.js', import.meta.url).href;
+const MODULE = new URL('../src/shell/test-action-key-memo.js', import.meta.url).href;
 const KEY = 'a'.repeat(64);
 const build = async () => new Map([['t.test.js', { key: KEY, reason: 'x' }]]);
 const HOURS = 3_600_000;

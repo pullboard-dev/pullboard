@@ -5,7 +5,7 @@ import {
   runFixtureChild as spawnSync,
   runFixtureChild,
   runFixtureGit,
-} from '../../../test/fixture-child.js';
+} from './fixture-child.js';
 import {
   chmodSync,
   mkdirSync,
@@ -28,12 +28,12 @@ import {
 import {
   mainPolicy,
   requireTrunkMerge,
-} from '../src/shell/trusted-policy.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
-import { FIXTURE_MODEL } from '../../../test/e2e-helpers.js';
+} from '../packages/sandbox/src/shell/trusted-policy.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const SPEC = '# Trunk fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
 
