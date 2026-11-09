@@ -9,22 +9,20 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Refuse one exact-health transport, then run the actual pinned worker on a private SSH host. */
 function observe(t, mode) {
-  const helpers = createE2eHelpers();
-  const sandbox = helpers.sandbox();
-  sandbox.env.PULLBOARD_MODEL = 'runner-cleanup-recovery-fixture';
-  const box = helpers.project('true', sandbox);
+  const cleanups = [];
+  const box = cellProject({ after: cleanup => cleanups.push(cleanup) }, { gate: 'true', model: 'runner-cleanup-recovery-fixture' });
   const bin = join(box.dir, 'cleanup-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
   const worker = join(box.dir, 'worker'), requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
-  t.after(() => { try { chmodSync(root, 0o700); } finally { helpers.cleanup(); } });
+  t.after(() => { try { chmodSync(root, 0o700); } finally { for (const cleanup of cleanups.reverse()) cleanup(); } });
   const node = join(bin, 'fixture-node');
   // The real installer repairs root permissions. Deny writes only after it finishes, before the real health worker.
   writeFileSync(node, `#!/usr/bin/env node

@@ -9,6 +9,7 @@ import {
   readListing,
   testCellsProblems,
   testCellsReport,
+  installsHooks,
   spawnsCli,
   writeTestCells,
 } from '../bin/checks/test-cells.js';
@@ -167,4 +168,11 @@ test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper cha
   assert.equal(rows['packages/a/tests/data.test.js'].kind, 'cell');
   assert.equal(rows['packages/a/tests/chain.test.js'].kind, 'finding');
   assert.match(rows['packages/a/tests/chain.test.js'].problems.at(-1).text, /spawns or reaches the CLI/u);
+});
+
+test('clause 1: a hooks install is an installHooks call or a hooksPath set to a folder, never a disable or an output string [C7]', () => {
+  assert.equal(installsHooks("runFixtureChild('git', ['-c', 'core.hooksPath=/dev/null', 'commit']);\n"), false, 'pointing hooks at /dev/null disables them');
+  assert.equal(installsHooks("const expected = ['set core.hooksPath to .githooks'];\n"), false, 'an expected output line installs nothing');
+  assert.equal(installsHooks('installHooks(root);\n'), true);
+  assert.equal(installsHooks("spawnSync('git', ['config', 'core.hooksPath', '.githooks']);\n"), true);
 });
