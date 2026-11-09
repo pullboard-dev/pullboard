@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { openBoard } from '../../../apps/lib/index.js';
-import { closeBoard } from '../../../apps/lib/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
+import { closeCellBoard as closeBoard } from '../../../test/cell-fixture.js';
 import {
   derivedFamily,
   FAMILY_RECORD_PREFIX,

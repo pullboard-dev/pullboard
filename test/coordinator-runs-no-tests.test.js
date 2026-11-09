@@ -108,3 +108,27 @@ test('clause 1: the landing guards smoke a tree its submit gate proved through t
   const standIn = () => ({ ran: [] });
   assert.equal(trunk.landingSmoke({ runLandingCliSmoke: standIn }), standIn);
 });
+
+test('clause 1: on a runners-only coordinator a sharded landing gate runs on a runner, never as a local test process [C7,#3899]', { timeout: 240_000 }, async () => {
+  const { box, marker, remoteHome } = runnerProject();
+  // A sharded project once kept the gate's controller here, where the coordinator guard refuses bin/run-tests.js at once.
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {};
+  writeFileSync(configFile, JSON.stringify({ ...config, landingShards: 2 }, null, 2) + '\n');
+  const mark = `import { writeFileSync } from 'node:fs'; if (process.env.HOME === ${JSON.stringify(box.env.HOME)}) writeFileSync(${JSON.stringify(marker)}, 'local');`;
+  writeFileSync(join(box.repo, 'bin/gate-probe.js'), `${mark}\nconsole.log('gate-ran-at:' + process.env.HOME);\n`);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: sharded landing gate probe');
+  const gate = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/src/shell/gate-execution.js')).href;
+  const runners = pathToFileURL(resolve(import.meta.dirname, '../packages/runners/index.js')).href;
+  const out = await inChild(box, `
+    const { runGate } = await import(${JSON.stringify(gate)});
+    const { runnerExecutionServices } = await import(${JSON.stringify(runners)});
+    const run = await settle(() => runGate(${JSON.stringify(box.repo)}, { gate: 'node bin/gate-probe.js' }, { landing: true, trustStamp: false, collectAll: true,
+      agent: 'coordinator', executionServices: { runners: runnerExecutionServices(), landing: landing.landingExecutionServices() } }));
+    process.stdout.write(JSON.stringify({ code: run.code, message: run.message, output: run.value?.output ?? '' }));
+  `);
+  assert.equal(out.code, undefined, out.message);
+  assert.ok(out.output.includes(`gate-ran-at:${remoteHome}`), `the landing gate did not run on the runner: ${out.output}`);
+  assert.equal(existsSync(marker), false, 'the landing gate ran as a local process on the coordinator');
+});

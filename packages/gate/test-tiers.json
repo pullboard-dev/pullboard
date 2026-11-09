@@ -36746,7 +36746,7 @@
       ]
     },
     {
-      "file": "packages/kernel/tests/relay-device-http.test.js",
+      "file": "test/relay-device-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37902,7 +37902,7 @@
       ]
     },
     {
-      "file": "packages/kernel/tests/relay-page-store.test.js",
+      "file": "test/relay-page-store.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37960,7 +37960,7 @@
       ]
     },
     {
-      "file": "packages/kernel/tests/relay-pages-http.test.js",
+      "file": "test/relay-pages-http.test.js",
       "tier": "T3",
       "packages": [
         ".",

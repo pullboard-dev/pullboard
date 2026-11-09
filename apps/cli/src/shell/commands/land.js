@@ -6,6 +6,9 @@ import { landingProgress } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { closeLandingSpans } from '../../../../../packages/resources/index.js';
+import { landingSpan } from '../../../../../packages/resources/index.js';
+import { openLandingSpans } from '../../../../../packages/resources/index.js';
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
@@ -150,11 +153,13 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   let result;
-  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: landOnce, say: line => io.err?.(line), watch });
+  // A real landing records a span per step, read back by pullboard gate-health [C7].
+  if (!values['dry-run']) openLandingSpans({ commonDir: ctx.info.commonDir });
+  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: () => landingSpan('run', landOnce), say: line => io.err?.(line), watch });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;
-  }
+  } finally { if (!values['dry-run']) closeLandingSpans(); }
   if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
   if (!values['dry-run']) await recordBatchLanding(ctx, board, io, result);
   io.result?.(result);

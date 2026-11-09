@@ -28,6 +28,7 @@ import { landingRunObserver } from './landing-step-gate.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from './main-red.js';
 import { fileURLToPath } from 'node:url';
+import { landingSpan } from '../../../resources/index.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -259,7 +260,12 @@ export async function moveTrunkRef(state) {
 }
 
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
-export async function finishTrunk(state) {
+export function finishTrunk(state) {
+  return landingSpan('record', () => finishTrunkSteps(state));
+}
+
+/** The steps of finishTrunk, timed as one landing span. */
+async function finishTrunkSteps(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await timedPhase(state.say, 'lease check', () => state.checkLease());
   state.say?.('finish: envelope recorded; checking module resolution');
