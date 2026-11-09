@@ -4052,10 +4052,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/board-engine-ports.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/board-ensure-coordinator.js": {
       "cells": 1,
       "deep": 0
@@ -4121,10 +4117,6 @@
       "deep": 0
     },
     "src/board-merged.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-milestones.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4607,10 +4599,6 @@
     "src/module-imports.js": {
       "cells": 1,
       "deep": 1
-    },
-    "src/move-registry.js": {
-      "cells": 1,
-      "deep": 0
     },
     "src/next-step-words.js": {
       "cells": 1,
