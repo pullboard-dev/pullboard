@@ -1,11 +1,6 @@
 /** Pure gate-side preload and machine-home policies, with host inputs supplied by callers [C7]. */
 import { join } from 'node:path';
-import { resolve } from 'node:path';
-
-/** Resolve a machine home from explicit account and environment inputs. */
-export function gateMachineHome({ override, accountHome, osHome }) {
-  return override ? resolve(override) : join(resolve(accountHome || osHome), '.pullboard');
-}
+export { machineHome as gateMachineHome } from '../../../kernel/core.js';
 
 /** Return the trusted runtime preload source for an explicit directory. */
 export function gateRuntimeCaptureSource(directory) {
