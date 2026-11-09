@@ -11,6 +11,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -83,16 +84,16 @@ test('an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
   });
 });
 
-/** Make the shared board folder and every file in it read-only, as a read-only sandbox sees it. */
+/** Make the shared board folder, its files and its subfolders (such as trace) read-only, as a read-only sandbox sees it. */
 function lockBoard(folder) {
-  for (const name of readdirSync(folder)) chmodSync(join(folder, name), 0o444);
+  for (const name of readdirSync(folder)) chmodSync(join(folder, name), statSync(join(folder, name)).isDirectory() ? 0o555 : 0o444);
   chmodSync(folder, 0o555);
 }
 
-/** Give the board folder and its files write access again. */
+/** Give the board folder, its files and its subfolders write access again; a subfolder left without search access cannot be cleaned up. */
 function unlockBoard(folder) {
   chmodSync(folder, 0o755);
-  for (const name of readdirSync(folder)) chmodSync(join(folder, name), 0o644);
+  for (const name of readdirSync(folder)) chmodSync(join(folder, name), statSync(join(folder, name)).isDirectory() ? 0o755 : 0o644);
 }
 
 /**
