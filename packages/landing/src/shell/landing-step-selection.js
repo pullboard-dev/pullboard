@@ -19,7 +19,6 @@ import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';
 import { compareMainFailures } from './main-red.js';
 import { cachedFailureSignatures } from './main-failure-matches.js';
-import { landingRunnersOnly } from './landing-host.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -325,12 +324,12 @@ export function perItemMaximum(config, maximum = Infinity) {
 /**
  * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
  * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item. A runners-only machine takes one [C7,H24].
+ * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
  */
-export function landingMaximum(board, config, maximum = Infinity, automatic = false, { runnersOnly = landingRunnersOnly() } = {}) {
-  // A runners-only machine runs a landing gate on one runner with no fan-out, so a batch's union rerun can outgrow what
-  // one runner finishes; one item a batch lands each on its own submit proof plus a small rerun [C7].
-  if (landsPerItem(config) || runnersOnly) return 1;
+export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
+  // A runners-only machine batches like any other: a batch lands on its items' submit receipts and reruns only each
+  // item's own moved closures and their interactions, fanned out over runner slots [C7].
+  if (landsPerItem(config)) return 1;
   const override = store.lineSettings(board).landingBatchSize;
   if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
   return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));

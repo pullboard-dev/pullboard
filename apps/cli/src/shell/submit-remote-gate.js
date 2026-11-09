@@ -23,6 +23,7 @@ import { gitPath } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { privateCheckEnvelope } from '../../../runner/index.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
+import * as fixtureMemos from './fixture-memo-share.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
@@ -88,10 +89,9 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
-const tools = dirname(fileURLToPath(import.meta.url));
-const root = process.argv[2];
-const input = JSON.parse(readFileSync(0, 'utf8'));
-const result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+const input = JSON.parse(readFileSync(0, 'utf8')), result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const memos = await import('./apps/cli/src/shell/fixture-memo-share.js').then(module => module.runnerFixtureMemos(cellsCache, input.fixtureMemos)).catch(() => null); // One fixture memo for every runner (#3981).
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
 const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
@@ -181,6 +181,7 @@ try {
   });
   await staticRun;
   if (input.perPart) result.outcomes = outcomes;
+  if (memos) result.fixtureMemo = memos.collect();
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
@@ -332,7 +333,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const doctrine = request.doctrine ?? null;
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
-    composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
+    composition: request.composition ?? null, fixtureMemos: fixtureMemos.storedFixtureMemos(fixtureMemos.controllerMemoStore()), staticChecks: request.staticChecks ?? '', config: request.config,
     inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
@@ -343,7 +344,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (step.value.refusal) throwTrustedRefusal(step.value.refusal);
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
-  const { value, directory, sha256 } = step;
+  fixtureMemos.keepRunnerFixtureMemo(step.value); const { value, directory, sha256 } = step;
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');

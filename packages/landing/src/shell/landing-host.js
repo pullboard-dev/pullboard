@@ -29,13 +29,3 @@ export function constrainedLandingHost(root) {
   try { return requireLandingHost(database.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value, config); }
   finally { database.close(); }
 }
-
-/**
- * Whether this machine's settings say gate.runnersOnly: its landing gates run on a runner with no local fan-out.
- * Unreadable settings say no.
- *
- * @returns {boolean}
- */
-export function landingRunnersOnly() {
-  try { return loadMachineSettings().gate?.runnersOnly === true; } catch { return false; }
-}

@@ -30,6 +30,7 @@ import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
+import { trunkMoveReruns } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { bisect } from './landing-step-diagnose.js';
@@ -165,12 +166,34 @@ async function followMovedTrunk(state, gate) {
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
-    const focus = !affected.full && affected.files.length ? { focus: affected.files } : {};
+    // Only tests whose closure reaches both sides can change; none means the batch's proof holds on the new tip [C7].
+    const reruns = trunkMoveReruns(state, { trunkFiles, batchFiles, trunkAffected: affected });
+    if (reruns && !reruns.length) {
+      state.say(`main's move to ${moved.slice(0, 12)} shares no test closure with this batch; its proof stands on the rebuilt tree`);
+      gate = await reusedAcrossMove(state, gate, previous, moved);
+      continue;
+    }
+    const focus = reruns ? { focus: reruns } : !affected.full && affected.files.length ? { focus: affected.files } : {};
     gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
     if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
   return gate;
+}
+
+/**
+ * The batch's gate carried onto the tree rebuilt on main's move, after the static checks and the CLI smoke on that
+ * tree, which read every file and so are never reused. The gate keeps its log and names the move it was carried over.
+ */
+async function reusedAcrossMove(state, gate, from, to) {
+  const services = state.guardServices ?? {};
+  const runChecks = services.runStaticChecks ?? runStaticChecks;
+  await Promise.all([
+    runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); }),
+    landingSmoke(services)(state.batch.root, { record: true }),
+  ]);
+  return { ...gate, tree: headTree(state.batch.root), carriedAcrossMove: { from, to, tree: gate.tree } };
 }
 
 /**
