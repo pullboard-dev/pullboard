@@ -1,10 +1,10 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
 import { runnerBoardFile } from '../../../resources/index.js';
-// Through the store front door, which also starts the store's import cycle where it must start (#4142).
-import { openBoardReadOnly } from '../../../store/index.js';
-import { boardId } from '../../../store/index.js';
-import { listItems } from '../../../store/index.js';
-import { milestones } from '../../../store/index.js';
+// The store's board-read door: the gate-slot path ranks releases without loading the whole store (#4142).
+import { openBoardReadOnly } from '../../../store/board-read.js';
+import { boardId } from '../../../store/board-read.js';
+import { listItems } from '../../../store/board-read.js';
+import { milestones } from '../../../store/board-read.js';
 
 /**
  * Capture the item's roadmap rank once, without opening or migrating a board for writing.
