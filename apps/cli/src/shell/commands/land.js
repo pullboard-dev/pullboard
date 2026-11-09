@@ -28,7 +28,7 @@ import { validateQuarantineGate } from '../../../../../packages/flakes/index.js'
 import { validateQuarantineLandingProof } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { postLandSuitePorts } from '../post-land-suite-ports.js';
-import { parseProcessCensus } from '../../../../../packages/kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';

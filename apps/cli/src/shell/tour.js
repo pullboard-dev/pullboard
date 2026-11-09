@@ -22,8 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
-import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/src/core/discovery.js';
-import { AGENT_SESSION_IDS } from '../../../../packages/kernel/src/core/discovery.js';
+import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
+import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
 import {
   forgetProject,
   listProjects,
