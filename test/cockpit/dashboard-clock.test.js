@@ -38,7 +38,7 @@ test('clause 2: the cli front door exports every binding the four view-lane test
 test('Dashboard pace crosses every cached window without a milestone or a native write [N26,A2]', { timeout: 90_000 }, async t => {
   const box = machine(), alpha = project(box, 'dashboard-clock');
   box.run(alpha.repo, 'add', 'web', 'A recorded landing for the clock fixture', '--specs', 'G1',
-    '--criterion', 'The private project configuration exists.', '--check', 'test -f pullboard.json', '--wait');
+    '--criterion', 'The private project configuration exists.', '--check', 'test -d web/', '--wait');
   const base = Date.now() + 1_000, clock = { at: base };
   // @pullboard-board-file journey: the CLI seeds the persisted Git-local board that serveApi reopens over HTTP.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
