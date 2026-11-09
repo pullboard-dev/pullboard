@@ -32,9 +32,9 @@ import { basename, dirname } from 'node:path';
 appendFileSync(process.env.HANDOFF_TEST_LOG, basename(dirname(process.argv[2])) + ' ' + Date.now() + '\\n');
 `;
 
-/** A stand-in dispatcher entry that records its own pid and exits. */
-const DISPATCHER = `import { appendFileSync } from 'node:fs';
-appendFileSync(process.env.HANDOFF_TEST_LOG, 'dispatcher ' + process.pid + '\\n');
+/** A stand-in dispatcher entry that records its own pid and exits. The launcher hands a dispatcher a cleaned environment, so the log path is written into the entry. */
+const dispatcherSource = log => `import { appendFileSync } from 'node:fs';
+appendFileSync(${JSON.stringify(log)}, 'dispatcher ' + process.pid + '\\n');
 `;
 
 /** Build a private machine home and a captured tools tree holding a worker and a dispatcher entry. */
@@ -47,8 +47,8 @@ function fixture() {
   writeFileSync(join(tools, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(tools, 'bin', 'handoff-worker-detach.js'), readFileSync(new URL('../../../bin/handoff-worker-detach.js', import.meta.url), 'utf8'));
   writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
-  writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), DISPATCHER);
   const log = join(dir, 'log');
+  writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), dispatcherSource(log));
   writeFileSync(log, '');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, log: process.env.HANDOFF_TEST_LOG };
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
