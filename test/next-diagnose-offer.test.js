@@ -71,7 +71,7 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   const id = JSON.parse(added.out).item.item_id;
   const before = box.run(light, 'claim', String(id));
   assert.notEqual(before.code, 0);
-  assert.match(before.err, /DIAGNOSIS_REQUIRED/u);
+  assert.match(before.err, /\[ROUTE\] item #\d+ needs a mid model/u);
   const recorded = box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS);
   assert.equal(recorded.code, 0, recorded.err);
   const picked = box.run(light, 'next', '--build', '--json');
@@ -85,7 +85,7 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   assert.equal(onBoard(box, board => store.getItem(board, id).item_route), 'mid');
   const retry = box.run(light, 'claim', String(id));
   assert.notEqual(retry.code, 0);
-  assert.match(retry.err, /DIAGNOSIS_REQUIRED/u);
+  assert.match(retry.err, /\[ROUTE\] item #\d+ needs a mid model/u);
   assert.equal(box.run(box.repo, 'fact', String(id), 'diagnosis', COLD_DIAGNOSIS.replace('fixture', 'assertion')).code, 0);
   assert.equal(box.run(light, 'claim', String(id)).code, 0);
 });
