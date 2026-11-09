@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/stats",
  "frontDoor": "packages/stats/index.js",
+ "pureDoor": "packages/stats/pure.js",
  "paths": [
   ["src/exit-rules-calls.js","packages/stats/src/core/exit-rules-calls.js","rule"],
   ["src/exit-rules-policy.js","packages/stats/src/core/exit-rules-policy.js","rule"],

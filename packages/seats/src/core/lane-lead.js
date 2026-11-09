@@ -1,5 +1,5 @@
 /** Explicit lane coordination never grants coordinator or person authority [B21,B26]. */
-import { Refused } from '../../../kernel/core.js';
+import { Refused } from '../../../kernel/pure.js';
 import { LANE_LEAD_ENGINE } from '../../../state/core.js';
 import { COORDINATOR_SHOUT_KINDS_ENGINE } from '../../../state/core.js';
 
