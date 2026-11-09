@@ -19,7 +19,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { json } from './land-board-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../packages/landing/index.js';
 import { withRecordedConflictContext } from '../packages/state/index.js';

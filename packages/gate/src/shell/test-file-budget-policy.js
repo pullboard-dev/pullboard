@@ -7,7 +7,8 @@ import { posix } from 'node:path';
 import { gitChildEnv } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
-import { carriedRunnerTrunk } from '../../../sandbox/src/shell/trusted-policy-read.js';
+import { carriedRunnerTrunk } from '../../../sandbox/index.js';
+import { mainPolicy } from '../../../sandbox/index.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../core/test-file-budget.js';
 import { requireTestFileRatchet } from '../core/test-file-budget.js';
 import { testFileLimit } from '../core/test-file-budget.js';
@@ -60,7 +61,8 @@ export function readTestFileBudgets(root, files) {
   const portable = files.map(file => testFileRelative(root, file));
   const env = gitChildEnv(root);
   if (tryGit(root, ['rev-parse', '--git-dir'], { env }).status !== 0) return new Map(portable.map(file => [file, { ms: DEFAULT_TEST_FILE_BUDGET_MS, audit: false }]));
-  const main = acceptedBudgetTrunk(root, env)?.commit;
+  // No admitted trunk is the policy authority's refusal: it names NO_POLICY and its fix before any file runs [V4].
+  const main = acceptedBudgetTrunk(root, env)?.commit ?? mainPolicy(root).commit;
   if (!main) throw new Error('cannot determine accepted main for test file budgets; restore the main checkout or run through the runner with its pinned trunk');
   const diff = tryGit(root, ['diff', '--no-renames', '--name-only', '-z', main, 'HEAD', '--', DIRECTORY], { env });
   if (diff.status !== 0) throw new Error('cannot compare test file budgets to accepted main');
