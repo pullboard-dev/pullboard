@@ -58,7 +58,7 @@ test('clause 2: refreshing each tab three times shows the same title every time,
       assert.equal(page.run('titleWrites.length'), before, tab + ': a refresh that changes nothing writes no title');
       seen[tab] = titles[0];
     }
-    assert.match(seen.roadmap, /^\(\d+ remaining\) tab-title · Roadmap · Pullboard$/u, 'Roadmap carries its remaining count');
+    assert.match(seen.roadmap, /^\(\d+ remaining\) tab-title · Roadmap · Pullboard$/u, `Roadmap carries its remaining count: ${JSON.stringify(seen.roadmap)}`);
     assert.equal(seen.cost, 'tab-title · Cost · Pullboard', 'Cost carries the Cost label');
     for (const tab of TABS.filter(tab => !['roadmap', 'cost'].includes(tab))) assert.match(seen[tab], /^(?:\(\d+\) )?tab-title · Pullboard$/u, tab + ' keeps the needs title');
   } finally {
