@@ -2,17 +2,17 @@ import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 /** Reopened work follows its native builder and family activity, with ordinary fallback [H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
+import * as store from '../index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import { applyEngineMove } from '../../state/index.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { defaults } from '../../config/index.js';
-import { reworkFamilyRoute } from '../../store/index.js';
-import { sealReworkRoutingPolicy } from '../../store/index.js';
+import { reworkFamilyRoute } from '../index.js';
+import { sealReworkRoutingPolicy } from '../index.js';
 import { canTake } from '../../seats/index.js';
 import { routeOf } from '../../seats/index.js';
-import { SEAT_LIVE_WINDOW_MS } from '../../store/index.js';
+import { SEAT_LIVE_WINDOW_MS } from '../index.js';
 import { maintenanceDurations } from '../../config/index.js';
 
 const COMMIT = 'a'.repeat(40);
