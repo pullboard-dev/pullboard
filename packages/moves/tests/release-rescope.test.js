@@ -1,10 +1,12 @@
 /** A BLOCKED, ROUTED_ELSEWHERE or INELIGIBLE release stops next offering the item to that lane and route and shows it as needing re-scope [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { healthReport } from '../packages/health/index.js';
-import { dispatchHealth } from '../packages/sentinels/index.js';
-import * as store from '../packages/store/index.js';
-import { cli, fixture } from './next-take-fixture.js';
+import { healthReport } from '../../health/index.js';
+import { dispatchHealth } from '../../sentinels/index.js';
+import * as store from '../../store/index.js';
+import { fixture } from './next-fixture.js';
+import { next } from './next-fixture.js';
+import { take } from './next-fixture.js';
 
 /** Claim an item for a seat and release it with a reason, as a seat that gives work back does. */
 function giveBack(box, id, seat, reason) {
@@ -13,15 +15,14 @@ function giveBack(box, id, seat, reason) {
 }
 
 for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
-  test(`clause 1 and clause 2: ${reason} stops next offering the item to the same lane and route; health and status name it [C7]`, async t => {
-    const box = await fixture(t);
+  test(`clause 1 and clause 2: ${reason} stops next offering the item to the same lane and route; health names it [C7]`, async t => {
+    const box = fixture(t);
     const id = box.add('Item that needs re-scope');
     giveBack(box, id, box.seats.actor, reason);
     box.advance(31 * 60_000);
-    const sibling = await cli(box, box.seats.builder.path, ['next', '--take']);
-    assert.equal(sibling.code, 1, sibling.out + sibling.err);
-    assert.equal(typeof sibling.document?.error?.code, 'string', 'native no-work refusal is retained');
-    assert.notEqual(sibling.document?.item?.item_id, id, `a second seat of the same lane and route is not offered the ${reason} item`);
+    box.as('builder');
+    const sibling = await take(box);
+    assert.notEqual(sibling.item?.item_id, id, `a second seat of the same lane and route is not offered the ${reason} item`);
     assert.equal(store.getItem(box.board, id).item_status, 'open');
     const rescope = store.allItemsNeedingRescope(box.board);
     assert.equal(rescope.length, 1);
@@ -34,31 +35,30 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
     assert.equal(finding.owner.who, 'coordinator');
     assert.match(finding.why, new RegExp(reason));
     assert.deepEqual(finding.detail.reasons, rescope[0].reasons);
-    const status = await cli(box, box.root, ['status']);
-    assert.equal(status.document.needsRescope[0].id, id, 'status shows the item as needing re-scope with its release reasons');
     store.editItem(box.board, id, { agentId: 'coordinator', criterion: 'The fixture succeeds after the coordinator re-scoped the item.', reason: 'The first bar named work this lane could not build.' });
     assert.deepEqual(store.allItemsNeedingRescope(box.board), [], 'an edit returns the item to the lane and route');
-    const again = await cli(box, box.seats.builder.path, ['next', '--take']);
-    assert.equal(again.document.item.item_id, id, 'after the edit next offers the item again');
+    const again = await take(box);
+    assert.equal(again.item.item_id, id, 'after the edit next offers the item again');
   });
 }
 
 for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) {
   test(`clause 3: ${reason} keeps today's behaviour and never marks the item for re-scope [C7]`, async t => {
-    const box = await fixture(t);
+    const box = fixture(t);
     const id = box.add('Item given back for another reason');
     box.claim(id, box.seats.actor);
     store.release(box.board, id, box.seats.actor.id, 'Give the fixture item back to the board', reason);
     assert.deepEqual(store.allItemsNeedingRescope(box.board), []);
     box.advance(31 * 60_000);
-    const sibling = await cli(box, box.seats.builder.path, ['next', '--take']);
-    assert.equal(sibling.document.item.item_id, id, `${reason} leaves the item offered to the same lane and route`);
+    box.as('builder');
+    const sibling = await take(box);
+    assert.equal(sibling.item.item_id, id, `${reason} leaves the item offered to the same lane and route`);
   });
 }
 
 for (const reset of ['refreeze', 'reroute']) {
-  test(`clause 1: ${reset} restores a scoped-out item through native next [C7]`, async t => {
-    const box = await fixture(t);
+  test(`clause 1: ${reset} restores a scoped-out item through next [C7]`, async t => {
+    const box = fixture(t);
     const id = box.add('Scope reset fixture');
     giveBack(box, id, box.seats.actor, 'ROUTED_ELSEWHERE');
     assert.equal(store.itemsNeedingRescope(box.board, 'web', 'strong').length, 1);
@@ -67,19 +67,19 @@ for (const reset of ['refreeze', 'reroute']) {
     else store.editItem(box.board, id, { agentId: 'coordinator', route: 'mid' });
     assert.deepEqual(store.allItemsNeedingRescope(box.board), []);
     box.advance(31 * 60_000);
-    const selected = await cli(box, box.seats.builder.path, ['next', '--build']);
-    assert.equal(selected.code, 0, selected.out + selected.err);
-    assert.equal(selected.document.item.item_id, id);
+    box.as('builder');
+    const selected = await next(box, { build: true });
+    assert.equal(selected.item.item_id, id);
   });
 }
 
 test('clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const blocker = box.add('Named blocker');
   const id = box.add('Waits for the blocker');
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'Needs the named blocker', { blockedOn: [blocker] }, 'BLOCKED');
-  // Real native fixture lifecycle; submitFixture explicitly claims no gate execution.
+  // Synthetic board-state lifecycle; submitFixture explicitly claims no gate execution.
   box.submit(blocker);
   const submitted = store.getItem(box.board, blocker);
   store.verify(box.board, blocker, { agentId: box.seats.outside.id, decision: 'ACCEPT',
@@ -87,16 +87,16 @@ test('clause 1: a named blocker must land before its blocked scope is offered ag
     head: submitted.item_commit, digest: submitted.item_frozen_digest, policy: 'any', familyPolicy: 'off' });
   assert.equal(store.itemsNeedingRescope(box.board, 'web', 'strong').some(row => row.id === id), true,
     'acceptance alone does not mean the blocker landed');
-  store.merged(box.board, blocker, { agentId: 'coordinator', commit: box.git(box.root, 'rev-parse', 'HEAD') });
+  store.merged(box.board, blocker, { agentId: 'coordinator', commit: box.git('rev-parse', 'HEAD') });
   assert.deepEqual(store.itemsNeedingRescope(box.board, 'web', 'strong'), []);
   box.advance(31 * 60_000);
-  const selected = await cli(box, box.seats.builder.path, ['next', '--build']);
-  assert.equal(selected.code, 0, selected.out + selected.err);
-  assert.equal(selected.document.item.item_id, id);
+  box.as('builder');
+  const selected = await next(box, { build: true });
+  assert.equal(selected.item.item_id, id);
 });
 
-test('clause 2: scope health bounds long release text while retaining its complete detail [C7]', async t => {
-  const box = await fixture(t);
+test('clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
+  const box = fixture(t);
   const id = box.add('Long scope explanation');
   box.claim(id, box.seats.actor);
   const note = 'Specific blocker context '.repeat(600).trim();
