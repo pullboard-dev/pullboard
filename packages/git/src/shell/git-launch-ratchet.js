@@ -11,7 +11,7 @@ import {
 import {
   lex,
   lineAt,
-} from "../../../kernel/index.js";
+} from "../../../kernel/core.js";
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'tests', 'test']);
 const ADAPTERS = new Set(['src/git-adapter.js', 'packages/git/src/shell/git-adapter.js']);

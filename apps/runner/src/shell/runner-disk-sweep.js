@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { sep } from 'node:path';
-import { Refused } from '../../../../packages/kernel/index.js';
+import { Refused } from '../../../../packages/kernel/core.js';
 import { processCensus } from './runner-custody.js';
 import { acquireResourceApi } from './runner-worker-environment.js';
 import { DatabaseSync } from 'node:sqlite';
