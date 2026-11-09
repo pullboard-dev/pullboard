@@ -61,7 +61,7 @@ function released(box) {
  * took. Why in process: a fresh node's startup varies by hundreds of ms on a loaded machine.
  */
 async function timed(box, cwd, ...argv) {
-  const { main } = await import(pathToFileURL(join(box.release, 'src', 'cli.js')).href);
+  const { cli$main: main } = await import(pathToFileURL(join(box.release, 'apps', 'cli', 'index.js')).href);
   const saved = HOMES.map((name) => process.env[name]);
   for (const name of HOMES) process.env[name] = box.env[name];
   let out = '';

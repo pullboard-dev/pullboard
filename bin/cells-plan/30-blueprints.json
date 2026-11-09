@@ -19,8 +19,7 @@
   ["src/blueprints/test-reliability.json","packages/blueprints/src/shell/blueprints/test-reliability.json","seed"],
   ["src/blueprints/web-app.json","packages/blueprints/src/shell/blueprints/web-app.json","seed"],
   ["src/blueprints/website.json","packages/blueprints/src/shell/blueprints/website.json","seed"],
-  ["src/blueprints/writing.json","packages/blueprints/src/shell/blueprints/writing.json","seed"],
-  ["test/blueprint.test.js","packages/blueprints/tests/blueprint.test.js","seed"]
+  ["src/blueprints/writing.json","packages/blueprints/src/shell/blueprints/writing.json","seed"]
  ],
  "reexports": [],
  "imports": [
