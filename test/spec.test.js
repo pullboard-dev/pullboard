@@ -883,16 +883,17 @@ test('spec unmet and signoff do not create a board when reading a repo without o
   const box = specBox(t);
   const boardDir = join(box.root, '.git', 'pullboard');
   rmSync(boardDir, { recursive: true, force: true });
-  assert.equal(existsSync(boardDir), false);
+  const boardFile = join(boardDir, 'board.sqlite');
+  assert.equal(existsSync(boardFile), false);
 
   const unmet = box.run('unmet');
   assert.equal(unmet.status, 0, unmet.stderr);
-  assert.equal(existsSync(boardDir), false);
+  assert.equal(existsSync(boardFile), false, 'only the run trace may appear beside a missing board (faad62a688)');
 
   const signoff = box.run('signoff', 'G1', '--by', 'CO');
   assert.equal(signoff.status, 1);
   assert.match(signoff.stderr, /NO_EVIDENCE/);
-  assert.equal(existsSync(boardDir), false);
+  assert.equal(existsSync(boardFile), false, 'only the run trace may appear beside a missing board (faad62a688)');
 });
 
 test('signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', (t) => {
@@ -906,7 +907,10 @@ test('signoff refuses missing evidence atomically, and unmet shows every stage t
   assert.equal(added.status, 0, added.stderr);
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— building/);
   assert.equal(box.command('claim', '1').status, 0);
-  const submitted = box.command('submit', '1');
+  // A submit with no change against the claim head is refused (EMPTY_SUBMIT), so the claim gets a commit.
+  writeFileSync(join(box.root, 'greeting.txt'), 'hello\n');
+  box.git('add', 'greeting.txt'); box.git('commit', '-q', '-m', 'chore: add the greeting [G1]');
+  const submitted = box.command('submit', '1', '--wait', '--no-next');
   assert.equal(submitted.status, 0, submitted.stderr);
   assert.match(box.run('unmet').stdout, /G1 \[must\].*— awaiting a verdict/);
   const made = box.command('worktree', 'review');
