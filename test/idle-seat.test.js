@@ -44,11 +44,10 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Held work', '--criterion', 'A marker exists', '--check', 'test -f web/ready').code, 0);
   assert.equal(box.run(box.repo, 'hold', 'web', '--reason', 'Release approval is pending').code, 0);
   const held = box.run(box.web, 'next', '--json');
-  assert.equal(held.code, 1, held.out);
-  const heldRefusal = JSON.parse(held.out).error;
-  assert.match(heldRefusal.message, /Release approval is pending/u, 'a real lane hold is explained, not bypassed');
-  assert.match(heldRefusal.message, /lane web/u);
-  assert.match(heldRefusal.message, /route strong/u);
+  assert.equal(held.code, 0, held.out);
+  const heldAnswer = JSON.parse(held.out);
+  assert.equal(heldAnswer.item, null);
+  assert.match(heldAnswer.reasons.join('\n'), /Release approval is pending/u, 'a real lane hold is explained, not bypassed');
   assert.equal(box.run(box.repo, 'hold', 'web', '--off').code, 0);
   const next = box.run(box.web, 'next', '--json');
   assert.equal(next.code, 0, next.err || next.out);
