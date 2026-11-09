@@ -4,7 +4,7 @@
     "api": 2,
     "cli": 10,
     "config": 4,
-    "gate": 22,
+    "gate": 21,
     "git": 4,
     "items": 11,
     "keys": 1,
@@ -22,6 +22,6 @@
     "store": 103,
     "temporary": 1,
     "verify": 2,
-    "view": 4
+    "view": 2
   }
 }

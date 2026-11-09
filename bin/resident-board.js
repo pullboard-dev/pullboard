@@ -164,7 +164,7 @@ function finish(socket, value) {
   endThen(socket, JSON.stringify(value) + '\n', () => { flushing.delete(entry); exitWhenDone(); });
 }
 
-const { main, selectedToolEntry } = await import('../apps/cli/src/shell/cli-main.js');
+const { cliMain$main: main, selectedToolEntry } = await import('../apps/cli/index.js');
 const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
 const { holdReadConnections, openBoardReadOnly } = await import('../packages/store/index.js');
 const TRACE = baseEnv.PULLBOARD_RESIDENT_TRACE;
@@ -414,7 +414,7 @@ function checkIdle({ exit = true } = {}) {
 
 // Load each served command's modules now, so the first command after a start is warm too.
 void (async () => {
-  const { COMMANDS } = await import('../apps/cli/src/shell/commands/index.js');
+  const { COMMANDS } = await import('../apps/cli/index.js');
   const { RESIDENT_COMMANDS } = await import('./resident-client.js');
   await loadNativeBoard();
   await loadProcessPorts();
