@@ -1,7 +1,9 @@
 {
   "journeys": {
+    "test/doctrine-rulings.test.js": "drives the real CLI (resume, doctrine rulings) across several checkouts and the agent move API, and checks its JSON output and exit codes end to end",
     "test/relay-pairing-options.test.js": "drives the real CLI (relay on, relay pair, relay --help) through a relay and auth stand-in, and checks its exit codes, output and machine state end to end",
     "test/shout-item-cli.test.js": "drives the real CLI (shout --item, shout --news, inbox) in a project checkout and checks its JSON output, exit codes and board rows end to end",
+    "test/signoff.test.js": "drives the real CLI (init, spec check, spec signers add, spec show, spec signoff) in signed repositories and checks its output, exit codes and refusals end to end",
     "test/test-run-queued.test.js": "drives the real CLI (bin/pullboard.js test) through an SSH runner stand-in end to end"
   },
   "pureHelpers": {
@@ -243,8 +245,6 @@
     "packages/sandbox/tests/trunk.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/sandbox/tests/trusted-policy.test.js": "imports test/e2e-helpers.js, outside its own cell sandbox; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/projects.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
-    "packages/spec/tests/doctrine-rulings.test.js": "imports test/e2e-helpers.js, outside its own cell spec; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/spec/tests/signoff.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/state/tests/bar-corrections.test.js": "imports src/board.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/check-baseline-worker.test.js": "imports src/board.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/decision-queue.test.js": "imports src/board.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -797,7 +797,6 @@
     "test/merged-idempotent.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/merged-on-main-fast.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/milestone-as-person.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/milestone-placement.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/mixed-mode-drill.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/model-tier-route.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/move-registry.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -896,7 +895,6 @@
     "test/pullboard-test-uncommitted-warning.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/quarantine-verdict.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/query-plans.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/queue-fairness.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/queue-order.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/queue-preempt.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/queued-red-returns-to-builder.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
