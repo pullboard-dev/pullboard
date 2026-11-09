@@ -14,7 +14,7 @@ import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
 import { headTree } from '../../../git/index.js';
-import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { smokeCandidate } from './landing-cli-smoke.js';
 import { submitHandoff } from '../../../store/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
@@ -74,19 +74,31 @@ export function provenTreeGate(board, items, tree) {
 }
 
 /**
+ * The CLI smoke a landing's guards run: the caller's stand-in, else smokeCandidate, which runs on a runner when
+ * gate.runnersOnly is on and never as a local process. Why: the proven-tree path called the local smoke directly, so
+ * a landing that reused its submit gate still ran a CLI smoke on the coordinator (#3011).
+ *
+ * @param {{ runLandingCliSmoke?: Function }} services
+ * @returns {Function}
+ */
+export function landingSmoke(services) {
+  return services.runLandingCliSmoke ?? smokeCandidate;
+}
+
+/**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 export async function quickGuards(state, label = 'local-trunk', options = {}) {
   const services = state.guardServices ?? {};
   const runChecks = services.runStaticChecks ?? runStaticChecks;
-  const smoke = services.runLandingCliSmoke ?? runLandingCliSmoke;
+  const smoke = landingSmoke(services);
   const runGate = services.gateGroup ?? gateGroup;
   const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
   if (proven) {
     await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
-    smoke(state.batch.root, { record: true });
+    await smoke(state.batch.root, { record: true });
     state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
     return proven;
   }
