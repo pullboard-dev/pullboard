@@ -1,25 +1,30 @@
 /** @pullboard-test-input source-tree */
-import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../packages/state/core.js';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../../state/core.js';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { recordItemSession, refuseSelfSession } from '../packages/items/index.js';
-import { compositionSessionOptions } from '../packages/verify/index.js';
-import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
-import { exportBoard } from '../packages/store/index.js';
+import { recordItemSession } from '../../items/index.js';
+import { refuseSelfSession } from '../../items/index.js';
+import { compositionSessionOptions } from '../../verify/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { exportBoard } from '../../store/index.js';
 /** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { heartbeatSeat } from '../packages/store/index.js';
-import { reviewEligibility } from '../packages/verify/index.js';
-import { compositionOwner } from '../packages/verify/index.js';
-import { refuseUnreviewable } from '../packages/verify/index.js';
-import { submitPreflight } from '../packages/items/index.js';
-import { healthReport } from '../packages/health/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
-import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../packages/state/core.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { heartbeatSeat } from '../../store/index.js';
+import { reviewEligibility } from '../../verify/index.js';
+import { compositionOwner } from '../../verify/index.js';
+import { refuseUnreviewable } from '../../verify/index.js';
+import { submitPreflight } from '../../items/index.js';
+import { healthReport } from '../index.js';
+import { STRICT_COMPOSITION_ENGINE } from '../../state/core.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../state/core.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-composition-bar' });
