@@ -21,6 +21,7 @@ import { refusePersonMove } from '../packages/mcp/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fixtureAddArgv } from './testkit-fixture.js';
 import { FIXTURE_MODEL } from './e2e-helpers.js';
+import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -172,8 +173,27 @@ function heldCheck(box, name) {
   return { started, finished, release, command: `${shellWord(process.execPath)} -e ${shellWord(script)}` };
 }
 
+/**
+ * Register the SSH stand-in as the box's one runner, so the background baseline has a runner to run on.
+ * Why: a check baseline runs only on a registered runner (#2520); without one add leaves it pending forever.
+ */
+function registerRunner(box) {
+  const bin = join(box.dir, 'ssh-bin');
+  const worker = join(box.dir, 'worker');
+  const remoteHome = join(box.dir, 'worker-home');
+  const remoteMachineHome = join(remoteHome, '.pullboard');
+  for (const folder of [bin, worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(box.dir, 'ssh-requests.jsonl') });
+  box.env.PATH = bin + ':' + box.env.PATH;
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
+  assert.equal(box.run(box.repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json']).status, 0);
+  assert.equal(box.run(box.repo, ['settings', 'gate.loadAwareDispatch', 'off', '--json']).status, 0);
+  return worker;
+}
+
 test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in background', async (t) => {
   const box = project({ content: 'committed' });
+  const worker = registerRunner(box);
   const originalMain = box.git(box.repo, 'rev-parse', 'main');
   writeFileSync(join(box.repo, 'web/result.txt'), 'dirty live checkout\n');
   const observations = join(box.dir, 'add-baseline-locations');
@@ -189,6 +209,7 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
   const locations = readFileSync(observations, 'utf8').trim().split('\n');
   assert.equal(locations.length, 1, 'add runs exactly one baseline');
   assert.notEqual(locations[0], box.repo);
+  assert.ok(locations[0].startsWith(worker), `the baseline ran in the registered runner's checkout: ${locations[0]}`);
   assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed after the baseline completes');
   assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
   const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
@@ -206,6 +227,7 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
 
 test('[B35,V2,H16] #2370 default add returns before a held baseline completes', async (t) => {
   const box = project({ content: 'committed' });
+  registerRunner(box);
   const held = heldCheck(box, 'add-default-held');
   t.after(() => writeFileSync(held.release, 'release'));
   const added = box.run(box.repo, ['add', 'web', 'Background held check', '--check', held.command, '--json'], undefined, { timeout: 8000 });
