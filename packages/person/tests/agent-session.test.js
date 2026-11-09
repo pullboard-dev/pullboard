@@ -396,7 +396,7 @@ test('a verdict from the agent session that built the item is refused under any 
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
   const reviewAs = (session, args) => box.run(review, args, { session, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--json']).status, 0);
+  assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json']).status, 0);
   const before = boardSnapshot(box.boardFile);
   const own = reviewAs(builder, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
   assert.notEqual(own.status, 0, 'the building session cannot accept its own item from another seat');
