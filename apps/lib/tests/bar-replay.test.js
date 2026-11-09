@@ -2,12 +2,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
-import { applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
-import { BAR_READY_ENGINE } from '../packages/state/core.js';
-import { barReadiness } from '../packages/verify/index.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { applyRelayMove } from '../../../packages/state/index.js';
+import { appliedSequence } from '../../../packages/state/index.js';
+import { prepareEngineMove } from '../../../packages/state/index.js';
+import { BAR_READY_ENGINE } from '../../../packages/state/core.js';
+import { barReadiness } from '../../../packages/verify/index.js';
 
 const SHA='a'.repeat(40);
 const ACTORS={coordinator:{session:'a'.repeat(64),parent:'a'.repeat(64)},'core-1':{session:'b'.repeat(64),parent:'a'.repeat(64)},'core-2':{session:'c'.repeat(64),parent:'c'.repeat(64)}};

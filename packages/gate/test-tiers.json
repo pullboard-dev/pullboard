@@ -9158,7 +9158,7 @@
       ]
     },
     {
-      "file": "test/bar-replay.test.js",
+      "file": "apps/lib/tests/bar-replay.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -19741,7 +19741,7 @@
       ]
     },
     {
-      "file": "test/commit-message.test.js",
+      "file": "apps/lib/tests/commit-message.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -19855,7 +19855,7 @@
       ]
     },
     {
-      "file": "test/companion-metadata.test.js",
+      "file": "apps/lib/tests/companion-metadata.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -25379,7 +25379,7 @@
       ]
     },
     {
-      "file": "test/item-notes-engine.test.js",
+      "file": "apps/lib/tests/item-notes-engine.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -48091,7 +48091,7 @@
       ]
     },
     {
-      "file": "test/spec-draft-refreeze.test.js",
+      "file": "apps/lib/tests/spec-draft-refreeze.test.js",
       "tier": "T3",
       "packages": [
         ".",
