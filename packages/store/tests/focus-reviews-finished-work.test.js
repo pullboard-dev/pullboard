@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../jobs/index.js';
 import * as store from '../index.js';
+import { register } from '../index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
-import { FIXTURE_MODEL } from '../../../test/testkit-fixture.js';
-import { FIXTURE_MODEL_EARLIER } from '../../../test/testkit-fixture.js';
 import { cellItem } from '../../../test/cell-fixture.js';
-import { cellSeat } from '../../../test/cell-fixture.js';
 
 const HOUR = 60 * 60 * 1000;
 /** The minimal frozen bar a claim needs. */
@@ -17,9 +15,9 @@ const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 /** A coordinator plus one strong builder and one strong reviewer on a real in-memory board. */
 function boardFixture(t) {
   const board = fixtureBoard(t);
-  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
-  const builder = cellSeat(board, { lane: 'core', path: '/builder', model: FIXTURE_MODEL }).id;
-  const reviewer = cellSeat(board, { lane: 'review', path: '/reviewer', model: FIXTURE_MODEL_EARLIER }).id;
+  register(board, { lane: 'coordinator', path: '/coordinator' });
+  const builder = register(board, { lane: 'core', path: '/builder', route: 'strong' });
+  const reviewer = register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
   return { board, builder, reviewer };
 }
 
