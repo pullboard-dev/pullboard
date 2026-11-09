@@ -1884,6 +1884,7 @@
   "allowedEdges": [
     "apps/cli->kernel",
     "gate->jobs",
+    "jobs->kernel",
     "resources->jobs",
     "codemap->git",
     "runners->config",

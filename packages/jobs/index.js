@@ -7,3 +7,4 @@ export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/shell/job-shadow
 export { gatePanel, stalledGates } from "./src/shell/gate-panel.js";
 export { gatePanelState } from "./src/core/gate-panel.js";
 export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/shell/gate-span-file.js";
+export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines } from "./src/shell/test-run-queue.js";

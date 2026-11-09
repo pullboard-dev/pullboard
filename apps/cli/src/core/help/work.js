@@ -106,6 +106,9 @@ export const workHelp = `Work
                                         one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
+                                        in an agent seat it queues on the board and returns at once with a run id;
+                                        pullboard next brings the result; --wait runs it here and blocks
+  pullboard test --status <run id>      print a queued test run's state once
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
