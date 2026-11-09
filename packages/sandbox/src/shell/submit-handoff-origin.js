@@ -5,6 +5,7 @@ import {
   policyAt,
 } from './trusted-policy-read.js';
 import { contains } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { itemPatchDigest } from '../../../items/index.js';
 import { agentById } from '../../../store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
@@ -42,7 +43,7 @@ export function bindSubmitHandoffOrigin(ctx, board, itemId, jobId) {
   if (!job || job.id !== jobId || !['queued', 'running'].includes(job.state) || item?.item_owner !== job.agentId
     || item.item_status !== 'claimed' || item.item_frozen_digest !== job.digest
     || realpathSync(ctx.info.root) !== realpathSync(submitHandoffRoot(ctx.info.commonDir, job))
-    || repoInfo(ctx.info.root).commonDir !== ctx.info.commonDir || !isClean(ctx.info.root)
+    || !sameCommonDir(repoInfo(ctx.info.root).commonDir, ctx.info.commonDir) || !isClean(ctx.info.root)
     || headCommit(ctx.info.root) !== job.commit || headTree(ctx.info.root) !== job.tree) {
     throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the worker needs the exact native queued candidate on its own board');
   }
