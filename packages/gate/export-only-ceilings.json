@@ -5,7 +5,6 @@
     "packages/gate/src/core/gate-wait.js",
     "packages/git/core.js",
     "packages/landing/src/core/landing-batch-history.js",
-    "packages/merge/core.js",
     "packages/merge/src/shell/train-mechanical-merge.js",
     "packages/person/src/shell/person-pairing-limit.js",
     "packages/queue/core.js",

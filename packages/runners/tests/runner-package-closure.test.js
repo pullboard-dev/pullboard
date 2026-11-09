@@ -1,12 +1,13 @@
 /** The hand-off folder prune carries a complete runner import closure [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
+import { runnerPackage } from '../src/shell/runner-package.js';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const prune = 'packages/resources/src/shell/handoff-folder-prune.js';
 
 test('clause 1: handoff-folder-prune.js opens the database through a static node:sqlite import, not createRequire [C7]', () => {

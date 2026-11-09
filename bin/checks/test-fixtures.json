@@ -1798,7 +1798,7 @@
   "packages/store/tests/inbox-starts-at-join.test.js": {
     "raw-board": 3
   },
-  "test/infra-retry.test.js": {
+  "packages/gate/tests/infra-retry.test.js": {
     "hand-policy": 1
   },
   "test/init-gate.test.js": {
@@ -2144,7 +2144,7 @@
   "test/liveness-reviews.test.js": {
     "raw-board": 1
   },
-  "test/liveness-slots.test.js": {
+  "packages/gate/tests/liveness-slots.test.js": {
     "tempdir": 2
   },
   "test/lock-hold-budget-command.fixture.js": {
@@ -2490,7 +2490,7 @@
     "hand-policy": 2,
     "model": 1
   },
-  "test/precommit-static-parity.test.js": {
+  "packages/gate/tests/precommit-static-parity.test.js": {
     "hand-policy": 1
   },
   "test/presence-gone-fixture.js": {
@@ -3091,7 +3091,7 @@
   "packages/gate/tests/run-tests-cleanup-enotempty.test.js": {
     "tempdir": 2
   },
-  "test/run-tests-empty-selection.test.js": {
+  "packages/gate/tests/run-tests-empty-selection.test.js": {
     "model": 1
   },
   "test/run-tests-fixture.js": {
@@ -3155,7 +3155,7 @@
     "tempdir": 3,
     "hand-policy": 1
   },
-  "test/runner-cleanup-recovery.test.js": {
+  "packages/runners/tests/runner-cleanup-recovery.test.js": {
     "model": 1
   },
   "test/runner-controller-machine-fixture.js": {
@@ -3298,7 +3298,7 @@
   "test/runner-unavailable-redispatch.fixture.js": {
     "model": 1
   },
-  "test/runner-warm-pool.test.js": {
+  "packages/runners/tests/runner-warm-pool.test.js": {
     "tempdir": 1
   },
   "test/runner-warm-source.test.js": {

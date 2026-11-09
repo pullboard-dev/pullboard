@@ -14,8 +14,10 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout } from '../packages/runners/index.js';
-import { git } from './runner-tooling-fixture.js';
+import { borrowWarmCheckout } from '../index.js';
+import { snapshotWarmCheckout } from '../index.js';
+import { recycleWarmCheckout } from '../index.js';
+import { git } from '../../../test/runner-tooling-fixture.js';
 
 test('a warm loan moves its worktree and restores source, objects, config and refs before reuse [C7,P3]', async t => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-warm-pool-')));
