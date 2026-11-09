@@ -20,8 +20,8 @@ import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
-/** An agent that commits a change, since a submit with no change against its claim head is refused (EMPTY_SUBMIT). */
-const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt && git add web/built.txt && git commit -q -m \"feat(web): build the item [G1]\"'";
+/** An agent that writes a change in its lane; the runner commits it, and a submit with no change is refused (EMPTY_SUBMIT). */
+const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt'";
 
 /** Capture the actual CLI with a deterministic board clock and one JSON result. */
 async function run(box, cwd, args) {
@@ -90,32 +90,39 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('[Q1,V15] next reserves the mandatory review before a new claim, --build records the skip, and held claims renew normally', async (t) => {
+test('[Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
-  const offered = await run(box, box.builder, ['next', '--json']);
-  assert.equal(offered.code, 0, offered.stderr);
-  // Review is work next hands out: a seat with no claim at the ratio takes the first review (ca4d88511e).
-  assert.equal(offered.data.review, true);
-  assert.equal(offered.data.offer, undefined, 'a mandatory review is handed out, not offered');
-  const reserved = offered.data.item.item_id;
+  const handed = await run(box, box.builder, ['next', '--json']);
+  assert.equal(handed.code, 0, handed.stderr);
+  // A seat with no claim takes the first review before any build (ca4d88511e); plain next is the default loop.
+  assert.equal(handed.data.review, true);
+  assert.equal(handed.data.offer, undefined, 'a mandatory review is handed out, not offered');
+  const reserved = handed.data.item.item_id;
   assert.ok(ids.includes(reserved));
   assert.equal(store.getItem(box.board, reserved).item_review_by, box.builderId, 'the review is reserved for the seat');
   assert.equal(store.getItem(box.board, id).item_status, 'open', 'the build stays unclaimed');
   const prose = await run(box, box.builder, ['next']);
   assert.match(prose.stdout, new RegExp(`next to verify: #${reserved} `, 'u'));
   assert.match(prose.stdout, /reserved for you until/u);
+});
+
+test('[Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
+  const box = await project(t);
+  const ids = [submitted(box), submitted(box), submitted(box)];
+  const id = build(box);
   const claimed = await run(box, box.builder, ['next', '--build', '--json']);
   assert.equal(claimed.code, 0, claimed.stderr);
   assert.equal(claimed.data.item.item_id, id);
   assert.equal(claimed.data.item.item_status, 'claimed');
   const detail = JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail);
   assert.ok(detail.reviewSkipped, 'the explicit build claim records the offered review');
-  assert.equal(detail.reviewSkipped.offeredItem, reserved);
+  assert.ok(ids.includes(detail.reviewSkipped.offeredItem));
   assert.equal(detail.reviewSkipped.pending, 3);
   assert.equal(detail.reviewSkipped.ratio, 3);
-  const renewal = await run(box, box.builder, ['next', '--json']);
+  // Plain next is the default loop and hands out a review first; the explicit build renews the held claim.
+  const renewal = await run(box, box.builder, ['next', '--build', '--json']);
   assert.equal(renewal.code, 0, renewal.stderr);
   assert.equal(renewal.data.held, true);
   assert.equal(renewal.data.offer, undefined);
@@ -125,15 +132,17 @@ test('[Q1,V15] next reserves the mandatory review before a new claim, --build re
   assert.equal(invalid.data.error.code, 'USAGE');
 });
 
-test('[Q1,V15,A1] below the configured ratio next claims normally and status reports submit age', async (t) => {
+test('[Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
   const box = await project(t, 4);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
-  const claimed = await run(box, box.builder, ['next', '--json']);
+  const claimed = await run(box, box.builder, ['next', '--build', '--json']);
   assert.equal(claimed.code, 0, claimed.stderr);
   assert.equal(claimed.data.item.item_id, id);
   assert.equal(claimed.data.offer, undefined);
-  assert.equal(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, undefined);
+  // An explicit build always records the skip; below the ratio no review was offered, so it names none.
+  assert.deepEqual(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped,
+    { ageMs: 0, offeredItem: null, oldestSubmittedAt: '2026-10-08T12:00:00.000Z', pending: 3, ratio: 4, reserved: 0, reviewing: 0 });
   const released = await run(box, box.builder, ['release', String(id), '--reason', 'BLOCKED', '--note', 'check aged review routing', '--json']);
   assert.equal(released.code, 0, released.stderr);
   assert.equal(store.getItem(box.board, id).item_status, 'open');
@@ -147,9 +156,9 @@ test('[Q1,V15,A1] below the configured ratio next claims normally and status rep
   assert.match(prose.stdout, /review queue: 3 submitted; 3 waiting for a first reviewer, 0 released without a verdict, 0 agents reviewing; oldest submission 2h ago/u);
   const aged = await run(box, box.builder, ['next', '--json']);
   assert.equal(aged.code, 0, aged.stderr);
-  assert.ok(aged.data.offer, 'a two-hour wait overrides the configured review ratio');
-  assert.equal(aged.data.build.item_id, id);
-  assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review offer does not claim the build');
+  assert.equal(aged.data.review, true, 'a two-hour wait hands out a review');
+  assert.equal(aged.data.item.item_review_by, box.builderId);
+  assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review does not claim the build');
 });
 
 test('[V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
@@ -297,5 +306,6 @@ test('[N2,B13,H16] plain next follows recorded line capacity without a reviewer 
   const refused = await run(box, box.builder, ['claim', String(id), '--json']);
   assert.equal(refused.code, 1);
   assert.equal(refused.data.error.code, 'LINE_WIP_LIMIT');
-  assert.match(refused.data.error.message, new RegExp(`#${ids[0]}`));
+  // The seat holds the oldest review, so the message names the oldest one still waiting.
+  assert.match(refused.data.error.message, new RegExp(`#${ids[1]}`));
 });
