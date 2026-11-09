@@ -8,12 +8,14 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cliContext$context as context } from '../index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
+import { fixtureProjectPolicy } from '../../../test/testkit-fixture.js';
 
-/** A real repository, because the context reads its repository identity. */
+/** A real repository with a minimal committed project config, because the context reads its repository identity and config. */
 function repository(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gate-wait-io-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
+  fixtureProjectPolicy(root, { config: { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] } } } });
   return root;
 }
 

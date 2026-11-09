@@ -84,16 +84,8 @@ test('[A2,C7] an incremental board state equals a full rebuild over sampled even
 
 /** Serve the fixture with the state worker, and read its state over HTTP. */
 async function materializedApi(t, box, builds, statePorts = STATE_PORTS) {
-  const records = [];
-  const waiting = new Set();
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, statePorts,
-    onStateBuild: (build) => builds.push(build), projects: () => [{ root: box.root, name: 'Materializer fixture' }],
-    onStateRecord: (record) => { records.push(record); for (const waiter of waiting) waiter(record); } });
-  /** Resolve once a built (not restored) record at or past `sequence` has landed. */
-  const landed = (sequence) => new Promise((done) => {
-    const check = (record) => { if (!record.restored && record.sequence >= sequence) { waiting.delete(check); done(record); } };
-    for (const record of records) check(record);
-    if (!records.some((record) => !record.restored && record.sequence >= sequence)) waiting.add(check);
+    onStateBuild: (build) => builds.push(build), projects: () => [{ root: box.root, name: 'Materializer fixture' }]
   });
   t.after(() => api.close());
   const url = new URL(api.url);
@@ -106,29 +98,31 @@ async function materializedApi(t, box, builds, statePorts = STATE_PORTS) {
     const document = await response.json();
     return { status: response.status, document, ms: performance.now() - started };
   }
-  return { api, read, landed };
+  return { api, read };
 }
 
-test('[A2,C7] a state read after one appended event serves the materialized build and never builds', async (t) => {
+test('[A2,C7] a read with no write starts no build, and a read after a write returns the write', async (t) => {
   const { box, file, ids } = largeBoard(t);
   const builds = [];
-  const { api, read, landed } = await materializedApi(t, box, builds);
+  const { api, read } = await materializedApi(t, box, builds);
   const first = await read();
   assert.equal(first.status, 200, JSON.stringify(first.document));
   const sequence = first.document.state.sequence;
   assert.deepEqual(builds.map((build) => build.full), [true], 'only the first read waits, on the one full build');
+  for (let index = 0; index < 5; index += 1) {
+    const unchanged = await read();
+    assert.ok(unchanged.ms < 250, `a read of an unchanged board is served in ${unchanged.ms.toFixed(1)} ms, under 250 ms`);
+    assert.equal(unchanged.document.state.sequence, sequence);
+  }
+  assert.equal(builds.length, 1, 'reads of an unchanged board start no build');
   appendLater(file, ids, 1, 70_000);
   const fullBefore = builds.filter((build) => build.full).length;
   const after = await read();
-  assert.ok(after.ms < 250, `a read after an append is served in ${after.ms.toFixed(1)} ms, under 250 ms`);
-  assert.equal(after.document.state.sequence, sequence, 'the read served the build it already had');
-  await landed(sequence + 1);
-  const caught = await read();
-  assert.equal(caught.document.state.sequence, sequence + 1, 'the appended event reaches the next read');
+  assert.equal(after.document.state.sequence, sequence + 1, 'the read right after a write returns the written event');
   assert.equal(builds.filter((build) => build.full).length, fullBefore, 'catching up on the event extended the last build');
-  const delta = await read(`since=${caught.document.state.sequence}`);
+  const delta = await read(`since=${after.document.state.sequence}`);
   assert.equal(delta.status, 200);
-  assert.equal(delta.document.sequence, caught.document.state.sequence);
+  assert.equal(delta.document.sequence, after.document.state.sequence);
   assert.ok(delta.document.delta, 'a delta from a sequence the server sent is answered, not reset');
   await api.close();
   const cache = join(box.root, '.git', 'pullboard', 'state-cache');
@@ -137,9 +131,47 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   const restarted = [];
   const again = await materializedApi(t, box, restarted);
   const resumed = await again.read();
-  assert.ok(resumed.document.state.sequence >= sequence + 1, 'a restarted server serves the saved build at once');
-  await again.landed(sequence + 1);
+  assert.equal(resumed.document.state.sequence, sequence + 1, 'a restarted server serves the saved build at once');
   assert.ok(restarted.every((build) => build.full === false), 'a restarted server extends the saved build instead of rebuilding every item');
+});
+
+test('[A2,C7] an open page hears one change notice per write, and none from its own reads', async (t) => {
+  const box = apiHttpFixture(t);
+  const ids = [1, 2].map((index) => box.cli(box.root, 'add', 'app', `Notice item ${index}`, '--route', 'strong', '--criterion', `Detail ${index}`, '--brief', BRIEF).item.item_id);
+  const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
+  const builds = [];
+  const { api, read } = await materializedApi(t, box, builds);
+  const url = new URL(api.url);
+  const headers = { 'x-pullboard-key': url.searchParams.get('k') };
+  const id = (await (await fetch(url.origin + '/api/v1/boards', { headers })).json()).boards[0].id;
+  await read();
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const response = await fetch(`${url.origin}/api/v1/boards/${id}/events`, { headers: { ...headers, accept: 'text/event-stream' }, signal: controller.signal });
+  const decoder = new TextDecoder();
+  let text = '';
+  const waiters = new Set();
+  /** Resolve once the stream text satisfies `ready`; the stream's own frames drive it, never a timer. */
+  const until = (ready) => new Promise((done) => { const check = () => { if (ready()) { waiters.delete(check); done(); } }; waiters.add(check); check(); });
+  const pump = (async () => {
+    try { for await (const chunk of response.body) { text += decoder.decode(chunk, { stream: true }); for (const check of [...waiters]) check(); } }
+    catch { /* The test aborts the stream. */ }
+  })();
+  const changes = () => text.split('event: changed').length - 1;
+  await until(() => text.includes(': API v1'));
+  const built = builds.length;
+  for (let index = 0; index < 20; index += 1) await read();
+  assert.equal(builds.length, built, 'twenty reads of an unchanged board start no build');
+  appendLater(file, ids, 1, 80_000);
+  await until(() => changes() >= 1);
+  for (let index = 0; index < 5; index += 1) await read();
+  appendLater(file, ids, 1, 80_001);
+  await until(() => changes() >= 2);
+  const second = await read();
+  assert.equal(changes(), 2, 'each write sends one change notice, and the page reads between them send none');
+  assert.equal(second.document.state.sequence, (await read()).document.state.sequence, 'the page read after the second write is current');
+  controller.abort();
+  await pump;
 });
 
 test('[A2,C7] a state worker that cannot start never fails a read: the server builds on the request thread', async (t) => {

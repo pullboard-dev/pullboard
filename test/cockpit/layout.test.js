@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileFixtureItem } from '../testkit-fixture.js';
 import { joinFixtureSeat } from '../testkit-fixture.js';
 import { openShoutConversation, SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
@@ -262,7 +263,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   const spec = `${SPEC}- G3 [approved, must] The page has a footer. | gate: web test\n- G4 [approved, must] The page has a header. | gate: web test\n`;
   const alpha = project(box, 'glance', spec, { lanes });
   const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
-  add('web', 'Free', '--specs', 'G1,G2,G3,G4');
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Free', criterion: 'renders', args: ['--specs', 'G1,G2,G3,G4'], run: (root, ...argv) => ({ code: 0, out: box.run(root, ...argv) }) });
   add('web', 'Base');
   add('web', 'Depends', '--after', '2');
   add('api', 'Api work');
@@ -304,6 +305,9 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const warn = getComputedStyle(probe).color;
     probe.style.color = 'var(--reject)';
     const reject = getComputedStyle(probe).color;
+    // The held-row edge the shared stage token map draws: Gated grey mixed into the line colour (8221affabf).
+    probe.style.borderTop = '1px solid color-mix(in oklab, var(--stage-gated) 45%, var(--line))';
+    const gatedEdge = getComputedStyle(probe).borderTopColor;
     probe.remove();
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
       const s = getComputedStyle(row), why = row.querySelector('.meta .item-reason');
@@ -311,7 +315,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         stage: row.querySelector('.item-stage')?.dataset.stage ?? null, stageDetail: row.querySelector('.stage-detail')?.textContent ?? null,
         meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .row-side > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .row-side > .chip [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
-        border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
+        border: rgb(s.borderTopColor), borderColor: s.borderTopColor, borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
     });
     const status = document.querySelector('.status');
@@ -321,7 +325,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       header: document.querySelector('.top').innerText.replace(/\\s+/g, ' ').trim(), live: document.querySelector('#live').textContent, liveInBar: !!document.querySelector('.status #live'),
       bar: [...document.querySelectorAll('.status [data-status]')].filter((part) => !part.hidden).map((part) => ({ to: part.dataset.status, text: part.textContent.replace(/\\s+/g, ' ').trim(), height: part.getBoundingClientRect().height })),
       barShown: getComputedStyle(status).display !== 'none', barBox: box(status), barTint: rgb(getComputedStyle(status).backgroundColor), barBlur: getComputedStyle(status).backdropFilter,
-      rows, warn, reject, state: view.state, lane: view.lane, tab: view.tab,
+      rows, warn, reject, gatedEdge, state: view.state, lane: view.lane, tab: view.tab,
       chips: [...document.querySelectorAll('[data-filter-kind="state"]')].map((choice) => [choice.dataset.state, choice.querySelector('b').textContent, choice.getAttribute('aria-checked') === 'true']),
       lanes: [...document.querySelectorAll('[data-filter-kind="lane"]')].map((choice) => choice.querySelector('.filter-option-label').textContent + (choice.querySelector('b') ? ' · ' + choice.querySelector('b').textContent : '')), pick: box(document.querySelector('#filter-toggle')),
       seg: box(document.querySelector('.items-view-switch')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
@@ -377,10 +381,11 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.reject, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
           `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
         assert.equal(row['6'].why?.code, 'BEHAVIOR_MISMATCH', `${at}: the row keeps its native reason code in the tooltip`);
-        // A lane hold keeps its warning edge; dependency waits use the approved plain linked chip. Review stays gold.
+        // A lane hold keeps its own edge on every side, in the Gated grey of the shared stage token map (8221affabf), never
+        // a coloured warning bar; dependency waits use the approved plain linked chip. Review stays gold.
         for (const id of ['4']) {
-          const [red, green, blue] = row[id].border;
-          assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
+          assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && row[id].borderColor === r.gatedEdge && r.gatedEdge !== row['1'].borderColor,
+            `${at}: #${id} has the Gated grey edge ${r.gatedEdge}: ${JSON.stringify(row[id])}`);
         }
         assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [true, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
         assert.deepEqual([row['3'].stage, row['3'].stageDetail], ['gated', 'by #2'], `${at}: the row's stage names the native dependency`);

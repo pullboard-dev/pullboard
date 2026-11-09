@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
 import { tryGit } from '../../../../src/git.js';
 import { landingLeaseState } from '../../../../src/board-landing-lease.js';
-import { sameEnvironment } from '../../../sandbox/index.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';

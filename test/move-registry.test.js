@@ -3,7 +3,7 @@
 /** @pullboard-test-loads src/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
-import './typed-request-registry.test.js';
+import '../apps/lib/tests/typed-request-registry.test.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { unpackRelease } from './release-archive.js';
 import * as store from '../packages/store/index.js';
-import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/src/core/native-board.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/index.js';
+import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();

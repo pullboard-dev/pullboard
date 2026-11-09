@@ -15,14 +15,16 @@ export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.
  */
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../verify/index.js";
+import { seatFamily } from "../../../verify/index.js";
+import { routingStrictReviewProblem } from "../../../verify/index.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../items/index.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
-import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
+import { requiredReviewFamilyProblem } from "../../../verify/index.js";
 import { laneLeads } from "../../../seats/index.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
@@ -150,7 +152,7 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board-rehome.js";
-export { setBarReady, signBar } from "../../../verify/index.js";
+export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item-check-baseline.js";
 
 export { atomic, logEvent };
@@ -293,11 +295,9 @@ export { prepareMergeOnlySubmit };
 export { reviewHolder } from "./board-query.js";
 
 /** Native composition providers for the store's lower-layer family routing rule. */
-export const seatFamily = reviewRouting.seatFamily;
-export const canonicalFamily = reviewRouting.canonicalFamily;
 
 /** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
-export const reviewReleaseCooldown = (board, itemId, agentId) => reviewRouting.reviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
+export const reviewReleaseCooldown = (board, itemId, agentId) => routingReviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
 
 export { reviewQueueBreakdown } from "./board-query.js";
 
@@ -338,7 +338,7 @@ export function gateReceiptProblem(board, item) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
-  const family = reviewRouting.seatFamily(board, agentId);
+  const family = seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -348,8 +348,8 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
+    familyAllows: (found) => routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {

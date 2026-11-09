@@ -83,7 +83,8 @@ test('a linked item worktree uses its runner primary admitted trunk [C7]', async
 test('a detached repository without trusted trunk fails closed with guidance [C7]', t => {
   const box = fixture(t);
   box.git(box.main, 'checkout', '--quiet', '--detach');
-  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /restore the main checkout or run through the runner with its pinned trunk/u);
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']),
+    error => error.code === 'NO_POLICY' && /detached for review; ask it to return to its main branch/u.test(error.message));
 });
 
 test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {

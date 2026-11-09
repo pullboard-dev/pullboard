@@ -6,20 +6,21 @@ import { test } from 'node:test';
 import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import * as serve from '../../apps/cli/src/shell/cli/view-state.js';
-import { addMilestone } from '../../src/board-milestones.js';
+import { addMilestone } from '../../packages/store/index.js';
 import { projectItemState } from '../../packages/api/index.js';
-import { lifecycleEvent, withdrawnFrom } from '../../packages/items/index.js';
+import { lifecycleEvent } from '../../packages/items/index.js';
+import { withdrawnFrom } from '../../packages/items/index.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
 
 /**
  * One item exactly as projectState wrote it inline before the per-item projector existed: the frozen reference that
- * says what "today's output" is, field for field and in the same order.
+ * says what "today's output" is, field for field and in the same order, with the withdrawn fields and lifecycle
+ * history (lease deadlines on claims) every item has carried since.
  */
 function todayItem(board, item, status) {
   const verdict = (row) => ({ decision: row.verdict_decision, reason: row.verdict_reason, note: row.verdict_note, by: row.verdict_by, at: row.verdict_at, commit: row.verdict_commit });
   const verdicts = store.verdictsFor(board, item.item_id).map(verdict);
   const after = item.item_after ? item.item_after.split(',').map(Number) : [];
-  // Since the cells move (e796f08418) the projection also carries why and from where a withdrawn item left, and lifecycle detail on history.
   const history = store.events(board, { itemId: item.item_id }).map(lifecycleEvent);
   return {
     id: item.item_id,

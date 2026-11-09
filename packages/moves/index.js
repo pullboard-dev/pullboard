@@ -1,6 +1,9 @@
-/** Board move declarations, their registry and the bar-ready setting behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/core/bar-ready-setting.js";
 export * from "./src/shell/move-registry.js";
+export * from "./src/shell/claim-freezer.js";
+export { nextOnce, nextSelection } from "./src/shell/next-selection.js";
+export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/core/next-reasons.js";
 export { default as reopen } from "./src/core/moves/reopen.js";
 export { default as shout } from "./src/core/moves/shout.js";
 export { default as submit } from "./src/core/moves/submit.js";

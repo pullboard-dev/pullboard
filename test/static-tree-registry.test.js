@@ -61,3 +61,15 @@ test('clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from 
   assert.equal(proseCheck.run(broken).length, 1, 'a tree whose catalog differs from its declarations fails');
   assert.match(proseCheck.run(broken)[0], /^src\/cockpit\.js:1: /u);
 });
+
+test('#4140 clause 2: the worker-bundle check fails when the measured raw bundle rises above its record, and passes at or below it [C7]', t => {
+  const bundleCheck = STATIC_TREE_CHECKS.find(check => check.name === 'worker-bundle');
+  assert.ok(bundleCheck, 'the worker-bundle check is registered');
+  const tree = privateFixtureFiles('pb-worker-bundle-');
+  t.after(() => rmSync(tree.root, { recursive: true, force: true }));
+  tree.write('packages/runners/index.js', 'export const workerBundleBytes = () => 1000;\n');
+  tree.write('bin/checks/worker-bundle.json', JSON.stringify({ bytes: 999 }) + '\n');
+  assert.match(bundleCheck.run(tree.root)[0] ?? '', /runner worker bundle is 1000 raw bytes, over its recorded 999/u);
+  tree.write('bin/checks/worker-bundle.json', JSON.stringify({ bytes: 1000 }) + '\n');
+  assert.deepEqual(bundleCheck.run(tree.root), [], 'at the record it passes');
+});

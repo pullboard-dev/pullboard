@@ -70,7 +70,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'test/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'test/review-tier.test.js', 'packages/gate/tests/selection-fallbacks.test.js',
     'test/relay-auth-expired.test.js', 'test/engine.test.js', 'test/landing-shards.test.js',
     'packages/gate/src/core/test-selection.js', 'packages/gate/src/shell/gate-run-receipt.js', 'packages/gate/src/shell/test-selection.js',
-    'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/gate/tests/landing-stage-composition.test.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
+    'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/landing/tests/landing-stage-composition.test.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
     '.github/workflows/ci.yml', 'pullboard.json']) assert.equal(gateJudgmentPath(path), true, path);
   assert.equal(gateJudgmentPath('packages/github/src/shell/pr-github.js'), false, 'no widening to the other github modules');
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
@@ -477,10 +477,6 @@ test('landing move preserves Strict on every protected provider [V4,B26,C7]', ()
   [
     "src/landing-waivers.js",
     "packages/landing/src/core/landing-waivers.js"
-  ],
-  [
-    "src/landing-worker-identity.js",
-    "packages/landing/src/core/landing-worker-identity.js"
   ],
   [
     "src/landing-worker.js",

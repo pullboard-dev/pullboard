@@ -10,7 +10,6 @@ import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
-import { REVIEW_COVER_PAUSE_TAIL } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -64,17 +63,15 @@ import {
 } from '../next-say.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
-
-/** Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2]. */
-function inboxReasons(ctx) {
-  return withBoardRead(ctx, board => {
-    const me = whoAmI(ctx, board);
-    const count = store.unreadCount(board, me.id);
-    if (!count) return [];
-    return [`${count} unread ${count === 1 ? 'message' : 'messages'}; read pullboard inbox`,
-      ...store.peekShouts(board, me.id, 2).map(shout => `${shout.shout_from} -> ${shout.shout_to}: ${shout.shout_text}`)];
-  });
-}
+import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
+import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
+import {
+  answerFirstReasons,
+  foldedReasons,
+  heldCounted,
+  inboxReasons,
+  ownWaitingLines,
+} from '../../../../../packages/moves/index.js';
 
 /** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
 function nextChangeInputs(ctx) {
@@ -85,43 +82,6 @@ function nextChangeInputs(ctx) {
   });
   return [ctx.file, ctx.file + '-wal', ...heads, ...refs, join(ctx.info.commonDir, 'packed-refs'),
     join(ctx.info.root, 'pullboard.json'), join(ctx.info.root, ctx.config.spec || 'SPEC.md'), join(ctx.info.root, ctx.config.practice || 'DOCTRINE.md')];
-}
-
-/**
- * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
- * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
- */
-function ownWaitingLines(board, me) {
-  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
-    .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
-}
-
-/** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
-function answerFirstReasons(reasons) {
-  return ['no item is free', ...heldCounted(reasons)];
-}
-
-/** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
-function heldCounted(reasons) {
-  // The review-cover pause explains why new builds stop, so it leads every count line and is never folded away [#3741].
-  const paused = reasons.filter(reason => reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
-  reasons = reasons.filter(reason => !reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
-  const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
-  const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return [...paused, ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
-}
-
-/**
- * Keep the first few reason lines and fold the rest into one counted line naming where to read them [C7,#2895].
- * Why: a long hold or skip list pushed the claim's action off the first screen, and small models lost it.
- *
- * @param {string[]} lines
- * @param {string} more the command that lists every reason
- * @param {number} [keep]
- * @returns {string[]}
- */
-export function foldedReasons(lines, more, keep = 5) {
-  return lines.length <= keep ? lines : [...lines.slice(0, keep), `+${lines.length - keep} more reasons: ${more}`];
 }
 
 /**
@@ -199,6 +159,8 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
+  // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
+  const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -231,6 +193,8 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    // A waiting next wakes on the board file, so a queued test run that finishes meanwhile comes back at once [C7].
+    if (minutes > 0 && testRuns.pending.length && deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI }).delivered) return 0;
     if (!values.verify) {
       const ownerQueue = withBoardRead(ctx, board => {
         const me = whoAmI(ctx, board);
@@ -273,7 +237,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
-      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...inboxReasons(ctx)];
+      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...withBoardRead(ctx, board => inboxReasons(board, whoAmI(ctx, board)))];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
@@ -365,6 +329,8 @@ async function nextWithProgress(io, values, progress) {
       lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+      // Nothing else to build: the board holds this next until the seat's own queued test run comes back [C7].
+      if (testRuns.pending.length && await deliverWhenReady(io, ctx)) return 0;
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
         io.result?.({ item: null, idleReason, reasons: found.reasons });
         io.say(found.reasons[0]);
@@ -376,7 +342,7 @@ async function nextWithProgress(io, values, progress) {
         io.say('next: nothing for this seat: end your turn');
         return 0;
       }
-      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => inboxReasons(board, whoAmI(ctx, board)))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       const reasons = answerFirstReasons(found.reasons);
@@ -415,6 +381,11 @@ async function nextWithProgress(io, values, progress) {
       wakeVersion = wake.version();
     }
   } } finally { wake?.close(); }
+}
+
+/** Hold an idle next on the board file until the seat's queued test run comes back; true when one did [C7]. */
+function deliverWhenReady(io, ctx) {
+  return deliverTestRunsWhenReady(io, ctx, { withBoard, withBoardRead, whoAmI }, () => fileChangeWaiter([ctx.file, ctx.file + '-wal']));
 }
 
 /** Run `pullboard next` and return its exit code. */

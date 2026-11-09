@@ -8,9 +8,6 @@ export {
   testRuntimeOption,
   bindTestRuntime,
   captureTestRuntimes,
-  sameEnvironment,
-  testRuntimeRows,
-  testRuntimeEnvironment,
 } from './src/shell/execution-environment.js';
 export {
   mainRedBuildOffer,

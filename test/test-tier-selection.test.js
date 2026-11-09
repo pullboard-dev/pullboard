@@ -298,3 +298,61 @@ test('clause 3: a diff that touches no refusal code does not add machine.test.js
   assert.ok(!plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
   assert.ok(plan.journeys.includes('test/machine.test.js'), 'it stays a landing journey');
 });
+
+test('clause 3: a change confined to a sealed cell selects only that cell\'s own units, and the plan names the sealed cells [C7]', t => {
+  const box = fixture(t);
+  // The listing is the coordinator's file, so main records it and the builder's lane only changes its own cell.
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/checks/test-cells.json'), JSON.stringify({ version: 1, sealed: ['alpha', 'beta'] }) + '\n');
+  const sealedBase = commit(box, box.repo, 'chore: record the sealed test cells [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const entry = build(box, 'alpha', 2);
+  const plan = selectTestTiers(entry.root, { base: sealedBase, commit: entry.head });
+  assert.deepEqual(plan.sealedCells, ['alpha', 'beta'], 'the plan reads the committed sealed-cell listing');
+  assert.deepEqual(plan.units, ['test/alpha.test.js'], 'beta is sealed and unchanged, so none of its tests are selected');
+  assert.deepEqual(plan.packages, ['.', 'packages/alpha'], 'only the changed cell and the root importer of its front door');
+  assert.deepEqual(plan.journeys, [], 'a change confined to sealed cells runs no journey (#4003)');
+});
+
+/** Record a sealed-cell listing on main, as the coordinator does, and bring the builder's worktree up to it. */
+function sealOnMain(box, sealed, extra = () => {}) {
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/checks/test-cells.json'), JSON.stringify({ version: 1, sealed }) + '\n');
+  extra();
+  const base = commit(box, box.repo, 'chore: record the sealed test cells [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return base;
+}
+
+test('#4003 clause 1: a change inside a sealed cell\'s internals selects that cell\'s own tests and no root journey [C7]', t => {
+  const box = fixture(t);
+  const base = sealOnMain(box, ['alpha', 'beta'], () => {
+    mkdirSync(join(box.repo, 'packages/alpha/src'), { recursive: true });
+    writeFileSync(join(box.repo, 'packages/alpha/src/inner.js'), 'export const inner = 1;\n');
+    mkdirSync(join(box.repo, 'packages/alpha/tests'), { recursive: true });
+    writeFileSync(join(box.repo, 'packages/alpha/tests/inner.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { inner } from '../src/inner.js';\ntest('inner is a number [G1]', () => assert.equal(typeof inner, 'number'));\n");
+    writeTestTiers(box.repo);
+  });
+  writeFileSync(join(box.web, 'packages/alpha/src/inner.js'), 'export const inner = 2;\n');
+  const head = commit(box, box.web, 'feat(web): change alpha internals [G1]');
+  const plan = selectTestTiers(box.web, { base, commit: head });
+  assert.deepEqual(plan.units, ['packages/alpha/tests/inner.test.js', 'test/alpha.test.js'], 'the sealed cell\'s own test and the unit that reaches only it');
+  assert.deepEqual(plan.journeys, [], 'no root test/ journey');
+});
+
+test('#4003 clause 2: a change to a sealed cell\'s front door also selects the contract tests of the cells that import it [C7]', t => {
+  const box = fixture(t);
+  const base = sealOnMain(box, ['alpha', 'beta'], () => {
+    mkdirSync(join(box.repo, 'packages/beta/contract'), { recursive: true });
+    writeFileSync(join(box.repo, 'packages/beta/contract/alpha-door.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { n } from '../../alpha/index.js';\ntest('beta reads alpha through its front door [G1]', () => assert.equal(typeof n, 'number'));\n");
+    mkdirSync(join(box.repo, 'packages/gamma/contract'), { recursive: true });
+    writeFileSync(join(box.repo, 'packages/gamma/contract/own.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { n } from '../index.js';\ntest('gamma keeps its own door [G1]', () => assert.equal(typeof n, 'number'));\n");
+    writeTestTiers(box.repo);
+  });
+  writeFileSync(join(box.web, 'packages/alpha/index.js'), 'export const n = 3;\n');
+  const head = commit(box, box.web, 'feat(web): change alpha front door [G1]');
+  const plan = selectTestTiers(box.web, { base, commit: head });
+  assert.ok(plan.units.includes('packages/beta/contract/alpha-door.test.js'), `units: ${plan.units.join(', ')}`);
+  assert.equal(plan.units.includes('packages/gamma/contract/own.test.js'), false, 'a contract test that does not reach the door stays out');
+  assert.deepEqual(plan.journeys, []);
+});

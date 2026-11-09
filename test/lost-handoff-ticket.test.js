@@ -8,7 +8,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
 import { HANDOFF_DISPATCHER_RESOURCE, handoffQueueDirectory, takeResource } from '../packages/resources/index.js';
