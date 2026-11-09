@@ -8571,25 +8571,6 @@
         "component test helper; moves with its importers"
       ]
     },
-    "test/rescope-exclusion-expires.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/reserve-next-review-lock.test.js": {
       "cells": [
         "app:lib",
