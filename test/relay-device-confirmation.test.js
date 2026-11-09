@@ -8,10 +8,10 @@ import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { findChromeExecutable } from '../../../test/relay-browser-fixture.js';
-import { startChrome } from '../../../test/relay-browser-fixture.js';
-import { enrollProtocolPhone } from '../../../test/relay-device-enrollment-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
+import { findChromeExecutable } from './relay-browser-fixture.js';
+import { startChrome } from './relay-browser-fixture.js';
+import { enrollProtocolPhone } from './relay-device-enrollment-fixture.js';
 
 const CONFIRMATION_PROMPT = 'After sign-in, confirm the link in your browser: ';
 const CONFIRMATION_POLL_INTERVAL_MS = 2000;
@@ -197,8 +197,8 @@ test('device revocation chooses a different paired approver [H17,E16]', async t 
   const target = await enrollProtocolPhone(box);
   const other = await enrollProtocolPhone(box);
   const result = await box.script(`
-    const { relayMachineContext } = await import(${JSON.stringify(new URL('../src/shell/relay.js', import.meta.url).href)});
-    const { phoneProposal } = await import(${JSON.stringify(new URL('../src/shell/relay-phone.js', import.meta.url).href)});
+    const { relayMachineContext } = await import(${JSON.stringify(new URL('../packages/link/src/shell/relay.js', import.meta.url).href)});
+    const { phoneProposal } = await import(${JSON.stringify(new URL('../packages/link/src/shell/relay-phone.js', import.meta.url).href)});
     const proposal = await phoneProposal(relayMachineContext(process.cwd()), 'revoke-device', ${JSON.stringify(target)});
     process.stdout.write(JSON.stringify({ approver: proposal.context.device, target: proposal.context.target }));
   `);
