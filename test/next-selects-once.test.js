@@ -29,6 +29,11 @@ test('next calls its selection and review offer once each [C7]', async t => {
   const box = await fixture(t);
   const first = box.add('First open item');
   const second = box.add('Second open item');
+  // The seat first takes and returns a claim through next --take, as before; the take counts live in the sandbox cell.
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  store.release(box.board, first, box.seats.actor.id, 'Return the fixture claim for the plain next run', 'OTHER');
+  box.advance(31 * 60_000);
   const plain = counted(t, nextSelection);
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
@@ -41,6 +46,9 @@ test('a holding seat returns its claim from next without another selection [C7]'
   const held = box.add('Already held');
   box.add('Another open item');
   box.claim(held, box.seats.actor);
+  // The seat first runs next --take on its held claim, as before; the take counts live in the sandbox cell.
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
   const plain = counted(t, nextSelection);
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);

@@ -48,7 +48,7 @@ function fixture(t) {
   const services = {
     withBoardRead: (_, work) => work(board),
     withBoard: (_, work) => work(board),
-    whoAmI: () => store.agentById(board, seats.actor.id),
+    whoAmI: () => ({ ...store.agentById(board, seats.actor.id), id: seats.actor.id, lane: seats.actor.lane }),
     idArg: value => Number(value),
     checkMainVerifier() {},
     claimFreezer: () => undefined,
