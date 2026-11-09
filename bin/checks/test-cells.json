@@ -32,7 +32,8 @@
     "test/trunk.test.js": "drives the real CLI (init, claim, submit, verify, show) in private repositories and checks branch-independent check baselines and lane merge ownership, output and board rows end to end",
     "test/trusted-policy.test.js": "drives the real CLI (claim, submit, release, show) in private repositories and checks that a later reclaim cannot turn unchanged coordinator history into an item edit, output and board rows end to end",
     "test/projects-init-registry.test.js": "runs the real CLI (init --yes and the HTTP view) in a temporary repository and checks the person project registry bytes are unchanged",
-    "test/relay-checkpoint.test.js": "drives the real CLI (shout, status) against a relay stand-in and checks which relay calls and background checkpoint uploads it makes end to end"
+    "test/relay-checkpoint.test.js": "drives the real CLI (shout, status) against a relay stand-in and checks which relay calls and background checkpoint uploads it makes end to end",
+    "test/runner-signed-result.test.js": "registers a fake runner through the real CLI (runner add --json), then runs the registered gate path and checks the signing key stays owner-only in the runner machine home and the controller accepts the signed green result"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -251,7 +252,6 @@
     "packages/person/tests/row-decisions.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/sealed-pages.test.js": "imports packages/kernel/src/core/seal.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/person/tests/stale-frozen-items.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell person; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/resources/tests/runner-leak-heal-spares-live-jobs.test.js": "imports packages/runners/src/shell/runner-leak-stop.js, outside its own cell resources; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/runners/tests/cleanup-diagnostics.test.js": "imports apps/runner/src/shell/runner-worker-state.js, outside its own cell runners; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/runners/tests/runner-orphan-holders.test.js": "imports apps/runner/src/shell/runner-orphan-observe.js, outside its own cell runners; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/runners/tests/runner-slots-measured.test.js": "imports test/runner-tooling-fixture.js, outside its own cell runners; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -767,7 +767,6 @@
     "test/next-idle-filters.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-item-folders.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-lapsed-gated-claim.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/next-light-reserve.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-never-seat-checkout.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-no-review-for-builder.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/next-order.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -986,7 +985,6 @@
     "test/runner-requeue-unpins.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-scan-cache.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-self-heal.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-signed-result.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-slot-quarantine.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-source-reuse.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-stage.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1175,13 +1173,14 @@
     "test/worktree-start.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/zombie-gate-jobs.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder"
   },
-  "rootTests": 909,
+  "rootTests": 908,
   "sealed": [
     "activity",
     "api",
     "apps/relay",
     "blueprints",
     "codemap",
+    "commits",
     "doctrine",
     "drive",
     "flakes",
@@ -1199,6 +1198,7 @@
     "pin",
     "queue",
     "receipt",
+    "resources",
     "rigor",
     "roadmap",
     "seats",
