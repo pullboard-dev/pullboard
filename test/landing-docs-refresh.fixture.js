@@ -110,6 +110,10 @@ function verifiedDeclaration(box) {
   try { success(box, box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'Synthetic private lifecycle: declaration check only; landing documentation assertion is not yet armed.'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
   writeFileSync(box.armed, 'armed');
+  // Main moves after the accept, so the submit receipt no longer answers for this landing's tree and its real gate runs [C7].
+  writeFileSync(join(box.repo, 'main-moved-after-accept.txt'), 'main moved after the accept\n');
+  box.git(box.repo, 'add', 'main-moved-after-accept.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: move main after the accept');
   return { item, head };
 }
 
