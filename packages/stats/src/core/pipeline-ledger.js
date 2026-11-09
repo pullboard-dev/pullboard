@@ -261,7 +261,7 @@ export function seatAssignments(events) {
 
 /**
  * The seat a working folder belongs to: the joined agent whose path holds it (longest wins), or whose item folder
- * (`<seat path>-item-<id>`) it is, else the coordinator when it is the main checkout or anything else this repo's
+ * (`<seat path>-item-<id>`) it is, or the seat a wrapper named (`seat:<name>`), else the coordinator when it is the main checkout or anything else this repo's
  * sessions ran in.
  *
  * @param {string|null} cwd
@@ -269,6 +269,12 @@ export function seatAssignments(events) {
  * @returns {{ id: string, lane: string|null }}
  */
 export function seatOf(cwd, agents) {
+  if (cwd?.startsWith('seat:')) {
+    // A seat wrapper names the seat by its worktree's suffix: seat-sonnet-15.sh drives <repo>-sonnet-15.
+    const name = cwd.slice('seat:'.length);
+    for (const agent of agents) if (agent.path.endsWith(`-${name}`) || agent.path.endsWith(`/${name}`)) return { id: agent.id, lane: agent.lane ?? null };
+    return { id: 'coordinator', lane: 'coordinator' };
+  }
   if (cwd) for (const agent of agents) if (cwd === agent.path || cwd.startsWith(agent.path + '/') || cwd.startsWith(agent.path + '-item-')) return { id: agent.id, lane: agent.lane ?? null };
   return { id: 'coordinator', lane: 'coordinator' };
 }

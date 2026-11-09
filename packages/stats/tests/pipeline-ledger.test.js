@@ -226,6 +226,31 @@ test('a Codex rollout folds into turns, command time from completed commands, an
   assert.equal(out.buckets[0].m, REVIEWER_MODEL);
 });
 
+test('a coordinator subagent driving a seat through its wrapper or a cd is credited to that seat, not the coordinator [C7,N2]', () => {
+  const usage = { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 9 };
+  const main = '/w/repo';
+  const rows = [
+    { type: 'user', timestamp: iso(T0), cwd: main, message: { role: 'user', content: 'loop as sonnet-15' } },
+    { type: 'assistant', timestamp: iso(T0 + 1_000), cwd: main, message: { id: 'a1', model: BUILDER_MODEL, usage,
+      content: [{ type: 'tool_use', id: 'u1', name: 'Bash', input: { command: '~/pbseat/coord/seat-sonnet-15.sh pullboard claim 7' } }] } },
+    { type: 'user', timestamp: iso(T0 + 2_000), cwd: main, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'u1', content: 'ok' }] } },
+    { type: 'assistant', timestamp: iso(T0 + 3_000), cwd: main, message: { id: 'a2', model: BUILDER_MODEL, usage,
+      content: [{ type: 'tool_use', id: 'u2', name: 'Bash', input: { command: `cd "${main}-opus-4-item-8" && pullboard submit 8` } }] } },
+    { type: 'user', timestamp: iso(T0 + 4_000), cwd: main, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'u2', content: 'ok' }] } },
+  ];
+  const out = { segments: [], buckets: [] };
+  foldText(newFold('claude'), jsonl(rows), out);
+  assert.deepEqual(out.buckets.map(bucket => bucket.c), ['seat:sonnet-15', `${main}-opus-4-item-8`]);
+  const agents = [{ id: 'core-15', path: `${main}-sonnet-15`, lane: 'core' }, { id: 'core-5', path: `${main}-sonnet-5`, lane: 'core' }, { id: 'core-4', path: `${main}-opus-4`, lane: 'core' }];
+  const seatEvents = [{ at: T0 - MIN, kind: 'claim', by: 'core-15', item: 7 }, { at: T0 - MIN, kind: 'claim', by: 'core-4', item: 8 }];
+  const ledger = pipelineLedger({ since: T0 - 2 * MIN, now: T0 + MIN, events: seatEvents, seatEvents, sessions: { segments: out.segments, buckets: out.buckets }, agents });
+  const builder = ledger.agents.roles.find(row => row.role === 'builder');
+  assert.equal(builder.tokens.total, 20);
+  assert.equal(builder.seats, 2);
+  assert.equal(ledger.agents.roles.find(row => row.role === 'coordinator')?.tokens.total ?? 0, 0);
+  assert.deepEqual(ledger.agents.unlogged, []);
+});
+
 /** A private folder holding a fake home, a repository root and its common Git directory. */
 function scratch(t) {
   const { root } = privateFixtureFiles('pullboard-ledger-');

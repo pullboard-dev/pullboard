@@ -16,7 +16,7 @@ import { newFold } from '../core/session-activity.js';
 import { openTail } from '../core/session-activity.js';
 
 /** Version of a cached fold; a different version is refolded from the start. */
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 /** Bytes read per chunk, so a rollout of hundreds of megabytes never becomes one string. */
 const CHUNK = 8 * 1024 * 1024;
@@ -61,7 +61,7 @@ function logFiles(folder, since, depth, take = () => true) {
 
 /**
  * The session files that could hold activity in the window: Claude projects named for this repository or a folder
- * beside it, and every Codex rollout (filtered by working folder after reading).
+ * beside it, with each session's subagent transcripts (`<session>/subagents/*.jsonl`), and every Codex rollout (filtered by working folder after reading).
  *
  * @param {{ root: string, since: number, home?: string }} options
  * @returns {{ file: string, provider: string, size: number, mtimeMs: number, ino: number }[]}

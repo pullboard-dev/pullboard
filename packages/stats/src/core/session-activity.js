@@ -35,9 +35,34 @@ export function commandKind(name, command = '') {
   return 'command';
 }
 
+/**
+ * Where a shell command says it works, when that differs from the session's own folder: a seat wrapper script
+ * (`seat-<name>.sh`, which cds into the seat's worktree) gives `seat:<name>`, and a leading `cd <absolute path>` gives
+ * that path. Null when the command names neither.
+ *
+ * Why: the coordinator's builder and unblocker subagents run in the main checkout and reach their seat's worktree
+ * through a wrapper or a cd, so the transcript's own working folder would credit all their tokens to the coordinator.
+ *
+ * @param {string} command
+ * @returns {string|null}
+ */
+export function commandPlace(command) {
+  const text = String(command ?? '');
+  const seat = /(?:^|[\s/'"])seat-([A-Za-z0-9._-]+?)\.sh\b/u.exec(text);
+  if (seat) return `seat:${seat[1]}`;
+  const cd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|(\/[^\s;&|]+))/u.exec(text);
+  const path = cd ? (cd[1] ?? cd[2] ?? cd[3]) : null;
+  return path && path.startsWith('/') ? path.replace(/\/+$/u, '') : null;
+}
+
+/** The folder a fold's records belong to: the last place a command named, else the session's own folder. */
+function place(state) {
+  return state.where ?? state.cwd;
+}
+
 /** A new fold state for one session file. */
 export function newFold(provider) {
-  return { provider, at: null, label: null, cwd: null, model: null, calls: {}, lastId: null, lastUsage: null, turn: false, previous: null, records: false };
+  return { provider, at: null, label: null, cwd: null, where: null, model: null, calls: {}, lastId: null, lastUsage: null, turn: false, previous: null, records: false };
 }
 
 /** Accept a finite nonnegative token count, else 0. */
@@ -115,11 +140,11 @@ export function addBucket(buckets, at, model, cwd, usage, sign = 1) {
 function close(state, segments, at, label) {
   if (state.at === null || !(at > state.at)) return;
   if (label === 'thinking' && at - state.at > THINKING_CAP_MS) {
-    pushSegment(segments, state.at, state.at + THINKING_CAP_MS, 'thinking', state.model, state.cwd);
-    pushSegment(segments, state.at + THINKING_CAP_MS, at, 'idle', state.model, state.cwd);
+    pushSegment(segments, state.at, state.at + THINKING_CAP_MS, 'thinking', state.model, place(state));
+    pushSegment(segments, state.at + THINKING_CAP_MS, at, 'idle', state.model, place(state));
     return;
   }
-  pushSegment(segments, state.at, at, label, state.model, state.cwd);
+  pushSegment(segments, state.at, at, label, state.model, place(state));
 }
 
 /**
@@ -147,7 +172,11 @@ export function foldClaude(state, row, out) {
     const message = row.message ?? {};
     if (typeof message.model === 'string' && message.model && !message.model.startsWith('<')) state.model = message.model;
     const uses = content.filter(block => block?.type === 'tool_use');
-    for (const use of uses) state.calls[use.id] = commandKind(use.name, use.name === 'Bash' ? use.input?.command : '');
+    for (const use of uses) {
+      state.calls[use.id] = commandKind(use.name, use.name === 'Bash' ? use.input?.command : '');
+      const where = use.name === 'Bash' ? commandPlace(use.input?.command) : null;
+      if (where) state.where = where;
+    }
     if (uses.length) state.label = uses.map(use => state.calls[use.id]).find(kind => kind === 'waiting') ?? state.calls[uses.at(-1).id];
     else state.label = message.stop_reason === 'end_turn' || content.some(block => block?.type === 'text') ? 'end' : 'thinking';
     if (message.usage && typeof message.id === 'string') {
@@ -155,9 +184,9 @@ export function foldClaude(state, row, out) {
         write: count(message.usage.cache_creation_input_tokens), out: count(message.usage.output_tokens) };
       if (state.lastId === message.id && state.lastUsage) addBucket(out.buckets, state.lastUsage.at, state.lastUsage.model, state.lastUsage.cwd, state.lastUsage, -1);
       const first = state.lastId === message.id && state.lastUsage ? state.lastUsage.at : at;
-      addBucket(out.buckets, first, state.model, state.cwd, usage);
+      addBucket(out.buckets, first, state.model, place(state), usage);
       state.lastId = message.id;
-      state.lastUsage = { ...usage, at: first, model: state.model, cwd: state.cwd };
+      state.lastUsage = { ...usage, at: first, model: state.model, cwd: place(state) };
     }
   } else {
     for (const result of results) delete state.calls[result.tool_use_id];
