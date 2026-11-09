@@ -36,7 +36,7 @@ export async function fallbackReclaim(ctx, command) {
 /**
  * Whether a gate job's item is still in the state the job serves; null when the job names no item. A job whose item has
  * a queued or running hand-off serves that hand-off: the item must be claimed by the hand-off's seat at its frozen
- * digest. Only a job with no live hand-off serves a submitted item, at the job's commit.
+ * digest. Only a job with no live hand-off serves a submitted item, at the head that hand-off submitted.
  *
  * Why: during a hand-off gate its item stays claimed, so a submitted-only test would end a live pre-submit gate as
  * stale (#4070, state-machine gap SM4).
@@ -56,5 +56,8 @@ export function servingNow(board, view) {
     return row.item_status === 'claimed' && row.item_owner === handoff.agentId && row.item_frozen_digest === handoff.digest;
   }
   if (row.item_status !== 'submitted') return false;
-  return !view.candidate || !row.item_commit || row.item_commit === view.candidate;
+  // Current means submitted at the head the hand-off submitted, never the job's candidate: a gate's candidate is the
+  // composed merge with main, which never equals the item's commit (#3749 was ended stale while submitted).
+  const head = handoff?.commit ?? null;
+  return !head || !row.item_commit || row.item_commit === head;
 }

@@ -40,7 +40,8 @@ test('clause 1: an export without the job tables imports into a board that has t
   assert.equal(Object.hasOwn(document.tables, 'job'), false);
   const target = fixtureBoard(t);
   const result = importBoard(target, document);
-  assert.ok(result.tables.includes('job') && result.tables.includes('job_step'), 'the target board has the job tables');
+  assert.equal(result.tables.includes('job') || result.tables.includes('job_step'), false, 'the import reports only tables the export carried, so left-out job tables are not listed');
+  assert.ok(target.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('job','job_step')").all().length === 2, 'the target board has the job tables');
   assert.deepEqual(jobRows(target), { job: [], job_step: [] }, 'the left-out job tables import as empty');
 });
 

@@ -1,1 +1,0 @@
-export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from '../packages/store/index.js';

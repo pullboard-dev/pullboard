@@ -8406,7 +8406,7 @@
       ]
     },
     {
-      "file": "test/bar-coverage.test.js",
+      "file": "packages/gate/tests/bar-coverage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9971,7 +9971,7 @@
       ]
     },
     {
-      "file": "test/cell-parser.test.js",
+      "file": "packages/gate/tests/cell-parser.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -20856,7 +20856,7 @@
       ]
     },
     {
-      "file": "test/fixture-child-ignored.test.js",
+      "file": "packages/gate/tests/fixture-child-ignored.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -20865,7 +20865,7 @@
       ]
     },
     {
-      "file": "test/fixture-child.test.js",
+      "file": "packages/gate/tests/fixture-child.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -21708,7 +21708,7 @@
       ]
     },
     {
-      "file": "test/gate-admission-wait.test.js",
+      "file": "packages/gate/tests/gate-admission-wait.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -24638,7 +24638,7 @@
       ]
     },
     {
-      "file": "test/item-patch-compose.test.js",
+      "file": "packages/items/tests/item-patch-compose.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33813,7 +33813,7 @@
       ]
     },
     {
-      "file": "test/precommit-lane-merged-main.test.js",
+      "file": "packages/gate/tests/precommit-lane-merged-main.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -39647,7 +39647,7 @@
       ]
     },
     {
-      "file": "test/release.test.js",
+      "file": "packages/gate/tests/release.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42031,7 +42031,7 @@
       ]
     },
     {
-      "file": "test/run-tests-options.test.js",
+      "file": "packages/gate/tests/run-tests-options.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42307,7 +42307,7 @@
       ]
     },
     {
-      "file": "test/runner-background-cleanup.test.js",
+      "file": "packages/gate/tests/runner-background-cleanup.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42913,7 +42913,7 @@
       ]
     },
     {
-      "file": "test/runner-fixture-state.test.js",
+      "file": "packages/gate/tests/runner-fixture-state.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -44550,7 +44550,7 @@
       ]
     },
     {
-      "file": "test/runners-check-failover.test.js",
+      "file": "packages/gate/tests/runners-check-failover.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -48720,7 +48720,7 @@
       ]
     },
     {
-      "file": "test/submit-main-moved-unrelated.test.js",
+      "file": "packages/gate/tests/submit-main-moved-unrelated.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51110,7 +51110,7 @@
       ]
     },
     {
-      "file": "test/test-isolation.test.js",
+      "file": "packages/gate/tests/test-isolation.test.js",
       "tier": "T3",
       "packages": [
         ".",

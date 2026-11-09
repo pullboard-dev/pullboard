@@ -193,21 +193,17 @@ import {
   currentProofCounters,
   proofCounter,
 } from '../../../../packages/verify/index.js';
-import {
-  ensureHotIndexes,
-  missingAdditiveIndexes,
-  ensureAdditiveIndexes,
-} from '../../../../src/board-hot.js';
+import { ensureHotIndexes } from '../../../../packages/store/index.js';
+import { missingAdditiveIndexes } from '../../../../packages/store/index.js';
+import { ensureAdditiveIndexes } from '../../../../packages/store/index.js';
 import {
   configureBoardJournal,
   closeBoardWrites,
 } from '../../../../packages/store/index.js';
-import {
-  sharedSchemaOwner,
-  expectedBoardSchema,
-  sharedSchemaDiagnostic,
-  reportSharedSchema,
-} from '../../../../src/board-schema.js';
+import { sharedSchemaOwner } from '../../../../packages/store/index.js';
+import { expectedBoardSchema } from '../../../../packages/store/index.js';
+import { sharedSchemaDiagnostic } from '../../../../packages/store/index.js';
+import { reportSharedSchema } from '../../../../packages/store/index.js';
 import {
   boardStanding,
   migrate,
@@ -220,9 +216,7 @@ import {
   readEventLogVersion,
   systemClock,
 } from '../../../../packages/store/index.js';
-import {
-  migrateEventLogVersion,
-} from '../../../../src/board-event-log-migrate.js';
+import { migrateEventLogVersion } from '../../../../packages/store/index.js';
 import {
   boardNotWritable,
   boardBusyError,
@@ -252,11 +246,9 @@ import {
   reviewPolicyChange,
   saveItemReviewPolicy,
 } from '../../../../packages/verify/index.js';
-import {
-  holdUntilKind,
-  forgetHoldMaintenance,
-  rememberHoldCondition,
-} from '../../../../src/board-conditional-holds.js';
+import { holdUntilKind } from '../../../../packages/store/index.js';
+import { forgetHoldMaintenance } from '../../../../packages/store/index.js';
+import { rememberHoldCondition } from '../../../../packages/store/index.js';
 import {
   STALE_STATE_ENGINE,
 } from '../../../../packages/state/core.js';
