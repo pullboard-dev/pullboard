@@ -2,11 +2,16 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { createJob, LEASE_MS } from '../packages/jobs/index.js';
-import { toolingPin, treeOf } from '../packages/pin/index.js';
-import { FINISH_STEPS, finishSequence } from '../packages/land/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { toolingPin } from '../../../packages/pin/index.js';
+import { treeOf } from '../../../packages/pin/index.js';
+import { FINISH_STEPS } from '../../../packages/land/index.js';
+import { finishSequence } from '../../../packages/land/index.js';
 
 /** A repo with a trunk commit and a candidate commit on top of it. */
 function landingRepo() {

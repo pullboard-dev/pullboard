@@ -6308,27 +6308,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/next-selects-once.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sandbox",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/shell/cli/next.js)",
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "imports past sandbox front door (packages/sandbox/src/shell/next-take.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/next-skip-refused.test.js": {
       "cells": [
         "app:cli",

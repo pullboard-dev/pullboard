@@ -1,14 +1,17 @@
 /** A landing whose merged tree is exactly the item's green gated tree reuses that gate instead of rerunning [C7,#2902]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
+import { recordSubmitHandoff } from '../../../packages/jobs/index.js';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { landingProof, provenTreeGate, quickGuards } from '../packages/landing/src/shell/landing-step-trunk.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { landingProof } from '../../../packages/landing/index.js';
+import { provenTreeGate } from '../../../packages/landing/index.js';
+import { quickGuards } from '../../../packages/landing/index.js';
 
 const TREE = 't'.repeat(40);
 const COMMIT = 'c'.repeat(40);

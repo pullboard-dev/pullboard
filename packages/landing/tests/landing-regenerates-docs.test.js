@@ -1,13 +1,16 @@
 /** Landing regenerates stale shared documentation into its merge before the gate, and leaves current documentation alone [B3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { amendLandingEngines } from '../packages/landing/src/shell/landing-step-merge.js';
-import { cleanGitEnvironment } from '../packages/git/index.js';
+import { amendLandingEngines } from '../index.js';
+import { cleanGitEnvironment } from '../../git/index.js';
 
 const IDENTITY = ['-c', 'user.name=pullboard-test', '-c', 'user.email=pullboard-test@example.invalid'];
 
@@ -21,7 +24,7 @@ function git(cwd, ...args) {
 /** Build a real temporary repository from this checkout's committed generator and documentation sources. */
 function temporaryRepository() {
   const dir = mkdtempSync(join(tmpdir(), 'landing-regenerates-docs-'));
-  const source = fileURLToPath(new URL('../', import.meta.url));
+  const source = fileURLToPath(new URL('../../../', import.meta.url));
   const archive = spawnSync('git', ['archive', 'HEAD', 'README.md', 'bin', 'apps', 'docs', 'packages', 'src', 'package.json'], { cwd: source, env: cleanGitEnvironment(), maxBuffer: 512 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.stderr?.toString());
   const extracted = spawnSync('tar', ['-xf', '-', '-C', dir], { input: archive.stdout });

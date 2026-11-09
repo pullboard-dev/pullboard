@@ -759,7 +759,7 @@
   "test/cells-inventory-incremental.test.js": {
     "tempdir": 1
   },
-  "test/cells-inventory-producer.test.js": {
+  "apps/lib/tests/cells-inventory-producer.test.js": {
     "raw-board": 1
   },
   "test/cells-move.test.js": {
@@ -1452,10 +1452,10 @@
   "test/durable-b0-drive-full-gate.test.js": {
     "raw-board": 1
   },
-  "test/durable-drive-12.test.js": {
+  "apps/lib/tests/durable-drive-12.test.js": {
     "raw-board": 1
   },
-  "test/durable-drive-13.test.js": {
+  "apps/lib/tests/durable-drive-13.test.js": {
     "raw-board": 1
   },
   "test/durable-drive-14.test.js": {
@@ -1464,38 +1464,38 @@
   "test/durable-drive-15.test.js": {
     "raw-board": 3
   },
-  "test/durable-flake-23.test.js": {
+  "apps/lib/tests/durable-flake-23.test.js": {
     "raw-board": 1
   },
-  "test/durable-inventory-21.test.js": {
+  "apps/lib/tests/durable-inventory-21.test.js": {
     "raw-board": 1
   },
-  "test/durable-jobs-1.test.js": {
+  "apps/lib/tests/durable-jobs-1.test.js": {
     "raw-board": 1
   },
-  "test/durable-jobs-2.test.js": {
+  "apps/lib/tests/durable-jobs-2.test.js": {
     "raw-board": 1
   },
   "test/durable-jobs-3.test.js": {
     "raw-board": 2
   },
-  "test/durable-jobs-4.test.js": {
+  "apps/lib/tests/durable-jobs-4.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-18.test.js": {
+  "apps/lib/tests/durable-land-18.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-19.test.js": {
+  "apps/lib/tests/durable-land-19.test.js": {
     "raw-board": 1
   },
-  "test/durable-land-finish-done.test.js": {
+  "apps/lib/tests/durable-land-finish-done.test.js": {
     "raw-board": 1
   },
   "test/durable-mainred-22.test.js": {
     "raw-board": 2,
     "hand-policy": 1
   },
-  "test/durable-pull-runner-27.test.js": {
+  "apps/lib/tests/durable-pull-runner-27.test.js": {
     "raw-board": 1
   },
   "test/durable-review-24.test.js": {
@@ -2015,7 +2015,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/landing-hung-file.test.js": {
+  "packages/landing/tests/landing-hung-file.test.js": {
     "tempdir": 1,
     "hand-policy": 2,
     "env-spread": 1
@@ -2032,7 +2032,7 @@
     "tempdir": 1,
     "raw-board": 2
   },
-  "test/landing-local-lease.test.js": {
+  "apps/lib/tests/landing-local-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -2069,7 +2069,7 @@
   "test/landing-refuses-unplaced.test.js": {
     "raw-board": 2
   },
-  "test/landing-regenerates-docs.test.js": {
+  "packages/landing/tests/landing-regenerates-docs.test.js": {
     "tempdir": 2
   },
   "test/landing-reopen-own-red.test.js": {
@@ -2079,7 +2079,7 @@
   "apps/cli/tests/landing-reschedules-itself.test.js": {
     "repo-read": 2
   },
-  "test/landing-reuses-green-tree.test.js": {
+  "apps/lib/tests/landing-reuses-green-tree.test.js": {
     "raw-board": 2,
     "tempdir": 1
   },
@@ -2090,7 +2090,7 @@
   "packages/gate/tests/landing-selection-complete.test.js": {
     "tempdir": 2
   },
-  "test/landing-shards-name-filter.test.js": {
+  "packages/landing/tests/landing-shards-name-filter.test.js": {
     "tempdir": 1,
     "hand-policy": 2,
     "env-spread": 1
@@ -2119,7 +2119,7 @@
     "tempdir": 2,
     "raw-board": 1
   },
-  "test/landing-worker-capacity.test.js": {
+  "packages/landing/tests/landing-worker-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 1
   },
