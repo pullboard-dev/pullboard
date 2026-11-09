@@ -110,7 +110,7 @@ function pureHelperMap(pureHelpers) {
 /** Whether a target is a cell's front door: its index.js, or the pure core.js entry of a package. */
 function frontDoor(target, cell) {
   const base = cell.startsWith('apps/') ? cell : `packages/${cell}`;
-  return target === `${base}/index.js` || (!cell.startsWith('apps/') && target === `${base}/core.js`);
+  return target === `${base}/index.js` || (!cell.startsWith('apps/') && (target === `${base}/core.js` || target === `${base}/pure.js`));
 }
 
 /** The committed listing: journeys with their reasons, the pure helpers and leaf cells a cell test may import, the ratchet, the sealed cells. */

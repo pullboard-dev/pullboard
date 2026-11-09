@@ -718,7 +718,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
-  const { landingFailureReport } = await import('../src/landing-failure-report.js');
+  const { landingFailureReport } = await import('../packages/landing/index.js');
   const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
