@@ -12,9 +12,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { temporaryRepository } from '../../../test/board-submit-fixture.js';
-import { copyTools } from '../../../apps/cli/src/shell/submit-handoff.js';
-import { toolsSnapshot } from '../../../apps/cli/src/shell/submit-handoff.js';
-import { launchComparisonWorker } from '../index.js';
+import { copyTools } from '../src/shell/submit-handoff.js';
+import { toolsSnapshot } from '../src/shell/submit-handoff.js';
+import { launchComparisonWorker } from '../../../packages/verify/index.js';
 
 /**
  * Run git in a folder with no user config.

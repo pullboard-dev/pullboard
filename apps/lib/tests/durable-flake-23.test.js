@@ -2,11 +2,25 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
-import { createJob, jobView, jobsOf, reclaimLapsed, takeJob, writeStep, LEASE_MS } from '../packages/jobs/index.js';
-import { treeOf } from '../packages/pin/index.js';
-import { driveFlakeDiagnose, driveOnce, jobbedFlakeObserver, flakeDiagnoseKey, flakeDiagnosesFor, queueFlakeDiagnoses, FLAKE_DIAGNOSE_KIND } from '../packages/drive/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { openBoard } from '../index.js';
+import { closeBoard } from '../index.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { jobsOf } from '../../../packages/jobs/index.js';
+import { reclaimLapsed } from '../../../packages/jobs/index.js';
+import { takeJob } from '../../../packages/jobs/index.js';
+import { writeStep } from '../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../packages/jobs/index.js';
+import { treeOf } from '../../../packages/pin/index.js';
+import { driveFlakeDiagnose } from '../../../packages/drive/index.js';
+import { driveOnce } from '../../../packages/drive/index.js';
+import { jobbedFlakeObserver } from '../../../packages/drive/index.js';
+import { flakeDiagnoseKey } from '../../../packages/drive/index.js';
+import { flakeDiagnosesFor } from '../../../packages/drive/index.js';
+import { queueFlakeDiagnoses } from '../../../packages/drive/index.js';
+import { FLAKE_DIAGNOSE_KIND } from '../../../packages/drive/index.js';
 
 /** A one-commit repo; returns the commit and its tree id. */
 function candidateRepo() {
