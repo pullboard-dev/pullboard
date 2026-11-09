@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
@@ -49,4 +50,28 @@ test('clause 2: rejoining with a different lane or model still refuses [C7]', ()
   assert.notEqual(otherModel.code, 0);
   assert.match(otherModel.err, /ALREADY_JOINED/u);
   assert.equal(JSON.parse(box.run(worktree, 'whoami', '--json').out).model, 'Fixture', 'a refused rejoin preserves the registered model');
+});
+
+test('the join CLI confirms the recorded family in its text and --json, on first join, without one, and on rejoin [C7]', () => {
+  // Seats must declare a model; the fixture project's own join reads it from the runner's environment.
+  process.env.PULLBOARD_MODEL ??= FIXTURE_MODEL;
+  const box = e2e.project('true');
+  const seat = name => {
+    const dir = join(box.dir, name);
+    box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', `api/${name}`);
+    return dir;
+  };
+  const none = seat('undeclared'), declared = seat('declared');
+  const bare = fixtureJoin(box.run, none, 'api', '--model', FIXTURE_MODEL, '--json');
+  assert.equal(bare.code, 0, bare.err);
+  assert.equal(JSON.parse(bare.out).family, null);
+  assert.doesNotMatch(fixtureJoin(box.run, none, 'api', '--model', FIXTURE_MODEL).out, /family/u);
+  const first = fixtureJoin(box.run, declared, 'api', '--model', FIXTURE_MODEL, '--family', 'anthropic');
+  assert.equal(first.code, 0, first.err);
+  assert.match(first.out, /joined as .*\(family anthropic\) in the api lane/u);
+  assert.equal(JSON.parse(fixtureJoin(box.run, declared, 'api', '--model', FIXTURE_MODEL, '--family', 'anthropic', '--json').out).family, 'anthropic');
+  // A seat that joined bare, then rejoins naming a family: the response reports what is now recorded.
+  const later = fixtureJoin(box.run, none, 'api', '--model', FIXTURE_MODEL, '--family', 'openai');
+  assert.match(later.out, /\(family openai\)/u);
+  assert.equal(JSON.parse(fixtureJoin(box.run, none, 'api', '--model', FIXTURE_MODEL, '--json').out).family, 'openai');
 });
