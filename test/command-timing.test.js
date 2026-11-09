@@ -50,7 +50,9 @@ test('clause 2: a real next then submit cycle shows in the seats report with med
   assert.ok(timing.items.some(row => row.item === Number(id) && row.nextToSubmitMs >= 0), 'next-to-submit is reported for the item');
   assert.ok(timing.seats.some(row => row.seat === 'web-1' && row.busyFraction >= 0 && row.busyFraction <= 1), 'the seat has a busy fraction');
   assert.deepEqual(timing.defects.map(row => [row.command, row.seat, row.durationMs]), [['next', 'web-1', 31_000]], 'only the 31 s command is flagged');
-  assert.match(run.out, /conveyor defect/u, 'the flag is part of the report');
+  const plain = box.run(box.web, 'seats');
+  assert.equal(plain.code, 0, `${plain.out}\n${plain.err}`);
+  assert.match(plain.out, /conveyor defect: next took 31\.0s/u, 'the flag is part of the printed report');
 });
 
 test('clause 2: median, p90, next-to-submit and busy fraction are computed from the rows, overlaps counted once [C7,N2]', () => {
