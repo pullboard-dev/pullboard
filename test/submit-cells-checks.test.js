@@ -87,7 +87,7 @@ after(() => {
 /** The accepted inventory published for each fixture main, by main commit. */
 const published = new Map();
 /** The real submit check with the inventory its producer published for `main`. */
-const preflight = (root, main, commit, item, services) => inspectSubmit(root, main, commit, item, { ...services, acceptedArtifact: services.acceptedArtifact ?? published.get(main) });
+const preflight = (root, main, commit, item, services) => inspectSubmit(root, main, commit, item, services && { ...services, acceptedArtifact: services.acceptedArtifact ?? published.get(main) });
 
 /** Bind real higher-controller services for every immutable fixture inspection. */
 const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
@@ -199,8 +199,8 @@ test('submit preserves an existing cut across a real importer relocation [C7,D3,
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
   assert.deepEqual(result.problems, [], 'the same actual dependency is inherited under its committed moved path');
-  assert.ok(result.existingCuts.some(problem => problem.includes('src/refused.js -> src/stats-flow.js')),
-    'the original cut evidence remains readable in its original source namespace');
+  // Submit no longer lists the accepted cut backlog (it belongs to the main audit: 7a6b37bef3, cutDeltaProblems).
+  assert.deepEqual(result.existingCuts, [], 'the accepted backlog is not relisted, and the relocated edge adds nothing to it');
 });
 
 test('submit still refuses a genuinely new cut after an importer relocation [C7,D3,CD64]', async t => {
@@ -318,7 +318,9 @@ test('a newly reachable unchanged module reuses its cold census observation [C7,
 
 test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
   const { root } = fixture(t), calls = bindingCompilerCalls(t);
-  const key = { checkDigest: 'checker', config: { acceptedMain: 'main', preloads: [] } };
+  // The checker's identity is the bytes of its code files (#2601), so the key names real files of this tool.
+  const tool = path => fileURLToPath(new URL(`../${path}`, import.meta.url));
+  const key = { code: [tool('bin/cells-inventory-cache.js')], config: { acceptedMain: 'main', preloads: [] } };
   const cache = observationCache(root, key, () => true), modules = bindingModules();
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
   assert.equal(calls(), 1);
@@ -329,7 +331,7 @@ test('real compiler observations survive a checked same-main census only [C7,D3]
   reconstructed[0].body = JSON.parse(JSON.stringify(reconstructed[0].body));
   withBindingReadCache(() => bindingReadsForModules(reconstructed), { eligible: () => true, observations: restored.values });
   assert.equal(calls(), 1, 'a later process scope reuses equal reconstructed input values');
-  const changed = observationCache(root, { ...key, checkDigest: 'changed' }, () => true);
+  const changed = observationCache(root, { ...key, code: [tool('bin/cells-submit-checks.js')] }, () => true);
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: changed.values });
   assert.equal(calls(), 2, 'checker identity invalidates the durable observations');
   const preloadChanged = observationCache(root, { ...key, config: { ...key.config, preloads: ['new bytes'] } }, () => true);
@@ -363,6 +365,91 @@ test('foreign runtime options invalidate binding reuse inside the current census
       bindingReadsForModules(bindingModules()); bindingReadsForModules(bindingModules());
       assert.equal(calls(), 3, 'the canonical foreign-options classifier forces actual fresh compilers');
     }, { eligible: bindingCacheEligible });
+  } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
+});
+
+test('binding compiler failures never become cached authority [C7,D3]', t => {
+  const original = childProcess.spawnSync;
+  let calls = 0;
+  t.mock.method(childProcess, 'spawnSync', (...args) => ++calls === 1
+    ? { status: 1, stderr: 'private binding compiler transport failed' } : original(...args));
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  withBindingReadCache(() => {
+    assert.throws(() => bindingReadsForModules(bindingModules()), /private binding compiler transport failed/u);
+    assert.ok(bindingReadsForModules(bindingModules()).get('binding-cache.js').get('join').reads.length > 0);
+    bindingReadsForModules(bindingModules());
+    assert.equal(calls, 2, 'only the later genuine successful compiler result is reusable');
+  }, { eligible: bindingCacheEligible });
+});
+
+test('accessor arrays and generator callers retain ordinary real binding computation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), modules = bindingModules(), row = modules[0];
+  Object.defineProperty(modules, '0', { enumerable: true, configurable: true, get: () => row });
+  withBindingReadCache(() => {
+    assert.deepEqual(bindingReadsForModules(modules), bindingReadsForModules(modules));
+    assert.equal(calls(), 2, 'an accessor-backed array slot never supplies reusable identity');
+    const generator = function* () { yield row; };
+    assert.deepEqual(bindingReadsForModules(generator()), bindingReadsForModules(generator()));
+    assert.equal(calls(), 4, 'existing generator callers are consumed normally, never guessed into an array cache');
+  }, { eligible: bindingCacheEligible });
+});
+
+
+test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
+  const owned = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href;
+  const next = `${before ?? ''} --import=${owned}`.trim();
+  try {
+    withBindingReadCache(() => {
+      bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 1);
+      process.env.NODE_OPTIONS = next;
+      assert.equal(bindingCacheEligible(), true, 'the actual owned browser preload remains canonically eligible');
+      bindingReadsForModules(bindingModules()); bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 2, 'a changed eligible material context compiles afresh, then may reuse only that result');
+    }, { eligible: bindingCacheEligible });
+  } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
+});
+
+test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
+  const box = await plannedFixture(t, box => {
+    box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+    box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+    box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
+    git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
+  });
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  let requested = 0, computed = 0;
+  const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    onBindingProbe: row => { requested += row.requested; computed += row.computed; } });
+  let cached;
+  try { await run(box.item); }
+  catch (error) { cached = error; }
+  assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
+  const first = { ...observed, requested, computed }, before = process.env.NODE_OPTIONS;
+  observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
+  const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
+  await assert.rejects(run(changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  assert.equal(computed, 0, 'a refused candidate still preserves complete binding observations for a later criterion');
+  observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
+  try {
+    process.env.NODE_OPTIONS = '--no-warnings';
+    assert.equal(bindingCacheEligible(), false);
+    // A foreign preload may change what the parsers observe, so the accepted inventory cannot be reused under it and
+    // submit refuses before any parser or binding work, rather than computing a different answer (#2711).
+    await assert.rejects(run(box.item), /foreign Node preload prevents accepted cells inventory reuse/u,
+      'canonical policy refuses a foreign preload instead of answering from a bypassed cache');
+    assert.equal(observed.imports ?? 0, 0, 'the refusal does no import-parser work');
+    assert.equal(observed.bindings ?? 0, 0, 'the refusal does no binding compiler work');
+    assert.equal(requested, 0, 'the refusal requests no binding probe');
+    assert.ok(first.requested > first.computed, 'eligible actual submit reuses binding probes within the census');
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
 
@@ -525,20 +612,21 @@ test('submit refuses deleting a module a test names inside a generated script, n
 
 test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
   const box = await plannedFixture(t);
-  let checkouts = 0, rows = [];
+  let reads = 0, rows = [];
   const services = { parsers: { importsIn, commonJsIn }, withImportParseCache,
     cacheEligible: () => true, readCutItems: () => rows,
-    withMainCheckout: (root, commit, run) => { checkouts++; return withMainCheckout(root, commit, run); } };
+    withMainCheckout, onSnapshotRead: () => { reads++; } };
   const first = await preflight(box.root, box.main, box.main, box.item, services);
   assert.deepEqual(first.problems, []);
-  const afterFirst = checkouts;
+  const afterFirst = reads;
+  assert.ok(afterFirst > 0, 'the first check inspects the immutable snapshots');
   const second = await preflight(box.root, box.main, box.main, box.item, services);
   assert.equal(second.reused, true, 'the exact green check reads its receipt');
-  assert.equal(checkouts, afterFirst, 'reuse avoids snapshot checks');
+  assert.equal(reads, afterFirst, 'reuse avoids snapshot reads');
   rows = [{ item_id: 1, item_lane: 'core', item_title: 'different cut', item_status: 'verified', item_merged_commit: box.main }];
   const changed = await preflight(box.root, box.main, box.main, box.item, services);
   assert.notEqual(changed.reused, true, 'changed board authority cannot reuse the old receipt');
-  assert.ok(checkouts > afterFirst);
+  assert.ok(reads > afterFirst, 'the changed authority inspects the snapshots again');
 });
 
 test('shared cell inventory updates changed modules and reports structural fallback [C7,D3]', t => {
