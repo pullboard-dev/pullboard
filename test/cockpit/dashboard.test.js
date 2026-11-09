@@ -1,7 +1,7 @@
 // pullboard: browser
 /** @pullboard-test-gui */
 import './dashboard-render.test.js';
-import './dashboard-runtime.test.js';
+import '../../apps/view/tests/cockpit/dashboard-runtime.test.js';
 import './dashboard-clock.test.js';
 import './needs-panel.test.js';
 import './dashboard-model.test.js';

@@ -15,7 +15,7 @@ import { resumeRigorCounters } from '../packages/rigor/index.js';
 import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
 import { RIGOR_TAIL_LIMIT } from '../packages/rigor/index.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
-import { rigorSource } from '../src/board-rigor-source.js';
+import { rigorSource } from '../packages/store/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { coordinatorDecisionSections } from '../apps/cli/index.js';
 import { agentParent } from '../packages/store/index.js';

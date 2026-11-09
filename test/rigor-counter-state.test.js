@@ -7,9 +7,9 @@ import { rigorCounterKeys } from '../packages/rigor/index.js';
 import { rigorCounterResult } from '../packages/rigor/index.js';
 import { sortRigorCounters } from '../packages/rigor/index.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
-import { rigorSource } from '../src/board-rigor-source.js';
-import { automaticRigorSource } from '../src/board-rigor-auto-source.js';
-import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
+import { rigorSource } from '../packages/store/index.js';
+import { automaticRigorSource } from '../packages/store/index.js';
+import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
 import { BOARD_SENTINEL_ENGINE } from '../src/sentinel-engine.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 

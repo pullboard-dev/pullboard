@@ -12,7 +12,7 @@ import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { relayPresentation, relaySnapshot } from '../packages/pages/index.js';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';

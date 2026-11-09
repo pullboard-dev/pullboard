@@ -1,14 +1,14 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
 import { testCapacityReport } from '../packages/gate/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
-import { eventCauses } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { defaults, configFromSource } from '../packages/config/index.js';

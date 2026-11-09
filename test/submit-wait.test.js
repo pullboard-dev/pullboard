@@ -5,7 +5,7 @@ import { dispatchHealth } from '../packages/sentinels/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
