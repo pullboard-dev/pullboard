@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { SEAT_COMMANDS, WALL_MS, boardCommandBudgetCheck, budgetBreaches, effectiveCeilings, loweredCeilings } from '../bin/board-command-budget.js';
+import { CHECK_EVERY_MS, SEAT_COMMANDS, WALL_MS, boardCommandBudgetCheck, budgetBreaches, effectiveCeilings, loweredCeilings } from '../bin/board-command-budget.js';
 import { HOPS } from '../bin/hop-matrix.js';
 import { privateFixtureFiles } from './fixture-child.js';
 
@@ -69,7 +69,7 @@ test('clause 1: a breach files one item naming the command, value, ceiling, new 
   assert.equal(record.ceilings.next, 10, 'the pass lowered the next ceiling to the 10 modules it measured');
   assert.equal(await check({ directory, job: { tip: 'b'.repeat(40) }, lane: 'core', read: board.read, write: board.write }), null,
     'a drain within the check interval measures nothing');
-  clock += 31 * 60_000;
+  clock += CHECK_EVERY_MS + 1;
   counts = { next: 12 };
   const second = await check({ directory, job: { tip: 'c'.repeat(40) }, lane: 'core', read: board.read, write: board.write });
   assert.equal(second.breaches.length, 1);
@@ -80,7 +80,7 @@ test('clause 1: a breach files one item naming the command, value, ceiling, new 
   assert.match(item.criterion, new RegExp(`${'a'.repeat(12)}\\.\\.${'c'.repeat(12)}`, 'u'), 'the commit range since the last pass');
   assert.match(item.criterion, /newly loads: src\/m10\.js, src\/m11\.js/u);
   assert.equal(JSON.parse(readFileSync(join(directory, 'board-command-budget.json'), 'utf8')).lastPass.tip, 'a'.repeat(40), 'a breach keeps the last pass');
-  clock += 31 * 60_000;
+  clock += CHECK_EVERY_MS + 1;
   const held = fakeBoard({ item_id: 101 });
   const third = await check({ directory, job: { tip: 'd'.repeat(40) }, lane: 'core', read: held.read, write: held.write });
   assert.equal(third.breaches[0].filed, false);

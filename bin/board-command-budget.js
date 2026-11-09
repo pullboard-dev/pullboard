@@ -39,8 +39,8 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const RECORD_NAME = 'board-command-budget.json';
 /** The wall-time bar for every seat command, from the 2 Nov speed rule. */
 export const WALL_MS = 200;
-/** How often the audit measures; a drain sooner than this after the last check skips it. */
-export const CHECK_EVERY_MS = 30 * 60_000;
+/** How often the audit measures: the fixture costs about a minute of the audit machine, so a drain sooner skips it. */
+export const CHECK_EVERY_MS = 2 * 60 * 60_000;
 /** The seat commands and how each runs on the fixture: the seat's worktree, or the coordinator's checkout for show. */
 export const SEAT_COMMANDS = Object.freeze({
   next: { args: ['next', '--json'], seat: true },
