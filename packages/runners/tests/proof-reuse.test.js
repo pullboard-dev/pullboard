@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Submit, review and companion composition retain original completed per-file proof [C7,V4]. */
 import assert from 'node:assert/strict';
-import { completedTestResult } from '../index.js';
+import { completedTestResult } from '../../gate/index.js';
 import { test } from 'node:test';
 import { fleetTestResultReuse } from '../../../test/test-result-fleet-fixture.js';
 

@@ -9,17 +9,17 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from './fixture-child.js';
-import { readTestFileBudgets } from '../packages/gate/src/shell/test-file-budget-policy.js';
-import { testFileBudgetPath } from '../packages/gate/src/shell/test-file-budget-policy.js';
-import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-index.js';
-import { indexedStageSelection } from '../packages/gate/src/shell/test-economics-index.js';
-import { inCleanCheckout } from '../packages/gate/src/shell/test-run.js';
-import { withMainCheckout } from '../packages/landing/src/shell/main-red.js';
-import { runnerPolicyRecord } from '../packages/sandbox/index.js';
-import { RUNNER_POLICY_FILE } from '../packages/sandbox/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { readTestFileBudgets } from '../../gate/src/shell/test-file-budget-policy.js';
+import { testFileBudgetPath } from '../../gate/src/shell/test-file-budget-policy.js';
+import { writePlacementIndex } from '../../gate/src/shell/test-economics-index.js';
+import { indexedStageSelection } from '../../gate/src/shell/test-economics-index.js';
+import { inCleanCheckout } from '../../gate/src/shell/test-run.js';
+import { withMainCheckout } from '../src/shell/main-red.js';
+import { runnerPolicyRecord } from '../../sandbox/index.js';
+import { RUNNER_POLICY_FILE } from '../../sandbox/index.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-file-budget-'));

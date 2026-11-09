@@ -4256,10 +4256,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/check-timing.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4546,7 +4542,7 @@
     },
     "src/runner-worker.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "src/runners.js": {
       "cells": 1,
@@ -4576,10 +4572,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/spec.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/submission-record.js": {
       "cells": 1,
       "deep": 0
@@ -4601,14 +4593,6 @@
       "deep": 0
     },
     "src/untouched-claim-observation.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-policy.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-roles.js": {
       "cells": 1,
       "deep": 0
     },
