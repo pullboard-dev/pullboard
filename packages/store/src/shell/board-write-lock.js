@@ -203,6 +203,21 @@ function readMarker(file) {
   }
 }
 
+/**
+ * Remove writer records whose process has exited, or whose pid now names a later process (another start time). Why:
+ * a writer killed mid-move never removed its record; 23 such records from 26 Oct to 9 Nov sat beside the board and
+ * read as possible holders. A live process ps could not describe keeps its record.
+ */
+function reclaimDeadMarkers(candidates, live) {
+  for (const row of candidates) {
+    let gone = false;
+    try { process.kill(row.pid, 0); } catch (error) { gone = error.code === 'ESRCH'; }
+    const identity = live.get(row.pid);
+    if (!gone && identity && (identity.state.startsWith('Z') || identity.started !== row.started)) gone = true;
+    if (gone) try { unlinkSync(row.path); } catch { /* Its writer or another reader removed it first. */ }
+  }
+}
+
 /** Describe fresh observed writers, expressly advisory: SQLite and filesystem completion are not atomic. */
 export function boardWriteHolderText(file) {
   let directory;
@@ -216,9 +231,10 @@ export function boardWriteHolderText(file) {
         const stat = lstatSync(path);
         return stat.isFile() ? { path, at: stat.mtimeMs } : null;
       } catch { return null; /* A completed writer can remove its own record during this advisory read. */ }
-    }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 32).map(row => readMarker(row.path)).filter(Boolean);
-  } catch { return ''; /* No sidecar is a normal case for older/raw SQLite writers; do not create or repair anything here. */ }
+    }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 32).map(row => ({ ...readMarker(row.path), path: row.path })).filter(row => row.pid);
+  } catch { return ''; /* No sidecar is a normal case for older/raw SQLite writers; do not create anything here. */ }
   const live = identities(candidates.map(row => row.pid));
+  reclaimDeadMarkers(candidates, live);
   const holders = candidates.filter(row => {
     const identity = live.get(row.pid);
     return identity && !identity.state.startsWith('Z') && identity.started === row.started && identity.processSha256 === row.processSha256;
