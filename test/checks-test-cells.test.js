@@ -9,6 +9,7 @@ import {
   readListing,
   testCellsProblems,
   testCellsReport,
+  spawnsCli,
   writeTestCells,
 } from '../bin/checks/test-cells.js';
 
@@ -88,4 +89,82 @@ test('clause 3: a cell with only conforming tests reports sealed, one with a fin
   const lost = testCellsProblems(root, { facts: { cells: ['a', 'b'], deepImporters: { a: 1 } }, listing });
   assert.match(lost[0].text, /cell a is no longer sealed/u);
   assert.ok(readFileSync(join(root, 'bin/checks/test-cells.json'), 'utf8').includes('journeys'));
+});
+
+test('clause 1: a cell test that imports front doors of cells below it is the component tier; one above it or past a front door is a finding [C7,V23]', () => {
+  const root = fixture({
+    'bin/cells-plan.json': JSON.stringify({ cells: [{ order: 1, name: 'b' }, { order: 2, name: 'a' }] }),
+    'packages/b/src/inner.js': 'export const inner = 1;\n',
+    'packages/a/tests/component.test.js': "import { a } from '../index.js';\nimport { b } from '../../b/index.js';\nexport const x = [a, b];\n",
+    'packages/a/tests/deep.test.js': "import { inner } from '../../b/src/inner.js';\nexport const x = inner;\n",
+    'packages/b/tests/upward.test.js': "import { a } from '../../a/index.js';\nexport const x = a;\n",
+  });
+  const rows = Object.fromEntries(classifyTests(root).map(row => [row.file, row]));
+  assert.equal(rows['packages/a/tests/component.test.js'].kind, 'cell');
+  assert.equal(rows['packages/a/tests/component.test.js'].tier, 'component');
+  assert.equal(rows['packages/a/tests/good.test.js'].tier, 'unit');
+  assert.equal(rows['packages/a/tests/deep.test.js'].kind, 'finding', 'past a front door is still a finding');
+  assert.match(rows['packages/a/tests/deep.test.js'].problems[0].text, /imports packages\/b\/src\/inner\.js/u);
+  assert.equal(rows['packages/b/tests/upward.test.js'].kind, 'finding', 'a cell above is still a finding');
+});
+
+test('clause 2: a test in apps/<name>/tests importing its own app is its own cell, not a finding [C7]', () => {
+  const root = fixture({
+    'apps/r/index.js': 'export const r = 1;\n',
+    'apps/r/tests/own.test.js': "import { r } from '../index.js';\nexport const x = r;\n",
+  });
+  const row = classifyTests(root).find(entry => entry.file === 'apps/r/tests/own.test.js');
+  assert.equal(row.cell, 'apps/r');
+  assert.deepEqual([row.kind, row.problems], ['cell', []]);
+});
+
+test('clause 3: a listed pure helper may be imported by a cell test, and a listed helper that launches the CLI is refused [C7]', () => {
+  const root = fixture({
+    'test/pure.js': "import { tmpdir } from 'node:os';\nexport const where = tmpdir;\n",
+    'test/impure.js': "import { spawnSync } from 'node:child_process';\nexport const run = () => spawnSync('node', ['bin/pullboard.js', 'list']);\n",
+    'test/uses-door.js': "import { a } from '../packages/a/index.js';\nexport const x = a;\n",
+    'apps/cli/index.js': 'export const main = () => 0;\n',
+    'packages/c/index.js': "import { main } from '../../apps/cli/index.js';\nexport const c = main;\n",
+    'test/reaches.js': "import { c } from '../packages/c/index.js';\nexport const x = c;\n",
+    'packages/a/tests/helped.test.js': "import { where } from '../../../test/pure.js';\nexport const x = where;\n",
+  });
+  const listing = { ...readListing(root), pureHelpers: { 'test/pure.js': 'imports only node built-ins', 'test/uses-door.js': 'imports a front door, launches nothing', 'test/impure.js': 'claimed pure', 'test/reaches.js': 'claimed pure' } };
+  const row = classifyTests(root, { listing }).find(entry => entry.file === 'packages/a/tests/helped.test.js');
+  assert.equal(row.kind, 'cell');
+  const problems = testCellsProblems(root, { listing, facts: FACTS }).map(problem => `${problem.path}: ${problem.text}`);
+  assert.ok(problems.includes('test/impure.js: listed as a pure helper but it launches the CLI or installs hooks'), problems.join('\n'));
+  assert.ok(problems.includes('test/reaches.js: listed as a pure helper but its import closure reaches the CLI entry apps/cli/index.js'), problems.join('\n'));
+  assert.ok(!problems.some(text => text.startsWith('test/pure.js') || text.startsWith('test/uses-door.js')), 'a helper that launches nothing is not refused');
+});
+
+test('clause 1: a listed root test moved into its cell keeps its finding, and a brand-new cell test with a finding is refused; clause 2: the write re-keys it [C7]', () => {
+  const root = fixture({
+    'bin/checks/test-cells.json': JSON.stringify({ journeys: {}, pureHelpers: [], leaves: [], findings: { 'test/moved.test.js': 'unlisted root test', 'test/unlisted.test.js': 'unlisted root test', 'packages/b/tests/spawns.test.js': 'spawns the CLI' }, rootTests: 1, sealed: [] }),
+    'packages/a/tests/moved.test.js': "import { b } from '../../b/index.js';\nexport const x = b;\n",
+    'packages/a/tests/fresh.test.js': "import { b } from '../../b/index.js';\nexport const y = b;\n",
+  });
+  const problems = testCellsProblems(root, { facts: FACTS }).map(problem => problem.path);
+  assert.ok(!problems.includes('packages/a/tests/moved.test.js'), 'the moved test keeps the finding it had at test/moved.test.js');
+  assert.ok(problems.includes('packages/a/tests/fresh.test.js'), 'a new cell test with a finding is refused');
+  writeFileSync(join(root, 'packages/a/tests/fresh.test.js'), "export const y = 1;\n");
+  assert.deepEqual(writeTestCells(root, {}), []);
+  const written = JSON.parse(readFileSync(join(root, 'bin/checks/test-cells.json'), 'utf8'));
+  assert.ok(Object.hasOwn(written.findings, 'packages/a/tests/moved.test.js'), 'the finding is recorded under its new path');
+  assert.ok(!Object.hasOwn(written.findings, 'test/moved.test.js'), 'the old key is dropped');
+  assert.equal(written.rootTests, 1);
+});
+
+test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper chain reaching a CLI launcher, never a data string [C7]', () => {
+  assert.equal(spawnsCli("const row = { check: 'node bin/pullboard.js spec check' };\n"), false, 'a data string launches nothing');
+  assert.equal(spawnsCli("const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
+  const root = fixture({
+    'test/e2e-helpers.js': 'export const run = () => 0;\n',
+    'packages/a/tests/chain-fixture.js': "export { run } from '../../../test/e2e-helpers.js';\n",
+    'packages/a/tests/chain.test.js': "import { run } from './chain-fixture.js';\nexport const x = run;\n",
+    'packages/a/tests/data.test.js': "export const row = { check: 'node bin/pullboard.js spec check' };\n",
+  });
+  const rows = Object.fromEntries(classifyTests(root).map(row => [row.file, row]));
+  assert.equal(rows['packages/a/tests/data.test.js'].kind, 'cell');
+  assert.equal(rows['packages/a/tests/chain.test.js'].kind, 'finding');
+  assert.match(rows['packages/a/tests/chain.test.js'].problems.at(-1).text, /spawns or reaches the CLI/u);
 });
