@@ -190,7 +190,6 @@
     "packages/gate/tests/check.test.js": "imports apps/lib/index.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/gate-infra-retry-rotates.test.js": "imports test/e2e-helpers.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/gate-resource.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
-    "packages/gate/tests/gate-shard-reuse.test.js": "imports apps/lib/src/shell/submit-infra-requeue.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/gate-timing-output.test.js": "imports test/fixture-runner-copy.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/gui-admission.test.js": "imports src/git.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/land-affected.test.js": "imports test/e2e-helpers.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",

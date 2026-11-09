@@ -10,8 +10,8 @@ import { proveBatches } from '../src/shell/proof-shards.js';
 import { shardPassStore } from '../src/shell/proof-shards.js';
 import { readTestOutcomes } from '../src/shell/test-outcomes.js';
 import { formatTestOutcomes } from '../src/shell/test-outcomes.js';
-import { INFRASTRUCTURE_CODES } from '../../../apps/lib/src/shell/submit-infra-requeue.js';
-import { submitUntilSettled } from '../../../apps/lib/src/shell/submit-infra-requeue.js';
+import { INFRASTRUCTURE_CODES } from '../src/shell/infra-requeue.js';
+import { submitUntilSettled } from '../src/shell/infra-requeue.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];

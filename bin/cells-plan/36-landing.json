@@ -53,9 +53,7 @@
   ["src/train-check-repoints.js","packages/landing/src/shell/train-check-repoints.js","rule"],
   ["src/post-land-suite.js","packages/landing/src/shell/post-land-suite.js","rule"]
  ],
- "reexports": [
-  "src/landing-test-policy.js"
- ],
+ "reexports": [],
  "cuts": [
   {"cell":"gate","imports":2,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js","src/test-run.js->src/main-failure-matches.js"]}
  ],
