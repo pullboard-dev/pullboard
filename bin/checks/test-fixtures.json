@@ -86,10 +86,10 @@
     "tempdir": 1,
     "hand-policy": 2
   },
-  "packages/codemap/tests/root-allowlist.test.js": {
+  "packages/gate/tests/root-allowlist.test.js": {
     "tempdir": 2
   },
-  "packages/codemap/tests/shim-import-ratchet.test.js": {
+  "packages/gate/tests/shim-import-ratchet.test.js": {
     "hand-policy": 1
   },
   "packages/commits/tests/landing-message.test.js": {
