@@ -3155,7 +3155,7 @@
     "tempdir": 3,
     "hand-policy": 1
   },
-  "test/runner-cleanup-recovery.test.js": {
+  "packages/runners/tests/runner-cleanup-recovery.test.js": {
     "model": 1
   },
   "test/runner-controller-machine-fixture.js": {
@@ -3298,7 +3298,7 @@
   "test/runner-unavailable-redispatch.fixture.js": {
     "model": 1
   },
-  "test/runner-warm-pool.test.js": {
+  "packages/runners/tests/runner-warm-pool.test.js": {
     "tempdir": 1
   },
   "test/runner-warm-source.test.js": {

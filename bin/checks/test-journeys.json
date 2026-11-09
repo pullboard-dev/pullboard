@@ -9255,7 +9255,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-cleanup-recovery.test.js": {
+    "packages/runners/tests/runner-cleanup-recovery.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9339,7 +9339,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-history-single-flight.test.js": {
+    "packages/runners/tests/runner-history-single-flight.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9811,7 +9811,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/runner-warm-pool.test.js": {
+    "packages/runners/tests/runner-warm-pool.test.js": {
       "cells": [
         "gate",
         "kernel",
@@ -9839,7 +9839,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-work-spec-refresh.test.js": {
+    "packages/runners/tests/runner-work-spec-refresh.test.js": {
       "cells": [
         "app:lib",
         "gate",
