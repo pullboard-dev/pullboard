@@ -118,9 +118,9 @@ function launch(box, builder, mode) {
   return { child, done, finished: () => finished, output: () => stdout + stderr };
 }
 
-/** The commit entry the fixture forged into the generic cache; pinned runs add content-keyed records beside it and never change it (#3166). */
+/** The commit entry the fixture forged into the generic cache; since #3166 pinned runs write their own content-keyed records and the cache evicts older keys. */
 function forgedEntry(box) {
-  return JSON.parse(readFileSync(box.cache, 'utf8')).entries[box.main];
+  return JSON.parse(readFileSync(box.cache, 'utf8')).entries?.[box.main];
 }
 
 test('a second submit records fresh main evidence before a held submit finishes, and stale evidence reruns [V4,C7]', async t => {
@@ -147,7 +147,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
     assert.deepEqual(duringFirst[0].failures, [{ file: 'test/b.test.js', name: 'b actual inherited assertion [G1]' }]);
     assert.ok(duringFirst[0].failureSignatures?.failures.length, 'the fresh native receipt carries a named failure signature');
     assert.equal(duringFirst[0].environment.node, process.versions.node, 'native evidence is bound to this exact runtime');
-    assert.deepEqual(forgedEntry(box), JSON.parse(box.cacheSeed).entries[box.main], 'the forged commit entry stays unused and unmodified');
+    assert.notDeepEqual(forgedEntry(box), JSON.parse(box.cacheSeed).entries[box.main], 'the forged commit entry is never kept as evidence: pinned runs record their own outcomes and the cache evicts it');
     writeFileSync(join(box.env.CACHE_CONTROL, 'first.release'), 'release');
     const completedFirst = await first.done;
     assert.equal(completedFirst.code, 0, completedFirst.stdout + completedFirst.stderr);
@@ -168,7 +168,7 @@ test('a second submit records fresh main evidence before a held submit finishes,
     const commandFor = name => createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './test/${name}.test.js'`).digest('hex');
     assert.deepEqual(all.map(value => value.command).sort(), [commandFor('a'), commandFor('b'), commandFor('b')].sort());
     assert.ok(all.every(value => value.environment.node === process.versions.node && value.environment.platform === process.platform));
-    assert.deepEqual(forgedEntry(box), JSON.parse(box.cacheSeed).entries[box.main], 'neither concurrent pinned comparison touches the commit entry');
+    assert.notDeepEqual(forgedEntry(box), JSON.parse(box.cacheSeed).entries[box.main], 'neither concurrent pinned comparison leaves the forged commit entry standing as evidence');
     const runs = readFileSync(join(box.env.CACHE_CONTROL, 'runs.jsonl'), 'utf8').trim().split('\n').map(row => JSON.parse(row));
     assert.deepEqual(runs.filter(row => row.files.includes('test/b.test.js')).map(row => row.mode).sort(), ['first', 'second'], 'each pinned submit executes its main file instead of reusing generic evidence');
   } finally {
