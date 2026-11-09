@@ -1,7 +1,7 @@
 /** A main move during a landing reruns only the tests whose closure reaches both main's change and the batch's [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { interactingTests } from '../packages/landing/src/shell/landing-step-gate.js';
+import { interactingTests } from '../index.js';
 
 const closures = new Map([
   ['test/batch-only.test.js', { files: ['test/batch-only.test.js', 'src/batch.js'] }],

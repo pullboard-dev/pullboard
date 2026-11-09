@@ -1,9 +1,9 @@
 /** A file-level red in a waived file is a waived proof, and an item red three batches in a row returns to its builder [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { waivedFileProof } from '../packages/landing/src/shell/landing-step-failures.js';
-import { LANDING_RED_LIMIT } from '../packages/landing/src/shell/landing-step-selection.js';
-import { repeatedReds } from '../packages/landing/src/shell/landing-step-selection.js';
+import { waivedFileProof } from '../index.js';
+import { LANDING_RED_LIMIT } from '../index.js';
+import { repeatedReds } from '../index.js';
 
 const FILE = 'test/submit-auto-merge.test.js';
 const NOW = Date.parse('2026-11-09T08:51:47.000Z');
