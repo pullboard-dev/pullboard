@@ -14,11 +14,11 @@ import {
 } from 'node:test';
 import {
   createE2eHelpers,
-} from '../../../test/e2e-helpers.js';
+} from './e2e-helpers.js';
 import {
   submissionPaths,
-} from '../src/shell/trusted-policy.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
+} from '../packages/sandbox/src/shell/trusted-policy.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
