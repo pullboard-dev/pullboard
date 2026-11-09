@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ACCESS_WINDOW_MS } from '../apps/relay/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureBoardChanges } from '../packages/store/index.js';
 import { outboxGuardFile } from '../packages/outbox/index.js';
@@ -380,7 +380,7 @@ test('a queued move is taken back row for row, its item status and row counters 
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, directory);
+  store.board_ensureCoordinator(board, directory);
   store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Made before the outage' });
   const tables = ['item', 'event', 'shout', 'agent', 'board_meta', 'sqlite_sequence'];
   const image = () => JSON.stringify(tables.map(table => board.db.prepare(`SELECT * FROM ${table}`).all()));

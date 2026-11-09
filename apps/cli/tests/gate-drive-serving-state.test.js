@@ -2,12 +2,21 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { withFixtureBoard } from './testkit-fixture.js';
-import { createJob, jobView } from '../packages/jobs/index.js';
-import { runGateStages } from '../packages/gate/index.js';
-import { createGateAdmission, drainLoop, driveOnce, gateDriveJobId, GATE_DRIVE_KIND, recordJobRow, rowSink } from '../packages/drive/index.js';
-import { drivenHandoffGate, handoffRefusedResult } from '../apps/cli/src/shell/submit-handoff-worker.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { withFixtureBoard } from '../../../test/testkit-fixture.js';
+import { createJob } from '../../../packages/jobs/index.js';
+import { jobView } from '../../../packages/jobs/index.js';
+import { runGateStages } from '../../../packages/gate/index.js';
+import { createGateAdmission } from '../../../packages/drive/index.js';
+import { drainLoop } from '../../../packages/drive/index.js';
+import { driveOnce } from '../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../packages/drive/index.js';
+import { GATE_DRIVE_KIND } from '../../../packages/drive/index.js';
+import { recordJobRow } from '../../../packages/drive/index.js';
+import { rowSink } from '../../../packages/drive/index.js';
+import { drivenHandoffGate } from '../src/shell/submit-handoff-worker.js';
+import { handoffRefusedResult } from '../src/shell/submit-handoff-worker.js';
 
 const STAGES = ['preflight', 'selection', 'cells', 'doctrine', 'static', 'tests'];
 

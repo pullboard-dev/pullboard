@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { untilBoardFree } from '../apps/cli/src/shell/commands/land.js';
-import { prepareFlakeLanding } from '../packages/landing/src/shell/landing-step-publish.js';
-import { Refused } from '../packages/kernel/index.js';
+import { untilBoardFree } from '../src/shell/commands/land.js';
+import { prepareFlakeLanding } from '../../../packages/landing/index.js';
+import { Refused } from '../../../packages/kernel/index.js';
 
 const STALE = 'flake evidence or repair status changed before the landing snapshot was recorded; retry the landing';
 

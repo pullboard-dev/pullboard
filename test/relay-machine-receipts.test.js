@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
@@ -19,7 +19,7 @@ function replicas(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-machine-receipts-'));
   const boards = ['first', 'second'].map(name => {
     const board = openBoard(join(directory, name + '.sqlite'), { now: () => new Date(at) });
-    store.ensureCoordinator(board, '/private/coordinator');
+    store.board_ensureCoordinator(board, '/private/coordinator');
     return board;
   });
   t.after(() => { for (const board of boards) store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });

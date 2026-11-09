@@ -1,21 +1,23 @@
 /** A [test] clause naming a test file the gate runs is ticked by the gate, not refused CLAUSE_UNTICKED [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
-import { clauseInspectionProblem, clauseInspectionSummary } from '../packages/state/index.js';
-import { selectedGateFiles } from '../apps/cli/src/shell/cli/submit.js';
+import * as store from '../../../packages/store/index.js';
+import { addItem } from '../../../packages/store/index.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
+import { clauseInspectionProblem } from '../../../packages/state/index.js';
+import { clauseInspectionSummary } from '../../../packages/state/index.js';
+import { selectedGateFiles } from '../src/shell/cli/submit.js';
 
 const HOUR = 3_600_000;
 
 /** A claimed item whose criterion and brief are the given text. */
 function fixture(t, criterion, brief = 'Files: src/a.js\nTest: one named case') {
-  const board = openBoard(':memory:');
-  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
-  store.register(board, { lane: 'core', path: '/fixture/builder' });
-  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Gate tick fixture', criterion, route: 'mid', brief, check: 'true' });
+  const board = cellBoard(t, ':memory:');
+  cellSeat(board, { lane: 'coordinator', path: '/fixture/main' });
+  cellSeat(board, { lane: 'core', path: '/fixture/builder' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Gate tick fixture', criterion, route: 'mid', brief, check: 'true' });
   store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 2 * HOUR, freeze: item => ({ text: item.item_criterion, digest: 'ticks' }) });
-  t.after(() => store.closeBoard(board));
   return { board, id };
 }
 

@@ -3,16 +3,21 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixture, git } from './cells-plan-fixture.js';
-import { computePlan, writePlan } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
-import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
-import { withMainCheckout } from '../packages/landing/index.js';
-import { warmAcceptedCells } from '../packages/gate/index.js';
-import { withFileLock } from '../packages/outbox/index.js';
-import { importsIn, commonJsIn } from '../packages/gate/index.js';
-import { withImportParseCache } from '../packages/gate/index.js';
-import { foreignNodeOptions } from '../packages/gate/index.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { cellLintBaseline } from '../../codemap/index.js';
+import { writeCellLintBaseline } from '../../codemap/index.js';
+import { withMainCheckout } from '../index.js';
+import { warmAcceptedCells } from '../../gate/index.js';
+import { withFileLock } from '../../outbox/index.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { withImportParseCache } from '../../gate/index.js';
+import { foreignNodeOptions } from '../../gate/index.js';
 
 /** Pin an actual moved package and its accepted baseline before adding entry metadata. */
 function accepted(t, declared = false) {

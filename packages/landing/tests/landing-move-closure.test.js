@@ -2,30 +2,46 @@
 /** @pullboard-test-loads packages/runners/index.js packages/landing/index.js */
 /** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, posix } from 'node:path';
+import { join } from 'node:path';
+import { posix } from 'node:path';
 import { test } from 'node:test';
-import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles, packageFiles, runnerExecutionServices } from '../packages/runners/index.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions, warmAcceptedCells } from '../packages/gate/index.js';
-import { withFileLock } from '../packages/outbox/index.js';
-import { moveDeclarationFiles } from '../packages/codemap/index.js';
-import { workingSourceInventory } from '../bin/checks/scan.js';
-import { sourceDirectories } from './machine-source-functions.fixture.js';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { fixture as planFixture, git, acceptedCutItems } from './cells-plan-fixture.js';
-import { computePlan, writePlan } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
-import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
-import { withMainCheckout, landingExecutionServices } from '../packages/landing/index.js';
-import { landingBatches as pureLandingBatches } from '../packages/git/core.js';
-import { landingBatches } from '../packages/landing/index.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { copyPackageFiles } from '../../runners/index.js';
+import { packageFiles } from '../../runners/index.js';
+import { runnerExecutionServices } from '../../runners/index.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { withImportParseCache } from '../../gate/index.js';
+import { foreignNodeOptions } from '../../gate/index.js';
+import { warmAcceptedCells } from '../../gate/index.js';
+import { withFileLock } from '../../outbox/index.js';
+import { moveDeclarationFiles } from '../../codemap/index.js';
+import { workingSourceInventory } from '../../../bin/checks/scan.js';
+import { sourceDirectories } from '../../../test/machine-source-functions.fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { fixture as planFixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { acceptedCutItems } from '../../../test/cells-plan-fixture.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { cellLintBaseline } from '../../codemap/index.js';
+import { writeCellLintBaseline } from '../../codemap/index.js';
+import { withMainCheckout } from '../index.js';
+import { landingExecutionServices } from '../index.js';
+import { landingBatches as pureLandingBatches } from '../../git/core.js';
+import { landingBatches } from '../index.js';
 
 const parsers = { importsIn, commonJsIn };
 
 test('landing history uses its existing pure port without growing any move closure [C7,H16]', t => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '..', '..', '..');
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-landing-closure-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   const old = 'src/landing-batch-history.js';
@@ -137,7 +153,7 @@ test('a narrow body cannot expand into a higher barrel through the alias cut [C7
 
 test('generated landing bindings keep the actual provider for legacy and canonical gate entries [C7,H16]', async () => {
   for (const entry of ['packages/gate/src/shell/test-run.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
-    const source = executionServicesSource(new URL('../' + entry, import.meta.url).href);
+    const source = executionServicesSource(new URL('../../../' + entry, import.meta.url).href);
     const loaded = await import('data:text/javascript,' + encodeURIComponent(source + '\nexport { executionServices };'));
     assert.equal(loaded.executionServices.runners.runOnRunner, runnerExecutionServices().runOnRunner, entry);
     assert.equal(loaded.executionServices.landing.releaseExecutors, landingExecutionServices().releaseExecutors, entry);

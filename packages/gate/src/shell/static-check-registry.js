@@ -38,6 +38,23 @@ function isTestSource(file) {
 }
 
 /**
+ * The files this change moves, as new path to old path: what git reports as renamed against accepted main, which is
+ * the same similarity test git uses for a deleted file and an added one. Why: a moved file carries its ceiling.
+ *
+ * @param {string} root
+ * @param {boolean} staged - Judge the index rather than the working tree.
+ * @returns {Record<string, string>}
+ */
+function movedPaths(root, staged) {
+  const diff = gitSpawnSync(['diff', ...(staged ? ['--cached'] : []), '-M', '--name-status', '-z', '--diff-filter=R', 'refs/heads/main'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (diff.status !== 0) return {};
+  const parts = diff.stdout.split('\0').filter(Boolean);
+  const moves = {};
+  for (let at = 0; at + 2 < parts.length; at += 3) moves[parts[at + 2]] = parts[at + 1];
+  return moves;
+}
+
+/**
  * The load-bearing process check over the changed files: new detached children, unrefs, daemon loops and state files
  * outside the drive, transport, jobs and pin cells, against the ceilings file, which may only fall against main's.
  * A checkout with no ceilings file (a project that is not this repository) has nothing to judge.
@@ -57,7 +74,7 @@ function loadBearingCheck({ root, files, staged, text, previous }) {
     const main = previous(LOAD_BEARING_CEILINGS);
     if (main) accepted = JSON.parse(main);
   }
-  return loadBearingFailures(changed, ceilings, accepted);
+  return loadBearingFailures(changed, ceilings, accepted, accepted ? movedPaths(root, staged) : {});
 }
 
 /**
