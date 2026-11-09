@@ -1035,6 +1035,11 @@
     {
       "path": "bin/hop-matrix.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/board-command-budget.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "gate"
     }
   ],
   "retired": [
