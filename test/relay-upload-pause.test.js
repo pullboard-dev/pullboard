@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Paused size and quota limits do not re-seal history or repeat notices across commands [H15,H17]. */
 import assert from 'node:assert/strict';
@@ -5,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
 import { relayClientFixture } from './relay-client-fixture.js';

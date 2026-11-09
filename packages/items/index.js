@@ -2,7 +2,7 @@
 export { criterionSize, defaultItemRoute } from './src/core/criterion-size.js';
 export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
-export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/shell/blocks.js';
 export { briefFiles } from './src/core/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/core/caught.js';
 export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/core/claims.js';
@@ -63,6 +63,7 @@ export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js'
 export { handoffToolsAllowed } from './src/shell/submit-handoff-recovery.js';
 export { sharedHandoffTools } from './src/shell/submit-handoff-recovery.js';
 export { queuedToolOwners } from './src/shell/submit-handoff-recovery.js';
+export { toolTreeHasLiveOwner } from './src/shell/submit-handoff-recovery.js';
 export { sweepToolTrees } from './src/shell/submit-handoff-recovery.js';
 export { assertToolTreeRoom } from './src/shell/submit-handoff-recovery.js';
 export { touchToolTree } from './src/shell/submit-handoff-recovery.js';
@@ -70,3 +71,4 @@ export { touchToolTree } from './src/shell/submit-handoff-recovery.js';
 export { claimedItemRoot } from './src/shell/item-patch-submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/core/dependency-progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/core/diagnosis.js';
+export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/shell/item-folder-claim.js';

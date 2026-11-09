@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../apps/lib/index.js';
-import { submitHandoff } from '../src/submit-handoff-read.js';
+import { submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { BIN } from './submit-main-red-fixture.js';
 import { fixture } from './submit-main-red-fixture.js';

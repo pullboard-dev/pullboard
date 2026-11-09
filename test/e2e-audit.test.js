@@ -2,13 +2,13 @@
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
 import { flakeLedger } from '../packages/flakes/index.js';
 import { auditFailureItem as focusedAuditFailureItem } from '../packages/items/index.js';
-import { eventCauses } from '../src/board-rigor.js';
+import { eventCauses } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { repoInfo } from '../src/git.js';
+import { repoInfo } from '../packages/git/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { refreshTestPlacement } from '../packages/gate/index.js';
 import { testValueReport } from '../packages/gate/index.js';

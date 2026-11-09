@@ -10,6 +10,8 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lex } from '../../../kernel/index.js';
+import { importsWithCompiler } from '../../../kernel/index.js';
+import { commonJsWithCompiler } from '../../../kernel/index.js';
 import { currentCellLintParser } from './cell-parser.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
@@ -403,4 +405,14 @@ export function readOnlyMemberRanges(source, ranges) {
   }
   flush();
   return accepted;
+}
+
+/**
+ * The import and CommonJS parsers of one compiler session, for a command that only sees the codemap front door [C7].
+ *
+ * @param {(source: string) => boolean} compile - The session compiler from withCellLintParser.
+ * @returns {{ importsIn: Function, commonJsIn: Function }}
+ */
+export function cellLintParsers(compile) {
+  return { importsIn: sources => importsWithCompiler(sources, compile), commonJsIn: sources => commonJsWithCompiler(sources, compile) };
 }

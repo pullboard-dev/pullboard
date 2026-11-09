@@ -10,7 +10,7 @@ import { contains } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { boardReceiptStore } from './gate-run-receipt.js';
-import { validateKnownMainAutofile } from '../../../../src/known-main-autofile.js';
+import { validateKnownMainAutofile } from '../../../store/index.js';
 /** Refuse missing origin evidence without widening generic creation authority. */
 function refused() { return new Refused('SUBMISSION_PROOF', 'automatic Main red repairs need native evidence and accepted-main opt-in; rerun submit'); }
 

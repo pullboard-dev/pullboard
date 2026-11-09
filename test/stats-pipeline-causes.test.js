@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { PIPELINE_CAUSE_ENGINE } from '../src/pipeline-cause-engine.js';
 import { pipelineCause, PIPELINE_CAUSES } from '../packages/kernel/index.js';

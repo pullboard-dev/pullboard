@@ -37,7 +37,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli-identity.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/cli-main/handoff-recovery.js": {
@@ -549,7 +549,7 @@
       "deep": 1
     },
     "apps/cli/src/shell/item-folder-identity.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "apps/cli/src/shell/item-folder.js": {
@@ -594,14 +594,6 @@
     },
     "apps/cli/src/shell/submit-gate-wait.js": {
       "cells": 4,
-      "deep": 0
-    },
-    "apps/cli/src/shell/submit-handoff-origin.js": {
-      "cells": 5,
-      "deep": 0
-    },
-    "apps/cli/src/shell/submit-handoff-seal.js": {
-      "cells": 5,
       "deep": 0
     },
     "apps/cli/src/shell/submit-handoff-sweep.js": {
@@ -697,7 +689,7 @@
       "deep": 0
     },
     "apps/lib/src/shell/submit-handoff-worker.js": {
-      "cells": 5,
+      "cells": 6,
       "deep": 0
     },
     "apps/lib/src/shell/submit-infra-requeue.js": {
@@ -1388,14 +1380,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/gate/src/core/browser-launch-source.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "packages/gate/src/core/browser-module-reach.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/gate/src/core/check-baseline-format.js": {
       "cells": 1,
       "deep": 0
@@ -1418,11 +1402,7 @@
     },
     "packages/gate/src/shell/browser-admission.js": {
       "cells": 4,
-      "deep": 3
-    },
-    "packages/gate/src/shell/browser-scan-cache.js": {
-      "cells": 1,
-      "deep": 0
+      "deep": 2
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -1865,6 +1845,10 @@
       "deep": 0
     },
     "packages/items/src/shell/item-authors.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/shell/item-folder-claim.js": {
       "cells": 2,
       "deep": 0
     },
@@ -2826,6 +2810,14 @@
     },
     "packages/sandbox/src/shell/source-advance.js": {
       "cells": 4,
+      "deep": 0
+    },
+    "packages/sandbox/src/shell/submit-handoff-origin.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/sandbox/src/shell/submit-handoff-seal.js": {
+      "cells": 3,
       "deep": 0
     },
     "packages/sandbox/src/shell/tool-regeneration.js": {
@@ -4340,10 +4332,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/browser-admission.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/browser-slot-guard.js": {
       "cells": 1,
       "deep": 0
@@ -4399,10 +4387,6 @@
     "src/doctrine.js": {
       "cells": 1,
       "deep": 1
-    },
-    "src/empty-submit.js": {
-      "cells": 2,
-      "deep": 0
     },
     "src/engine-move-advance-item-source.js": {
       "cells": 1,
@@ -4547,10 +4531,6 @@
     "src/item-edit-bar.js": {
       "cells": 1,
       "deep": 0
-    },
-    "src/item-folder-identity.js": {
-      "cells": 1,
-      "deep": 1
     },
     "src/item-offer-contract.js": {
       "cells": 1,
@@ -4796,15 +4776,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/submit-handoff-origin.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/submit-handoff-read.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/submit-handoff-seal.js": {
       "cells": 1,
       "deep": 0
     },

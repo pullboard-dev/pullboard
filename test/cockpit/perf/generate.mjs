@@ -9,9 +9,9 @@ import { loadDoctrine } from '../../../packages/doctrine/index.js';
 import { STATUSES, frozenCriterion, loadSpec } from '../../../packages/spec/index.js';
 import {
   ACCEPT_REASON, addItem, allShouts, appendFact, atomic, claim, closeBoard,
-  ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
+  board_ensureCoordinator as ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,
   register, reopen, shout, verify, withdraw,
-} from '../../../src/board.js';
+} from '../../../packages/store/index.js';
 import { addMilestone } from '../../../src/board-milestones.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { submitFixture } from '../../board-submit-fixture.js';

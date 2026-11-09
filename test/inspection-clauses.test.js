@@ -5,8 +5,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
+import * as store from '../packages/store/index.js';
+import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages/state/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { clauseInspectionProblem } from '../packages/state/index.js';
@@ -224,4 +224,23 @@ test('a test tick naming a file the commit\'s green proof ran is proven without 
   assert.match(problem(f).message, /needs a named test case citing clause 1/u, 'no proof yet');
   assert.equal(problem(f, { greenFiles: new Set(['test/page.test.js']) }), null, 'the green proof of this commit ran that file');
   assert.match(problem(f, { greenFiles: new Set(['test/other.test.js']) }).message, /citing clause 1/u, 'another file proves nothing for it');
+});
+
+test('clause 1: an unticked [test] clause on an item with a frozen check is refused with pullboard check <id> as the step and the next line [C7]', t => {
+  const f = fixture(t, 'the bar is met when:\n1. the list renders [test]\n2. the count shows 3 [command]');
+  const refused = problem(f);
+  assert.equal(refused.code, 'CLAUSE_UNTICKED');
+  assert.match(refused.message, new RegExp(`run pullboard check ${f.id}, which runs the frozen check and ticks every test clause`, 'u'));
+  assert.equal(refused.next, `pullboard check ${f.id}, then submit again`);
+  tick(f, 'clause 1 [test]: green pullboard check run of true at abc');
+  assert.equal(problem(f).next, undefined, 'a command clause alone keeps the plain tick step');
+});
+
+test('clause 2: an unticked [test] clause on an item with no check is refused with pullboard test <file> on the file the clause names [C7]', t => {
+  const f = fixture(t, 'the bar is met when:\n1. test/page.test.js passes [test]');
+  // A mid item cannot be filed without a check, so the same item is read with its check cleared.
+  const refused = clauseInspectionProblem({ ...store.getItem(f.board, f.id), item_check: '' }, store.itemThread(f.board, f.id));
+  assert.equal(refused.code, 'CLAUSE_UNTICKED');
+  assert.match(refused.message, /run pullboard test test\/page\.test\.js, then tick the clause with its green run/u);
+  assert.equal(refused.next, 'pullboard test test/page.test.js, then tick the clause and submit again');
 });

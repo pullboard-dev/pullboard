@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { commandOutput } from '../apps/cli/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { NEXT_STEPS } from '../apps/cli/index.js';
-import { agentsBlock } from '../src/doctrine.js';
+import { agentsBlock } from '../packages/doctrine/src/shell/doctrine.js';
 import { Refused } from '../packages/kernel/core.js';
 import { recordedRefusal } from '../packages/state/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

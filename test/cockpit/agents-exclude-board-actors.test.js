@@ -4,13 +4,13 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { decideSentinel, sentinels } from '../../packages/sentinels/index.js';
 import { boardOf, chromeExecutable, closeSnapshotChrome, earlier, machine, openSnapshotChrome, press, project, startView } from './fixture.js';
 
 test('Rigor drafts and executed sentinels do not create agent rows or increase agent counts [N26]', { timeout: 90_000 }, async () => {
   const box = machine(), alpha = project(box, 'agents-board-actors');
-  box.run(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1',
+  box.run(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The real seat stays visible.', '--check', 'true', '--wait');
   box.run(alpha.web, 'claim', '1');
   const view = await startView(box);
@@ -18,6 +18,9 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
   try {
     assert.ok(chromeExecutable(), 'Chrome is required for both actual agent surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'agents-board-actors-chrome'));
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
+    await chrome.waitFor('!!data?.project');
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-agent="web-1"]')`);
     const beforeFloor = await chrome.stable('Array.from(document.querySelectorAll("#dashboard [data-dashboard-agent]"), row => row.dataset.dashboardAgent)');
     const beforeHeadline = await chrome.stable('document.querySelector("#dashboard h1").textContent');

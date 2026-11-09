@@ -1,6 +1,6 @@
 import { conditionalHoldFloor } from '../packages/health/index.js';
-import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
-import { withDerivedFamily } from '../src/family-declaration.js';
+import { recordFamilyDeclareActivation } from '../packages/items/index.js';
+import { withDerivedFamily } from '../packages/items/index.js';
 import { mainPolicy, policyAt } from '../packages/sandbox/index.js';
 import { frozenCheck } from '../packages/sandbox/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';
@@ -24,7 +24,7 @@ import { personSigningPresentation as presentation_personSigningPresentation } f
 import { activeViewAgents as presentation_activeViewAgents } from '../apps/view/index.js';
 import { viewProofSummary as presentation_viewProofSummary } from '../apps/view/index.js';
 import { fitFile as presentation_fitFile } from '../packages/blueprints/index.js';
-import { boardEnginePorts } from '../src/board-engine-ports.js';
+import { boardEnginePorts } from '../packages/store/index.js';
 import { validPresence } from '../packages/person/index.js';
 import { recordTrainLanding } from '../packages/landing/index.js';
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
@@ -36,10 +36,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as native from '../apps/lib/index.js';
-import * as legacy from '../src/board.js';
+import * as legacy from '../packages/store/index.js';
 import { board as library } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { openBoardStore } from '../src/board-store.js';
+import { openBoardStore } from '../packages/store/index.js';
 import { recordRowDraft } from '../packages/spec/index.js';
 import { setPersonSigning } from '../packages/person/index.js';
 import { recordGateRun } from '../packages/flakes/index.js';

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { readCarryingCapacity } from '../packages/stats/index.js';
 import { carryingCapacity } from '../packages/stats/index.js';
 

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 
 /** The model name fixture seats join with when a test passes `--model` itself. */
 export const FIXTURE_MODEL = 'Fixture Model';
@@ -116,16 +117,16 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
 }
 
 /**
- * Write a fixture machine's settings.json, the one place a test declares machine settings.
+ * Write a fixture's machine settings file with exactly the fields the test names.
  *
- * Why: the hand-policy check sends tests here instead of writing settings.json by hand, so a settings rule change is met in one place.
+ * Why: the hand-policy check sends tests here instead of writing settings.json by hand.
  *
- * @param {{ env: { PULLBOARD_MACHINE_HOME: string } }} box - The e2e project whose machine home receives the settings.
- * @param {object} settings - The machine settings object.
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} settings - The settings object.
  * @returns {void}
  */
-export function fixtureMachineSettings(box, settings) {
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify(settings));
+export function fixtureMachineSettings(machineHome, settings) {
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify(settings));
 }
 
 /**
@@ -207,4 +208,23 @@ export function withFixtureBoard(file, body) {
   if (result && typeof result.then === 'function') return Promise.resolve(result).finally(() => closeBoard(board));
   closeBoard(board);
   return result;
+}
+
+/**
+ * A private Git repository for tests of how committed files are read: write files, commit them, repeat.
+ *
+ * Why: a selection or graph test needs real Git objects and nothing else, so the one raw `git init` lives here with the
+ * rest of the fixture seam instead of being copied into each test.
+ *
+ * @param {string} [prefix] - Lowercase name prefix of the private folder.
+ * @returns {{ root: string, put: (path: string, body: string) => void, commit: () => string }} The repo root, a writer, and a committer that returns the new commit id.
+ */
+export function fixtureCommittedGraph(prefix = 'pullboard-graph-') {
+  const files = privateFixtureFiles(prefix), root = files.root;
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  git('init', '-q', '-b', 'main');
+  return { root, put: (path, body) => files.write(path, body), commit: () => { git('add', '-A'); git('commit', '-qm', 'chore: fixture graph'); return git('rev-parse', 'HEAD').trim(); } };
 }

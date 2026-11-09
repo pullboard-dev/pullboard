@@ -12,9 +12,9 @@ import { installSkills } from '../apps/cli/index.js';
 import { promptFor } from '../apps/cli/index.js';
 import { withoutFrontMatter } from '../apps/cli/index.js';
 import { lintSpec, parseSpec } from '../packages/spec/index.js';
-import { standardDoctrine } from '../src/doctrine.js';
+import { standardDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { practiceTemplate } from '../packages/config/index.js';
-import { agentsBlock } from '../src/doctrine.js';
+import { agentsBlock } from '../packages/doctrine/src/shell/doctrine.js';
 
 test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());

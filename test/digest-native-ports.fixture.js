@@ -10,9 +10,9 @@ import { milestones } from '../packages/store/index.js';
 import { openBoardReadOnly } from '../packages/store/index.js';
 import { rowDrafts } from '../packages/store/index.js';
 import { rowDecisions } from '../packages/store/index.js';
-import { automaticDecisionSource } from '../src/board-rigor-auto-source.js';
-import { automaticSourceFromText } from '../src/board-rigor-auto-source.js';
-import { rigorDecisionKey } from '../src/board-rigor-auto-source.js';
-import { readAutomaticRigorSource } from '../src/board-rigor-auto-source.js';
+import { automaticDecisionSource } from '../packages/store/index.js';
+import { automaticSourceFromText } from '../packages/store/index.js';
+import { rigorDecisionKey } from '../packages/store/index.js';
+import { readAutomaticRigorSource } from '../packages/store/index.js';
 
 export const digestNativePorts = { foreignBlockers, counterCaught, readCapacity, capacityLines, milestones, openBoardReadOnly, rowDrafts, rowDecisions, automaticDecisionSource, automaticSourceFromText, rigorDecisionKey, readAutomaticRigorSource };
