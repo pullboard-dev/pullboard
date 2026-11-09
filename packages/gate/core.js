@@ -139,5 +139,3 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
   return failures;
 }
 
-/** The coordinator test guard, on the light door so a plain test run refuses a coordinator without loading the gate [C7,V4]. */
-export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from './src/shell/coordinator-test-guard.js';
