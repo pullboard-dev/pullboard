@@ -15,10 +15,16 @@ import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { fetchFresh } from './http-fixture.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
+
+/** Build the run function joinFixtureSeat expects from a relay fixture box: the real CLI in the box's isolated environment. */
+function fixtureCli(box) {
+  return (cwd, ...args) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: box.env, encoding: 'utf8' });
+}
 
 /** Open the relay confirmation page and retain only its browser cookie and one-use ticket. */
 async function openRelayConfirmation(box, confirmationURL) {
@@ -73,7 +79,7 @@ async function runRelayOnAll(box, signalMode) {
   return box.script(`
     import { relayOnAll } from ${JSON.stringify(relaySetupURL)};
     import { readRelayMachine } from ${JSON.stringify(relayMachineURL)};
-    import { createDeviceKeys, signDeviceEnrollment } from ${JSON.stringify(relayDeviceKeysURL)};
+    import { createDeviceKeys, signDeviceEnrollment } from ${JSON.stringify(relayDeviceKeysURL)}; import { nativeRelayPorts } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
     const controller = new AbortController();
     const originalFetch = globalThis.fetch;
     const mode = ${JSON.stringify(signalMode)};
@@ -164,7 +170,7 @@ async function runRelayOnAll(box, signalMode) {
         return response;
       };
     } else if (mode === 'already-aborted') controller.abort();
-    const output = { personChannel: 'view', cwd: process.cwd(),
+    const output = { ...nativeRelayPorts(), personChannel: 'view', cwd: process.cwd(),
       stderr: { write() {} }, say(value) { messages.push(String(value)); }, err(value) { messages.push(String(value)); } };
     try {
       const result = await relayOnAll(${JSON.stringify(box.origin)}, output, {
@@ -1153,7 +1159,7 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
 });
 
 
-test('offline linked reads use the local board, moves refuse, and the same relay resumes [H10]', async (t) => {
+test('offline linked reads use the local board, moves queue locally, and the same relay receives them when it returns [H10,H21]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -1197,40 +1203,27 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     assert.ok(localState.state.items.some(item => item.title === 'private cleanup fixture item'),
       'the local view reads the same private board contents while the relay is stopped');
 
-    for (const args of [
-      ['add', box.lane, 'refused offline add'],
-      ['shout', 'coordinator', 'refused offline shout'],
-    ]) {
-      const refused = await box.cli(...args);
-      assert.equal(refused.code, 1);
-      assert.equal(refused.document.error.code, 'RELAY_UNAVAILABLE');
-      assert.ok(refused.document.error.message.includes(box.origin), 'the refusal names the address attempted');
-      assert.match(refused.document.error.message, /retry this move when the relay is reachable/);
+    for (const args of [['add', box.lane, 'queued offline add'], ['shout', 'all', 'queued offline shout']]) {
+      const queued = await box.cli(...args);
+      assert.equal(queued.code, 0, 'H21: an offline move returns at once and is queued, not refused');
     }
     const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
     viewMoveUrl.searchParams.set('k', viewKey);
     const viewMove = await fetchFresh(viewMoveUrl, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'refused offline view move' } }),
+      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'queued offline view move' } }),
     });
-    assert.equal(viewMove.status, 409, 'the local view API uses the linked move refusal path');
-    assert.equal((await viewMove.json()).error.code, 'RELAY_UNAVAILABLE');
-
-    assert.deepEqual(readFileSync(boardFile), beforeBytes, 'offline reads and refused moves leave the native board bytes unchanged');
-    assert.deepEqual((await box.cli('export')).document.tables, beforeTables, 'no speculative local move or event was applied');
-
+    assert.equal(viewMove.status, 200, 'the local view API also queues the move');
+    const queuedStatus = await box.cli('status');
+    assert.deepEqual(queuedStatus.document.relay.outbox.map(move => move.operation), ['addItem', 'shout', 'addItem'], 'every offline move waits in order');
+    const addsOf = tables => tables.event.filter(event => event.event_kind === 'add').length;
+    assert.equal(addsOf((await box.cli('export')).document.tables), addsOf(beforeTables) + 2, 'each queued add is on the local board at once');
     await box.restartRelay();
     const resumed = await box.cli('add', box.lane, 'move after relay returns');
     assert.equal(resumed.code, 0, 'the relay resumes without relay off/on repair');
-    assert.equal(resumed.document.item.item_title, 'move after relay returns');
-    const afterTables = (await box.cli('export')).document.tables;
-    assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
-    assert.equal(afterTables.event.at(-1).event_kind, 'add');
-    const remoteStateResponse = await fetch(`${box.origin}/api/v2/boards/${link.board}/state`, {
-      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
-    });
-    assert.equal(remoteStateResponse.status, 200);
-    assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');
+    const sent = (await box.cli('status')).document.relay;
+    assert.equal(sent.behind, 0, 'the queued moves reached the same relay without relay off/on repair');
+    assert.equal(sent.sequence, 4, 'each queued move and the recovery move hold exactly one relay position');
   } finally {
     if (view) await view.close();
     for (const [name, value] of oldEnvironment) {
@@ -1238,6 +1231,25 @@ test('offline linked reads use the local board, moves refuse, and the same relay
       else process.env[name] = value;
     }
   }
+});
+
+test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
+  const box = await relayClientFixture(t);
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const laneAdded = fixtureCli(box)(box.root, 'lane', 'add', 'fixture', '--owns', 'fixture/', '--json'); // the review lane owns no folder
+  assert.equal(laneAdded.status, 0, laneAdded.stdout + laneAdded.stderr);
+  for (const args of [['add', '-A'], ['commit', '-m', 'chore(test): seed fixture']]) {
+    const step = spawnSync('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(step.status, 0, step.stderr);
+  }
+  const agentRoot = join(box.root, '..', 'strong-route-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-strong-route-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const run = fixtureCli(box);
+  const item = fileFixtureItem({ run }, box.root, { lane: 'fixture', title: 'strong route claim fixture' });
+  assert.equal(joinFixtureSeat({ run }, agentRoot, 'fixture').code, 0, 'the fixture seat joins on the strong route');
+  const claimed = run(agentRoot, 'claim', String(item.item_id), '--no-next', '--json');
+  assert.doesNotMatch(`${claimed.stdout}${claimed.stderr}`, /"ROUTE"|\[ROUTE\]|ROUTE:/, 'the claim is not refused ROUTE');
 });
 
 test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
@@ -1253,6 +1265,7 @@ test('a linked device without its key reads locally and refuses moves with both 
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
+  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
   const prepare = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
@@ -1262,11 +1275,9 @@ test('a linked device without its key reads locally and refuses moves with both 
       const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
       return { code, document: JSON.parse(output) };
     }
-    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
     const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
-    process.stdout.write(JSON.stringify({ joined, asked }));
+    process.stdout.write(JSON.stringify({ asked }));
   `);
-  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
   assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
   const decision = prepare.document.asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
@@ -1343,6 +1354,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
+  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
   const prepare = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
@@ -1352,11 +1364,9 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
       const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
       return { code, document: JSON.parse(output) };
     }
-    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
     const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
-    process.stdout.write(JSON.stringify({ joined, asked }));
+    process.stdout.write(JSON.stringify({ asked }));
   `);
-  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
   assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
   const decision = prepare.document.asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
