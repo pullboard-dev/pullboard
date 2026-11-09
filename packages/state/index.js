@@ -193,3 +193,4 @@ export { REJECT_OPEN_ENGINE } from './src/core/engines/reject-open-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from './src/core/engines/clause-evidence-engine.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/core/engines/forced-merge-engine.js';
+export { DEFAULT_NEXT_STEPS } from './src/core/next-step-defaults.js';
