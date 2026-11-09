@@ -1,8 +1,10 @@
 /** Light runner and landing services for an ordinary gate slot, so a plain test run loads no gate, board or machine [C7,V4]. */
-import { localRunnerDescriptor, sampleRunnerLoad } from '../packages/runners/src/shell/runner-load.js';
-import { carriedRunnerTrunk } from '../packages/runners/src/shell/runner-policy.js';
-import { probeRunnerTransport } from '../packages/runners/src/shell/runner-transport.js';
-import { effectiveRunners, refreshRunnerMeasurements } from '../packages/runners/src/shell/runner-slots.js';
+import { localRunnerDescriptor } from '../packages/runners/index.js';
+import { sampleRunnerLoad } from '../packages/runners/index.js';
+import { carriedRunnerTrunk } from '../packages/runners/index.js';
+import { probeRunnerTransport } from '../packages/runners/index.js';
+import { effectiveRunners } from '../packages/runners/index.js';
+import { refreshRunnerMeasurements } from '../packages/runners/index.js';
 import { gateQueueSettings } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
