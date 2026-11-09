@@ -27,7 +27,6 @@
     "src/landing-test-policy.js",
     "src/machine.js",
     "src/module-imports.js",
-    "src/next-step-words.js",
     "src/runner-worker.js",
     "src/runners.js",
     "src/serve.js",

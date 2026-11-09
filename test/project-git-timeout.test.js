@@ -14,7 +14,7 @@ test('the registered project list bounds stalled Git, names its root and retains
   const script = `import {apiBoardListing} from ${JSON.stringify(url('packages/api/index.js'))};
 import {listApiProjects} from ${JSON.stringify(url('packages/seats/index.js'))};
 import {apiBoardOpeners} from ${JSON.stringify(url('test/board-fixture.js'))};
-import {refusalDocument} from ${JSON.stringify(url('src/next-step-words.js'))};
+import {refusalDocument} from ${JSON.stringify(url('apps/cli/index.js'))};
 console.log(JSON.stringify(apiBoardListing(listApiProjects,undefined,refusalDocument,apiBoardOpeners)));`;
   const child = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], // budget: absence of the production Git deadline must fail instead of retaining the test indefinitely.
     { cwd: box.repo, env: box.env, timeout: 45_000, killSignal: 'SIGKILL' });
