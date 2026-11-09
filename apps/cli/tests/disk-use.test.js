@@ -139,3 +139,19 @@ test('clause 1: one background measurement runs at a time and writes the figures
   assert.deepEqual(shown.stores.filter(row => row.name !== 'other'), now.stores.filter(row => row.name !== 'other'));
   assert.ok(shown.stores.some(row => row.name === 'test actions'));
 });
+
+test('retention walks a folder of 200000 entries without a stack overflow and finds its newest file [C7]', (t) => {
+  const dir = fixture(t);
+  const big = join(dir, 'flake-evidence', 'flake-big-6666');
+  mkdirSync(big, { recursive: true });
+  for (let i = 0; i < 200_000; i++) {
+    const file = join(big, `f${i}`);
+    writeFileSync(file, '');
+    utimesSync(file, DAYS(90), DAYS(90));
+  }
+  // The one fresh file is the newest; if the walk lost it the entry would look 90 days old and be removed.
+  utimesSync(join(big, 'f123456'), DAYS(5), DAYS(5));
+  const result = pruneDisk(dir, { now: NOW, dryRun: true });
+  assert.ok(!result.removed.some(row => row.entry === 'flake-big-6666'), 'a folder holding a fresh file is not aged');
+  assert.ok(result.removed.some(row => row.entry === 'flake-old-5555'), 'an all-old folder is still removed');
+});
