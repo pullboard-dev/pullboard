@@ -120,6 +120,17 @@ export function requireGateExecutionServices(value) {
     landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
 }
 
+/**
+ * Record one phase of a gate run under its slot, from `start` until now, for the open gate's span telemetry [C7].
+ * Why here: the slot already owns the gate's admission and retry spans, so its callers need no telemetry import.
+ *
+ * @param {string} phase
+ * @param {number} start - Epoch milliseconds.
+ */
+export function recordSlotPhase(phase, start) {
+  recordGateSpan({ phase, start, outcome: 'done' });
+}
+
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {
   if (!lease?.tracker) return undefined;
