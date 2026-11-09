@@ -2,14 +2,14 @@ import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
 /** Reopened work follows its native builder and family activity, with ordinary fallback [H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { defaults } from '../packages/config/index.js';
-import { reworkFamilyRoute } from '../src/rework-family-routing.js';
-import { sealReworkRoutingPolicy } from '../src/rework-family-routing.js';
+import { reworkFamilyRoute } from '../packages/store/index.js';
+import { sealReworkRoutingPolicy } from '../packages/store/index.js';
 import { canTake } from '../packages/seats/index.js';
 import { routeOf } from '../packages/seats/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../packages/store/index.js';

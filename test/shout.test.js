@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { shoutMatchesAudience } from '../src/board-shout-audience.js';
+import { shoutMatchesAudience } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 /** Independent SQLite participants, including a helper whose parent is not its own session. */
