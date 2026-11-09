@@ -59,7 +59,7 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
   const reviewer = proofDocument(fixtureJoin(box.run, review, 'web', '--json')).agent;
   const reviewerParent = 'c'.repeat(64);
-  store.register(board, { lane: 'web', path: review, parentDigest: reviewerParent, sessionDigest: reviewerParent });
+  store.register(board, { lane: 'web', path: review, route: store.agentById(board, reviewer).agent_route, parentDigest: reviewerParent, sessionDigest: reviewerParent });
   proofDocument(box.run(review, 'next', '--verify', String(id), '--json'));
   proofDocument(box.run(review, 'verify', String(id), 'accept', '--json'));
   const shown = proofDocument(box.run(box.repo, 'show', String(id), '--json'));
