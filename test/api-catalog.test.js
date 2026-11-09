@@ -37,7 +37,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
 import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
 import { FIXTURE_MODEL, fixtureJoin } from './testkit-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -417,7 +417,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.equal((await json(box, repo, 'refreeze', ['4'])).unchanged, true);
   await json(box, repo, 'release', ['4', '--reason', 'BLOCKED', '--no-next']);
 
-  await json(box, repo, 'add', ['coordinator', 'Escalate item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  await json(box, repo, 'add', ['coordinator', 'Escalate item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, repo, 'claim', ['5']);
   await json(box, repo, 'escalate', ['5', '--note', 'the first route needs another pass']);
   await json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
@@ -898,8 +898,8 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   for (const folder of [sshBin, join(source.dir, 'runner-worker'), remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   installSshStandIn({ bin: sshBin, worker: join(source.dir, 'runner-worker'), home: remoteHome, machineHome: remoteMachineHome, requests: join(source.dir, 'ssh-requests.jsonl') });
   source.env.PATH = `${sshBin}:${source.env.PATH}`;
-  const runner = await json(source, source.repo, 'runner', ['add', 'fixture-runner', '--slots', '2', '--browser', '1']);
-  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
+  const runner = await json(source, source.repo, 'runner', ['add', HOST, '--slots', '2', '--browser', '1']);
+  assert.deepEqual(runner.runner, { host: HOST, slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
