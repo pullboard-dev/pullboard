@@ -91,9 +91,10 @@ test('submit --wait ends at its gate, and a later unclaimed reject returns with 
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', nextPath, 'main');
   const nextActor = onBoard(box, board => store.register(board, { lane: 'web', path: nextPath }));
   const config = loadConfig(box.repo);
+  // The window waits only for a builder who can come back; a gone seat's window ends at once (18a0128eb0, #3447).
+  onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
   assert.throws(() => onBoard(box, board => store.claim(board, 1, { agentId: nextActor, lane: 'web', leaseMs: 60_000 }), clock),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER', 'another builder cannot steal the original first refusal early');
-  onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by), clock);
   const before = onBoard(box, board => healthReport({ dispatchHealth, db: board.db, root: box.repo, config, now }), clock);
   assert.ok(!before.stuck.some(finding => finding.item === 1 && finding.cause === 'REWORK_UNCLAIMED'),
     'the ten-minute boundary is not rounded down');
