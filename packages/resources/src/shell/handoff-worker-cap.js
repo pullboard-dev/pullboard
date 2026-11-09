@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { once } from 'node:events';
@@ -179,12 +180,48 @@ export async function reserveHandoffTicket(job, { startOf = () => '', urgent = f
  */
 export function queueHandoffLaunch(launch, reservation) {
   const queue = handoffQueueDirectory();
+  rememberQueuedRepository(launch.commonDir);
   const name = reservation.replace(/\.reserved$/u, '.json');
   const draft = join(queue, `.${name}.tmp`);
   writeFileSync(draft, JSON.stringify(launch) + '\n', { mode: 0o600 });
   renameSync(draft, join(queue, name));
   rmSync(join(queue, reservation), { force: true });
   return name;
+}
+
+/** Where the repositories that ever queued a launch in this machine home are named, one file each. */
+function queuedRepositoriesDirectory() { return join(handoffQueueDirectory(), 'repositories'); }
+
+/**
+ * Name a repository as one whose gates queue in this machine home, so its dispatcher sweeps that board after its
+ * tickets are gone. Why: a dispatcher sweeps only boards whose gates it runs; on 8 Nov a test dispatcher in a private
+ * home swept the real checkout it was started in, relaunched three real gates into that home, and they died on
+ * ENOENT when the test removed it (#3850).
+ *
+ * @param {unknown} commonDir - The launch's Git common directory.
+ */
+function rememberQueuedRepository(commonDir) {
+  if (typeof commonDir !== 'string' || !commonDir) return;
+  const directory = queuedRepositoriesDirectory();
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, createHash('sha256').update(commonDir).digest('hex').slice(0, 32)), commonDir + '\n', { mode: 0o600 });
+}
+
+/**
+ * The repositories that queued a launch in this machine home and still exist on disk.
+ *
+ * @returns {string[]}
+ */
+function queuedRepositories() {
+  let names;
+  try { names = readdirSync(queuedRepositoriesDirectory()); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  const dirs = [];
+  for (const name of names) {
+    try { const dir = readFileSync(join(queuedRepositoriesDirectory(), name), 'utf8').trim(); if (dir && existsSync(dir)) dirs.push(dir); }
+    catch { /* an unreadable entry names no repository; its tickets still name theirs */ }
+  }
+  return dirs;
 }
 
 /**
@@ -332,14 +369,16 @@ function waitingCommonDirs() {
 }
 
 /**
- * Run the caller's sweep once for the dispatcher's own directory and for each repository with a waiting launch.
- * A failed sweep is logged and never stops dispatch; it never rejects, so it may run beside the dispatch loop.
+ * Run the caller's sweep once for each repository that queued a launch in this machine home, waiting or not. The
+ * directory the dispatcher started in is never swept for that alone: a dispatcher in another home must not recover
+ * this home's gates into its own (#3850). A failed sweep is logged and never stops dispatch; it never rejects, so it
+ * may run beside the dispatch loop.
  *
  * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
  */
 async function sweepGoneHandoffs(sweep) {
   if (!sweep) return;
-  for (const commonDir of new Set([process.cwd(), ...waitingCommonDirs()])) {
+  for (const commonDir of new Set([...queuedRepositories(), ...waitingCommonDirs()])) {
     try { await sweep(commonDir); }
     catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; it runs again on a later pass`); }
   }
