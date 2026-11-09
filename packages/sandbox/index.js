@@ -43,11 +43,6 @@ export {
   advanceItemSource,
 } from './src/shell/source-advance.js';
 export {
-  policyGit,
-  policyAt,
-  trunkRef,
-} from './src/shell/trusted-policy-read.js';
-export {
   requireTrunkMerge,
   itemPolicy,
   submissionPaths,

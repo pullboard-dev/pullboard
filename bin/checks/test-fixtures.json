@@ -1769,7 +1769,7 @@
     "raw-board": 69,
     "model": 1
   },
-  "test/held-claim-selection.test.js": {
+  "packages/store/tests/held-claim-selection.test.js": {
     "repo-read": 1
   },
   "test/help-examples.test.js": {
@@ -2326,9 +2326,6 @@
   "test/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
-  "test/next-light-reserve.test.js": {
-    "raw-board": 2
-  },
   "test/next-no-review-for-builder.test.js": {
     "raw-board": 1
   },
@@ -2503,10 +2500,6 @@
     "tempdir": 1,
     "model": 3
   },
-  "test/private-rehome-grants.test.js": {
-    "raw-board": 5,
-    "model": 1
-  },
   "test/products.test.js": {
     "tempdir": 2,
     "env-spread": 1,
@@ -2626,9 +2619,8 @@
   "test/reject-clause.test.js": {
     "raw-board": 13
   },
-  "test/reject-reopens-to-any.test.js": {
-    "model": 1,
-    "raw-board": 6
+  "packages/store/tests/reject-reopens-to-any.test.js": {
+    "raw-board": 5
   },
   "test/rejected-work-format-fixture.js": {
     "raw-board": 2
@@ -3871,6 +3863,9 @@
   },
   "packages/moves/tests/liveness-reviews.test.js": {
     "raw-board": 1
+  },
+  "packages/moves/tests/next-light-reserve.test.js": {
+    "raw-board": 2
   },
   "test/webkit-fixture.js": {
     "tempdir": 1

@@ -5,7 +5,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * Use the OS account home unless a caller explicitly selects a private machine pool. A test run substitutes its own

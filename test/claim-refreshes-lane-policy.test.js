@@ -1,4 +1,4 @@
-/** A claimed item's frozen lane policy refreshes to the current lanes at the next claim or renew [C7]. */
+/** A new claim refreshes a frozen lane policy to current main; a held renewal keeps it [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,15 +42,18 @@ function pinned(box) {
   return JSON.parse(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen).policy.commit;
 }
 
-test('a renewal after a lane change refreshes the frozen policy to current main [C7]', t => {
+test('a held renewal after a lane change keeps the frozen policy; a re-claim after release refreshes it to current main [C7]', t => {
   const box = claimedWithWork(t);
   const first = pinned(box);
   const digest = JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest;
   const head = changeLanes(box, config => { config.lanes.ops = { owns: ['ops/'], specs: [] }; });
   assert.notEqual(head, first);
-  const renewed = success(box, box.web, 'claim', '1');
-  assert.match(renewed.out, /renewed #1/);
-  assert.equal(pinned(box), head, 'the frozen policy now names current main');
+  assert.match(success(box, box.web, 'claim', '1').out, /renewed #1/);
+  assert.equal(pinned(box), first, 'a held renewal never re-pins the policy');
+  assert.equal(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest, digest);
+  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'take the new lanes', '--no-next');
+  success(box, box.web, 'claim', '1');
+  assert.equal(pinned(box), head, 'the re-claimed policy now names current main');
   assert.notEqual(JSON.parse(success(box, box.repo, 'show', '1', '--json').out).item_frozen_digest, digest);
 });
 
@@ -62,15 +65,19 @@ test('a renewal with no lane change keeps the frozen policy [C7]', t => {
   assert.equal(pinned(box), first);
 });
 
-test('a refresh that would put committed work outside its lane keeps the old policy and says why [C7]', t => {
+test('a re-claim whose lane the accepted policy changed is refused and keeps the old policy [C7]', t => {
   const box = claimedWithWork(t);
   const first = pinned(box);
   changeLanes(box, config => {
     config.lanes.web.owns = ['site/'];
     config.lanes.ui = { owns: ['web/'], specs: [] };
   });
-  const renewed = success(box, box.web, 'claim', '1');
-  assert.match(renewed.out, /kept #1's lane policy/);
-  assert.match(renewed.out, /web\/page\.html/);
+  assert.match(success(box, box.web, 'claim', '1').out, /renewed #1/);
+  assert.equal(pinned(box), first, 'a held renewal keeps the old policy');
+  success(box, box.web, 'release', '1', '--reason', 'OTHER', '--note', 'lane changed', '--no-next');
+  const refused = box.run(box.web, 'claim', '1');
+  assert.notEqual(refused.code, 0, refused.out);
+  assert.match(refused.err + refused.out, /NO_POLICY/);
+  assert.match(refused.err + refused.out, /lanes\.web/);
   assert.equal(pinned(box), first);
 });

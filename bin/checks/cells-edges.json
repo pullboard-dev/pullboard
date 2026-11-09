@@ -664,7 +664,7 @@
       "cells": 18,
       "deep": 0
     },
-    "apps/lib/src/shell/cli-hook-work.js": {
+    "apps/cli/src/shell/cli-hook-work.js": {
       "cells": 1,
       "deep": 0
     },
@@ -758,7 +758,7 @@
     },
     "apps/relay/src/shell/browser-model.js": {
       "cells": 3,
-      "deep": 2
+      "deep": 0
     },
     "apps/relay/src/shell/browser-page.js": {
       "cells": 4,
@@ -1010,7 +1010,7 @@
     },
     "bin/check-signoffs.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "bin/checks/board-write-io.js": {
       "cells": 2,
@@ -3948,10 +3948,6 @@
       "cells": 2,
       "deep": 0
     },
-    "src/affected-tests.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/api-http.js": {
       "cells": 1,
       "deep": 0
@@ -4288,10 +4284,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/committed-file-reader.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4437,10 +4429,6 @@
       "deep": 0
     },
     "src/known-main-autofile.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/landing-failure-report.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4757,10 +4745,6 @@
       "imports": [],
       "deepImporters": 29
     },
-    "<-commits": {
-      "imports": [],
-      "deepImporters": 1
-    },
     "<-landing": {
       "imports": [],
       "deepImporters": 6
@@ -4819,10 +4803,6 @@
         "store"
       ],
       "deepImporters": 0
-    },
-    "<-items": {
-      "imports": [],
-      "deepImporters": 1
     },
     "apps/runner": {
       "imports": [
@@ -5486,8 +5466,10 @@
   },
   "lightDoors": {
     "packages/drive/core.js": 9,
+    "packages/commits/core.js": 12,
     "packages/verify/core.js": 17,
     "packages/store/core.js": 34,
+    "packages/sandbox/core.js": 14,
     "packages/doctrine/core.js": 50,
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15

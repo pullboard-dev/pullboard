@@ -277,7 +277,8 @@
   ["src/cli-main/run-main.js","apps/cli/src/shell/cli-main/run-main.js","rule"],
   ["src/cli-trace.js","apps/cli/src/shell/cli-trace.js","rule"],
   ["src/submit-remote-gate.js","apps/cli/src/shell/submit-remote-gate.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"]
+  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
+  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"]
  ],
  "reexports": [
   "src/cli-presence.js",

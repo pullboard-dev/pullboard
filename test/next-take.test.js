@@ -24,6 +24,7 @@ import { repoInfo } from '../packages/git/index.js';
 import { bindLocalSession } from '../packages/seats/index.js';
 import { recordItemSession } from '../packages/items/index.js';
 import { dispatchHealth } from '../packages/sentinels/index.js';
+import { healthReport } from '../packages/health/index.js';
 import { deliverHealthNotices } from '../packages/store/src/core/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
@@ -429,6 +430,55 @@ test('a main red asks the newest build only when no seat is free and preserves n
 
 test('default next offers actual main red to another free seat and only that seat claims it [C7,N2,H16]', async t => {
   await assertMainRedCLI(t, { fixture, cli });
+});
+
+/** Give each candidate a disjoint file so the queue's normal collision guard stays active. */
+function lightBrief(file) {
+  return `Files: web/${file}.js\nTest: the selected route owns its ready work.`;
+}
+
+/** An empty native next records the existing next-idle event used by the activity window. */
+async function lightSeatRunsIdleNext(box) {
+  const before = store.events(box.board).length;
+  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock,
+    stdout: { isTTY: false, write: () => {} }, stderr: { write: () => {} } });
+  assert.ok(store.events(box.board).slice(before).some(event => event.event_by === box.seats.actor.id
+    && event.event_kind === 'next-idle'), 'the light seat recorded an empty-next observation');
+}
+
+test('an empty next observation counts as light-seat activity, but a manual claim does not [N2,B13]', async t => {
+  const box = await fixture(t, { route: 'light' });
+  await lightSeatRunsIdleNext(box);
+  const strong = box.add('Strong work', { route: 'strong', brief: lightBrief('idle-strong') });
+  const light = box.add('Prioritized light work', { route: 'light', brief: lightBrief('idle-light') });
+  assert.equal(store.nextFor(box.board, { agentId: box.seats.builder.id, lane: 'web', priority: [light] }).item.item_id, strong,
+    'the existing next-idle event activates the reservation');
+
+  const manualBox = await fixture(t, { route: 'light' });
+  const manual = manualBox.add('Manual light claim', { route: 'light', brief: lightBrief('manual-claim') });
+  manualBox.claim(manual, manualBox.seats.actor);
+  const manualStrong = manualBox.add('Strong work', { route: 'strong', brief: lightBrief('manual-strong') });
+  const manualLight = manualBox.add('Prioritized light work', { route: 'light', brief: lightBrief('manual-light') });
+  assert.equal(store.nextFor(manualBox.board, { agentId: manualBox.seats.builder.id, lane: 'web', priority: [manualLight] }).item.item_id, manualLight,
+    'a manual claim without autoNextSnapshot is not mistaken for a next invocation');
+  assert.equal(store.getItem(manualBox.board, manualStrong).item_status, 'open');
+});
+
+test('clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Item excluded for re-scope');
+  box.claim(id, box.seats.actor);
+  store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
+  box.advance(7 * 60_000);
+  let listed = '';
+  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, listed);
+  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const excluded = store.allItemsNeedingRescope(box.board);
+  assert.equal(excluded[0].id, id);
+  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
+  assert.match(finding.why, /released 7 min ago/u);
 });
 
 installPostMoveHandoffCases({ fixture, cli });
