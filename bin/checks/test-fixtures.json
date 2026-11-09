@@ -2850,7 +2850,7 @@
   "test/release-clears-claim.test.js": {
     "model": 1
   },
-  "test/release-focus.test.js": {
+  "packages/store/tests/release-focus.test.js": {
     "raw-board": 15
   },
   "test/release-producer-cases.js": {

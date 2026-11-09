@@ -281,6 +281,7 @@
     "packages/store/tests/commit-metadata.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/item-notes.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/landing-noop.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
+    "packages/store/tests/release-focus.test.js": "imports test/next-order-fixture.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/shout-readable.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/stacked-submit.test.js": "imports test/e2e-helpers.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/store/tests/verdict-check.test.js": "imports packages/kernel/src/core/discovery.js, outside its own cell store; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -864,7 +865,6 @@
     "test/relay.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/release-archive.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/release-clears-claim.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/release-focus.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/release-ineligible-next.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/release-speed.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/remote-analysis-refusal-result.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1114,7 +1114,7 @@
     "test/worktree-start.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/zombie-gate-jobs.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder"
   },
-  "rootTests": 867,
+  "rootTests": 866,
   "sealed": [
     "activity",
     "api",
