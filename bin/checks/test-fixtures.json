@@ -169,7 +169,7 @@
     "env-spread": 1,
     "hand-policy": 5
   },
-  "packages/gate/tests/runner-closure.test.js": {
+  "packages/runners/tests/runner-closure.test.js": {
     "repo-read": 1
   },
   "packages/gate/tests/runner-timing.test.js": {

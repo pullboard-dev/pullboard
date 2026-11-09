@@ -1929,7 +1929,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/runner-closure.test.js",
+      "file": "packages/runners/tests/runner-closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
