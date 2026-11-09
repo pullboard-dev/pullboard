@@ -50,7 +50,7 @@ function observeGates(box) {
  */
 function runBatch(box, enabled) {
   const source = [
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
+    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/store/index.js')).href)};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
