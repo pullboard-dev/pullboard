@@ -187,7 +187,7 @@ if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();
   try {
-    const forbidden=new Set(['packages/store/index.js','packages/store/src/shell/board.js','packages/state/src/shell/engine.js','packages/store/src/shell/board-engine-ports.js','apps/cli/src/core/next-step-words.js','packages/moves/src/shell/move-registry.js','packages/git/src/shell/git.js']);
+    const forbidden=new Set(['packages/store/src/shell/board.js','packages/state/src/shell/engine.js','packages/store/src/shell/board-engine-ports.js','apps/cli/src/core/next-step-words.js','packages/moves/src/shell/move-registry.js','packages/git/src/shell/git.js']);
     const seen=new Set();
     let pending=['packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
     while(pending.length) {
@@ -256,7 +256,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
     JSON.stringify([{ event: 7, revision: { source: 'private recorded revision fixture' } }]));
   assert.equal(minimumMoveEngine('applyRowDecisions', [{ events: [7] }], board), SPEC_REVISION_ENGINE);
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const forbidden = new Set(['packages/store/index.js', 'packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
+  const forbidden = new Set(['packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
   let pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))
