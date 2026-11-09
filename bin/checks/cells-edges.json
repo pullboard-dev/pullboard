@@ -1065,7 +1065,7 @@
       "deep": 1
     },
     "bin/main-audit.js": {
-      "cells": 6,
+      "cells": 7,
       "deep": 0
     },
     "bin/main-red-refresh.js": {
@@ -2649,15 +2649,15 @@
       "deep": 0
     },
     "packages/rigor/src/core/rigor-counter-state.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/rigor/src/core/rigor-notices.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/rigor/src/shell/rigor-auto-apply.js": {
-      "cells": 2,
+      "cells": 3,
       "deep": 0
     },
     "packages/rigor/src/shell/rigor-auto.js": {
@@ -2671,6 +2671,10 @@
     "packages/rigor/src/shell/rigor-conflicts.js": {
       "cells": 2,
       "deep": 1
+    },
+    "packages/rigor/src/shell/rigor-counters.js": {
+      "cells": 1,
+      "deep": 0
     },
     "packages/rigor/src/shell/rigor-draft.js": {
       "cells": 5,
@@ -2689,7 +2693,7 @@
       "deep": 0
     },
     "packages/rigor/src/shell/rigor-splits.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/roadmap/src/core/focus-milestone.js": {
@@ -4233,18 +4237,6 @@
       "deep": 0
     },
     "src/board-review-release-note.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-rigor-auto-source.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-rigor-source.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-rigor.js": {
       "cells": 1,
       "deep": 0
     },
