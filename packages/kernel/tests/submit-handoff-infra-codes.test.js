@@ -1,9 +1,12 @@
 /** RUNNER_RESULT_INVALID and RESOURCE_LEASE_LOST requeue the same candidate as infrastructure, never a red [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { INFRASTRUCTURE_CODES, submitUntilSettled } from '../apps/lib/index.js';
-import { INFRASTRUCTURE_CODES as board } from '../packages/store/index.js';
-import { Refused } from '../packages/kernel/index.js';
+import {
+  INFRASTRUCTURE_CODES,
+  submitUntilSettled,
+} from '../../../apps/lib/index.js';
+import { INFRASTRUCTURE_CODES as board } from '../../store/index.js';
+import { Refused } from '../index.js';
 
 const HOST = 'runner-7.example';
 const CASES = {

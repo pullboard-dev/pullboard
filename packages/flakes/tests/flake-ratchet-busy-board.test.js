@@ -1,12 +1,22 @@
 /** Landing captures the flake ratchet from one read snapshot, so a busy board never refuses it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { board as store, closeBoard, openBoard } from '../apps/lib/index.js';
-import { gateRuns, landingFlakeRatchet } from '../packages/flakes/index.js';
+import {
+  board as store,
+  closeBoard,
+  openBoard,
+} from '../../../apps/lib/index.js';
+import {
+  gateRuns,
+  landingFlakeRatchet,
+} from '../index.js';
 
 /** A real git repo with a real SQLite board file; returns its root and board path. */
 function realBoard(t) {

@@ -1,10 +1,10 @@
 /** A seat's session ends at a context ceiling across claims, so the next item starts fresh [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { exitRulesConfigProblems } from '../packages/config/index.js';
-import { contextCeiling } from '../packages/stats/index.js';
-import { exitContextDecision } from '../packages/stats/index.js';
-import { nativeLastPrompt } from '../packages/stats/index.js';
+import { exitRulesConfigProblems } from '../index.js';
+import { contextCeiling } from '../../stats/index.js';
+import { exitContextDecision } from '../../stats/index.js';
+import { nativeLastPrompt } from '../../stats/index.js';
 
 const CODEX_MODEL = 'gpt-6';
 const policy = { enabled: true, tokens: 150_000_000, calls: 2000 };

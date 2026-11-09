@@ -9133,7 +9133,7 @@
       ]
     },
     {
-      "file": "test/board-lock-hold.test.js",
+      "file": "packages/verify/tests/board-lock-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11177,7 +11177,7 @@
       ]
     },
     {
-      "file": "test/check-proves-nothing.test.js",
+      "file": "packages/verify/tests/check-proves-nothing.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -21195,7 +21195,7 @@
       ]
     },
     {
-      "file": "test/flake-ratchet-busy-board.test.js",
+      "file": "packages/flakes/tests/flake-ratchet-busy-board.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -23725,7 +23725,7 @@
       ]
     },
     {
-      "file": "test/infra-code-set.test.js",
+      "file": "packages/store/tests/infra-code-set.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27349,7 +27349,7 @@
       ]
     },
     {
-      "file": "test/landing-history-plan.test.js",
+      "file": "packages/kernel/tests/landing-history-plan.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29478,7 +29478,7 @@
       ]
     },
     {
-      "file": "test/main-audit-attribution.test.js",
+      "file": "packages/gate/tests/main-audit-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29592,7 +29592,7 @@
       ]
     },
     {
-      "file": "test/main-audit-plain-commit.test.js",
+      "file": "packages/gate/tests/main-audit-plain-commit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30237,7 +30237,7 @@
       ]
     },
     {
-      "file": "test/merged-plan-check.test.js",
+      "file": "packages/git/tests/merged-plan-check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -34747,7 +34747,7 @@
       ]
     },
     {
-      "file": "test/queue-settings-port.test.js",
+      "file": "packages/queue/tests/queue-settings-port.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37440,7 +37440,7 @@
       ]
     },
     {
-      "file": "test/relay-machine-auth.test.js",
+      "file": "packages/state/tests/relay-machine-auth.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39004,7 +39004,7 @@
       ]
     },
     {
-      "file": "test/relay-storage-quota.test.js",
+      "file": "packages/state/tests/relay-storage-quota.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -39236,7 +39236,7 @@
       ]
     },
     {
-      "file": "test/relay-version.test.js",
+      "file": "packages/state/tests/relay-version.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42430,7 +42430,7 @@
       ]
     },
     {
-      "file": "test/runner-capacity-read.test.js",
+      "file": "packages/config/tests/runner-capacity-read.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42923,7 +42923,7 @@
       ]
     },
     {
-      "file": "test/runner-history-bound.test.js",
+      "file": "packages/config/tests/runner-history-bound.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51733,7 +51733,7 @@
       ]
     },
     {
-      "file": "test/timing-outcomes-accounting.test.js",
+      "file": "packages/gate/tests/timing-outcomes-accounting.test.js",
       "tier": "T3",
       "packages": [
         ".",

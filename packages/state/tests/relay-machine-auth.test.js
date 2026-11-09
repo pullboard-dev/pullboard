@@ -1,14 +1,18 @@
 /** Board-bound machine credentials remain narrower than person sessions [H16,B26]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { createRelayAuth } from '../apps/relay/index.js';
-import { createGitHubClient } from '../apps/relay/index.js';
-import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
+import { createRelayAuth } from '../../../apps/relay/index.js';
+import { createGitHubClient } from '../../../apps/relay/index.js';
+import { githubFixture } from '../../../test/relay-fixture.js';
+import { VERIFIER_STANDING_ENGINE } from '../index.js';
 
 /** Create an actual signed-in account against the loopback GitHub protocol fixture. */
 async function signedPerson(box, auth) {
