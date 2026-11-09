@@ -27,7 +27,6 @@
     "src/module-imports.js",
     "src/runner-worker.js",
     "src/runners.js",
-    "src/serve.js",
     "src/spec.js",
     "src/view-state-summary.js",
     "src/view/test-policy.js",
