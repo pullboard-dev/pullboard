@@ -1,20 +1,23 @@
 /** Native process observations exercise real durable board notifications [A6,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { scanHealthSentinel } from '../packages/sentinels/index.js';
-import { CPU_SENTINEL_ENGINE } from '../packages/state/core.js';
-import { HEALTH_SHOUT_CAP } from '../packages/store/src/core/board-health-receipts.js';
-import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { scanHealthSentinel } from '../../../packages/sentinels/index.js';
+import { CPU_SENTINEL_ENGINE } from '../../../packages/state/core.js';
+import { HEALTH_SHOUT_CAP } from '../../../packages/store/index.js';
+import { applyRelayMove } from '../../../packages/state/index.js';
+import { prepareEngineMove } from '../../../packages/state/index.js';
 
 // CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.
 test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', async t => {
-  const { agentCpuFindings } = await import('../packages/sentinels/index.js');
+  const { agentCpuFindings } = await import('../../../packages/sentinels/index.js');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-'));
   const root = join(directory, 'repo'), work = join(directory, 'core');
   mkdirSync(root); mkdirSync(work);

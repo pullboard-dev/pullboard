@@ -9,22 +9,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { addItem } from '../packages/store/index.js';
-import { claim } from '../packages/store/index.js';
-import { closeBoard } from '../packages/store/index.js';
-import { getItem } from '../packages/store/index.js';
-import { maintainStaleState } from '../packages/store/index.js';
-import { register } from '../packages/store/index.js';
-import { release } from '../packages/store/index.js';
-import { exitClaim } from '../packages/store/index.js';
-import { heartbeatSeat } from '../packages/store/index.js';
-import { recordExitProgress } from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { openBoard } from '../apps/lib/index.js';
-import { captureLapsedClaims } from '../packages/health/index.js';
-import { saveAgentSession } from '../packages/seats/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { RELEASE_QUALITY_HOLD_ENGINE } from '../packages/state/core.js';
+import { addItem } from '../../../packages/store/index.js';
+import { claim } from '../../../packages/store/index.js';
+import { closeBoard } from '../../../packages/store/index.js';
+import { getItem } from '../../../packages/store/index.js';
+import { maintainStaleState } from '../../../packages/store/index.js';
+import { register } from '../../../packages/store/index.js';
+import { release } from '../../../packages/store/index.js';
+import { exitClaim } from '../../../packages/store/index.js';
+import { heartbeatSeat } from '../../../packages/store/index.js';
+import { recordExitProgress } from '../../../packages/store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { openBoard } from '../index.js';
+import { captureLapsedClaims } from '../../../packages/health/index.js';
+import { saveAgentSession } from '../../../packages/seats/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { RELEASE_QUALITY_HOLD_ENGINE } from '../../../packages/state/core.js';
 
 /** Real Git worktrees and a private clock make the board's own idle sweep observable. */
 function fixture(t) {
