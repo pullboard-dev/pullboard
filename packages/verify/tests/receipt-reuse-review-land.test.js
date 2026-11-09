@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { landingReceiptReuse } from '../packages/landing/src/shell/landing-receipt-reuse.js';
-import { reusableSubmitProof } from '../packages/verify/src/shell/submit-proof-reuse.js';
+import { landingReceiptReuse } from '../../landing/index.js';
+import { reusableSubmitProof } from '../index.js';
 
 const trees = { main1: 'treeBase', main2: 'treeMoved', c1: 'treeC' };
 const treeOf = rev => trees[rev] ?? null;
