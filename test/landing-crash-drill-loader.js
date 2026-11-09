@@ -2,7 +2,7 @@
 const targets = {
   merging: ['landing-step-merge.js', 'export async function mergeGroup(state, items) {'],
   gating: ['landing-step-gate.js', "await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });"],
-  pushing: ['landing-step-publish.js', "const pushed = tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]);"],
+  pushing: ['landing-step-publish.js', "const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));"],
   recording: ['landing-step-publish.js', "state.batch = state.config.landing?.requireReceipts === true"],
 };
 
