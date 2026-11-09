@@ -98,9 +98,9 @@ test('a folder that cannot be removed is kept with its reason and the prune goes
   put(join(locked, 'inner.log'), 1, 40);
   utimesSync(locked, DAYS(40), DAYS(40));
   chmodSync(locked, 0o555);
-  t.after(() => chmodSync(locked, 0o755));
   if (process.getuid?.() === 0) return t.skip('root removes a read-only folder');
-  const result = pruneDisk(dir, { now: NOW });
+  let result;
+  try { result = pruneDisk(dir, { now: NOW }); } finally { chmodSync(locked, 0o755); }
   const row = result.kept.find(item => item.entry === 'locked-6666');
   assert.ok(row && /written to during removal/u.test(row.reason), 'the failed entry is kept with a reason');
   assert.ok(existsSync(join(locked, 'inner.log')));
