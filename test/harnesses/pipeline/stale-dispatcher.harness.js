@@ -19,6 +19,17 @@ import { dispatchers, json, mainTooling, projectKit } from './handoff-project.js
 /** A dispatcher checks its tooling every 30 s; the hand-over is due within one check and one pass after it. */
 const HANDOVER_MS = 45_000;
 
+/**
+ * Whether two paths name the same folder, whichever of /var and /private/var each was spelled with.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+function same(a, b) {
+  try { return realpathSync(a) === realpathSync(b); } catch { return false; }
+}
+
 let box;
 guardProcesses({ before: () => { if (box) writeFileSync(box.release, 'release\n'); } });
 
@@ -58,15 +69,16 @@ test('a dispatcher on an older tools copy hands over to one on the current tooli
       throw error;
     }
     const ms = Date.now() - queuedAt;
-    assert.equal(successor.tools, newTools, 'the successor runs the snapshot the new gate was captured on');
+    within(same(successor.tools, newTools), 'the successor runs the snapshot the new gate was captured on',
+      { ms, measured: `successor on ${basename(successor.tools)}, expected ${basename(newTools)}` });
     writeFileSync(box.release, 'release\n');
     const launched = await waitUntil(() => {
       const job = box.state(second).job;
       const pid = job?.state === 'running' ? box.driver(job.id)?.pid : null;
       return pid ? survivors([box.dir]).find(entry => entry.pid === pid) : null;
     }, 'the new gate\'s driver starts', 180_000, 200);
-    const measured = { ms, measured: `hand-over ${Math.round(ms / 100) / 10} s after the newer capture; new gate driven from ${launched.command.includes(newTools) ? 'the current tooling' : 'the old tooling'}` };
-    within(launched.command.includes(newTools), 'the gate captured on newer tooling is driven from that tooling', measured);
+    const measured = { ms, measured: `hand-over ${Math.round(ms / 100) / 10} s after the newer capture; new gate driven from ${launched.command.includes(basename(newTools)) ? 'the current tooling' : 'the old tooling'}` };
+    within(launched.command.includes(newTools) || launched.command.includes(newTools.replace(/^\/private\//u, '/')), 'the gate captured on newer tooling is driven from that tooling', measured);
     await waitUntil(() => !survivors([home]).some(entry => entry.pid === old[0].pid), 'the old dispatcher exits once its own gate ends', 120_000, 250);
     return measured;
   });

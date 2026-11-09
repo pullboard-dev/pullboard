@@ -35,7 +35,9 @@ guardProcesses();
 function probe(runner, liveJobs) {
   const source = `
     import { runnerIdleReply } from ${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)};
-    import { orphanObserver } from ${JSON.stringify(pathToFileURL(join(ROOT, 'apps/runner/src/shell/runner-orphan-observe.js')).href)};
+    // A tree from before the orphan check has no observer module; its probe then runs as it did.
+    const orphanObserver = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'apps/runner/src/shell/runner-orphan-observe.js')).href)})
+      .then(module => module.orphanObserver, error => { if (error.code === 'ERR_MODULE_NOT_FOUND') return null; throw error; });
     const started = performance.now();
     const reply = runnerIdleReply(${JSON.stringify(runner.root)}, { nonce: ${JSON.stringify(randomUUID())}, idle: true, liveJobs: ${JSON.stringify(liveJobs)} }, undefined, orphanObserver);
     process.stdout.write(JSON.stringify({ ...reply, ms: performance.now() - started }));`;

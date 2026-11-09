@@ -8,27 +8,13 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-/**
- * The source tree the harness exercises: this checkout, or the tree named by PULLBOARD_HOP_ROOT.
- * Why the override: a repro must fail on the old behaviour, so `bin/hop-matrix.js --against <commit>` runs the same
- * harness against an extracted older tree.
- */
-export const ROOT = process.env.PULLBOARD_HOP_ROOT ? resolve(process.env.PULLBOARD_HOP_ROOT) : resolve(import.meta.dirname, '../../..');
-
-/**
- * Import one module of the tree under test by its repo-relative path.
- *
- * @param {string} path - Repo-relative module path, such as `packages/drive/index.js`.
- * @returns {Promise<any>}
- */
-export function from(path) {
-  return import(pathToFileURL(join(ROOT, path)).href);
-}
+/** Every folder this harness made or was handed, so the leak check and the cleanup cover them all. */
+const folders = new Set();
 
 /** Git's environment for scratch repositories: no machine or account config, a fixed identity. */
 const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Hop Harness',
@@ -59,7 +45,10 @@ export function gitIn(dir, ...args) {
  */
 export function committedCopy(root, into, commit = 'HEAD') {
   mkdirSync(into, { recursive: true });
-  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', root, into, commit], { encoding: 'utf8', env: GIT_ENV });
+  const archive = `${into}.tar`;
+  gitIn(root, 'archive', '--format=tar', '-o', archive, commit);
+  const run = spawnSync('tar', ['-xf', archive, '-C', into], { encoding: 'utf8' });
+  rmSync(archive, { force: true });
   if (run.status !== 0) throw new Error(`copy of ${commit} failed: ${run.stderr}`);
   gitIn(into, 'init', '-q', '-b', 'main');
   gitIn(into, 'add', '-A');
@@ -67,8 +56,40 @@ export function committedCopy(root, into, commit = 'HEAD') {
   return into;
 }
 
-/** Every folder this harness made or was handed, so the leak check and the cleanup cover them all. */
-const folders = new Set();
+/** The checkout these harness files live in. */
+const CHECKOUT = resolve(import.meta.dirname, '../../..');
+
+/**
+ * Extract an older commit of the checkout into a scratch folder this harness watches and removes.
+ *
+ * @param {string} commit
+ * @returns {Promise<string>} The older tree's folder.
+ */
+async function olderTree(commit) {
+  const { privateFixtureFiles } = await import(pathToFileURL(join(CHECKOUT, 'test/fixture-child.js')).href);
+  const dir = privateFixtureFiles('pullboard-hop-against-').root;
+  folders.add(dir);
+  return committedCopy(CHECKOUT, join(dir, 'pullboard'), commit);
+}
+
+/**
+ * The source tree the harness exercises: this checkout, the tree named by PULLBOARD_HOP_ROOT, or the commit named by
+ * PULLBOARD_HOP_AGAINST extracted into a scratch folder.
+ * Why the override: a repro must fail on the old behaviour, so `bin/hop-matrix.js --against <commit>` runs the same
+ * harness against an older tree.
+ */
+export const ROOT = process.env.PULLBOARD_HOP_ROOT ? resolve(process.env.PULLBOARD_HOP_ROOT)
+  : process.env.PULLBOARD_HOP_AGAINST ? await olderTree(process.env.PULLBOARD_HOP_AGAINST) : CHECKOUT;
+
+/**
+ * Import one module of the tree under test by its repo-relative path.
+ *
+ * @param {string} path - Repo-relative module path, such as `packages/drive/index.js`.
+ * @returns {Promise<any>}
+ */
+export function from(path) {
+  return import(pathToFileURL(join(ROOT, path)).href);
+}
 
 /**
  * Make a private scratch folder in the system temp folder, named `pullboard-hop-<name>-…`, and watch it.
@@ -155,14 +176,14 @@ export function guardProcesses({ graceMs = 30_000, before } = {}) {
 }
 
 /**
- * Record one hop's measured result: one JSON line in HOP_RESULT_FILE for bin/hop-matrix.js, and one line on stdout.
+ * Record one hop's measured result on stdout: a line for people, and a `# hop-row` JSON line bin/hop-matrix.js reads.
  *
  * @param {string} hop - The hop row id, as harnesses/pipeline/hops.js names it.
  * @param {{ pass: boolean, ms?: number | null, measured: string, cause?: string }} result
  */
 export function report(hop, { pass, ms = null, measured, cause = '' }) {
   const row = { hop, status: pass ? 'PASS' : 'FAIL', ms, measured, cause };
-  if (process.env.HOP_RESULT_FILE) appendFileSync(process.env.HOP_RESULT_FILE, JSON.stringify(row) + '\n');
+  process.stdout.write(`# hop-row ${JSON.stringify(row)}\n`);
   process.stdout.write(`# hop ${hop} ${row.status} ${ms === null ? '' : `${Math.round(ms)} ms `}${measured}${cause ? ` (${cause})` : ''}\n`);
 }
 
