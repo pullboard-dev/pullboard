@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { loadConfig } from '../packages/config/index.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureExecFile, runFixtureChild } from './fixture-child.js';

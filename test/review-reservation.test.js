@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';

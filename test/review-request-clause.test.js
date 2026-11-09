@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { join } from 'node:path';
 import { crossLaneFixture } from './e2e-helpers.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { REVIEW_REQUEST_ENGINE } from '../packages/state/core.js';
 import { moveArgs } from '../packages/person/index.js';

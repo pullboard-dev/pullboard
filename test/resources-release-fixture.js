@@ -1,4 +1,4 @@
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addItem, addMilestone, closeBoard } from '../packages/store/index.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
