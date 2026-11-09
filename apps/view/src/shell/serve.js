@@ -605,11 +605,12 @@ function requestCookie(header, name) {
 const credentialMatches = (given, expected) => given.length === expected.length && timingSafeEqual(given, expected);
 
 /**
- * Serve the view until stopped, optionally giving its API access to only one registered project.
+ * Serve the view until stopped, optionally giving its API access to only one registered project. With `statePorts`,
+ * the URL of a module exporting boardStatePorts(), a worker keeps each board's state built and a read only serves it.
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, statePorts } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
@@ -630,7 +631,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
