@@ -20,15 +20,15 @@ test('the runner worker closure holds the same gate modules after the move, with
   for (const body of bodies) assert.ok(files.includes(body), `${body} stays in the closure`);
   for (const old of BEFORE) assert.ok(!files.includes(old), `${old} left no shim in the closure`);
   const gate = files.filter(file => file.startsWith('packages/gate/'));
-  // The one deliberate addition: the preload's journal source split into its own module (d75861e52d), which the preload imports.
-  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/shell/child-journal-source.js', 'packages/gate/core.js'].sort(), 'no other gate module enters the closure');
+  // Two deliberate additions: the preload's journal source split into its own module (d75861e52d), which the preload imports, and the user directory read that the Chrome clone check, now in this cell, imports (#4808).
+  assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/src/shell/child-journal-source.js', 'packages/gate/src/shell/native-user-directory.js', 'packages/gate/core.js'].sort(), 'no other gate module enters the closure');
   assert.ok(!files.includes('packages/gate/index.js'), 'the worker does not load the gate front door');
 });
 
 /** The store body replaces only its old forwarding shim in the runner closure [C7]. */
 test('runner reads the native user directory body without widening its closure [C7]', () => {
   const files = Object.keys(runnerPackage(ROOT).files);
-  assert.ok(files.includes('packages/store/src/shell/native-user-directory.js'));
-  assert.deepEqual(files.filter(file => file.endsWith('native-user-directory.js')), ['packages/store/src/shell/native-user-directory.js']);
+  assert.ok(files.includes('packages/gate/src/shell/native-user-directory.js'));
+  assert.deepEqual(files.filter(file => file.endsWith('native-user-directory.js')), ['packages/gate/src/shell/native-user-directory.js']);
   assert.ok(!files.includes('packages/store/index.js'));
 });
