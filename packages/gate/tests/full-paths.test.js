@@ -35,16 +35,6 @@ function failureLines(summary) {
   return renderTestSummary(summary).split('\n').filter(line => /: (?:works|boom)/u.test(line));
 }
 
-test('two failing cases of one title in same-named files each print their own full path [V32,V33]', t => {
-  const summary = summarize(t, failedCase(1, 'works') + failedCase(2, 'works'), [
-    { file: A, name: 'works', passed: false, skipped: false }, { file: B, name: 'works', passed: false, skipped: false }]);
-  assert.deepEqual(summary.failures.map(row => row.file), [A, B]);
-  const lines = failureLines(summary);
-  assert.equal(lines.length, 2);
-  assert.ok(lines[0].startsWith(`${A}: works`) && lines[1].startsWith(`${B}: works`), lines.join('\n'));
-  assert.ok(lines.every(line => !/^gate\.test\.js/u.test(line)));
-});
-
 test('a reporter location prints as the full repository path, never the bare file name [V32,V33]', t => {
   const box = folder(t);
   box.write('output.log', `TAP version 13\n${failedCase(1, 'works', `${box.root}/${A}:3:1`)}${failedCase(2, 'works', `${box.root}/${B}:9:1`)}1..2\n# tests 2\n# pass 0\n# fail 2\n# skipped 0\n`);
@@ -53,8 +43,9 @@ test('a reporter location prints as the full repository path, never the bare fil
   assert.match(renderTestSummary(summary), new RegExp(`^${A.replaceAll('.', '\\.')}: works`, 'mu'));
 });
 
-test('a case title without a file never borrows a path the log cannot prove [V32,V33]', t => {
-  const summary = summarize(t, failedCase(1, 'works') + failedCase(2, 'works'), [{ file: A, name: 'works', passed: false, skipped: false }]);
+test('two same-titled failures without a located file are never given either path by guess [V32,V33]', t => {
+  const summary = summarize(t, failedCase(1, 'works') + failedCase(2, 'works'), [
+    { file: A, name: 'works', passed: false, skipped: false }, { file: B, name: 'works', passed: false, skipped: false }]);
   assert.deepEqual(summary.failures.map(row => row.file), [null, null]);
   assert.match(renderTestSummary(summary), /\(file unavailable\): works/u);
 });
@@ -66,8 +57,8 @@ test('the timing digest ranks two same-named files by full path [V32,V33]', () =
 });
 
 test('a red gate names both failing same-named files by full path [V32,V33]', t => {
-  const summary = summarize(t, failedCase(1, 'works') + failedCase(2, 'works'), [
-    { file: A, name: 'works', passed: false, skipped: false }, { file: B, name: 'works', passed: false, skipped: false }]);
-  const scope = redGateScope({ files: [A, B] }, summary);
-  assert.ok(scope.includes(`failing: ${A}, ${B}`), scope);
+  const box = folder(t);
+  box.write('output.log', `TAP version 13\n${failedCase(1, 'works', `${box.root}/${A}:3:1`)}${failedCase(2, 'works', `${box.root}/${B}:9:1`)}1..2\n# tests 2\n# pass 0\n# fail 2\n# skipped 0\n`);
+  const summary = testOutputSummary(`${box.root}/output.log`, { root: box.root });
+  assert.ok(redGateScope({ files: [A, B] }, summary).includes(`failing: ${A}, ${B}`));
 });
