@@ -37,21 +37,66 @@ function mainOwnedCases(verdictOf, item, commit) {
 }
 
 /**
+ * The paths that differ between two trees: [] for the same tree, null when either is missing or Git cannot say.
+ *
+ * @param {string | null | undefined} from
+ * @param {string | null | undefined} to
+ * @param {(from: string, to: string) => string[] | null} changedPaths
+ * @returns {string[] | null}
+ */
+function movedPaths(from, to, changedPaths) {
+  if (!from || !to) return null;
+  if (from === to) return [];
+  const paths = changedPaths(from, to);
+  return Array.isArray(paths) ? paths : null;
+}
+
+/**
+ * The closure judgement of a tiered landing: the merged tree may differ from the submit's tree only in paths main
+ * changed since the submit's base (or the landing itself wrote), and the proof then answers for every candidate test
+ * whose import closure none of the changed candidate or tooling paths reach. Why: a deferred proof read NOT_GREEN and a
+ * moved main read BASE_MOVED, so every one-item batch ran a five-minute landing gate over tests the submit had already
+ * proved on the same bytes [C7].
+ *
+ * @param {{ detail: any, proof: any, baseTree: string, base: string, tree: string, tooling: string | null,
+ *   landed: Set<string>, treeOf: (rev: string) => string | null, changedPaths: (from: string, to: string) => string[] | null,
+ *   closure: { candidates: () => string[], closureChanged: (file: string, changed: Set<string>) => boolean } }} input
+ * @returns {{ code: string, rerun?: undefined } | { code?: undefined, rerun: string[] }}
+ */
+function closureRerun({ detail, proof, baseTree, base, tree, tooling, landed, treeOf, changedPaths, closure }) {
+  const moved = movedPaths(baseTree, treeOf(base), changedPaths);
+  if (moved === null) return { code: 'BASE_MOVED' };
+  const allowed = new Set([...landed, ...moved]);
+  const drift = movedPaths(detail.tree, tree, changedPaths);
+  if (drift === null || !drift.every(path => allowed.has(path))) return { code: 'CANDIDATE_CHANGED' };
+  const tools = movedPaths(detail.tooling, tooling, changedPaths);
+  if (tools === null) return { code: 'TOOLING_CHANGED' };
+  const changed = new Set([...drift, ...tools].filter(path => !landed.has(path)));
+  const deferred = new Set(proof.deferredFiles ?? []);
+  const rerun = [...new Set(closure.candidates())].filter(file => deferred.has(file) || (changed.size > 0 && closure.closureChanged(file, changed)));
+  return { rerun: rerun.sort() };
+}
+
+/**
  * Whether one batch can land on its submit receipt: exactly one item, its submit green and complete, the composed
  * candidate tree equal to the tree the submit proved, the base tree equal to the tree of the main it composed on, the
  * tooling tree (RFC 0007 SC7, SC8) equal to the one the submit recorded, and the landing's selected plan no wider than
  * the plan the submit ran. Any mismatch returns a code and the gate runs; a receipt with no tooling tree is never reused.
  * A receipt whose known main failures are all main-owned cases of the item's green gate verdict (#3534) is green, and
  * the files of those cases count as proved: the frozen check ran them at submit [C7,#3685].
+ * With `closure` (a tiered repository, whose tests reach what they import), the trees may instead differ by main's
+ * commits since the submit, and a proof with deferred journeys is reused too: `rerun` lists only the candidates whose
+ * import closure those commits reach, plus files the submit itself deferred [C7].
  *
  * @param {{ items: Array<{ id: number, commit: string }>, readEvents: (id: number) => object[], tree: string,
  *   base: string, tooling: string | null, full: boolean, files: string[], treeOf: (rev: string) => string | null,
  *   generated?: string[], changedPaths?: (from: string, to: string) => string[] | null,
- *   verdictOf?: (item: number, candidate: string) => object | null }} input
- * @returns {{ reuse: boolean, code: string | null, item?: number, commit?: string, tree?: string,
+ *   verdictOf?: (item: number, candidate: string) => object | null,
+ *   closure?: { candidates: () => string[], closureChanged: (file: string, changed: Set<string>) => boolean } | null }} input
+ * @returns {{ reuse: boolean, code: string | null, item?: number, commit?: string, tree?: string, rerun?: string[],
  *   mainOwned?: Array<{ file: string, name: string }> }}
  */
-export function landingReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated = [], changedPaths = () => null, verdictOf }) {
+export function landingReceiptReuse({ items, readEvents, tree, base, tooling, full, files, treeOf, generated = [], changedPaths = () => null, verdictOf, closure = null }) {
   if (items.length !== 1) return { reuse: false, code: 'BATCH_OF_MANY' };
   const [entry] = items;
   const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
@@ -59,7 +104,7 @@ export function landingReceiptReuse({ items, readEvents, tree, base, tooling, fu
   try { detail = event ? JSON.parse(event.event_detail) : null; } catch { detail = null; }
   const proof = detail?.submissionProof;
   if (!detail || detail.commit !== entry.commit || detail.gateGreen !== true || !proof) return { reuse: false, code: 'NO_RECEIPT' };
-  if (proof.deferred || detail.companion) return { reuse: false, code: 'NOT_GREEN' };
+  if ((proof.deferred && !closure) || detail.companion) return { reuse: false, code: 'NOT_GREEN' };
   const mainOwned = mainOwnedCases(verdictOf, entry.id, detail.commit);
   const owned = row => mainOwned?.some(cell => cell.file === row?.file && cell.name === row?.name);
   const known = proof.knownMainFailures;
@@ -67,13 +112,18 @@ export function landingReceiptReuse({ items, readEvents, tree, base, tooling, fu
   const baseTree = detail.policyCommit ? treeOf(detail.policyCommit) : null;
   if (!detail.tree || !baseTree) return { reuse: false, code: 'NO_RECEIPT' };
   const landed = new Set(generated);
+  const reused = { reuse: true, code: null, item: entry.id, commit: entry.commit, tree, ...(mainOwned?.length ? { mainOwned: mainOwned.map(({ file, name }) => ({ file, name })) } : {}) };
+  if (closure) {
+    const verdict = closureRerun({ detail, proof, baseTree, base, tree, tooling, landed, treeOf, changedPaths, closure });
+    return verdict.code ? { reuse: false, code: verdict.code } : { ...reused, rerun: verdict.rerun };
+  }
   // The same keyed comparison as the receipt cell's `reusable` (candidate tree, base tree, then tooling tree), kept local so landing adds no cross-cell edge.
   if (!sameTree(detail.tree, tree, landed, changedPaths)) return { reuse: false, code: 'CANDIDATE_CHANGED' };
   if (baseTree !== treeOf(base)) return { reuse: false, code: 'BASE_MOVED' };
   if (!tooling || !sameTree(detail.tooling, tooling, landed, changedPaths)) return { reuse: false, code: 'TOOLING_CHANGED' };
   const proved = new Set([...(proof.files ?? []), ...(mainOwned ?? []).map(cell => cell.file)]);
   if (full ? proof.full !== true : proof.full !== true && !files.every(file => proved.has(file))) return { reuse: false, code: 'PLAN_WIDER' };
-  return { reuse: true, code: null, item: entry.id, commit: entry.commit, tree, ...(mainOwned?.length ? { mainOwned: mainOwned.map(({ file, name }) => ({ file, name })) } : {}) };
+  return reused;
 }
 
 /**
