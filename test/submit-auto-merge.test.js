@@ -66,6 +66,7 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
   const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add auto merge fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/main.txt'), 'main\n');
   box.git(box.repo, 'add', 'web/main.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance main');
@@ -92,7 +93,7 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: compose at admission');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'review auto merge', '--route', 'mid', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', 'test -f web/feature.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -105,7 +106,7 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   const source = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, source);
-  const joined = fixtureJoin(box.run, review, 'api');
+  const joined = fixtureJoin(box.run, review, 'api', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err);
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/review-main.txt'), 'review main\n');
