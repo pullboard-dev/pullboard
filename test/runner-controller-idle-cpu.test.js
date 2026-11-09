@@ -6,12 +6,13 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellBoard } from './cell-fixture.js';
+import { cellItem } from './cell-fixture.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
-import { fixtureAdd } from './testkit-fixture.js';
 
 /** Controller CPU seconds as `ps` reports them, `[[dd-]hh:]mm:ss.cc`; null once the process is gone. */
 function cpuSeconds(pid) {
@@ -23,11 +24,9 @@ function cpuSeconds(pid) {
 }
 
 test('a controller for a 30 s remote job uses under 0.3 s of CPU and still reports the job\'s result and exit code [C7]', t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Controller idle witness', '--specs', 'G1', '--criterion', 'a waiting controller idles', '--json');
-  assert.equal(added.code, 0, added.err || added.out);
+  const box = cellProject(t, { gate: 'true' });
+  cellItem(cellBoard(t, box.boardFile), { lane: 'web', title: 'Controller idle witness', specIds: ['G1'], criterion: 'a waiting controller idles',
+    check: 'true', route: 'strong', brief: 'Files:\n- web/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- Controller idle witness passes.' });
   const bin = join(box.dir, 'ssh-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'runner-home'), machineHome = join(home, '.pullboard');
   const requests = join(box.dir, 'requests.jsonl'), samples = join(box.dir, 'cpu-samples.jsonl');

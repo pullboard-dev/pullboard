@@ -18,7 +18,7 @@ import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js
 import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
 import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
 import { runFixtureChild } from './fixture-child.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -414,9 +414,7 @@ test('controller provider freshness follows its real package composition, not un
 });
 
 test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
-  const helper = createE2eHelpers();
-  t.after(helper.cleanup);
-  const box = helper.sandbox();
+  const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   mkdirSync(project);

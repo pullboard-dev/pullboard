@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 import { committedToolingSnapshot, cleanupToolingSnapshots } from './runner-tooling-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -36,9 +36,8 @@ if (!remoteCommand.includes(' --health ') && !remoteCommand.includes('registrati
 }
 
 test('a mismatched runner refreshes once, a second mismatch names both versions, and malformed specs never retry [C7,#2855]', async t => {
-  const helpers = createE2eHelpers();
-  t.after(() => { cleanupToolingSnapshots(); helpers.cleanup(); });
-  const box = helpers.sandbox();
+  t.after(() => cleanupToolingSnapshots());
+  const box = cellSandbox(t);
   const project = join(box.dir, 'project');
   mkdirSync(project);
   writeFileSync(join(project, 'README.md'), 'Private runner source\n');
