@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { project, build } from './fixture.js';
 import { intakeFixture, fixtureJSON } from '../intake-fixture.js';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 
 /** Observe genuine rare journeys and reject absent/non-native receipts before checking the live API.
