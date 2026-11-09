@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { clearProofCounters } from '../packages/verify/index.js';
 import { rebuildProofCounters } from '../packages/verify/index.js';
@@ -27,7 +27,7 @@ function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-rigor-counter-'));
   const file = join(dir, 'board.sqlite');
   const board = openBoard(file);
-  store.ensureCoordinator(board, dir);
+  store.board_ensureCoordinator(board, dir);
   const item = store.addItem(board, { lane: 'core', title: 'Old rigor cause', criterion: 'Works.', by: 'coordinator' });
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   return { board, file, item };

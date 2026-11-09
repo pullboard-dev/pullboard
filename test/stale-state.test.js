@@ -496,7 +496,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
 
 
 test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
-  const { applyEngineMove } = await import('../src/engine.js');
+  const { applyEngineMove } = await import('../packages/state/index.js');
   const { STALE_STATE_ENGINE } = await import('../packages/state/core.js');
   const { RELEASE_REASONS_ENGINE } = await import('../packages/state/core.js');
   for (const mode of ['native', 'ordered', 'historical']) {

@@ -1,6 +1,6 @@
 import { seatFamily } from '../../../items/core.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { withPrivateBoard } from '../../../seats/index.js';
 import { originRepository } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -26,7 +26,7 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
       const boardOnly = checkoutBoardOnly.get(ctx.io);
       if (boardOnly) checkoutBoardOnly.set(privateIo, boardOnly);
       const privateCtx = { ...ctx, io: privateIo, file, allowSchemaUpgrade: true, privateBoard: true };
-      if (ctx.info.isMain) store.ensureCoordinator(board, ctx.info.root);
+      if (ctx.info.isMain) store.board_ensureCoordinator(board, ctx.info.root);
       else if (!store.agentAt(board, ctx.info.root)) store.register(board, {
         lane: repoActor.lane,
         path: ctx.info.root,
