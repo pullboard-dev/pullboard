@@ -1,3 +1,4 @@
+import { recordGateSpan } from './gate-spans.js';
 import { repoRoot } from './seat-test-admission.js';
 import { holdingTestSeats } from './seat-test-admission.js';
 import { isSeatTest } from './seat-test-admission.js';
@@ -1272,6 +1273,8 @@ export async function takeResource(options) {
         runners: error.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: error.message };
       const nextAttempts = [...infrastructureAttempts, attempt];
       const waited = Math.max(0, Date.now() - waitStartedAt);
+      // A passed runner deadline that rejoins the queue once is a deadline span of the gate's admission [C7].
+      recordGateSpan({ phase: 'admission', start: waitStartedAt, outcome: 'retry', cause: 'deadline', code: error.code, host: attempt.runner });
       db.close();
       return takeResource({ ...options, _resume: { token, ticket: initialTicket, queueTicket: resume?.queueTicket ?? null,
         queuedAt, requestedAt: Date.now(), runnerDeadlineAt: 0, runnerDispatched: false, lateAdmissionClosed: false,

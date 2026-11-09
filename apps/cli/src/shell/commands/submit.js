@@ -248,11 +248,18 @@ import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/ga
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 import { runPreflight } from '../submit-preflight.js';
+import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit-preflight.js';
 
-/** Report wall time without sharing the execution closures of unrelated submit stages. */
+/**
+ * Report wall time without sharing the execution closures of unrelated submit stages, and record it as the stage's
+ * span for an open gate's telemetry [C7].
+ */
 function reportSubmitStage(ctx, name, start) {
-  ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`);
+  const elapsed = performance.now() - start;
+  ctx.io.say(`submit ${name}: ${(elapsed / 1000).toFixed(2)}s`);
+  const end = Date.now();
+  recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
 /**
