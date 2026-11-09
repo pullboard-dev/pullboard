@@ -7,10 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { activityModel } from '../apps/view/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import * as store from '../../../packages/store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { activityModel } from '../../view/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Create a real isolated repository and SQLite board; no host settings or registered machines are changed. */
 function fixture(t) {

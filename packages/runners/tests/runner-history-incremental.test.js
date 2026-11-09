@@ -13,8 +13,8 @@ import {
   join,
 } from 'node:path';
 import { test } from 'node:test';
-import { defaults } from '../index.js';
-import { protectHistory } from '../../runners/index.js';
+import { defaults } from '../../config/index.js';
+import { protectHistory } from '../index.js';
 
 /** A fresh repository whose add() commits one file and returns the new commit. */
 function repo(t) {

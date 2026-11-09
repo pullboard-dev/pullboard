@@ -48,7 +48,6 @@
   ["src/memory-held.js","packages/store/src/shell/memory-held.js","seed"],
   ["src/native-board-state.js","packages/store/src/shell/native-board-state.js","seed"],
   ["src/native-state-clock.js","packages/store/src/core/native-state-clock.js","seed"],
-  ["src/native-user-directory.js","packages/store/src/shell/native-user-directory.js","seed"],
   ["src/outside-store.js","packages/store/src/shell/outside-store.js","seed"],
   ["src/proof-receipts.js","packages/store/src/shell/proof-receipts.js","seed"],
   ["src/seat-presence.js","packages/store/src/shell/seat-presence.js","seed"],
