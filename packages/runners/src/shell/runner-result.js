@@ -8,7 +8,7 @@ import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { recordRunnerGui } from '../../../resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
-import { remoteFileDenial } from '../../../sandbox/src/shell/sandbox-denial.js';
+import { remoteFileDenial } from '../../../sandbox/core.js';
 import { retainTestResultCompletion } from '../../../gate/src/shell/test-result-store.js';
 import { importTestResults } from '../../../gate/src/shell/test-result-store.js';
 import { runnerPhaseFields } from '../../../gate/src/shell/timing.js';
