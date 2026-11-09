@@ -14,7 +14,7 @@ import * as store from "../packages/store/src/shell/board.js";
 import { openCellBoard as openBoard } from "./cell-fixture.js";
 import { submitFixture } from "./board-submit-fixture.js";
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -163,7 +163,7 @@ test('the hook binds its claim to the current checkout rather than another sessi
   const box = claimed();
   const otherRoot = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', otherRoot, '-b', 'web/two');
-  const joined = fixtureJoin(box.run, otherRoot, 'web');
+  const joined = joinFixtureSeat(box, otherRoot, 'web');
   assert.equal(joined.code, 0, joined.err);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Other checkout claim', '--criterion', 'the checkout owns its metadata', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);

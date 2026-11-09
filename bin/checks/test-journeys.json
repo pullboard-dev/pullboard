@@ -787,16 +787,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/clause-tick-from-test-run.test.js": {
-      "cells": [
-        "app:cli",
-        "state"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/shell/commands/check.js)",
-        "runs the CLI (test/clause-tick-from-test-run.test.js)"
-      ]
-    },
     "test/cli-in-process-fixture.js": {
       "cells": [
         "app:cli",
@@ -3984,17 +3974,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/gui-runner-stage.test.js": {
-      "cells": [
-        "app:lib",
-        "app:runner",
-        "resources",
-        "store"
-      ],
-      "reasons": [
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/handoff-dispatcher-capacity-function.test.js": {
       "cells": [
         "app:lib",
@@ -5063,19 +5042,6 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/shell/commands/land.js)",
         "imports past landing front door (packages/landing/src/shell/landing-step-publish.js)"
-      ]
-    },
-    "test/landing-cli-smoke-error.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "landing",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "runs the CLI (test/landing-cli-smoke-error.test.js)"
       ]
     },
     "test/landing-cli-smoke.test.js": {
@@ -10228,19 +10194,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/sentinel-stuck-count.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/settings-api-fixture.js": {
       "cells": [
         "api",
@@ -11936,6 +11889,19 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
+      ]
+    },
+    "test/sentinel-stuck-count.test.js": {
+      "cells": [
+        "app:lib",
+        "app:view",
+        "kernel",
+        "outbox",
+        "person",
+        "store"
+      ],
+      "reasons": [
+        "spawns a child process (test/fixture-child.js)"
       ]
     }
   }

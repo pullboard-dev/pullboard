@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setDriverUnstarted } from './gate-driver-fixture.js';
 import { test } from 'node:test';
-import { cleanupToolSnapshot } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { removeJobToolSnapshot } from '../packages/items/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { HANDOFF_DISPATCHER_RESOURCE, handoffQueueDirectory, takeResource } from '../packages/resources/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
@@ -101,13 +101,13 @@ test('clause 2: cleanup of a snapshot while a queued request names it leaves the
   const box = await fixture(t);
   const queued = submitted(box, 'Held shared gate', 'web/held.txt');
   const tools = queued.request.tools;
-  cleanupToolSnapshot({ job: queued.job.id, tools }, tools);
-  cleanupToolSnapshot({ job: 'another-job', tools }, tools);
-  assert.equal(existsSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js')), true, 'the shared snapshot survives a job ending');
+  removeJobToolSnapshot({ job: queued.job.id, tools }, tools);
+  removeJobToolSnapshot({ job: 'another-job', tools }, tools);
+  assert.equal(existsSync(join(tools, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js')), true, 'the shared snapshot survives a job ending');
   // A private per-job copy is still removed by its own job.
   const own = mkdtempSync(join(tmpdir(), 'pullboard-handoff-tools-job-1-'));
   t.after(() => rmSync(own, { recursive: true, force: true }));
-  cleanupToolSnapshot({ job: 'job-1', tools: own }, own);
+  removeJobToolSnapshot({ job: 'job-1', tools: own }, own);
   assert.equal(existsSync(own), false);
 });
 

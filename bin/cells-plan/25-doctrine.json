@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/doctrine",
  "frontDoor": "packages/doctrine/index.js",
+ "pureFrontDoor": "packages/doctrine/core.js",
  "paths": [
   ["src/doctrine-checks.js","packages/doctrine/src/shell/doctrine-checks.js","seed"],
   ["src/doctrine-rulings.js","packages/doctrine/src/shell/doctrine-rulings.js","seed"],

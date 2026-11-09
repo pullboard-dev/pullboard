@@ -6,7 +6,7 @@ import {
   fixtureChildMessage,
   runFixtureChild,
   runFixtureGit,
-} from '../../../test/fixture-child.js';
+} from './fixture-child.js';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
@@ -26,9 +26,9 @@ import { test } from 'node:test';
 import {
   canonical,
   verifySignature,
-} from '../src/shell/signature.js';
+} from '../packages/spec/index.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = `# Sign-off fixture
 
 ## G · Goals
