@@ -1,15 +1,15 @@
 /** Prove the actual move declarations' bounded literal import closure without evaluating them [C7,H16]. */
 import { isBuiltin } from 'node:module';
-import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
-import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
-import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
-import { cellReaddirSync as readdirSync } from '../packages/codemap/index.js';
+import { cellExistsSync as existsSync } from './cell-source-snapshot.js';
+import { cellLstatSync as lstatSync } from './cell-source-snapshot.js';
+import { cellReadFileSync as readFileSync } from './cell-source-snapshot.js';
+import { cellReaddirSync as readdirSync } from './cell-source-snapshot.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { discovered } from '../packages/kernel/index.js';
-import { MOVE_CANDIDATE } from '../packages/kernel/index.js';
-import { MOVE_FILE } from '../packages/kernel/index.js';
-import { lex } from '../packages/kernel/index.js';
+import { discovered } from '../../../kernel/index.js';
+import { MOVE_CANDIDATE } from '../../../kernel/index.js';
+import { MOVE_FILE } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/index.js';
 
 /** Folders that hold move declarations: the src/moves shims while they last, then the moves cell's bodies [C7]. */
 const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves']);
