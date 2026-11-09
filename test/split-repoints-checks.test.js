@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/machine.js src/engine.js packages/moves/src/shell/move-registry.js */
+/** @pullboard-test-loads src/machine.js packages/state/src/shell/engine.js packages/moves/src/shell/move-registry.js */
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

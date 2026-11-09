@@ -24,7 +24,6 @@
     "src/cockpit.js",
     "src/commands/submit.js",
     "src/doctrine.js",
-    "src/engine.js",
     "src/family-declaration.js",
     "src/landing-failure-report.js",
     "src/landing-shards.js",

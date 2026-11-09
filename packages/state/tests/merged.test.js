@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/engine.js src/machine.js */
+/** @pullboard-test-loads packages/state/src/shell/engine.js src/machine.js */
 /** Merged receipts only record item work on the primary trunk, unless noted [R3,R1]. */
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import assert from 'node:assert/strict';

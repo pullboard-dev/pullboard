@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
+/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js src/machine.js */
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../landing/index.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../landing/index.js';
 /** Preserve released person-waiver receipts on independent current replicas [B3,R3,H16]. */
