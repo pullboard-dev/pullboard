@@ -2,6 +2,7 @@
 /** The process the dispatcher starts for one admitted submit gate: it drives the gate's job with the drive cell [C7]. */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bindSubmitHandoffOrigin, isSubmitHandoffWorker, submitHandoffRoot } from '../packages/sandbox/index.js';
 
 const ENTRY = fileURLToPath(import.meta.url);
 
@@ -17,14 +18,14 @@ export function gateDriveArguments(argv) {
 }
 
 /**
- * The cli bindings the hand-off worker takes as ports.
+ * The bindings the hand-off worker takes as ports: the cli app's, and the sandbox guards the cli front door does not export.
  *
  * @param {any} cli - The cli app's front door.
  * @returns {object}
  */
 export function submitHandoffPorts(cli) {
-  const { context, withBoard, ordered, refusalDocument, bindSubmitHandoffOrigin, submitHandoffRoot, isSubmitHandoffWorker, submitHere } = cli;
-  return { context, withBoard, ordered, refusalDocument, bindSubmitHandoffOrigin, submitHandoffRoot, isSubmitHandoffWorker, submitHere };
+  const { context, withBoard, ordered, refusalDocument, submitHere } = cli;
+  return { context, withBoard, ordered, refusalDocument, submitHere, bindSubmitHandoffOrigin, submitHandoffRoot, isSubmitHandoffWorker };
 }
 
 /** This entry's own path, so the dispatcher starts it from a captured tools snapshot. */
