@@ -80,7 +80,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Original segmented markup, escaping and pressed-state assertions invoke the real HTML-only component without the DOM adapter or native fixture."
   },
-  "test/cockpit/activity-codegen.test.js": {
+  "apps/view/tests/cockpit/activity-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated timestamp regex escapes are a script contract; separate from actual Activity model and HTML witnesses."
   },
@@ -88,7 +88,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "logic",
     "reason": "Seeded agent and item observations invoke the actual Agents selection and HTML functions without a browser or native board."
   },
-  "test/cockpit/agents-panel-codegen.test.js": {
+  "apps/view/tests/cockpit/agents-panel-codegen.test.js": {
     "kind": "adapter",
     "reason": "Generated page-script syntax and embedded function contract; separate from actual data-to-HTML witnesses."
   },
@@ -168,7 +168,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "dashboard-row-visibility: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
-  "test/cockpit/dashboard-runtime.test.js": {
+  "apps/view/tests/cockpit/dashboard-runtime.test.js": {
     "kind": "adapter",
     "reason": "dashboard-runtime: existing source/VM/transport contract, not a pure-render witness"
   },
