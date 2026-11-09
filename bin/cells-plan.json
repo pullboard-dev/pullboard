@@ -2071,6 +2071,10 @@
     "(root)->doctrine",
     "(root)->landing",
     "person->doctrine",
-    "blueprints->doctrine"
+    "blueprints->doctrine",
+    "health->doctrine",
+    "rigor->doctrine",
+    "runners->doctrine",
+    "apps/lib->doctrine"
   ]
 }
