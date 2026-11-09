@@ -130,3 +130,20 @@ test('clause 3: a listed pure helper may be imported by a cell test, and a liste
   assert.ok(problems.includes('test/impure.js: listed as a pure helper but imports packages/a/index.js, which is not a listed pure helper'), problems.join('\n'));
   assert.ok(!problems.some(text => text.startsWith('test/pure.js')), 'a pure helper is not refused');
 });
+
+test('clause 1: a listed root test moved into its cell keeps its finding, and a brand-new cell test with a finding is refused; clause 2: the write re-keys it [C7]', () => {
+  const root = fixture({
+    'bin/checks/test-cells.json': JSON.stringify({ journeys: {}, pureHelpers: [], leaves: [], findings: { 'test/moved.test.js': 'unlisted root test', 'test/unlisted.test.js': 'unlisted root test', 'packages/b/tests/spawns.test.js': 'spawns the CLI' }, rootTests: 1, sealed: [] }),
+    'packages/a/tests/moved.test.js': "import { b } from '../../b/index.js';\nexport const x = b;\n",
+    'packages/a/tests/fresh.test.js': "import { b } from '../../b/index.js';\nexport const y = b;\n",
+  });
+  const problems = testCellsProblems(root, { facts: FACTS }).map(problem => problem.path);
+  assert.ok(!problems.includes('packages/a/tests/moved.test.js'), 'the moved test keeps the finding it had at test/moved.test.js');
+  assert.ok(problems.includes('packages/a/tests/fresh.test.js'), 'a new cell test with a finding is refused');
+  writeFileSync(join(root, 'packages/a/tests/fresh.test.js'), "export const y = 1;\n");
+  assert.deepEqual(writeTestCells(root, {}), []);
+  const written = JSON.parse(readFileSync(join(root, 'bin/checks/test-cells.json'), 'utf8'));
+  assert.ok(Object.hasOwn(written.findings, 'packages/a/tests/moved.test.js'), 'the finding is recorded under its new path');
+  assert.ok(!Object.hasOwn(written.findings, 'test/moved.test.js'), 'the old key is dropped');
+  assert.equal(written.rootTests, 1);
+});

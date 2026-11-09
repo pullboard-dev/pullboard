@@ -188,6 +188,17 @@ export function testCellsReport(root, { facts, ...options } = {}) {
 }
 
 /**
+ * Whether the listing already carries a file's finding: under its own path, or, for a test in a cell's tests/ folder, under
+ * the root test/ path the test mover moved it from (`<cell>/tests/<path>` comes from `test/<path>`), so a pure move keeps
+ * its finding's identity and the ratchet never reads it as new.
+ */
+function listedFinding(listing, file) {
+  if (Object.hasOwn(listing.findings, file)) return true;
+  const moved = /^(?:packages|apps)\/[^/]+\/tests\/(.+)$/u.exec(file);
+  return Boolean(moved) && Object.hasOwn(listing.findings, `test/${moved[1]}`);
+}
+
+/**
  * Refuse a finding the committed listing does not already carry (naming its rule), more root test files than it counts,
  * and a cell it lists as sealed that no longer is.
  *
@@ -199,7 +210,7 @@ export function testCellsProblems(root, options = {}) {
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
   problems.push(...impurePureHelpers(root, listing));
-  for (const row of current.rows.filter(entry => entry.kind === 'finding' && !Object.hasOwn(listing.findings, entry.file))) {
+  for (const row of current.rows.filter(entry => entry.kind === 'finding' && !listedFinding(listing, entry.file))) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);
   }
   if (current.rootTests > listing.rootTests) add('test', 1, `${current.rootTests} root test files exceed the ratchet of ${listing.rootTests}; put new tests in their cell's tests/ folder`);
@@ -215,7 +226,7 @@ export function testCellsProblems(root, options = {}) {
 export function writeTestCells(root, { initialize = false } = {}) {
   const listing = readListing(root);
   const current = testCellsReport(root, { listing });
-  const raised = Object.keys(current.findings).filter(file => !Object.hasOwn(listing.findings, file));
+  const raised = Object.keys(current.findings).filter(file => !listedFinding(listing, file));
   if (!initialize && (raised.length || current.rootTests > listing.rootTests)) {
     return [{ path: LISTING, line: 1, text: `the ratchet only lowers; fix ${raised.length ? raised.join(', ') : 'the extra root tests'} instead of recording them` }];
   }
