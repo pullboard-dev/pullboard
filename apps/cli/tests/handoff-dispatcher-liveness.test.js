@@ -4,17 +4,33 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { mock, test } from 'node:test';
+import { mock } from 'node:test';
+import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { drainHandoffQueue, dropHandoffTicket, ensureHandoffDispatcher, handoffQueueDirectory, listResources, queueHandoffLaunch, recoverHandoffDispatcher, reserveHandoffTicket, takeResource } from '../packages/resources/index.js';
-import { recoverQueuedHandoffs } from '../apps/cli/src/shell/cli-main/handoff-recovery.js';
-import { wakesHandoffRecovery } from '../apps/cli/src/shell/cli-main/run-main.js';
-import { waitForCondition } from './runner-fixture-state.js';
-import { privateFixtureFiles } from './fixture-child.js';
-import { runFixtureGit } from './fixture-child.js';
+import { drainHandoffQueue } from '../../../packages/resources/index.js';
+import { dropHandoffTicket } from '../../../packages/resources/index.js';
+import { ensureHandoffDispatcher } from '../../../packages/resources/index.js';
+import { handoffQueueDirectory } from '../../../packages/resources/index.js';
+import { listResources } from '../../../packages/resources/index.js';
+import { queueHandoffLaunch } from '../../../packages/resources/index.js';
+import { recoverHandoffDispatcher } from '../../../packages/resources/index.js';
+import { reserveHandoffTicket } from '../../../packages/resources/index.js';
+import { takeResource } from '../../../packages/resources/index.js';
+import { recoverQueuedHandoffs } from '../src/shell/cli-main/handoff-recovery.js';
+import { wakesHandoffRecovery } from '../src/shell/cli-main/run-main.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Every file and folder under `root` with its size and modification time, or null when `root` is missing. */
 function treeState(root) {
@@ -92,7 +108,7 @@ test('clause 1: a loop-driven lock heartbeat moves only when the loop renews it,
 test('clause 2: an error out of the drain loop releases the dispatcher lock and exits, and the next submit starts a fresh dispatcher at once [C7]', t => withHome(async (dir, checkout) => {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
   writeFileSync(join(handoffQueueDirectory(), '0001-broken.json'), '{ not json');
-  const entry = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
+  const entry = fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url));
   const run = spawnSync(process.execPath, [entry], { cwd: checkout, env: process.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /HANDOFF_QUEUE_SOURCE|cannot read queued worker/u);
@@ -102,7 +118,7 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
   rmSync(join(handoffQueueDirectory(), '0001-broken.json'), { force: true });
   const receipt = join(handoffQueueDirectory(), 'dispatcher.json');
   assert.ok(!existsSync(receipt), 'no dispatcher has been launched yet');
-  await ensureHandoffDispatcher(fileURLToPath(new URL('..', import.meta.url)), checkout);
+  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), checkout);
   const { pid } = JSON.parse(readFileSync(receipt, 'utf8'));
   assert.ok(Number.isInteger(pid), 'a fresh dispatcher process was started');
   // The fresh dispatcher finds an empty queue and exits; the home is removed only after it, so nothing outlives the test.
@@ -110,11 +126,11 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
 }));
 
 test('clause 1: every machine path of the dispatcher runs stays inside the temp home, and ~/.pullboard is never read or written [C7]', t => withHome(async (dir, checkout) => {
-  const entry = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
+  const entry = fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url));
   const run = spawnSync(process.execPath, [entry], { cwd: checkout, env: process.env, encoding: 'utf8', timeout: 30_000 });
   assert.equal(run.status, 0, run.stderr);
   assert.doesNotMatch(run.stderr, /EACCES|\.pullboard/u, 'the dispatcher never reached for the account ~/.pullboard');
-  await ensureHandoffDispatcher(fileURLToPath(new URL('..', import.meta.url)), checkout);
+  await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), checkout);
   const { pid } = JSON.parse(readFileSync(join(handoffQueueDirectory(), 'dispatcher.json'), 'utf8'));
   await waitForCondition(() => gone(pid), 'the launched dispatcher exited', { signal: t.signal });
   assert.ok(handoffQueueDirectory().startsWith(join(dir, 'home')), 'the handoff queue is in the temp home');
@@ -144,7 +160,7 @@ async function whileLaunchLockHeld(action) {
 
 test('clause 1: while another process holds the launch lock, ensureHandoffDispatcher returns false at once [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
   const started = Date.now();
-  const launched = await ensureHandoffDispatcher(fileURLToPath(new URL('..', import.meta.url)), process.cwd());
+  const launched = await ensureHandoffDispatcher(fileURLToPath(new URL('../../../', import.meta.url)), process.cwd());
   assert.equal(launched, false, 'a second launcher never queues behind the first');
   assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'it launched nothing');
   assert.ok(Date.now() - started < 1000, 'it did not wait for the lock'); // budget: hang ceiling; a wait would run for the whole lock hold, which this test never ends.
@@ -152,7 +168,7 @@ test('clause 1: while another process holds the launch lock, ensureHandoffDispat
 
 test('clause 2: with the launch lock held, a queued-launch recovery from a board command returns in under 1 s [C7]', () => withHome(() => whileLaunchLockHeld(async () => {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('..', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
   const started = Date.now();
   await recoverHandoffDispatcher({ loadStartOf: async () => () => '' });
   assert.ok(Date.now() - started < 1000, 'recovery does not queue behind the launcher that holds the lock'); // budget: declared by clause 2 of #3838 as under 1 s; a queued recovery would hang for the whole lock hold.
@@ -174,7 +190,7 @@ async function recoveryStep(dir, positionals) {
 /** Queue one captured launch file, as a submit does. */
 function queueLaunch() {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('..', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('../../../', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
 }
 
 test('#3839 clause 1: heartbeat, inbox and hook commit-msg never call recoverQueuedHandoffs, and leave a queued launch queued [C7]', () => withHome(async dir => {
@@ -192,6 +208,6 @@ for (const command of [['next'], ['submit', '12']]) {
     const starts = await recoveryStep(dir, command);
     assert.equal(starts.length, 1, `${command[0]} starts one recovery check`);
     assert.deepEqual(starts[0].options.args, ['--recover']);
-    assert.equal(starts[0].entry, fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url)));
+    assert.equal(starts[0].entry, fileURLToPath(new URL('../../../bin/handoff-worker-dispatcher.js', import.meta.url)));
   }));
 }
