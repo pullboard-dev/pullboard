@@ -220,6 +220,8 @@ export const nextSelection = {
   pick: (ctx, board, values, ports) => nextPick(ctx, board, values, ports),
   /** Offer one review to this seat. */
   reviewOffer: (board, who) => store.reviewOffer(board, who),
+  /** Find the one review the default loop offers before build work (deb8696e48). */
+  defaultOffer: (board, selection) => store.nextFor(board, selection),
 };
 
 /**
@@ -245,7 +247,7 @@ function nextPick(ctx, board, values, ports) {
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => values.defaultLoop
     ? (() => {
-      const item = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+      const item = nextSelection.defaultOffer(board, { agentId: me.id, lane: me.lane, verify: true,
         policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable,
         routes: values.routes, observeIdle: values.observeIdle,
         skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
