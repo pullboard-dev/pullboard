@@ -1,13 +1,15 @@
 /** A slow file on a loaded runner is judged by its cases, and a timeout names them [C7,V10]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
 
 /** Run one fixture file under configured wall and idle limits, returning status and combined output. */
 function run(t, name, source, { wallMs = 2000, idleMs = 4000, caseMs = 20000 } = {}) {

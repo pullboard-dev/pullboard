@@ -1,11 +1,15 @@
 /** A gate's proof shards never wait on browser leases the same gate holds, and an unplaceable shard ends in time [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { takeResource } from '../packages/resources/index.js';
-import { privateFixtureFiles } from './fixture-child.js';
-import { freeRunnerSlots, runProofShards, shardSlotOptions, SHARD_ADMIT_MS } from '../packages/gate/src/shell/proof-shards.js';
+import { takeResource } from '../../resources/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { freeRunnerSlots } from '../src/shell/proof-shards.js';
+import { runProofShards } from '../src/shell/proof-shards.js';
+import { shardSlotOptions } from '../src/shell/proof-shards.js';
+import { SHARD_ADMIT_MS } from '../src/shell/proof-shards.js';
 
 const RUNNERS = [{ host: 'fixture-a', slots: 4, browser: 2 }, { host: 'fixture-b', slots: 4, browser: 2 }];
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];

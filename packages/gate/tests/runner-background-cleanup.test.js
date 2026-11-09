@@ -1,12 +1,19 @@
 /** A runner job reports its result before cleanup; a slow cleanup runs on in the background and never delays the gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, watch, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { watch } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 const SLOW_CLEANUP_MS = 5_000;
 
@@ -44,7 +51,7 @@ syncBuiltinESMExports();
   git(root, env, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   git(root, env, 'add', '.'); git(root, env, 'commit', '-qm', 'test: cleanup fixture');
-  const runner = pathToFileURL(new URL('../src/runners.js', import.meta.url).pathname).href;
+  const runner = pathToFileURL(new URL('../../../src/runners.js', import.meta.url).pathname).href;
   const script = `import { runOnRunnerAsync } from ${JSON.stringify(runner)};
 const started = Date.now();
 try { const run = await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });

@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Run one repo script and demand a clean exit, showing its output when it is not. */
 function exits(script, args) {

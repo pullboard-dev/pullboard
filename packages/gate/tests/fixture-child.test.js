@@ -1,8 +1,14 @@
 /** Verify fixture child failures remain actionable without leaking credentials [C7]. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { after, test } from 'node:test';
-import { cleanupFixtureChildren, runFixtureChild, runFixtureChildAsync, runFixtureExecFile, runFixtureExec, startFixtureChild } from './fixture-child.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureExecFile } from '../../../test/fixture-child.js';
+import { runFixtureExec } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
 
 after(cleanupFixtureChildren);
 
@@ -66,7 +72,7 @@ test('a fixture child killed or failed names its command, signal and stderr [C7]
 
 /** Verify an ignored failure object still leaves structured diagnostics at the helper boundary. */
 test('fixture child helpers emit structured failure diagnostics [C7]', () => {
-  const helperUrl = new URL('./fixture-child.js', import.meta.url).href;
+  const helperUrl = new URL('../../../test/fixture-child.js', import.meta.url).href;
   const nested = `import(${JSON.stringify(helperUrl)}).then(async ({runFixtureChild,runFixtureChildAsync}) => { runFixtureChild(process.execPath, ['-e', "console.error('nested sync stderr'); process.exit(9)"], {encoding:'utf8'}); await runFixtureChildAsync(process.execPath, ['-e', "console.error('nested async stderr'); process.exit(8)"]); });`;
   const observed = runFixtureChild(process.execPath, ['--input-type=module', '-e', nested], { encoding: 'utf8' });
   assert.equal(observed.status, 0, observed.failure);
