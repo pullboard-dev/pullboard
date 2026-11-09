@@ -58,7 +58,10 @@ import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
 import { reservedTimingRunner } from './runner-timing-reserve.js';
 import { timingReserveAllows } from './runner-timing-reserve.js';
-import { platformIdentity } from './holder-liveness.js';
+import { duringWriteTurn } from './process-identities.js';
+import { freshIdentity } from './process-identities.js';
+import { processIdentity } from './process-identities.js';
+import { refreshIdentities } from './process-identities.js';
 import { differentStart } from './holder-liveness.js';
 import { pollingNow } from './runner-placement.js';
 import { requiredRunnerHosts } from './runner-placement.js';
@@ -85,8 +88,7 @@ const LEASE_MS = 20_000;
 const GATE_WAITER_HEARTBEAT_MS = 120_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
-const PROCESS_IDENTITY_CACHE_MS = 3_000;
-const processIdentities = new Map();
+let openWrites = 0; // transactions open in this thread: a nested write never probes inside its outer turn
 const queueFiles = new WeakMap(); // Each open queue database's file: every write joins that file's ordered write queue [C7,#3084].
 const SLOT_DB_BUSY_MS = 10_000;
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
@@ -312,30 +314,6 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
 }
 
-/** Read a stable OS process identity; an unreadable identity is unknown, not proof of death. */
-function processIdentity(pid) {
-  const cached = processIdentities.get(pid);
-  if (cached && Date.now() - cached.checkedAt < PROCESS_IDENTITY_CACHE_MS) return cached.identity;
-  let identity = null;
-  try {
-    const output = execFileSync('/bin/ps', ['-o', 'lstart=', '-o', 'stat=', '-p', String(pid)], {
-      encoding: 'utf8',
-      env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    const fields = output.split(/\s+/u);
-    const state = fields.pop();
-    if (fields.length) identity = { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false };
-  } catch { identity = platformIdentity(pid); }
-  processIdentities.set(pid, { identity, checkedAt: Date.now() });
-  if (processIdentities.size > 1024) {
-    for (const [cachedPid, entry] of processIdentities) {
-      if (Date.now() - entry.checkedAt >= PROCESS_IDENTITY_CACHE_MS) processIdentities.delete(cachedPid);
-    }
-  }
-  return identity;
-}
-
 /** Read the start identity to store with a lease when the OS can provide it. */
 function processStarted(pid) {
   return processIdentity(pid)?.started ?? '';
@@ -354,15 +332,13 @@ function sameProcess(pid, started) {
 function custodyProcessMatches(pid, started) {
   if (!alive(pid)) return false;
   let identity = processIdentity(pid);
-  if (identity && (identity.zombie || differentStart(identity, started))) {
-    processIdentities.delete(pid);
-    identity = processIdentity(pid);
-  }
+  if (identity && (identity.zombie || differentStart(identity, started))) identity = freshIdentity(pid);
   return !identity || !identity.zombie && !differentStart(identity, started);
 }
 
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action) {
+  if (!openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
   const leave = enterResourceQueue(queueFiles.get(db), { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
   try { return transact(db, action); } finally { leave(); }
 }
@@ -373,17 +349,9 @@ function queuedWrites(db) {
 /** Run one short transaction and discard dead or expired leases. */
 function transact(db, action) {
   beginResourceWrite(db, { timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
+  openWrites++;
   try {
-    pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
-    const cutoff = Date.now() - LEASE_MS;
-    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity: pid => { processIdentities.delete(pid); return processIdentity(pid); } });
-    for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
-      // A live but hung gate process cannot retain a queue place indefinitely.
-      const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
-      if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
-        db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
-      }
-    }
+    const relaunches = duringWriteTurn(() => sweepLeases(db));
     const result = action();
     db.exec('COMMIT');
     for (const relaunch of relaunches) dispatchRelaunch(relaunch);
@@ -391,9 +359,28 @@ function transact(db, action) {
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* Preserve the original transaction failure. */ }
     throw resourceWriteError(error);
-  }
+  } finally { openWrites--; }
 }
 
+/** Free dead holders, controller orphans and dead or stale waiters; identities come from the cache read before the turn. */
+function sweepLeases(db) {
+  pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
+  const cutoff = Date.now() - LEASE_MS;
+  const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity });
+  for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
+    // A live but hung gate process cannot retain a queue place indefinitely.
+    const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+    if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
+  }
+  return relaunches;
+}
+/** Every PID the sweep may check: holders, waiters and registered runner controllers. */
+function livenessPids(db) {
+  const pids = db.prepare('SELECT pid FROM holder UNION SELECT pid FROM waiter').all().map(row => row.pid);
+  try { for (const { identity } of db.prepare("SELECT controller_identity AS identity FROM holder WHERE controller_identity <> ''").all()) pids.push(JSON.parse(identity).controllerPid); }
+  catch { /* An older table or damaged identity only leaves that PID to the cache. */ }
+  return pids;
+}
 /** Remove a view-port definition only after its last lease has left the resource queue. */
 function removeEmptyViewPortResource(db, name) {
   if (!name.startsWith('view-port-')) return;
