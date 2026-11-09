@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { land } from '../packages/landing/index.js';
 import { inProcessLandingBatch } from '../packages/landing/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';

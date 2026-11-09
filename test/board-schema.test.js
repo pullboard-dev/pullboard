@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { MACHINE } from '../packages/state/index.js';
 import { storeTriggers } from '../packages/state/index.js';
 import { SCHEMA_DIGEST } from '../packages/store/index.js';

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob, jobView } from '../packages/jobs/index.js';
 import { drainLoop } from '../packages/drive/index.js';
 import { spawnDriveWorker } from '../bin/drive-worker.js';
