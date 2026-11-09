@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/store",
  "frontDoor": "packages/store/index.js",
+ "lightFrontDoor": "packages/store/core.js",
  "paths": [
   ["src/exit-rules-continuation.js","packages/store/src/core/exit-rules-continuation.js","rule"],
   ["src/exit-rules-state.js","packages/store/src/core/exit-rules-state.js","rule"],

@@ -1,14 +1,13 @@
 /** The explicit staged checker runs the gate's changed-file static checks on staged files, so a static red never costs a gate run [C7]. */
 import assert from 'node:assert/strict';
-import {
-  copyFileSync,
-  mkdirSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { after, test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { spawnSync } from 'node:child_process';
 
 const cleanups = [];
@@ -16,7 +15,7 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '..', 'bin', 'checks');
+const REAL = join(import.meta.dirname, '..', '..', '..', 'bin', 'checks');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
 function staticProject(accepted = {}) {
@@ -55,7 +54,7 @@ function stageSource(box, file, source) {
 }
 
 test('the shared changed-file list passes a clean file [C7]', () => {
-  const dir = join(import.meta.dirname, '..');
+  const dir = join(import.meta.dirname, '..', '..', '..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'), 'bin/checks/changed-static.js'], { cwd: dir, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
 });

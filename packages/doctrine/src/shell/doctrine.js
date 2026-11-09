@@ -1,16 +1,15 @@
 import { renderAgentsBlock } from '../../../config/index.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
 } from '../../../config/index.js';
-import {
-  loadSpec,
-  parseSpec,
-} from '../../../spec/index.js';
+import { parseSpec } from '../../../spec/core.js';
 
 export const STANDARD_VERSION = 1;
 
@@ -40,7 +39,9 @@ function declineReason(row) {
  */
 export function loadDoctrine(root, config = {}) {
   const name = doctrineFile(root, config.practice);
-  const repo = loadSpec(root, { ...config, spec: name });
+  const file = join(root, name);
+  // Read here, not through the spec front door: that door loads git and the board, and this one is a light door.
+  const repo = existsSync(file) ? { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true } : { ...parseSpec(''), file, name, exists: false };
   return composeDoctrine(repo, name);
 }
 
