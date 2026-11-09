@@ -28,8 +28,10 @@ function staleThenFresh(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   success(box, box.repo, 'add', 'web', 'Stale item', '--specs', 'G1', '--criterion', 'The page renders.');
+  success(box, box.repo, 'refreeze', '1');
   changeWebLane(box);
   success(box, box.repo, 'add', 'web', 'Fresh item', '--specs', 'G1', '--criterion', 'The footer renders.');
+  success(box, box.repo, 'refreeze', '2');
   return box;
 }
 
