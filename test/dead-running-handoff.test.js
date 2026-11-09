@@ -33,6 +33,9 @@ import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
+import * as store from '../packages/store/index.js';
+import { randomUUID } from 'node:crypto';
 import { gateSettled } from './submit-handoff-fixture.js';
 import { removeSandboxes } from './submit-handoff-fixture.js';
 
@@ -223,4 +226,32 @@ test('clause 3: a worker whose event loop is blocked for 3 minutes finishes with
   assert.deepEqual(collected.result, { code: 0, commit }, 'the gate recorded its own green result');
   assert.equal(job.steps.find(step => step.name === 'verdict').payload.verdict, 'green');
   assert.doesNotMatch(JSON.stringify(job.steps), /SUBMIT_HANDOFF_DEAD/u);
+});
+
+test('#4073 clause 1: a running hand-off resumes only while its item is claimed by its seat at its digest; otherwise SUBMIT_HANDOFF_CHANGED [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Running hand-off resume', '--specs', 'G1', '--criterion', 'A running hand-off resumes only for its claim.', '--check', 'true', '--wait', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const board = fixtureOpenBoard(box);
+  try {
+    const item = getItem(board, id);
+    const commit = box.git(box.web, 'rev-parse', 'HEAD');
+    const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
+    const queued = store.queueSubmitHandoff(board, id, { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit, tree, executionCommit: commit, executionTree: tree, digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 });
+    assert.equal(store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id }).started, true);
+    // A driver admitted after a dead one resumes the running record while the item still waits on it.
+    const resumed = store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id });
+    assert.equal(resumed.started, false);
+    assert.equal(resumed.job.state, 'running');
+    // The claim moves on: the item is released while its gate runs; the next driver must not resume the old gate.
+    board.db.prepare("UPDATE item SET item_status = 'open', item_owner = NULL WHERE item_id = ?").run(id); // fixture-subject: the item left its claim
+    assert.throws(() => store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id }),
+      error => error.code === 'SUBMIT_HANDOFF_CHANGED' && /running claim or frozen bar changed/u.test(error.message));
+  } finally { board.db.close(); }
 });
