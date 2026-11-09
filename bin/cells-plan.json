@@ -1749,6 +1749,10 @@
       "path": "bin/cut-shims.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "codemap"
+    },
+    {
+      "path": "src/move-history/249.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
