@@ -20,8 +20,8 @@ import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../state/core.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../state/core.js";
 
 import { committedItemAuthors } from "../../../verify/index.js";
-import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
-import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
+import { sealItemPatchSubmit } from "../../../items/index.js";
+import { checkItemPatchSubmit } from "../../../items/index.js";
 import { startItemPatchObjectionWindow } from "../../../items/index.js";
 import { requireStrictBuilderFamily } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
