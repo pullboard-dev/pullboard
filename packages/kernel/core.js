@@ -2,3 +2,4 @@
 export { Refused } from './src/core/refused.js';
 export { literalShellWords } from './src/core/literal-shell-words.js';
 export { createRelayAdapter, createFakeRelayAdapter } from './src/core/relay-adapter.js';
+export { machineHome } from './src/core/machine-home.js';
