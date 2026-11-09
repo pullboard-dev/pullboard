@@ -56702,7 +56702,7 @@
       ]
     },
     {
-      "file": "packages/moves/tests/release-ineligible-next.test.js",
+      "file": "packages/moves/tests/ineligible-release-offers.test.js",
       "tier": "T3",
       "packages": [
         ".",

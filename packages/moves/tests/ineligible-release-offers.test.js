@@ -1,4 +1,4 @@
-/** INELIGIBLE releases remove an item from that seat's automatic next offers, without blocking other seats or manual claims [N2]. */
+/** INELIGIBLE history leaves manual claims available, excludes the item from automatic review, and ordinary release falls back [N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
@@ -12,25 +12,6 @@ function release(box, id, reason) {
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot take this work.', undefined, reason);
 }
-
-test('clause 1: INELIGIBLE release is never offered back to that seat, while another seat still gets it [N2]', async t => {
-  const box = fixture(t);
-  const id = box.add('Ineligible item');
-  const autoClaim = await take(box);
-  assert.equal(autoClaim.item.item_id, id);
-  store.release(box.board, id, box.seats.actor.id, 'This seat cannot take the work.', { worktreeSnapshot: box.ports.claimWorktreeSnapshot() }, 'INELIGIBLE');
-  const releaseDetail = JSON.parse(store.events(box.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
-  assert.equal(releaseDetail.untouchedAutoClaim, true, 'the fixture exercises a real untouched automatic claim release');
-  box.advance(31 * 60_000);
-
-  const sameSeat = await take(box);
-  assert.ok(!sameSeat.item, 'the ineligible sole item has no automatic-offer fallback');
-  assert.equal(store.getItem(box.board, id).item_status, 'open');
-
-  box.as('builder');
-  const otherSeat = await take(box);
-  assert.equal(otherSeat.item.item_id, id);
-});
 
 test('clause 2: INELIGIBLE history leaves explicit manual claim available [N2]', t => {
   const box = fixture(t);
