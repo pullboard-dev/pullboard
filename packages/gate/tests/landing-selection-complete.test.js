@@ -69,7 +69,7 @@ function fixture(t, { unsealed = [] } = {}) {
 
 
 /** #2479's three root-owned tests, each importing only two packages, so the tiers file them as cross-package journeys. */
-const JOURNEYS = ['test/cockpit/pipeline-pure.test.js', 'test/relay-browser-history.test.js', 'test/relay-browser-stream.test.js'];
+const JOURNEYS = ['test/cockpit/pipeline-pure.test.js', 'apps/relay/tests/relay-browser-history.test.js', 'apps/relay/tests/relay-browser-stream.test.js'];
 const SOURCE = 'import "../packages/base/index.js";\nimport "../packages/user/index.js";\n';
 
 /** The seal fixture plus #2479's journeys and a root source file, so a change can unseal the root package. */
