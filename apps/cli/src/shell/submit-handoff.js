@@ -120,20 +120,6 @@ export function currentHandoffTools(request, job, commonDir) {
   return { tools: toolsSnapshot(root, job, commonDir), toolsCommit: head.stdout };
 }
 
-/**
- * The shared snapshot folder name a clean tool root's HEAD runs from, or null when the root is not a clean checkout.
- * Why: a dispatcher compares its own folder with this name to learn, without copying anything, that main moved (8 Nov stale tools).
- *
- * @param {string} toolRoot
- * @returns {string | null}
- */
-export function currentToolsName(toolRoot) {
-  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
-  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  if (head.status !== 0 || !/^[0-9a-f]{40}$/u.test(head.stdout) || top.status !== 0 || realpathSync(top.stdout) !== realpathSync(toolRoot)) return null;
-  return `pullboard-handoff-tools-${toolingDigest(toolRoot)}`;
-}
-
 /** The refresh a retry preparation calls: current tools for the retry's job, from the stopped request's tool root. */
 function retryTools(ctx) { return (id, request) => currentHandoffTools(request, id, ctx.info.commonDir); }
 
@@ -255,15 +241,6 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
-
-/**
- * Launch a dispatcher from `tools` for the repository whose Git common directory this is, under its board's row.
- *
- * @param {string} tools
- * @param {string} commonDir
- * @returns {Promise<boolean>} True when a dispatcher was launched.
- */
-export function ensureRepositoryDispatcher(tools, commonDir) { return ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir); }
 
 /** The board file of the repository whose Git common directory this is. */
 function boardFileOf(commonDir) { return join(commonDir, 'pullboard', 'board.sqlite'); }
