@@ -48,6 +48,8 @@ import {
   readMoveDataReads,
   staleDataReads,
 } from './cells-data-reads.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
@@ -417,7 +419,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     history ??= historyShimReferences(root, acceptedBase);
     return history.has(from) ? `sealed move history ${history.get(from)}` : null;
   }
-  problems.push(...pureFrontDoorProblems(root, cell));
+  problems.push(...pureFrontDoorProblems(root, cell), ...lightFrontDoorProblems(root, cell), ...pureDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
@@ -432,7 +434,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
         const reason = namedLeaf && !inWorkerClosure(from, to) && !inMoveClosure(from, to) ? keptReason(from, to) : null;
         const exactLeaf = namedLeaf && (reason || inWorkerClosure(from, to) || inMoveClosure(from, to));
         if (reason) notes.push(`${from} kept: ${reason}`);
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && target !== cell.lightFrontDoor && target !== cell.pureDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }

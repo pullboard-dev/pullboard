@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /** Check every incoming PR or main-push commit against the event's trusted base policy [C1,C7]. */
 import { readFileSync } from 'node:fs';
-// The sign-off module alone, not the commits barrel: the barrel's hooks load node:sqlite, whose
+// The light commits door alone, not the commits barrel: the barrel's hooks load node:sqlite, whose
 // ExperimentalWarning would break the one-line refusal CI prints [C1,C7].
-import { contributionSignoffProblem } from '../packages/commits/src/shell/commit-signoff.js';
+import { contributionSignoffProblem } from '../packages/commits/core.js';
 
 /** Use structured event data rather than interpolating contributor-controlled values into a shell. */
 function main() {

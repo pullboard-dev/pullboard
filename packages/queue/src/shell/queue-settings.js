@@ -1,4 +1,4 @@
-/** The gate queue's machine settings, read with node: built-ins only so a runner's trusted runtime can ship them [O5]. */
+/** The gate queue's machine settings, read from the file the caller names [O5]. */
 import {
   existsSync,
   readFileSync,
@@ -6,11 +6,8 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { LINE_SETTING_DEFINITIONS } from '../core/line-setting-definitions.js';
 import { validateKnownLineSetting } from '../core/line-setting-definitions.js';
-export { LINE_SETTING_DEFINITIONS };
-export { validateKnownLineSetting };
-
-/** A waiting run moves up one class after this many minutes, unless the machine sets agingMinutes. */
-export const DEFAULT_QUEUE_AGING_MINUTES = 30;
+import { gateQueueSettings } from '../core/queue-settings.js';
+import { parseMachineSettings } from '../core/queue-settings.js';
 
 /**
  * The test classifier override this process inherited, or null when it inherited none. A run started
@@ -25,64 +22,24 @@ export function carriedBrowserByLaunch() {
 }
 
 /**
- * Read the machine settings file as a plain object, or null when there is none. Why here and not
- * in settings.js: resources.js runs on remote runners, whose trusted runtime ships only a few
- * files, and settings.js imports runners.js and resources.js. The caller names the file
+ * Read the machine settings file as a plain object, or null when there is none. The caller names the file
  * (machineSettingsFile() in the resources cell's machine-home.js), so the queue cell never reaches up into config.
  *
  * @param {string} file - The machine settings file the caller resolved.
  * @returns {object|null}
  */
 export function readMachineSettingsFile(file) {
-  if (!existsSync(file)) return null;
-  let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); }
-  catch { throw new Refused('BAD_MACHINE_SETTINGS', `cannot read ${file}; fix its JSON before running Pullboard`); }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `settings in ${file} must be a JSON object; fix it before running Pullboard`);
-  }
-  if (value.gate !== undefined && (!value.gate || typeof value.gate !== 'object' || Array.isArray(value.gate))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate in ${file} must be an object; fix it before running Pullboard`);
-  }
-  return value;
+  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
 }
 
 /**
- * Refuse an unusable gate.queue setting by name, with the fix.
- *
- * @param {object} value - The parsed machine settings.
- * @param {string} file - The settings file, for the message.
- */
-export function validateGateQueue(value, file) {
-  const queue = value.gate?.queue;
-  if (queue !== undefined && (!queue || typeof queue !== 'object' || Array.isArray(queue))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.queue in ${file} must be an object; fix it before running Pullboard`);
-  }
-  if (queue?.reviewsFirst !== undefined && typeof queue.reviewsFirst !== 'boolean') {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.queue.reviewsFirst in ${file} must be true or false`);
-  }
-  if (queue?.currentReleaseFirst !== undefined && typeof queue.currentReleaseFirst !== 'boolean') {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.queue.currentReleaseFirst in ${file} must be true or false`);
-  }
-  if (queue?.agingMinutes !== undefined && (!Number.isSafeInteger(queue.agingMinutes) || queue.agingMinutes < 1)) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.queue.agingMinutes in ${file} must be a positive whole number of minutes; fix it or remove it for the default ${DEFAULT_QUEUE_AGING_MINUTES}`);
-  }
-}
-
-/**
- * The gate pool's admission order. Reviews-first class order is opt-in per machine because it
- * changes who waits for whom on every board sharing the pool; absent or false keeps landings
- * first, then arrival. agingMinutes only matters while class order is on. The caller supplies the
- * settings file, the port that keeps the machine home in the config cell.
+ * The gate pool's admission order, read from the settings file the caller supplies, the port that keeps the machine home in the config cell.
  *
  * @param {string} file - The machine settings file the caller resolved.
  * @returns {{ reviewsFirst: boolean, currentReleaseFirst: boolean, agingMinutes: number }}
  */
 export function readGateQueueSettings(file) {
-  const value = readMachineSettingsFile(file) ?? {};
-  validateGateQueue(value, file);
-  const queue = value.gate?.queue;
-  return { reviewsFirst: queue?.reviewsFirst === true, currentReleaseFirst: queue?.currentReleaseFirst === true, agingMinutes: queue?.agingMinutes ?? DEFAULT_QUEUE_AGING_MINUTES };
+  return gateQueueSettings(readMachineSettingsFile(file), file);
 }
 
 /** Refuse unknown controls and out-of-range values without changing any live queue behavior. */
@@ -90,4 +47,3 @@ export function validateLineSetting(key, value) {
   if (!Object.hasOwn(LINE_SETTING_DEFINITIONS, key)) throw new Refused('LINE_SETTING_UNKNOWN', 'choose a known board line setting from pullboard settings line');
   validateKnownLineSetting(key, value);
 }
-
