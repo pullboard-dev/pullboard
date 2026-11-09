@@ -1,8 +1,8 @@
 /** Dashboard counts for live public claim and review leases [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardHtml } from '../../apps/view/src/core/view/dashboard-render.js';
-import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
+import { dashboardHtml } from '../../src/core/view/dashboard-render.js';
+import { dashboardModel } from '../../src/shell/view/dashboard-model.js';
 
 test('the dashboard counts three live builders and one reviewer from public lease fields [N26]', () => {
   const now = Date.parse('2026-11-03T18:00:00Z');

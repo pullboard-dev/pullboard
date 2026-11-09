@@ -1,11 +1,16 @@
 /** Activity model and HTML assertions use plain input; the real Chrome wiring lives in activity-journey.test.js [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityModel } from '../../apps/view/src/core/view/activity-model.js';
-import { activityFilters } from '../../apps/view/src/core/view/activity-render.js';
-import { activityHtml } from '../../apps/view/src/core/view/activity-render.js';
-import { activityWords } from '../../apps/view/src/core/view/activity-words.js';
-import { now, at, items, agents, event, scannedBoard } from './activity-data.js';
+import { activityModel } from '../../src/core/view/activity-model.js';
+import { activityFilters } from '../../src/core/view/activity-render.js';
+import { activityHtml } from '../../src/core/view/activity-render.js';
+import { activityWords } from '../../src/core/view/activity-words.js';
+import { now } from '../../../../test/cockpit/activity-data.js';
+import { at } from '../../../../test/cockpit/activity-data.js';
+import { items } from '../../../../test/cockpit/activity-data.js';
+import { agents } from '../../../../test/cockpit/activity-data.js';
+import { event } from '../../../../test/cockpit/activity-data.js';
+import { scannedBoard } from '../../../../test/cockpit/activity-data.js';
 
 /** Prepare deterministic UTC test presentation; production retains browser-local labels. */
 const escape = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);

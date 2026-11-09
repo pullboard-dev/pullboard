@@ -1,8 +1,8 @@
 /** The Agents drawer selects work from prepared observations and renders without browser or clock reads. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { agentsPanelModel } from '../../apps/view/src/core/view/agents-panel-model.js';
-import { agentsPanelHtml } from '../../apps/view/src/core/view/agents-panel-render.js';
+import { agentsPanelModel } from '../../src/core/view/agents-panel-model.js';
+import { agentsPanelHtml } from '../../src/core/view/agents-panel-render.js';
 
 const now = Date.parse('2026-10-28T12:00:00Z');
 const agent = (agentId, lastMoveAt = null) => ({ agentId, name: agentId, nameHtml: agentId,

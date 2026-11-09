@@ -1,9 +1,9 @@
 /** Live headline checks: peak concurrent agents from claim and reservation events, and the floor's sentence [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { agentFloorHtml } from '../../apps/view/src/core/view/agent-floor-render.js';
-import { agentFloorModel } from '../../apps/view/src/core/view/agent-floor-model.js';
-import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
+import { agentFloorHtml } from '../../src/core/view/agent-floor-render.js';
+import { agentFloorModel } from '../../src/core/view/agent-floor-model.js';
+import { dashboardModel } from '../../src/shell/view/dashboard-model.js';
 
 const MINUTE = 60_000;
 const base = Date.parse('2026-11-04T12:00:00.000Z');
