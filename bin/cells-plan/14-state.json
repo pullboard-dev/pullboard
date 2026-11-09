@@ -90,7 +90,7 @@
   ["src/engine-move-queue-submit-handoff.js","packages/state/src/shell/engine-move-queue-submit-handoff.js","rule"],
   ["src/inspection-clauses.js","packages/state/src/core/inspection-clauses.js","rule"]
  ],
- "reexports": ["src/engine.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":8,"before":true},
   {"cell":"config","imports":2,"before":true},
