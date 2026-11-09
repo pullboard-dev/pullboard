@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/machine.js packages/state/src/shell/engine.js packages/moves/src/shell/move-registry.js */
+/** @pullboard-test-loads packages/state/src/shell/machine.js packages/state/src/shell/engine.js packages/moves/src/shell/move-registry.js */
 /** A native train landing repairs only live checks for test files it splits [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -45,10 +45,10 @@ test('clause 1: a future client replays move floors while refusal guidance loads
     `/** A later engine added only to this private replay fixture. */\nexport const FUTURE_ENGINE = ${futureEngineNumber};\n`);
 
   const oldClientUrl = pathToFileURL(join(oldClient, 'src/'));
-  const futureClientUrl = pathToFileURL(join(futureClient, 'src/'));
-  const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves, futureWords] = await Promise.all([
+    const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves, futureWords] = await Promise.all([
     import(new URL('machine.js', oldClientUrl)), import(new URL('engine.js', oldClientUrl)),
-    import(new URL('machine.js', futureClientUrl)), import(new URL('engine.js', futureClientUrl)),
+    import(pathToFileURL(join(futureClient, 'packages/state/src/shell/machine.js'))),
+    import(pathToFileURL(join(futureClient, 'packages/state/src/shell/engine.js'))),
     import(pathToFileURL(join(futureClient, 'packages/moves/src/shell/move-registry.js'))),
     import(pathToFileURL(join(futureClient, 'apps/cli/src/core/next-step-words.js'))),
   ]);

@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/state/src/shell/engine.js src/machine.js */
+/** @pullboard-test-loads packages/state/src/shell/engine.js packages/state/src/shell/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

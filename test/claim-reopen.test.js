@@ -1,5 +1,5 @@
 import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
-/** @pullboard-test-loads src/board.js src/claims.js packages/config/src/shell/config.js src/machine.js packages/state/src/shell/engine.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js src/claims.js packages/config/src/shell/config.js packages/state/src/shell/machine.js packages/state/src/shell/engine.js */
 /** Reopened claims reserve the original builder's context only when enabled [B13,B5]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
