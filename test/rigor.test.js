@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { readRelay } from './relay-study-fixture.js';

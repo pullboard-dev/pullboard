@@ -11,7 +11,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { eventCauses } from '../packages/store/index.js';
 import { REOPEN_CAUSE_ENGINE } from '../packages/state/core.js';
 import {

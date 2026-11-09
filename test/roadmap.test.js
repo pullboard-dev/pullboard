@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';

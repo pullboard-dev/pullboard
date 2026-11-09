@@ -5,7 +5,7 @@ import { after, test } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { refuseRestatedReport } from '../apps/cli/src/core/coordinator-shout-purpose.js';
 import { fixtureAdd } from './testkit-fixture.js';
 

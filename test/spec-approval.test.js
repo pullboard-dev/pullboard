@@ -10,7 +10,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { configFromSource } from '../packages/config/index.js';
 import { gitReadSignature } from '../packages/git/index.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec/index.js';
 import { SPEC_APPROVAL_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
