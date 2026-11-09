@@ -6,8 +6,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { createRelayBrowserHandler } from '../apps/relay/index.js';
-import { composeViewStyles } from '../apps/view/index.js';
+import { createRelayBrowserHandler } from '../index.js';
+import { composeViewStyles } from '../../view/index.js';
 
 async function serveCss(t) {
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Error('public assets must not authenticate'); } });
@@ -23,7 +23,7 @@ async function serveCss(t) {
 }
 
 test('clause 1: browser-page.js builds its stylesheet with composeViewStyles and no longer fills the markers itself [C7,#3202]', () => {
-  const source = readFileSync(new URL('../apps/relay/src/shell/browser-page.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/shell/browser-page.js', import.meta.url), 'utf8');
   assert.match(source, /composeViewStyles\(\)/u);
   assert.doesNotMatch(source, /@pullboard-[\w-]+-styles/u);
 });
