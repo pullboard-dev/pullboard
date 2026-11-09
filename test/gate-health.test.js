@@ -76,6 +76,21 @@ test('[C7] a gate worker records one typed span per phase in the daily span file
   assert.equal(readGateSpans(folder, { since: NOW - 3_600_000, now: NOW }).length, 5, 'a torn line is skipped');
 });
 
+test('[C7] a dispatch records its tooling export, controller start and source preparation before transfer, so no time from its start to its connect goes unattributed', t => {
+  const folder = gateSpanFolder(spanRoot(t));
+  openGateSpans({ folder, job: 'job-2', item: 8 });
+  recordRunnerDispatch({ startedAt: NOW - 60_000, endedAt: NOW, host: 'runner-a', kind: 'submit',
+    phases: { spawn: NOW - 58_000, prepare: NOW - 55_000, prepared: NOW - 45_000, start: NOW - 44_000, connect: NOW - 44_000, 'source-sent': NOW - 40_000, ready: NOW - 30_000 } });
+  closeGateSpans();
+  const spans = readGateSpans(folder, { since: NOW - 3_600_000, now: NOW });
+  assert.deepEqual(spans.map(span => [span.phase, span.ms]), [
+    ['dispatch-tooling', 2_000], ['dispatch-controller', 3_000], ['dispatch-prepare', 10_000], ['dispatch-connect', 1_000],
+    ['transfer', 4_000], ['ready', 10_000], ['tests', 30_000],
+  ]);
+  const covered = spans.reduce((sum, span) => sum + span.ms, 0);
+  assert.equal(covered, 60_000, 'the spans cover the dispatch from its start to its end with no gap');
+});
+
 test('[C7] infrastructure failures map to the typed causes', () => {
   assert.equal(gateSpanCause(new RunnerDropped('h', { reason: 'admission-deadline' })), 'readiness-miss');
   assert.equal(gateSpanCause(new RunnerDropped('h', { reason: 'bridge-exit' })), 'transport-lost');

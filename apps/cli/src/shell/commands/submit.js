@@ -629,10 +629,13 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
   if (signal.aborted) throw signal.reason;
+  // From here the test result is judged: receipts recorded, known main reds matched. Its span closes the tests to result gap [C7].
+  const judgeStart = Date.now();
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true });
   }
+  recordGateSpan({ phase: 'proof-record', start: judgeStart, outcome: 'done' });
   if (companion) {
     companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
     companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
@@ -804,6 +807,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });
   }
+  recordGateSpan({ phase: 'tests-judge', start: judgeStart, outcome: 'done' });
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionVerdict, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
@@ -904,6 +908,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     } },
     { name: 'tests', run: judgeTests },
   ]);
+  const stagesEnd = Date.now();
   const cells = stages.cells;
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
@@ -992,6 +997,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const waivedLines = waived ? waived.map(waiverLine) : [];
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
+  const submitRecordStart = Date.now();
+  recordGateSpan({ phase: 'submit-prepare', start: stagesEnd, end: submitRecordStart, outcome: 'done' });
   await withBoard(ctx, async (board) => {
     refuseUnsubmittableStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
@@ -1048,6 +1055,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     return submittedMove;
   });
+  recordGateSpan({ phase: 'submit-record', start: submitRecordStart, outcome: 'done' });
+  const postSubmitStart = Date.now();
   if (machineReceiptIds) {
     ctx.io.say(`machine-verified #${id}: frozen check and ${machineAuthorization.commands.length} clauses passed`);
     try { await landAfterAcceptance(ctx); }
@@ -1058,6 +1067,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }
+  recordGateSpan({ phase: 'post-submit', start: postSubmitStart, outcome: 'done' });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
   const sizeNote = oversizeNote(measuredLines, acceptedMain.config.itemSizeBudget);
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);
