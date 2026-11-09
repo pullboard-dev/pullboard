@@ -31,7 +31,7 @@ import { tryGit } from './cells-snapshot-git.js';
 import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { runnerWorkerFiles } from './cells-move-closure.js';
+import { runnerWorkerFiles } from '../packages/codemap/index.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -49,7 +49,7 @@ import {
   staleDataReads,
 } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
-import { moveDeclarationFiles } from './cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
 import { createFixtureMemo } from '../packages/codemap/index.js';
 import { checkCommandDefinition } from '../packages/git/index.js';

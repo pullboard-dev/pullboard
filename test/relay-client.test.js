@@ -18,7 +18,7 @@ import { createRelayHandler } from '../apps/relay/index.js';
 import { createGitHubClient } from '../apps/relay/index.js';
 import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { githubFixture } from './relay-fixture.js';
-import { board as store } from '../apps/lib/index.js';
+import { board as store } from '../apps/lib/src/core/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';

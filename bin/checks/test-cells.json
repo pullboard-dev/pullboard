@@ -1,5 +1,7 @@
 {
   "journeys": {
+    "test/relay-pairing-options.test.js": "drives the real CLI (relay on, relay pair, relay --help) through a relay and auth stand-in, and checks its exit codes, output and machine state end to end",
+    "test/shout-item-cli.test.js": "drives the real CLI (shout --item, shout --news, inbox) in a project checkout and checks its JSON output, exit codes and board rows end to end",
     "test/test-run-queued.test.js": "drives the real CLI (bin/pullboard.js test) through an SSH runner stand-in end to end"
   },
   "pureHelpers": {
@@ -136,9 +138,7 @@
     "apps/lib/tests/coordinator-resume.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "apps/lib/tests/handoff-warm-checkout.test.js": "imports bin/gate-drive-worker.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/submit-handoff-worker.test.js": "imports test/submit-handoff-fixture.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/runner/tests/analysis-artifact-closure.test.js": "imports bin/cells-move-closure.js, outside its own cell apps/runner; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/view/tests/cockpit/state-fresh-after-write.test.js": "imports test/e2e-helpers.js, outside its own cell apps/view; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/api/tests/shout-item-cli.test.js": "imports apps/lib/index.js, outside its own cell api; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/blueprints/tests/blueprint-part-2.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/blueprints/tests/blueprint-part-3.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
     "packages/blueprints/tests/blueprint-part-4.test.js": "spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it",
@@ -194,7 +194,6 @@
     "packages/kernel/tests/submit-busy-retry.test.js": "imports apps/lib/index.js, outside its own cell kernel; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/kernel/tests/submit-handoff-infra-codes.test.js": "imports apps/lib/index.js, outside its own cell kernel; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/kernel/tests/test-action-parts-prune.test.js": "imports packages/gate/index.js, outside its own cell kernel; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/keys/tests/relay-pairing-options.test.js": "imports test/relay-client-fixture.js, outside its own cell keys; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/deferred-notices-retry.test.js": "imports test/submit-gate-fixture.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/landing-hold-span.test.js": "imports test/e2e-helpers.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/landing-plan-check-objects.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -1144,7 +1143,6 @@
     "test/submit-cells-checks.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/submit-cells-composed.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/submit-cells-incremental.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/submit-cells-receipt-line.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/submit-cells-stays.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/submit-cells-wildcard.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/submit-compare.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1226,7 +1224,6 @@
     "test/test-value.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/testkit-fixture.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/thread.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/timing-runner-reserved.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/tool-regeneration.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/tool-tree-sweep-recovering.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/tools-snapshot-advance.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",

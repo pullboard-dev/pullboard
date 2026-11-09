@@ -24,7 +24,8 @@ test('the stale workflow closes only inactive clarify issues and never modifies 
   assert.match(staleWorkflow, /stale-issue-label: clarify-inactive\n/u);
   assert.match(staleWorkflow, /days-before-issue-stale: 14\n\s+days-before-issue-close: 0\n/u);
   assert.match(staleWorkflow, /remove-issue-stale-when-updated: true\n/u, 'activity clears only the separate inactivity marker; clarify remains eligible');
-  assert.match(staleWorkflow, /close-issue-message: "Closing for now since we haven't heard back\. Reply to reopen\."\n/u);
+  assert.match(staleWorkflow, /close-issue-message: "Closed\. No response\. Reply to reopen\."\n/u);
+  assert.match(staleWorkflow, /close-issue-reason: completed\n/u, 'a quiet issue closes as completed, never not planned');
   assert.match(staleWorkflow, /days-before-pr-stale: -1\n\s+days-before-pr-close: -1\n\s+remove-pr-stale-when-updated: false\n/u);
   assert.match(staleWorkflow, /pull-requests: read\n/u);
   assert.doesNotMatch(staleWorkflow, /pull-requests: write\n/u);

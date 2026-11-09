@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
-/** @pullboard-test-loads src/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
+/** @pullboard-test-loads packages/moves/src/shell/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
 import '../apps/lib/tests/typed-request-registry.test.js';
@@ -165,7 +165,7 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './src/move-registry.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './packages/moves/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from './src/next-step-words.js';
 import { readFileSync } from 'node:fs';
@@ -182,7 +182,7 @@ const root=process.cwd();
 const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:'seedAlpha',args:[7,{agentId:'seed-agent'}]}),
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
-  const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./src/move-registry.js');
+  const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
   const {importsIn}=await import('./src/module-imports.js');
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();

@@ -5,7 +5,7 @@ import { addMilestone } from '../packages/store/index.js';
 import { setLineSetting } from '../packages/store/index.js';
 import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 

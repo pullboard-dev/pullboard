@@ -1,5 +1,5 @@
 /** Count selected native cases independently of the caller's public reporter [C7,S13]. */
-import { isDefaultTestFile } from '../../../codemap/src/core/default-test-file.js';
+import { isDefaultTestFile } from '../../../codemap/core.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   gitExecFileSync,

@@ -94,7 +94,6 @@
   "src/browser-admission.js",
   "src/chrome-clone-check.js",
   "src/cpu-load-admission.js",
-  "src/gate-run-receipt.js",
   "src/gui-admission.js",
   "src/module-imports.js",
   "src/test-action-cache.js",

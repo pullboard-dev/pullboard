@@ -1,24 +1,19 @@
 /** Exercise ordinary canary notification delivery through a real linked fixture, not a callback stand-in [H5,H17]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
-/** Commit the fixture configuration with its own isolated normal Pullboard commit hook entry point. */
-function commitConfiguration(box) {
-  const file = join(box.root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+/** Install the isolated Pullboard entry point; the fixture already committed its configuration through the hook. */
+function installPullboardEntry(box) {
   const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
   const privateBin = box.env.PATH.split(delimiter)[0];
   const pullboard = join(privateBin, 'pullboard');
   assert.equal(existsSync(pullboard), false, 'never overwrite an existing fixture executable');
   writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
-  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): prepare canary delivery'], { cwd: box.root, env: box.env });
 }
 
 /** Use a genuine joined worktree, with no coordinator identity or environment credential substitution. */
@@ -42,7 +37,7 @@ async function status(box, seat) {
 
 test('the ordinary canary command retains outage notices then records delayed alert and recovery for both native readers [H5,H17]', { timeout: 60_000 }, async t => { // budget: private linked Git fixture, four bounded probes, normal message delivery and cleanup; no timing oracle.
   const box = await relayClientFixture(t);
-  commitConfiguration(box);
+  installPullboardEntry(box);
   await box.link();
   const seat = await joinedCanarySeat(box);
   const enabled = await box.cliAt(seat.root, 'relay', 'canary', 'on', '--timeout', '5000');

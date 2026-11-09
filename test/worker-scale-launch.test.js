@@ -28,7 +28,7 @@ test('clause 1: run --scale with a fake agent launches exactly one seat in its o
   const settings = box.run(box.repo, 'settings', 'workers.budget', '96/day');
   assert.equal(settings.code, 0, settings.err);
   const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../bin/pullboard.js'), 'run', '--scale', '--lane', 'web',
-    '--model', 'Scaler fixture', '--family', 'Scaler fixture vendor', '--agent', `${quote(process.execPath)} ${quote(script)}`,
+    '--model', 'Scaler fixture', '--route', 'strong', '--family', 'Scaler fixture vendor', '--agent', `${quote(process.execPath)} ${quote(script)}`,
     '--cycles', '1', '--every', '5'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
   assert.doesNotMatch(result.stderr + result.stdout, /need a root and positive timeout/u, 'a launched seat keeps the caller cwd and env');

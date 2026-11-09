@@ -1,8 +1,19 @@
 # Practice
 
-How pullboard itself is built: the house rules, as rows. SPEC.md says what to build; this file says how. A row whose gate names a check fails the build when broken; a row gated by review guides agents and reviewers.
+House rules, as rows. SPEC.md says what; this file says how.
 
-Statuses: approved = in force · draft = proposed · wont = considered and declined, id kept · retired = dropped, id kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
+New to doctrine? Read [Lesson 1: Doctrine](https://pullboard.dev/tutorials/doctrine/).
+
+- **Gates:** a check fails the build; a review guides.
+- **Ids:** permanent; never delete or renumber.
+- **Tiers:** must · aim.
+
+| Status | Means |
+|---|---|
+| approved | in force |
+| draft | proposed |
+| wont | declined, id kept |
+| retired | dropped, id kept |
 
 ## W · Writing
 - W1 [approved, must] Numbers over adjectives. No hedges, no filler. | gate: review
