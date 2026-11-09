@@ -3818,7 +3818,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/gate-shard-reuse.test.js": {
+    "packages/gate/tests/gate-shard-reuse.test.js": {
       "cells": [
         "app:lib",
         "gate"
@@ -4347,7 +4347,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/infra-retry.test.js": {
+    "packages/gate/tests/infra-retry.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -6897,7 +6897,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/precommit-static-parity.test.js": {
+    "packages/gate/tests/precommit-static-parity.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -9113,7 +9113,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/run-tests-empty-selection.test.js": {
+    "packages/gate/tests/run-tests-empty-selection.test.js": {
       "cells": [
         "app:lib",
         "kernel",
