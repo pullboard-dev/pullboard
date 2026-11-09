@@ -3549,25 +3549,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/family-read-scope.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "items",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/fixture-copiers.test.js": {
       "cells": [
         "codemap",
@@ -4364,24 +4345,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/inbox-starts-at-join.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "sentinels",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/core/native-board.js)",
-        "runs the CLI (test/next-take-fixture.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "packages/gate/tests/infra-retry.test.js": {
@@ -10026,20 +9989,6 @@
       "reasons": [
         "imports past items front door (packages/items/src/shell/item-sessions.js)",
         "imports past moves front door (packages/moves/src/core/moves/verify.js)"
-      ]
-    },
-    "test/sentinel-machine-stall.test.js": {
-      "cells": [
-        "app:lib",
-        "health",
-        "kernel",
-        "outbox",
-        "person",
-        "store"
-      ],
-      "reasons": [
-        "imports past health front door (packages/health/src/core/machine-stall.js)",
-        "spawns a child process (test/fixture-child.js)"
       ]
     },
     "test/sentinel-rank.test.js": {

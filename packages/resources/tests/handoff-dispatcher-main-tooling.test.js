@@ -1,11 +1,20 @@
 /** One live dispatcher, always on main tooling: an older one stops launching, lets its workers finish and hands over (DJ16) [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { dispatcherPass, handOver, staleDispatcherTools } from '../bin/handoff-worker-dispatcher.js';
-import { drainHandoffQueue, finishRunningWorkers, listResources, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { dispatcherPass } from '../../../bin/handoff-worker-dispatcher.js';
+import { handOver } from '../../../bin/handoff-worker-dispatcher.js';
+import { staleDispatcherTools } from '../../../bin/handoff-worker-dispatcher.js';
+import { drainHandoffQueue } from '../index.js';
+import { finishRunningWorkers } from '../index.js';
+import { listResources } from '../index.js';
+import { queueHandoffLaunch } from '../index.js';
+import { reserveHandoffTicket } from '../index.js';
 
 /** A tool root at one commit, and two waiting launches: one captured at an older tooling commit, one at its HEAD. */
 function launchesAtTwoCommits(t) {

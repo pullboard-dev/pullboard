@@ -3,17 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { after } from 'node:test';
+import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { privateFixtureFiles } from './fixture-child.js';
-import {
-  assumptionProblems,
-  assumptionsIn,
-  writeAssumptionBaseline,
-} from '../bin/checks/no-runtime-assumptions.js';
-import { STATIC_CHECKS } from '../packages/gate/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { assumptionProblems } from '../../../bin/checks/no-runtime-assumptions.js';
+import { assumptionsIn } from '../../../bin/checks/no-runtime-assumptions.js';
+import { writeAssumptionBaseline } from '../../../bin/checks/no-runtime-assumptions.js';
+import { STATIC_CHECKS } from '../index.js';
 
-const REPO = join(import.meta.dirname, '..');
+const REPO = join(import.meta.dirname, '..', '..', '..');
 const made = [];
 after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }); });
 
