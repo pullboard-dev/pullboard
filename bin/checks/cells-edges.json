@@ -549,7 +549,7 @@
       "deep": 1
     },
     "apps/cli/src/shell/item-folder-identity.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "apps/cli/src/shell/item-folder.js": {
@@ -1869,6 +1869,10 @@
       "deep": 0
     },
     "packages/items/src/shell/item-patch-review.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/items/src/shell/item-folder-claim.js": {
       "cells": 2,
       "deep": 0
     },
@@ -4527,10 +4531,6 @@
     "src/item-edit-bar.js": {
       "cells": 1,
       "deep": 0
-    },
-    "src/item-folder-identity.js": {
-      "cells": 1,
-      "deep": 1
     },
     "src/item-offer-contract.js": {
       "cells": 1,
