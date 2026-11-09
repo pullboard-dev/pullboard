@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard, getItem, checkedLandingCommit } from '../packages/store/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
 import { main } from './native-cli-fixture.js';
 
@@ -58,7 +58,7 @@ async function fixture(t, { companion = false, deleted = false } = {}) {
   t.after(() => closeBoard(board));
   const reviewer = join(box.dir, 'landing-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
-  const joinedReviewer = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--json');
+  const joinedReviewer = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--model', FIXTURE_MODEL, '--route', 'strong', '--json');
   assert.equal(joinedReviewer.code, 0, joinedReviewer.err + joinedReviewer.out);
   const reserved = await cli(reviewer, 'next', '--verify', String(item), '--json');
   assert.equal(reserved.code, 0, reserved.err + reserved.out);

@@ -1,7 +1,7 @@
 /** An uncovered reviewer failure files a selector repair without rejecting the submitted builder [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
+import * as store from '../index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40), TRUNK = 'c'.repeat(40);
