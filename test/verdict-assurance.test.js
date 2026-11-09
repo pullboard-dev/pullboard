@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -84,7 +85,8 @@ test('[V1,B3] verdicts record independent assurance only for recorded different 
       assert.equal(store.verdictsFor(box.board, procedural.id)[0].assurance, 'procedural', 'later parent enrollment cannot upgrade an old verdict');
     }
   }
-  const historical = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true });
+  // Authors are the committed authors from the two-tier review engine on; an earlier claimant counts only before it.
+  const historical = accepted(box, 'parent-P', 'parent-Q', { historicalUnknown: true, engine: REVIEW_INDEPENDENCE_ENGINE - 1 });
   assert.equal(store.verdictsFor(box.board, historical.id)[0].assurance, 'procedural', 'an earlier unknown author still limits assurance');
   const legacy = accepted(box, 'parent-P', 'parent-Q', { engine: 80 });
   assert.equal(store.verdictsFor(box.board, legacy.id)[0].assurance, 'procedural', 'old verdicts never invent parent assurance');
