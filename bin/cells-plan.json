@@ -1629,10 +1629,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "src/relay-sender-main.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/static-style-checks.js",
       "cell": "app:cli"
     },

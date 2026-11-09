@@ -15,8 +15,6 @@
     "src/board-store.js",
     "src/board.js",
     "src/check-timing.js",
-    "src/cli-context.js",
-    "src/cli-main.js",
     "src/cli-presence.js",
     "src/doctrine.js",
     "src/family-declaration.js",
