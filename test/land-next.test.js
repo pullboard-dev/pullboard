@@ -41,7 +41,7 @@ function acceptedItem(box, file, { beforeVerify = () => {} } = {}) {
 function withReviewer(box) {
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'api/review');
-  assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'api', '--model', 'fixture-model', '--route', 'strong').code, 0);
   return { ...box, review };
 }
 

@@ -1,6 +1,6 @@
 /**
  * Which files are commands and which are engines, in one place [C7,V4]. The runtime discovery in src/commands/index.js and
- * src/machine.js and the affected-test selector in src/affected-tests.js all read these, so no name is accepted by one and
+ * packages/state/src/shell/machine.js and the affected-test selector in src/affected-tests.js all read these, so no name is accepted by one and
  * missed by another. A candidate is any file that looks like one; a name with a character outside the strict set is refused
  * at discovery with a clear error, and the selector still treats it as reaching its reader.
  */

@@ -339,7 +339,6 @@
     "src/landing-test-defects.js->src/main-audit-engine.js": 1,
     "src/landing-test-defects.js->src/test-economics-engine.js": 1,
     "src/landing-test-defects.js->src/test-economics.js": 1,
-    "src/landing-test-policy.js->src/landing-collection-report.js": 1,
     "src/landing-waivers.js->src/board.js": 1,
     "src/landing-waivers.js->src/landing-batch-history.js": 1,
     "src/landing-waivers.js->src/landing-exceptions.js": 1,
