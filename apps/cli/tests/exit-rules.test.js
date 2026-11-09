@@ -30,6 +30,7 @@ import { requireExitActive } from '../../../packages/store/index.js';
 import { exitContinuationSummary } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
 import { EXIT_RULES_ENGINE } from '../../../packages/state/core.js';
+import { SHADOW_TIER1_ENGINE } from '../../../packages/state/core.js';
 import { prepareEngineMove } from '../../../packages/state/index.js';
 import { applyEngineMove } from '../../../packages/state/index.js';
 import { bindRefs } from '../../../packages/outbox/index.js';
@@ -249,7 +250,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
     assert.deepEqual(raw.failures, receipt.failures, 'the case identity comes from the actual native writer');
     const move = prepareEngineMove(board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }], { actor: receipt.seat });
     assert.equal(move.args[0].exitFailures, true);
-    assert.equal(minimumMoveEngine(move.operation, move.args), EXIT_RULES_ENGINE);
+    assert.equal(minimumMoveEngine(move.operation, move.args), Object.hasOwn(move.args[0].receipt ?? {}, 'shadow') ? SHADOW_TIER1_ENGINE : EXIT_RULES_ENGINE, 'the exit floor, or the shadow floor when the native receipt carries shadow proof');
     assert.deepEqual(proofRunReceipt(board, { agentId: receipt.seat, itemId: id, receiptId: receipt.id }).receipt.failures, raw.failures);
   }
   const historical = fixtureBoard(t);
