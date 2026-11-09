@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../store/index.js';
 import { loadConfig } from '../../config/index.js';
+import { headCommit } from '../../git/index.js';
 import { repoInfo } from '../../git/index.js';
 import { CELL_CONFIG } from '../../../test/cell-fixture.js';
 import { cellBoard } from '../../../test/cell-fixture.js';
@@ -36,7 +37,7 @@ export function counted(t, seam, after = {}) {
  * move, and no item folders. With `reviewers`, the coordinator and three review-lane seats join too (sibling,
  * sameFamily, outside), and `family` and `policy` set the project's review rules. `box.as(name)` makes another seat the one that runs next.
  */
-export function fixture(t, { reviewers = false, family, policy } = {}) {
+export function fixture(t, { reviewers = false, family, policy, route = 'strong' } = {}) {
   const config = {};
   if (family || policy) config.verify = { policy: policy ?? 'any', family: family ?? 'off' };
   if (reviewers) config.lanes = { ...CELL_CONFIG.lanes, review: { owns: [] } };
@@ -46,7 +47,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
   const builderPath = join(project.dir, 'builder');
   mkdirSync(builderPath);
-  const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha' }),
+  const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha', route }),
     builder: cellSeat(board, { lane: 'web', path: builderPath, family: 'Family Alpha' }) };
   if (reviewers) {
     store.board_ensureCoordinator(board, join(project.dir, 'coordinator'));
@@ -59,6 +60,11 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   for (const seat of Object.values(seats)) store.heartbeatSeat(board, seat.id);
   let current = seats.actor;
   const ctx = { info: repoInfo(project.repo), config: loadConfig(project.repo), clock, file: project.boardFile, io: { err() {}, say() {} } };
+  /** The claim's view of the seat's checkout: its head and a digest of it, as a clean checkout reads. */
+  const snapshot = () => {
+    const head = headCommit(project.repo);
+    return { head, digest: createHash('sha256').update(head).digest('hex') };
+  };
   const ports = {
     withBoardRead: (_, work) => work(board),
     withBoard: (_, work) => work(board),
@@ -69,7 +75,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
     idArg: value => Number(value),
     ordered: (_, open, operation, args) => store[operation](open, ...args),
     claimOrdered: (_, open, [id, { agentId, leaseMs, autoNext }]) => cellClaim(open, id,
-      Object.values(seats).find(seat => seat.id === agentId), { root: project.repo, leaseMs, autoNext }),
+      Object.values(seats).find(seat => seat.id === agentId), { root: project.repo, leaseMs, autoNext, ...(autoNext ? { autoNextSnapshot: snapshot() } : {}) }),
     currentReworkRoutingPolicy: () => null,
     MainSpecMerged: class MainSpecMerged extends Error {},
     checkMainVerifier() {},
@@ -78,7 +84,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
     openItemFolder: async () => undefined,
     liveFolderRefusal: async () => null,
     mainLaneWork: () => null,
-    claimWorktreeSnapshot: () => null,
+    claimWorktreeSnapshot: snapshot,
   };
   /** Claim an item for a seat, as a peer racing the running seat would. */
   const claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs: 3_600_000, freeze: item => {
@@ -91,8 +97,20 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
     /** Make a named seat the one that runs next from now on. */
     as: name => { current = seats[name]; },
     /** File an ordinary runnable item in the actor's lane, or another configured lane. */
-    add: (title, options = {}) => cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
-      brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
+    add: (title, options = {}) => {
+      const item = cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
+        brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`,
+        ...options, ...(options.route === 'light' ? { route: 'mid' } : {}) });
+      if (options.route === 'light') {
+        // A light item is a mid item with a builder diagnosis, moved down to the light route.
+        store.appendFact(board, item.item_id, { agentId: seats.builder.id, kind: 'diagnosis',
+          text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.' });
+        if (store.getItem(board, item.item_id).item_route !== 'light') {
+          store.editItem(board, item.item_id, { agentId: 'coordinator', route: 'light', reason: 'Private light dispatch fixture' });
+        }
+      }
+      return item.item_id;
+    },
     /** Publish synthetic board state at the repo's head as the builder's submission, with no gate receipt. */
     submit: id => {
       claim(id);
