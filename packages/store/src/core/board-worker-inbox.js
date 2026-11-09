@@ -1,4 +1,4 @@
-import { withDerivedFamilies } from "../../../../src/family-declaration.js";
+import { withDerivedFamilies } from "../../../items/core.js";
 /** One inbox follows a canonical worker session, never the parent shared with its helpers [B7,N19]. */
 import {
   COORDINATION_SHOUT,
