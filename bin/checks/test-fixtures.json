@@ -83,9 +83,6 @@
     "tempdir": 1,
     "hand-policy": 2
   },
-  "packages/gate/tests/gate-stages-concurrent.test.js": {
-    "repo-read": 1
-  },
   "packages/gate/tests/root-allowlist.test.js": {
     "tempdir": 2
   },
@@ -1653,6 +1650,9 @@
   },
   "packages/gate/tests/gate-red-names-failures.test.js": {
     "tempdir": 1
+  },
+  "test/gate-stages-concurrent.test.js": {
+    "repo-read": 1
   },
   "test/gate.test.js": {
     "tempdir": 11,
@@ -3565,9 +3565,6 @@
   "test/submit-cells-incremental.test.js": {
     "tempdir": 2
   },
-  "test/submit-cells-receipt-line.test.js": {
-    "repo-read": 1
-  },
   "apps/cli/tests/submit-cells-remote.test.js": {
     "tempdir": 6
   },
@@ -3618,6 +3615,9 @@
   },
   "test/submit-invariants.test.js": {
     "raw-board": 9
+  },
+  "packages/gate/tests/submit-cells-receipt-line.test.js": {
+    "repo-read": 1
   },
   "packages/gate/tests/submit-main-moved-unrelated.test.js": {
     "tempdir": 2

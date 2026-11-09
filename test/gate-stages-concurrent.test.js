@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { runGateStages } from '../index.js';
+import { runGateStages } from '../packages/gate/index.js';
 
 /**
  * Stages on a driven clock: each records when it started and ends only when the test releases it, or when the
@@ -62,7 +62,7 @@ test('the first red stage cancels the others and refuses at once [C7]', async ()
 });
 
 test('submit starts static, cells, doctrine and the test gate together [C7]', () => {
-  const source = readFileSync(new URL('../../../apps/cli/src/shell/commands/submit.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../apps/cli/src/shell/commands/submit.js', import.meta.url), 'utf8');
   const start = source.indexOf('await runGateStages(');
   assert.ok(start >= 0, 'submit runs its gate stages through runGateStages');
   const end = source.indexOf('\n  ]);', start);
