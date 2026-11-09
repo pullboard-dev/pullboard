@@ -1,14 +1,14 @@
 /** Merge readers use explicit canonical native operations without changing history [V1,V4,H16,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { mergeOnlyBasis } from '../packages/merge/index.js';
-import { mergeOnlyProblem } from '../packages/merge/index.js';
-import { mergeOnlySourceValid } from '../packages/merge/index.js';
-import { mergeOnlyLandingProblem } from '../packages/merge/index.js';
-import { prepareMergeOnlySubmit } from '../packages/merge/index.js';
-import { mainMovedWarnings } from '../packages/merge/index.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { mergeOnlyBasis } from '../../merge/index.js';
+import { mergeOnlyProblem } from '../../merge/index.js';
+import { mergeOnlySourceValid } from '../../merge/index.js';
+import { mergeOnlyLandingProblem } from '../../merge/index.js';
+import { prepareMergeOnlySubmit } from '../../merge/index.js';
+import { mainMovedWarnings } from '../../merge/index.js';
 
 /** Populate an actual native item without inventing an acceptance or source receipt. */
 function fixture(t) {

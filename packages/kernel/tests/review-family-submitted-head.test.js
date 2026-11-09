@@ -1,10 +1,10 @@
 /** Strict review judges only the family of the submitted head's builder, never every family in the item's history [V1,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { heartbeatSeat } from '../packages/store/index.js';
-import { reviewEligibility } from '../packages/verify/index.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { heartbeatSeat } from '../../store/index.js';
+import { reviewEligibility } from '../../verify/index.js';
 
 const SYNTHETIC_MODEL = 'Synthetic fixture model';
 

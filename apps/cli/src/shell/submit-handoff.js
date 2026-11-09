@@ -256,6 +256,15 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
 
+/**
+ * Launch a dispatcher from `tools` for the repository whose Git common directory this is, under its board's row.
+ *
+ * @param {string} tools
+ * @param {string} commonDir
+ * @returns {Promise<boolean>} True when a dispatcher was launched.
+ */
+export function ensureRepositoryDispatcher(tools, commonDir) { return ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir); }
+
 /** The board file of the repository whose Git common directory this is. */
 function boardFileOf(commonDir) { return join(commonDir, 'pullboard', 'board.sqlite'); }
 

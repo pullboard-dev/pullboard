@@ -1,14 +1,26 @@
 /** Queued gates of urgent or pinned items start before routine ones; routine ones keep submit order [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { itemUrgent } from '../packages/store/index.js';
-import { drainHandoffQueue, handoffQueueDirectory, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { waitForCondition } from './runner-fixture-state.js';
+import * as store from '../../store/index.js';
+import { itemUrgent } from '../../store/index.js';
+import {
+  drainHandoffQueue,
+  handoffQueueDirectory,
+  queueHandoffLaunch,
+  reserveHandoffTicket,
+} from '../../resources/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker process that exits at once; the dispatcher's start order is the proof. */
 const WORKER = 'process.exit(0);\n';

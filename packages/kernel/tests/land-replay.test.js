@@ -1,10 +1,10 @@
 /** Landing replay decides recorded batches from the board alone, in seconds [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { replayBatch } from '../packages/landing/index.js';
-import { replayLanding } from '../packages/landing/index.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { replayBatch } from '../../landing/index.js';
+import { replayLanding } from '../../landing/index.js';
 
 const sha = char => char.repeat(40);
 const gate = (isGreen, failures = []) => ({ commit: sha('a'), isGreen, submissions: [{ id: 7, commit: sha('b') }], failures, fileTimes: [] });
