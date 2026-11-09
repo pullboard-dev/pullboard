@@ -66,7 +66,8 @@ export function landingShardExecution(root, shard, slotOptions, ports = {}) {
  */
 export function planWrapper(execution) {
   const whole = execution.remoteCommand ?? execution.command;
-  const at = whole.indexOf(execution.command);
+  // The wrapper's prefix may hold the command's text by chance (an x inside export); the command itself comes last.
+  const at = whole.lastIndexOf(execution.command);
   if (at < 0 || whole === execution.command) return command => command;
   const before = whole.slice(0, at), after = whole.slice(at + execution.command.length);
   return command => `${before}${command}${after}`;
