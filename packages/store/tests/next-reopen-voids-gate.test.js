@@ -1,9 +1,10 @@
 /** A reopen or reject after an item's green gate sends it back to work, so next offers it again [C7,#2955]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { addItem, nextFor } from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import { recordSubmitHandoff } from '../../jobs/index.js';
+import { addItem } from '../index.js';
+import { nextFor } from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const HEAD = 'a'.repeat(40);
 

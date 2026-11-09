@@ -490,7 +490,7 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
     'next: pullboard status',
   ], 'the original two harness instructions and the final interactive help action stay exact');
-  const { agentsBlock } = await import('../../../src/doctrine.js');
+  const { agentsBlock } = await import('../../doctrine/core.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
   assert.match(listen, /run `pullboard watch --to <your id>` there/u);

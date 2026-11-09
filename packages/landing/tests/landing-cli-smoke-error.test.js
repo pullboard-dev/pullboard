@@ -1,12 +1,16 @@
 /** The landing smoke names the tool and the error when it cannot read a commit [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { delimiter } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { runCommitCliSmoke } from '../packages/landing/index.js';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
+import { runCommitCliSmoke } from '../index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 
 /** Commit a trivial CLI entry so the smoke tries to extract the tree. */
 function commitCli(repo) {
