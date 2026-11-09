@@ -1,7 +1,7 @@
-import * as queueStore from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { roadmap } from '../packages/store/index.js';
-import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
+import * as queueStore from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { roadmap } from '../../../packages/store/index.js';
+import { eligibilityProblem as queueEligibility } from '../../../packages/verify/index.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */
 import assert from 'node:assert/strict';
 import {
@@ -18,20 +18,20 @@ import {
   parentSessionDigest,
   runtimeParentSession,
   runtimeSessionIdentity,
-} from '../packages/items/index.js';
-import * as store from '../packages/store/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { workQueue } from '../packages/items/index.js';
+} from '../../../packages/items/index.js';
+import * as store from '../../../packages/store/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { workQueue } from '../../../packages/items/index.js';
 import {
   prepareEngineMove,
   applyEngineMove,
-} from '../packages/state/index.js';
+} from '../../../packages/state/index.js';
 import {
   exportBoard,
   importBoard,
-} from '../packages/store/index.js';
-import { effectiveAgentParent } from '../packages/seats/index.js';
+} from '../../../packages/store/index.js';
+import { effectiveAgentParent } from '../../../packages/seats/index.js';
 
 test('[V1,B3] parent discovery reads only matching own runtime metadata and agrees with --parent', (t) => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-parent-'));
