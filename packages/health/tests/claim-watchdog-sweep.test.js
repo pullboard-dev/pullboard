@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runScheduledClaimWatchdog } from '../index.js';
 import { sweepClaims } from '../index.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
 
 const T0 = Date.parse('2026-11-04T12:00:00.000Z');
 const minutes = count => new Date(T0 + count * 60_000).toISOString();
@@ -31,11 +32,12 @@ test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes
   assert.deepEqual(runScheduledClaimWatchdog(ctx, {}, snapshot, ports).release, [{ item: 7, owner: 'core-1', idleMs: 40 * 60_000 }]);
 });
 
-test('the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856,clause 2]', async () => {
+test('the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856,clause 2]', async t => {
   const order = [];
   const snapshot = { claims: [] };
   const ctx = { clock: { now: () => new Date(T0) }, config: { health: {} }, io: {} };
-  const result = await sweepClaims(ctx, {}, 'core-1', async (_ctx, _board, operation) => { order.push(operation); }, {
+  const board = cellBoard(t, ':memory:', ctx.clock);
+  const result = await sweepClaims(ctx, board, 'core-1', async (_ctx, _board, operation) => { order.push(operation); }, {
     items: [], agents: [],
     recordClaimWorktrees: () => order.push('record'),
     captureLapsedClaims: () => { order.push('capture'); return snapshot; },
@@ -46,11 +48,12 @@ test('the scheduled sentinel path runs stale-claim release before the watchdog n
   assert.equal(result, snapshot);
 });
 
-test('a claim already marked stalled still reaches the watchdog when stale-state has no new action [B4,C7,#2856]', async () => {
+test('a claim already marked stalled still reaches the watchdog when stale-state has no new action [B4,C7,#2856]', async t => {
   const order = [];
   const ctx = { clock: { now: () => new Date(T0 + 30 * 60_000) }, config: { health: {} }, io: {} };
+  const board = cellBoard(t, ':memory:', ctx.clock);
   const watchSnapshot = { claims: [{ id: 7, actor: 'core-1' }] };
-  const result = await sweepClaims(ctx, {}, 'core-1', async (_ctx, _board, operation) => { order.push(operation); }, {
+  const result = await sweepClaims(ctx, board, 'core-1', async (_ctx, _board, operation) => { order.push(operation); }, {
     items: [], agents: [], recordClaimWorktrees: () => order.push('record'),
     captureLapsedClaims: () => { order.push('no-new-stale-action'); return null; },
     captureClaimWatchdogSnapshot: () => { order.push('watchdog-capture'); return watchSnapshot; },
