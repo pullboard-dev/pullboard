@@ -10,7 +10,7 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,
