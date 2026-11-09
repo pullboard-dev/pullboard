@@ -9,18 +9,13 @@ import { test } from 'node:test';
 /** Read a public contribution document from the checked source tree. */
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every step [I11]', () => {
+test('clause 1: CONTRIBUTING is the approved guide, asks for no sign-off, and the runbook names every step [I11]', () => {
   const contributing = read('CONTRIBUTING.md');
-  assert.match(contributing, /How to sign off/u);
+  assert.doesNotMatch(contributing, /sign-off|signoff|Signed-off-by|git commit -s/iu, 'the DCO is dropped (RFC 0009)');
   assert.equal(createHash('sha256').update(contributing).digest('hex'),
-    '037afc678a5b06ec9796f3084336586d389fcd58b0adb85dbf4e7d13d448679d',
-    'the approved contributor guide, including the accurate CLA description, is preserved');
-  for (const phrase of ['git commit -s', 'git commit --amend -s --no-edit', 'git rebase --signoff main',
-    'Contributor License Agreement', 'You keep ownership', 'patents', 'We aim to reply within 7 days']) {
-    assert.ok(contributing.includes(phrase), phrase);
-  }
-  for (const phrase of ['Apache Individual Contributor License Agreement v2.2 terms', 'Pullboard as recipient',
-    'nonprofit-bylaws sentence and form fields are omitted', 'acceptance is by posting that sentence as a comment on your pull request']) {
+    '5cb38501a620e23a161270b8bee536e341f4118abefb9355122e013b38922e16',
+    'CONTRIBUTING.md is the guide Corey approved on 8 Nov, byte for byte');
+  for (const phrase of ['RFC 0009', 'CLA.md', 'Apache Individual CLA v2.2', 'you keep it', 'patents included', 'within 7 days']) {
     assert.ok(contributing.includes(phrase), phrase);
   }
   const runbook = read('docs/contributing-runbook.md');
@@ -30,7 +25,7 @@ test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every st
     'on our board as #N', 'a question first', 'not planned, because',
     'File it on the board, or map it onto an existing item or milestone', 'Link the board item in the reply',
     'When a pull request arrives',
-    'there is no fixed response time', 'ask for a sign-off if any commit lacks one', 'How to sign off',
+    'there is no fixed response time',
     'Read the diff before running anything', 'changes outside the stated purpose', 'new dependencies (refuse them)',
     'sensitive paths (relay, sealing, signing, person moves, hooks, code that runs commands)',
     'network calls, file access outside the repo, obfuscation, big pasted blocks',
@@ -43,7 +38,7 @@ test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every st
     'Sensitive paths need the owner\'s approval',
     'Confirm the [CLA](../CLA.md) before merge', 'as a comment on their pull request, the first time they contribute',
     'land through the merge train', 'Never use GitHub\'s merge button',
-    'The contributor stays the commit author', 'Co-authored-by', 'Keep their `Signed-off-by` line',
+    'The contributor stays the commit author', 'Co-authored-by',
     'The PR shows as merged, or we close it with a link to the landed commit', 'Thank them, and link the receipt',
     'comment with the verifier\'s note in plain words', 'the item is verified again at the new commit',
     'Declining:** close with a clear, kind reason', 'Merging is always the project\'s call',
@@ -52,7 +47,8 @@ test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every st
   }
   assert.doesNotMatch(runbook, /reply within 3 days/iu);
   const template = read('.github/pull_request_template.md');
-  assert.match(template, /- \[ \].*sign.*off/iu);
+  assert.doesNotMatch(template, /sign.?off|Signed-off-by/iu, 'the PR template asks for no sign-off');
+  assert.doesNotMatch(runbook, /sign-off|Signed-off-by/iu, 'the runbook asks for no sign-off');
   assert.match(template, /CLA/u);
   assert.match(template, /(?:linked.issue|fixes #)/iu);
   const cla = read('CLA.md');
@@ -79,7 +75,7 @@ test('the approved feature-request template routes new issues to feature [I1,C7]
 
 test('clause 2: the contributor docs tell people to post the agreement sentence and name no CLA bot [I11]', () => {
   const sentence = 'I have read CLA.md and I agree to it.';
-  for (const path of ['CONTRIBUTING.md', '.github/pull_request_template.md', 'docs/contributing-runbook.md']) {
+  for (const path of ['.github/pull_request_template.md', 'docs/contributing-runbook.md']) {
     const text = read(path);
     assert.ok(text.includes(sentence), path + ' quotes the sentence');
     assert.ok(/comment on (?:your|their) pull request/u.test(text), path + ' says to comment on the pull request');

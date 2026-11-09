@@ -97,7 +97,7 @@ async function scenario(text, expectedClose, { marked = false, labels = ['clarif
     assert.equal(state.state, expectedClose && day === (marked ? 35 : 24) ? 'closed' : 'open');
   }
   if (expectedClose) assert.deepEqual(writes.filter(row => row[0] === 'comment'),
-    [['comment', "Closing for now since we haven't heard back. Reply to reopen."]]);
+    [['comment', "Closed. No response. Reply to reopen."]]);
   if (!expectedClose) assert.deepEqual(writes, [], 'excluded or still-active records receive no REST writes');
   return { observations, writes };
 }
