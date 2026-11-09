@@ -305,7 +305,7 @@ function runnerJobRows(host, text, now) {
     // The script a job runs is a relative path, or one inside the job's checkout, that a descendant names last.
     const testFile = descendants.map(row => row.command.split(/\s+/u).filter(word => /\.[cm]?js$/u.test(word) && (word.startsWith('./') || word.includes('/checkout/'))).at(-1)
       ?.replace(/^.*\/checkout\//u, '')).find(Boolean) ?? null;
-    const label = testFile ? testFile.split('/').slice(-2).join('/') : descendants.length ? descendants[0].command.split(' ').slice(1, 3).join(' ').slice(0, 80) : 'no job process';
+    const label = testFile ? testFile.split('/').slice(-2).join('/') : descendants.length ? `${descendants[0].command.split(' ')[0].split('/').at(-1)} without a script` : 'no job process';
     return { surface: 'runner-job', key: `${host}:${label}`, holder: `${host} worker ${worker.pid}: ${label}`, pid: worker.pid, ageMs: worker.ageMs ?? 0,
       context: testFile ?? null, detail: `${descendants.length} child process${descendants.length === 1 ? '' : 'es'}; job folder ${folder ? `~${folder}` : 'none'}${worker.ppid === 1 ? '; orphaned (ppid 1)' : ''}`,
       waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}` };
