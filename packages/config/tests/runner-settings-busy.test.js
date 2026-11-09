@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { addRunner } from '../../config/index.js';
-import { loadMachineSettings } from '../../config/index.js';
-import { listResources } from '../index.js';
-import { takeResource } from '../index.js';
+import { addRunner } from '../index.js';
+import { loadMachineSettings } from '../index.js';
+import { listResources } from '../../resources/index.js';
+import { takeResource } from '../../resources/index.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 /** Point the machine home at a private directory for one case and restore it afterwards. */

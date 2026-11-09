@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { orderedWaiters } from '../../queue/index.js';
-import { FOLLOW_UP_CREDIT_MS } from '../../queue/index.js';
-import { ARRIVAL_ORDER } from '../../queue/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { orderedWaiters } from '../packages/queue/index.js';
+import { FOLLOW_UP_CREDIT_MS } from '../packages/queue/index.js';
+import { ARRIVAL_ORDER } from '../packages/queue/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureChildAsync } from './fixture-child.js';
 
 const NOW = Date.parse('2026-11-09T07:30:00.000Z');
 
@@ -42,7 +42,7 @@ test('clause 1: on a real pool a queued main comparison takes the freed slot bef
   const box = helpers.project();
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-  const source = `import { takeResource } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
+  const source = `import { takeResource } from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
 const root = process.cwd();
 const base = { name: 'line', capacity: 1, scope: 'machine', root };
 const holder = await takeResource({ ...base, agent: 'holder', kind: 'submit' });
