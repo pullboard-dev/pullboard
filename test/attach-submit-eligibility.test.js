@@ -3,7 +3,7 @@ import { refuseUnreviewable } from '../packages/verify/index.js';
 /** Real native attachment previews and submit moves share strict ownership authority [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { refuseLiveAttach } from '../packages/items/index.js';
