@@ -66,19 +66,22 @@
     "repo-read": 2,
     "hex64": 1
   },
-  "packages/blueprints/tests/blueprint-fixture.js": {
+  "packages/blueprints/tests/bundled-blueprints.test.js": {
+    "repo-read": 1
+  },
+  "test/blueprint-cli-fixture.js": {
     "repo-read": 2,
     "tempdir": 2,
     "model": 1
   },
-  "packages/blueprints/tests/blueprint-part-2.test.js": {
-    "repo-read": 2,
+  "test/blueprint-cli-part-2.test.js": {
+    "repo-read": 1,
     "hand-policy": 1
   },
-  "packages/blueprints/tests/blueprint-part-4.test.js": {
+  "test/blueprint-cli-part-4.test.js": {
     "hand-policy": 2
   },
-  "packages/blueprints/tests/blueprint.test.js": {
+  "test/blueprint-cli.test.js": {
     "model": 1,
     "tempdir": 1,
     "hand-policy": 2
@@ -1884,7 +1887,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "test/item-stage.test.js": {
+  "packages/store/tests/item-stage.test.js": {
     "raw-board": 2
   },
   "test/item-withdrawn-reason.test.js": {
