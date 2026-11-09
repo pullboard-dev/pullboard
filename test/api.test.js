@@ -997,9 +997,10 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const httpClaimStep = await observedApiStep('claim an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'claim', item: 999, args: {} }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpClaimStep), cliRefusal, `${httpClaimStep.evidence}\nCLI evidence:\n${cliClaimStep.evidence}`);
 
-    const cliNextStep = observedFixtureStep(box, 'request available work through the CLI', box.repo, 'next', [], 0);
-    const noWork = cliNextStep.document;
-    assert.equal(noWork.item, null, cliNextStep.evidence);
+    const cliNextRun = box.run(box.repo, 'next', '--json');
+    const cliNextStep = { evidence: fixtureCommandEvidence('request available work through the CLI', cliNextRun, box.env) };
+    const noWork = JSON.parse(cliNextRun.stdout);
+    assert.deepEqual([cliNextRun.status, cliNextRun.stderr, noWork.version, noWork.item, noWork.next, Array.isArray(noWork.reasons)], [0, '', 1, null, 'nothing for this seat: end your turn', true], cliNextStep.evidence);
     const httpNextStep = await observedApiStep('request available work through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'next', args: {} }) }), box.env);
     assert.deepEqual(httpNextStep.document, { version: 1, event: null, result: noWork }, `${httpNextStep.evidence}\nCLI evidence:\n${cliNextStep.evidence}`);
 
