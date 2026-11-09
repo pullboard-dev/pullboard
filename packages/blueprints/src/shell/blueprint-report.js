@@ -8,7 +8,7 @@ import {
   readBlueprint,
 } from './blueprints.js';
 import { loadConfig } from '../../../config/index.js';
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/core.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../spec/index.js';
 

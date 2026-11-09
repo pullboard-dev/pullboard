@@ -13,16 +13,16 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { writeLegacyWebQuestions } from '../../../test/blueprint-question.fixture.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
 
 /** @pullboard-test-input source-tree */
 /** pullboard blueprint add: a blueprint lands on a board as drafts, once [S1,I1]. */
 
-export const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
-export const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/shell/blueprints/web-app.json'), 'utf8'));
+export const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+export const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../packages/blueprints/src/shell/blueprints/web-app.json'), 'utf8'));
 export const LEGACY_FRAMEWORK = { key: 'Q1', ask: 'The app is built with', choices: ['Next.js', 'SvelteKit', 'Rails', 'Something else'], detect: 'framework' };
 export const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 export const DIRS = [];
@@ -48,24 +48,6 @@ export function json(box, ...args) {
   assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
   return JSON.parse(result.stdout);
 }
-
-/** Each pullboard.dev/blueprints card's title and rules, word for word, and how many things it asks the person. */
-export const GALLERY = {
-  pullboard: { title: 'Pullboard, built on Pullboard', rules: ['A builder never verifies their own work.', "Every item's check fails before the change and passes after it.", 'Main only moves when the whole test suite passes.'], asks: 0 },
-  website: { title: 'Website', rules: ['Every page reads in full with JavaScript turned off.', 'No change leaves a link pointing at a missing page.'], asks: 2 },
-  'web-app': { title: 'Web app', rules: ['Every change ships with a test that fails without it.', 'Every page works at phone width before it ships.'], asks: 0 },
-  library: { title: 'Open-source library', rules: ['A breaking change bumps the major version.', 'Every public function has a working example in the docs.'], asks: 2 },
-  'ios-app': { title: 'iOS app', rules: ['Every screen has a light and a dark screenshot test.', 'No change removes a VoiceOver label from a screen.'], asks: 2 },
-  serverless: { title: 'Serverless', rules: ['Every function has an alarm before it ships.', "No function runs past its platform's time limit."], asks: 3 },
-  'data-pipeline': { title: 'Data pipeline', rules: ['A schema change ships with its migration.', 'A failed job names the rows and the reason.'], asks: 2 },
-  'test-reliability': { title: 'Test reliability', rules: ['No test waits on the wall clock or a fixed sleep.', 'A flake is pinned on a change only after a run without it.'], asks: 1 },
-  research: { title: 'Research board', rules: ['Every claim in a finding links to its source.', 'A finding counts only after a second agent rechecks its source.'], asks: 2 },
-  writing: { title: 'Writing and blog', rules: ['Every fact in a post links to where it came from.', 'A post publishes only after you approve it.'], asks: 2 },
-};
-
-// A starter check ships to someone else's repo: it only runs the project's own tests, so it holds
-// no deletion, download, install, remote shell, publish, redirect or command substitution.
-export const UNSAFE_CHECK = /\b(?:rm|curl|wget|sudo|ssh|scp|install|publish|push|deploy)\b|[>`]|\$\(/u;
 
 /** An architecture blueprint whose rules name the reference each paraphrases; a fixture, never fetched. */
 export const SOURCED = {
@@ -126,7 +108,7 @@ export const FRAMEWORKS = 'Choices: Next.js, SvelteKit, Rails, Something else.';
 
 /** The bundled blueprint of this name, as its file says. */
 export function bundled(name) {
-  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
+  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../packages/blueprints/src/shell/blueprints/${name}.json`), 'utf8'));
 }
 
 /** Every row text a blueprint drafts, rules then questions, as SPEC.md carries them. */

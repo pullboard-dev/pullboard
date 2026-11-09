@@ -19,10 +19,10 @@ import { submitFixture } from '../board-submit-fixture.js';
 import { machine, project } from './fixture.js';
 
 /** Clause 1 proof: the four view-lane tests take their bindings from the cli front door, not the shims. */
-test('clause 1: the four view-lane tests import nothing from the src/next-step-words.js or src/cli.js shims [N26]', () => {
+test('clause 1: the four view-lane tests import nothing from a top-level src file, so no shim [N26]', () => {
   for (const file of ['dashboard-clock.test.js', 'relay-signin.test.js', 'lifecycle-ordinary-seed.js', 'prose.test.js']) {
     const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /src\/(next-step-words|cli)\.js['"]/, `${file} still imports a shim`);
+    assert.doesNotMatch(source, /(?:\.\.\/)+src\/[\w-]+\.js['"]/, `${file} still imports a top-level src file`);
   }
 });
 
