@@ -13,6 +13,7 @@ import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { checkoutBranch } from '../../../../packages/git/index.js';
 import { checkoutCommonDir } from '../../../../packages/git/index.js';
+import { trunkRef } from '../../../../packages/sandbox/index.js';
 import { primaryCheckoutRoot } from './cli/worktree.js';
 import { unfinishedFolderMessage } from './unfinished-folder.js';
 import { unfinishedItemFolders } from './unfinished-folder.js';
@@ -41,11 +42,24 @@ function canonical(path) {
 }
 
 /**
+ * The project's configured trunk branch, or main when none is recorded.
+ * Why: a project whose trunk is master or trunk had claim fail on a hard-coded main [C7,#3759].
+ * @param {string} root any checkout of the repository
+ * @returns {string}
+ */
+export function trunkBranch(root) {
+  let configured = null;
+  try { configured = trunkRef(root); } catch { /* An unreadable trunk setting reads as unset. */ }
+  return typeof configured === 'string' && configured.trim() ? configured.trim().replace(/^refs\/heads\//u, '') : 'main';
+}
+
+/**
  * Map each registered worktree path to its branch and commit, from one Git launch for the whole repository.
  * @param {string} root The repository root.
  * @returns {Map<string, string> & { commits: Map<string, string>, mainCommit: string|null }} Branch by path, with each path's commit and main's commit when main is checked out.
  */
 function worktreeBranches(root) {
+  const trunk = trunkBranch(root);
   const branches = new Map();
   branches.commits = new Map();
   branches.mainCommit = null;
@@ -54,7 +68,7 @@ function worktreeBranches(root) {
     const path = fields.find(field => field.startsWith('worktree '))?.slice(9);
     const head = fields.find(field => field.startsWith('branch refs/heads/'))?.slice(18);
     const commit = fields.find(field => field.startsWith('HEAD '))?.slice(5);
-    if (head === 'main' && commit) branches.mainCommit = commit;
+    if (head === trunk && commit) branches.mainCommit = commit;
     if (path && head) branches.set(path, head);
     if (path && commit) branches.commits.set(path, commit);
   }
@@ -151,7 +165,7 @@ async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
     try { prior = session.endedItemFolderSession(board, me, idle.path); }
     catch (error) { if (error instanceof Refused) continue; throw error; }
     git(ctx.info.root, ['worktree', 'move', idle.path, desired]);
-    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, 'main']); }
+    try { git(desired, exists ? ['checkout', '-q', ref] : ['checkout', '-q', '-b', ref, trunkBranch(ctx.info.root)]); }
     catch (error) { git(ctx.info.root, ['worktree', 'move', desired, idle.path]); throw error; }
     if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
     await session.adoptItemFolderSession(desired, me, prior);
@@ -286,11 +300,12 @@ function sameDirectory(first, second) {
  * @returns {void}
  */
 function advanceToMain(path) {
-  if (tryGit(path, ['merge-base', '--is-ancestor', 'main', 'HEAD']).status === 0) return;
+  const trunk = trunkBranch(path);
+  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return;
-  if (tryGit(path, ['merge', '--ff-only', '-q', 'main']).status === 0) return;
-  if (tryGit(path, ['merge', '--no-edit', '-q', 'main']).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
+  if (tryGit(path, ['merge', '--ff-only', '-q', trunk]).status === 0) return;
+  if (tryGit(path, ['merge', '--no-edit', '-q', trunk]).status !== 0 && unfinishedOperation(path, tryGit)) tryGit(path, ['merge', '--abort']);
 }
 
 /** Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7]. */
@@ -343,7 +358,7 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, 'main']);
+  git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, trunkBranch(root)]);
   writeItemMarker(path, me.id, id);
   return path;
 }
