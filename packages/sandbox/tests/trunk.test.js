@@ -31,6 +31,7 @@ import {
 } from '../src/shell/trusted-policy.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import { FIXTURE_MODEL } from '../../../test/e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -112,7 +113,9 @@ for (const branch of ['master', 'trunk']) {
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);
-    assert.equal(item.item_check_baseline.result, 'red', `${branch} baseline actually ran instead of being unavailable`);
+    // Baselines wait for a registered runner and never run on the coordinator (#3851); this fixture has none, so the request stays queued.
+    assert.equal(item.item_check_baseline.result, 'pending', `${branch} baseline queued for a runner instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
+    assert.match(item.item_check_baseline.request, /^[0-9a-f-]{36}$/u, `${branch} baseline carries its queued request`);
     assert.notEqual(item.item_check_baseline.reason, 'no main');
   });
 }
@@ -122,7 +125,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const web = join(box.dir, 'web-worktree');
     box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/agent');
-    assert.equal(fixtureJoin(box.run, web, 'web').code, 0);
+    assert.equal(fixtureJoin(box.run, web, 'web', '--model', FIXTURE_MODEL).code, 0);
     writeFileSync(join(web, 'web', 'result.txt'), `resolved by web lane from ${branch}\n`);
     box.git(web, 'add', 'web/result.txt');
     box.git(web, 'commit', '-q', '-m', 'feat(web): update owned fixture [G1]');
@@ -166,11 +169,11 @@ function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture').code, 0);
+  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture', '--model', FIXTURE_MODEL, '--route', 'strong').code, 0);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(web, 'claim', String(id)).code, 0);
+  { const claimed = box.run(web, 'claim', String(id)); assert.equal(claimed.code, 0, `${claimed.out}${claimed.err}`); }
   writeFileSync(join(web, 'web/result.txt'), 'builder result\n');
   box.git(web, 'add', 'web/result.txt');
   box.git(web, 'commit', '-q', '-m', 'feat(web): build merge candidate [G1]');
@@ -201,7 +204,7 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture').code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture', '--model', FIXTURE_MODEL, '--route', 'strong').code, 0);
   return review;
 }
 
@@ -209,15 +212,27 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   const box = mergeCandidate('master');
   advanceMergeTrunk(box, false);
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
+  const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 0, submitted.err);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  // Submit composes clean main into the builder's own checkout as a merge commit (4d18c3c77d); the primary checkout is untouched.
+  assert.deepEqual(checkoutState(box, box.repo), before[0]);
+  const composed = checkoutState(box, box.web);
+  assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', 'HEAD').split(' '), [before[1].head, trunk], 'the builder head merges the builder source with the exact trunk tip');
+  assert.deepEqual({ status: composed.status, staged: composed.staged, work: composed.work, result: composed.result },
+    { status: before[1].status, staged: before[1].staged, work: before[1].work, result: before[1].result }, 'the composed builder checkout is clean and keeps its content');
+  const after = [checkoutState(box, box.repo), composed];
   const review = mergeReviewer(box);
   const reviewBefore = checkoutState(box, review);
   const accepted = box.run(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  assert.deepEqual(checkoutState(box, box.web), after[1], 'accept leaves the builder checkout and index as submitted');
+  // Accept lands the verified source on trunk, so the primary checkout advances cleanly to contain it.
+  const landed = checkoutState(box, box.repo);
+  assert.equal(box.git(box.repo, 'merge-base', after[1].head, landed.head), after[1].head, 'the primary head contains the verified builder head');
+  assert.deepEqual({ status: landed.status, staged: landed.staged, work: landed.work, result: landed.result },
+    { status: '', staged: '', work: '', result: after[1].result }, 'the primary checkout is clean and carries the landed content');
 });
 
 test('[B34,V6] conflicting submit names files and refuses without changing any checkout or index', () => {
@@ -228,7 +243,7 @@ test('[B34,V6] conflicting submit names files and refuses without changing any c
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
+  assert.match(refused.err, /merge main into your branch.*run the command again/);
   assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'claimed', 'refusal leaves the claim available for a resolved new commit');
