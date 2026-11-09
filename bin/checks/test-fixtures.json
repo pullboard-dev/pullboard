@@ -2544,6 +2544,9 @@
     "env-spread": 1,
     "hand-policy": 2
   },
+  "packages/seats/tests/projects.test.js": {
+    "tempdir": 5
+  },
   "test/projects-init-registry.test.js": {
     "tempdir": 2,
     "env-spread": 1,
