@@ -5,6 +5,7 @@ export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.j
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/shell/main-owned-verdict.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
+export { CLI_FRONT_DOORS, packageCliReach, newPackageCliReach } from "./src/core/package-cli-reach.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/shell/browser-admission.js";
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/shell/browser-slot-guard.js";

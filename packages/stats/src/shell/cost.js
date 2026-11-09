@@ -3,7 +3,7 @@ import { COST_ENGINE } from '../../../../src/cost-engine.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { publicSharedSessions } from './cost-shared.js';
 import { Refused } from '../../../kernel/index.js';
-import { usageDollars } from '../../../config/index.js';
+import { usageDollars } from '../../../config/core.js';
 import { COUNTS } from './cost-read.js';
 import { UNKNOWN_USAGE_REASONS } from './cost-read.js';
 import { sumUsage } from './cost-read.js';

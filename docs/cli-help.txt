@@ -398,6 +398,7 @@ Additional commands
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
+  pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.
