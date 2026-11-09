@@ -57,6 +57,15 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'view-pure', run: root => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', run: (root, sources) => boardWriteIoProblems(sources)
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
+  { name: 'worker-bundle', run: root => {
+    // The runner worker bundle's raw size may only fall; growth fails here, never silently at a runner (#4140).
+    const recorded = JSON.parse(readFileSync(join(root, 'bin/checks/worker-bundle.json'), 'utf8')).bytes;
+    const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)})));`;
+    const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
+    if (child.status !== 0) return [`bin/checks/worker-bundle.json:1: the runner worker bundle could not be measured: ${child.stderr.trim().split('\n').at(-1)}`];
+    const bytes = Number(child.stdout);
+    return bytes > recorded ? [`bin/checks/worker-bundle.json:1: the runner worker bundle is ${bytes} raw bytes, over its recorded ${recorded}; cut what the worker imports, or record a lower size when it falls`] : [];
+  } },
   { name: 'prose-commands', run: root => {
     const { declared, actual } = proseCommandSets(root);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];

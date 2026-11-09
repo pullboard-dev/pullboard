@@ -5,7 +5,7 @@ import { basename, dirname, join } from 'node:path';
 import { readFileSync, watch } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { PULLBOARD_ENTRY, residentSocket } from '../bin/resident-client.js';

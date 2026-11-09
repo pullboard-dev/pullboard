@@ -15,10 +15,12 @@ import {
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 const RUNNERS = pathToFileURL(resolve(import.meta.dirname, '../packages/runners/index.js')).href;
 const CONFIG = pathToFileURL(resolve(import.meta.dirname, '../packages/config/index.js')).href;
@@ -33,7 +35,7 @@ catch (error) { console.log(error.code ?? error.message); }`;
  * seconds, so every job starts while the first scan is still running.
  */
 function fixture() {
-  const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   const shims = join(box.dir, 'history-shims'), launches = join(box.dir, 'git-log-launches');
   mkdirSync(shims);
   writeFileSync(join(shims, 'git'), [

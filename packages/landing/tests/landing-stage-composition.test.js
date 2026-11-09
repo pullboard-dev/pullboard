@@ -11,15 +11,15 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { accountedFailures } from '../../landing/index.js';
-import { land } from '../../landing/index.js';
-import { runLandingBatch } from '../../landing/index.js';
-import { runLandingCandidate } from '../../landing/index.js';
-import { shardProcesses } from '../../landing/index.js';
-import { runLandingShards } from '../../landing/index.js';
-import { landingWaivers } from '../../landing/index.js';
+import { accountedFailures } from '../index.js';
+import { land } from '../index.js';
+import { runLandingBatch } from '../index.js';
+import { runLandingCandidate } from '../index.js';
+import { shardProcesses } from '../index.js';
+import { runLandingShards } from '../index.js';
+import { landingWaivers } from '../index.js';
 import { landingPorts } from '../../../test/landing-ports-fixture.js';
-import { runShell } from '../src/shell/shell-run.js';
+import { runShell } from '../../gate/index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Build two genuine shell children with distinct TAP accounts and observable working directories. */
