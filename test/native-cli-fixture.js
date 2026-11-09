@@ -1,10 +1,10 @@
 /** Compose the real native board for in-process CLI tests [C7]. */
 import { fileURLToPath } from 'node:url';
 import { main as cliMain, nativeBoardOpeners } from '../apps/cli/index.js';
-import { HOOK_WORKER } from '../apps/cli/index.js';
 import { nativeBoardPorts } from '../apps/lib/index.js';
+import { HOOK_WORKER } from '../apps/cli/index.js';
 import * as nativeBoard from '../apps/lib/src/core/native-board.js';
-import { launchRelaySender } from '../apps/lib/index.js';
+import { launchRelaySender } from '../apps/cli/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';
 const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });

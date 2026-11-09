@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/shell/cli-hook-work.js apps/cli/src/shell/submit-handoff-worker.js */
+/** @pullboard-module-loads apps/lib/src/shell/cli-hook-work.js apps/cli/src/shell/submit-handoff-worker.js */
 /**
  * The process capabilities the CLI entry hands to apps/cli/src/shell/cli-main.js. The in-process entry and the resident board
  * process run commands with the same capabilities, so both compose them here [C7].
@@ -40,7 +40,7 @@ export function loadProcessPorts() {
     submitHandoffWorker: fileURLToPath(new URL('../apps/cli/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
-      void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+      void import('../apps/cli/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
     },
   }));
 }

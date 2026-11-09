@@ -1,7 +1,7 @@
 /** Scope test cleanup to background relay senders created inside one fixture checkout [H21,H16]. */
 import { execFileSync } from 'node:child_process';
 import { readlinkSync, realpathSync } from 'node:fs';
-import { SENDER_WORKER } from '../apps/lib/index.js';
+import { SENDER_WORKER } from '../apps/cli/index.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
 /** Read exact worker identities and scope this simulated machine to its private fixture checkout. */

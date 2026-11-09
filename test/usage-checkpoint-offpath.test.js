@@ -111,7 +111,7 @@ function checkpointMs(box, id) {
   const env = { ...box.env, CLAUDE_CONFIG_DIR: join(box.dir, 'claude'), CLAUDE_CODE_SESSION_ID: SESSION };
   delete env.PULLBOARD_USAGE_CHECKPOINT;
   const module = (path) => JSON.stringify(new URL(path, import.meta.url).href);
-  const code = `import {context,withBoard} from ${module('../src/cli-context.js')};
+  const code = `import {cliContext$context as context,cliContext$withBoard as withBoard} from ${module('../apps/cli/index.js')};
     import {whoAmI} from ${module('../apps/cli/index.js')};
     import {ordered} from ${module('../apps/cli/index.js')};
     import {checkpointAfterMove} from ${module('../packages/stats/index.js')};

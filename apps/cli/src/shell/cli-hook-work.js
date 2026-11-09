@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/shell/submit-handoff-worker.js */
+/** @pullboard-module-loads apps/cli/src/shell/submit-handoff-worker.js apps/lib/index.js */
 /** The native hook worker process: the seats cell's hook order composed with CLI and board steps [I6,C7]. */
 import { fileURLToPath } from 'node:url';
 import { work } from '../../../../packages/seats/index.js';
@@ -11,8 +11,7 @@ async function heartbeat() {
 
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
-  const { cli$main: main } = await import('../../index.js');
-  const { launchRelaySender } = await import('../../../lib/index.js');
+  const { cli$main: main, launchRelaySender } = await import('../../index.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
     loadNativeBoard: () => import('../../../lib/index.js'), hookWorker: HOOK_WORKER,
     submitHandoffWorker: fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url)), launchRelaySender,
@@ -24,21 +23,11 @@ async function dispatch(args) {
 /** Warn only when committed work has advanced beyond this seat's recorded claim head. */
 async function inspect() {
   const { repoInfo, headCommit, tryGit } = await import('../../../../packages/git/index.js');
-  const { join } = await import('node:path');
-  const store = await import('../../../../packages/store/index.js');
-  const { openBoardForRead } = await import('../../../lib/index.js');
-  const info = repoInfo(process.cwd());
-  const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
-  if (!board) return;
-  try {
-    const agent = store.agentAt(board, info.root), head = headCommit(info.root);
-    if (!agent || !head) return;
-    const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'claimed'
-      && item.item_owner === agent.agent_id && item.item_claim_head && item.item_claim_head !== head
-      && tryGit(info.root, ['merge-base', '--is-ancestor', item.item_claim_head, head]).status === 0
-      && tryGit(info.root, ['diff', '--quiet', item.item_claim_head, head, '--']).status === 1);
-    if (items.length) process.stdout.write(`Committed work on ${items.map(item => '#' + item.item_id).join(', ')} is not submitted. Run pullboard submit <id> --wait when it is ready.\n`);
-  } finally { store.closeBoard(board); }
+  const { warnUnsubmittedWork } = await import('../../../lib/index.js');
+  const info = repoInfo(process.cwd()), head = headCommit(info.root);
+  warnUnsubmittedWork({ root: info.root, commonDir: info.commonDir, head, advanced: claimHead =>
+    tryGit(info.root, ['merge-base', '--is-ancestor', claimHead, head]).status === 0
+    && tryGit(info.root, ['diff', '--quiet', claimHead, head, '--']).status === 1 });
 }
 
 /** The path the hook runner spawns; the CLI passes it to the seats cell's runner. */

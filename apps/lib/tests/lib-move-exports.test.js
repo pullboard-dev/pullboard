@@ -6,7 +6,7 @@ import * as provider0 from '../src/core/index.js';
 import * as provider1 from '../src/core/native-board.js';
 
 const surfaces = [
-  ['src/index.js', 'apps/lib/src/core/index.js', ['Refused', 'STANDARD_VERSION', 'blockedPaths', 'board', 'citedIds', 'commitMsgProblems', 'defaultConfig', 'frozenCriterion', 'laneNames', 'laneOf', 'lintSpec', 'listResources', 'loadConfig', 'loadDoctrine', 'main', 'outOfLane', 'parseSpec', 'secretsIn', 'standardDoctrine', 'takeResource'], provider0],
+  ['src/index.js', 'apps/lib/src/core/index.js', ['Refused', 'STANDARD_VERSION', 'blockedPaths', 'board', 'citedIds', 'commitMsgProblems', 'defaultConfig', 'frozenCriterion', 'laneNames', 'laneOf', 'lintSpec', 'listResources', 'loadConfig', 'loadDoctrine', 'outOfLane', 'parseSpec', 'secretsIn', 'standardDoctrine', 'takeResource'], provider0],
   ['apps/lib/index.js', 'apps/lib/src/core/native-board.js', ['advanceItemSource', 'beginSentinelRun', 'board', 'closeBoard', 'decideSentinel', 'decideSpecRevisions', 'draftSpecRow', 'finishSentinelRun', 'flakeLedger', 'flakeQuarantines', 'gateRuns', 'landingWaiverFor', 'landingWaivers', 'nativeBoardPorts', 'openBoard', 'openBoardForRead', 'personProposals', 'personSigning', 'proposePersonMove', 'proposeSentinel', 'recordFlakeObservation', 'recordGateRun', 'recordPublishFinding', 'recordRowVerification', 'recordTrainLanding', 'setPersonSigning', 'waivedLandingProof'], provider1]
 ];
 
@@ -19,5 +19,4 @@ test('the lib front door binds every provider export by identity [C7,CD60]', () 
 
 test('the package entry re-exports the native board binding [C7,CD60]', () => {
   assert.equal(front.board, provider1.board);
-  assert.equal(typeof front.main, 'function');
 });
