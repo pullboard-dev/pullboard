@@ -2,6 +2,7 @@
 /** The main-moved conflict shout judges the item's own branch, never the seat checkout branch [N2,B3,#3820]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { mainMovedWarnings } from '../index.js';
@@ -27,9 +28,10 @@ function movedMain(t) {
   git(seat, 'add', '-A');
   git(seat, 'commit', '-q', '-m', 'base');
   for (const id of [7, 8]) git(seat, 'worktree', 'add', '-q', '-b', `item-${id}`, `${seat}-item-${id}`, 'main');
-  tree.write('seat-item-7/other.txt', 'item seven\n');
+  // Git created these item-branch files, so the fixture capability does not own them; edit them in place.
+  writeFileSync(join(tree.root, 'seat-item-7/other.txt'), 'item seven\n');
   git(`${seat}-item-7`, 'commit', '-q', '-am', 'item seven');
-  tree.write('seat-item-8/shared.txt', 'item eight\n');
+  writeFileSync(join(tree.root, 'seat-item-8/shared.txt'), 'item eight\n');
   git(`${seat}-item-8`, 'commit', '-q', '-am', 'item eight');
   tree.write('seat/shared.txt', 'trunk\n');
   git(seat, 'commit', '-q', '-am', 'main moves');
