@@ -87,8 +87,7 @@
   {"cell":"app:cli","imports":4,"before":false}
  ],
  "cuts": [
-  {"cell":"queue","imports":2,"edges":["src/queue-readiness.js->src/item-dependencies.js","src/queue-readiness.js->src/item-files.js"]},
-  {"cell":"roadmap","imports":1,"edges":["src/roadmap.js->src/queue.js"]}
+   {"cell":"roadmap","imports":1,"edges":["src/roadmap.js->src/queue.js"]}
  ],
  "ratchets": {
   "legacySource": -4,
