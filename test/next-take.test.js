@@ -7,6 +7,7 @@ import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI 
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -24,6 +25,7 @@ import { repoInfo } from '../packages/git/index.js';
 import { bindLocalSession } from '../packages/seats/index.js';
 import { recordItemSession } from '../packages/items/index.js';
 import { dispatchHealth } from '../packages/sentinels/index.js';
+import { healthReport } from '../packages/health/index.js';
 import { deliverHealthNotices } from '../packages/store/src/core/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
@@ -57,6 +59,49 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
 });
 
+/** Claim an item as the actor seat and start its submit handoff, as `submit --no-next` leaves it. */
+function submitting(box, title) {
+  box.board.gitRoot = box.root;
+  const seat = box.seats.actor;
+  const id = box.add(title);
+  box.claim(id, seat);
+  const head = box.git(seat.path, 'rev-parse', 'HEAD');
+  const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
+  const item = store.getItem(box.board, id);
+  const job = store.writeBoardCommand(box.board, 'queueSubmitHandoff', [id, { agentId: seat.id,
+    job: randomUUID(), main: head, commit: head, tree, executionCommit: head, executionTree: tree,
+    digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], seat.id).job;
+  store.startSubmitHandoff(box.board, id, { agentId: seat.id, job: job.id });
+  return id;
+}
+
+test('next --take gives a seat with a running handoff a different item and no --wait [C7,#2882]', async t => {
+  const box = await fixture(t);
+  const held = submitting(box, 'Submitted and gating');
+  const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
+  let out = '', err = '';
+  const code = await main(['next', '--take'], { cwd: box.seats.actor.path, clock: box.clock,
+    stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
+  const text = out + err;
+
+  assert.equal(code, 0, text);
+  assert.match(text.split(/\r?\n/u, 1)[0], new RegExp(`^claimed #${other}:`, 'u'));
+  assert.doesNotMatch(text, new RegExp(`submit ${held}\\b[^\\n]*--wait|next --wait`, 'u'), 'no --wait hint for the held item');
+  assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
+});
+
+test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
+  const box = await fixture(t);
+  const id = submitting(box, 'Submitted and gating');
+  const cwd = box.seats.actor.path;
+  mkdirSync(join(cwd, 'web'), { recursive: true });
+  writeFileSync(join(cwd, 'web/follow-up.js'), 'export const x = 1;\n');
+  box.git(cwd, 'add', '-A');
+  box.git(cwd, 'commit', '-q', '-m', 'fix(web): follow up [G1]', '-m', `Pullboard-Item: #${id}`);
+
+  assert.match(box.git(cwd, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${id}`, 'u'));
+});
+
 /** Keep an existing claim's lease and event history intact when ordinary next resumes it. */
 test('default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
   const box = await fixture(t);
@@ -88,6 +133,22 @@ test('default next resumes a held claim after its cited row leaves the live spec
   assert.equal(resumed.document.held, true);
   assert.equal(store.getItem(box.board, id).item_status, 'claimed');
 });
+
+for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
+  test(`clause 1 and clause 2: after a ${reason} release next --take refuses a sibling seat and status shows the item as needing re-scope [C7]`, async t => {
+    const box = await fixture(t);
+    const id = box.add('Item that needs re-scope');
+    box.claim(id, box.seats.actor);
+    store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', reason);
+    box.advance(31 * 60_000);
+    const sibling = await cli(box, box.seats.builder.path, ['next', '--take']);
+    assert.equal(sibling.code, 1, sibling.out + sibling.err);
+    assert.equal(typeof sibling.document?.error?.code, 'string', 'native no-work refusal is retained');
+    assert.notEqual(sibling.document?.item?.item_id, id, `a second seat of the same lane and route is not offered the ${reason} item`);
+    const status = await cli(box, box.root, ['status']);
+    assert.equal(status.document.needsRescope[0].id, id, 'status shows the item as needing re-scope with its release reasons');
+  });
+}
 
 test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
   const box = crossLaneFixture(t);
@@ -461,6 +522,23 @@ test('an empty next observation counts as light-seat activity, but a manual clai
   assert.equal(store.nextFor(manualBox.board, { agentId: manualBox.seats.builder.id, lane: 'web', priority: [manualLight] }).item.item_id, manualLight,
     'a manual claim without autoNextSnapshot is not mistaken for a next invocation');
   assert.equal(store.getItem(manualBox.board, manualStrong).item_status, 'open');
+});
+
+test('clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Item excluded for re-scope');
+  box.claim(id, box.seats.actor);
+  store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
+  box.advance(7 * 60_000);
+  let listed = '';
+  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, listed);
+  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const excluded = store.allItemsNeedingRescope(box.board);
+  assert.equal(excluded[0].id, id);
+  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
+  assert.match(finding.why, /released 7 min ago/u);
 });
 
 installPostMoveHandoffCases({ fixture, cli });

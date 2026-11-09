@@ -1,7 +1,7 @@
 import { gitSpawnSync } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 /** Exact controller/holder custody; native queue cleanup alone changes resource availability [C7]. */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
