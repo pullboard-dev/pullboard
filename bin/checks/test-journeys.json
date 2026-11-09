@@ -8258,24 +8258,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/release-focus.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "spec",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/release-ineligible-next.test.js": {
       "cells": [
         "app:cli",
