@@ -200,7 +200,6 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     'REJECT TEST_FAILURE by web-2 (unknown) at bbbbbbbbbbbb: Second reject: the guard returns undefined.',
   ], 'earlier verdicts are one line each: decision, reason, verifier, commit, the note\'s first line cut at 120 characters');
   assert.ok(plain.stdout.includes(`ACCEPT CRITERION_MET by web-2 (unknown) at cccccccccccc: ${NOTES[2]}`), 'the latest verdict keeps its full note');
-  console.log('PLAINDUMP\n' + plain.stdout);
   for (const later of ['keeps going past the cut', 'Repro: greet("") throws.', 'Repro: greet("") is undefined.']) {
     assert.ok(!plain.stdout.includes(later), `an earlier note's cut and later lines are left out: ${later}`);
   }
