@@ -89,7 +89,13 @@ function batchAffectedTests(state, readEvents, readItem) {
     const badges = new Set((state.landingWrites ?? []).filter(file => /^docs\/badges\/[^/]+\.json$/u.test(file)));
     const changed = badges.size ? git(root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, commit]).split('\0').filter(file => file && !badges.has(file)) : undefined;
     const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, ...(changed ? { changed } : {}) }) : { files: submitted };
-    if (affected.full && affected.reason !== 'the change reaches every test file') return { full: true, fullGate: true, reason: affected.reason, mandatory, files: [] };
+    if (affected.full && affected.reason !== 'the change reaches every test file') {
+      // One item's own submit proof is its floor: a landing never falls to the full plan for it, which on a runners-only
+      // machine runs every test on one runner and cannot finish [C7].
+      const own = state.batch.items.length === 1 ? submitProofFiles(state.batch.items[0], readEvents) : null;
+      if (!own) return { full: true, fullGate: true, reason: affected.reason, mandatory, files: [] };
+      return { full: false, mandatory, testTiers, files: [...new Set([...own, ...mandatory])].sort() };
+    }
     const named = new Set(affected.files);
     // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
     const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
@@ -207,6 +213,22 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
+/**
+ * Whether a submit event records a proving gate: green, or red only in the cases main fails the same way, which the
+ * submit recorded as its knownMainFailures and was admitted on.
+ * Why: such a submit records gateGreen false, so its proof files were ignored, selection over the merged change fell to
+ * the full plan, and #3489's runners-only landing gate ran every test on one runner until the 10-minute stop (9 Nov) [C7].
+ *
+ * @param {any} detail - The submit event's detail.
+ * @returns {boolean}
+ */
+export function submitProved(detail) {
+  if (detail?.gateGreen === true) return true;
+  return detail?.gateGreen === false && Array.isArray(detail.submissionProof?.knownMainFailures?.failures)
+    && detail.submissionProof.knownMainFailures.failures.length > 0
+    && detail.submissionProof.knownMainFailures.failures.every(row => typeof row?.file === 'string' && row.file);
+}
+
 /** Return a complete source-matched proof union, or null when any item lacks one. */
 export function submittedSelections(items, readEvents, readCriterion) {
   if (!items.length) return null;
@@ -215,13 +237,22 @@ export function submittedSelections(items, readEvents, readCriterion) {
     const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
     let detail;
     try { detail = event ? JSON.parse(event.event_detail) : null; } catch { return null; }
-    if (detail?.commit !== entry.commit || detail.gateGreen !== true || detail.submissionProof?.full === true || !Array.isArray(detail.submissionProof?.files)
+    if (detail?.commit !== entry.commit || !submitProved(detail) || detail.submissionProof?.full === true || !Array.isArray(detail.submissionProof?.files)
       || detail.submissionProof.files.some(file => typeof file !== 'string' || !file)) return null;
     const criterion = readCriterion(entry, detail);
     if (!Array.isArray(criterion)) return null;
     for (const file of [...detail.submissionProof.files, ...criterion]) files.add(file);
   }
   return [...files].sort();
+}
+
+/** The test files one item's exact submit proved, or null when its submit names none or proved the full suite. */
+function submitProofFiles(entry, readEvents) {
+  const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
+  let detail;
+  try { detail = event ? JSON.parse(event.event_detail) : null; } catch { return null; }
+  const files = detail?.commit === entry.commit && submitProved(detail) && detail.submissionProof?.full !== true ? detail.submissionProof?.files : null;
+  return Array.isArray(files) && files.length && files.every(file => typeof file === 'string' && file) ? files : null;
 }
 
 /** Derive only literal committed test files from the criterion bound to this submission. */
@@ -369,13 +400,15 @@ async function runGateGroup(state, label, options) {
   const item = store.getItem(state.board, state.batch.items[0].id);
   const proofContext = { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' };
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
-  const gate = subset
-    ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
+  // The line above opens a running gate and the "run finished" line below closes it; the batch's no-progress stop
+  // counts the time between as progress (landingProgress), since a runner returns nothing until its run ends [C7].
+  const gate = await (subset
+    ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
-    : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
-      stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext });
+    : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
+      stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
@@ -430,6 +463,20 @@ function earlyStaticChecks(state) {
   return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
+}
+
+/**
+ * The rerun files a landing gate may fan out over runner slots, with the command that runs a subset of them under the
+ * focused runner; the gate shards only when that command over every file is exactly the gate's command [C7].
+ *
+ * @param {any} state
+ * @param {string[]} files - The plan's files.
+ * @returns {{ files: string[], filesCommand: (files: string[]) => string, say: (line: string) => void } | null}
+ */
+export function landingGateShard(state, files) {
+  const runner = state.config.affectedTests?.trimEnd();
+  if (!runner || !Array.isArray(files) || files.length < 2) return null;
+  return { files: [...files], filesCommand: batch => `${runner} ${batch.map(file => quote('./' + file)).join(' ')}`, say: line => state.say?.(line) };
 }
 
 /** Merge and test one speculative prefix without giving its worker publication authority. */

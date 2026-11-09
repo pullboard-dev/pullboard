@@ -19,6 +19,7 @@ import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';
 import { compareMainFailures } from './main-red.js';
 import { cachedFailureSignatures } from './main-failure-matches.js';
+import { landingRunnersOnly } from './landing-host.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -187,7 +188,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
   // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
   // picking take turns and cannot starve the queue (#2911).
-  const failed = roundFailures(batches);
+  const failed = landingTurns(batches, roundFailures(batches), pending);
   pending.sort((left, right) => {
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
@@ -284,6 +285,31 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
 }
 
 /**
+ * Each item's place behind untried work: its failure turn, or, for an item whose latest batch ended blocked for a
+ * reason that names no test (LAND_DIAGNOSTIC), one turn after every failure. Ordering only; batch sizing still reads
+ * roundFailures alone. Why: such a block counted as no outcome, so #3478 and #3687 kept their accept-order place and
+ * were retried four times while #3862 and #3852, accepted later and never tried, waited 10 to 12 minutes on 9 Nov [C7].
+ *
+ * @param {object[]} batches - The board's landing batches, oldest first.
+ * @param {Map<number, number>} failed - roundFailures(batches).
+ * @param {{ item_id: number, item_commit: string }[]} pending - The verified items; a block of an older commit is not theirs.
+ * @returns {Map<number, number>}
+ */
+export function landingTurns(batches, failed, pending) {
+  const commits = new Map(pending.map(item => [item.item_id, item.item_commit]));
+  const turns = new Map(failed);
+  let clock = Math.max(0, ...failed.values());
+  const latest = new Map();
+  for (const batch of batches) if (batch?.id) latest.set(batch.id, batch);
+  for (const batch of latest.values()) {
+    if (batch.state !== 'blocked' || batch.dropped || batch.supersededByMain) continue;
+    clock += 1;
+    for (const entry of batch.items ?? batch.candidates ?? []) if (!failed.has(entry.id) && commits.get(entry.id) === entry.commit) turns.set(entry.id, clock);
+  }
+  return turns;
+}
+
+/**
  * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
  * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
  */
@@ -299,10 +325,12 @@ export function perItemMaximum(config, maximum = Infinity) {
 /**
  * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
  * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
- * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ * still holds. A hand landing with no setting keeps taking every waiting item. A runners-only machine takes one [C7,H24].
  */
-export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
-  if (landsPerItem(config)) return 1;
+export function landingMaximum(board, config, maximum = Infinity, automatic = false, { runnersOnly = landingRunnersOnly() } = {}) {
+  // A runners-only machine runs a landing gate on one runner with no fan-out, so a batch's union rerun can outgrow what
+  // one runner finishes; one item a batch lands each on its own submit proof plus a small rerun [C7].
+  if (landsPerItem(config) || runnersOnly) return 1;
   const override = store.lineSettings(board).landingBatchSize;
   if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
   return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));

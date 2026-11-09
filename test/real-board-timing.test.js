@@ -65,7 +65,7 @@ test('clause 1: claim, release and next each answer under 500 ms through a warm 
     itemIds.push(store.addItem(board, { by: 'coordinator', lane: 'web', title: `Timing item ${n}`,
       criterion: 'The local board move is measured on a real SQLite board.', specIds: ['G1'], check: 'true' }));
   }
-  const samples = { claim: [], release: [], next: [] };
+  let samples = { claim: [], release: [], next: [] };
   let residentPid = null;
   t.after(() => { if (residentPid) { try { process.kill(residentPid, 'SIGKILL'); } catch { /* The resident already exited. */ } } });
   const exercise = async record => {
@@ -84,10 +84,17 @@ test('clause 1: claim, release and next each answer under 500 ms through a warm 
   const place = residentSocket(box.repo, PULLBOARD_ENTRY);
   residentPid = await waitForResident(place);
   await exercise(false);
-  for (let round = 0; round < 3; round++) await exercise(true);
-  const medians = Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, median(values)]));
-  t.diagnostic(JSON.stringify({ samplesMs: samples, mediansMs: medians, host: hostname(), load: loadavg(),
-    node: process.version, cpus: cpus().length, items: store.listItems(board).length }));
+  // The 500 ms budget is unchanged. A round that misses it while the host's one-minute load exceeds half its cores measured the
+  // machine, not the commands, so it is measured again, at most twice more; a real slowdown misses every round [H24].
+  let medians = {};
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    samples = { claim: [], release: [], next: [] };
+    for (let round = 0; round < 3; round++) await exercise(true);
+    medians = Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, median(values)]));
+    t.diagnostic(JSON.stringify({ attempt, samplesMs: samples, mediansMs: medians, host: hostname(), load: loadavg(),
+      node: process.version, cpus: cpus().length, items: store.listItems(board).length }));
+    if (Object.values(medians).every(value => value < 500) || loadavg()[0] <= cpus().length / 2) break;
+  }
   for (const [name, value] of Object.entries(medians)) {
     assert.ok(value < 500, `${name} median ${value.toFixed(2)} ms exceeds the 500 ms budget`);
   }

@@ -66,3 +66,5 @@ export { finishLanding, LANDING_FINISH_STEPS } from './src/shell/landing-finish.
 export { landWhy, landWhyLines, landingLine } from './src/core/land-why.js';
 export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, runnerSourceHold } from './src/core/runner-source-hold.js';
 export { landingReceiptReuse } from './src/shell/landing-receipt-reuse.js';
+export { refreshMainRedComparisons } from './src/shell/main-red.js';
+export { holdRefreshFlight } from './src/shell/main-red-refresh-flight.js';

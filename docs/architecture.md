@@ -198,6 +198,7 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 | <a id="hop-green-review"></a>green → review | A green gate puts the item in review, waiting on an independent reviewer. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): submitted (in review) | none | PASS |
 | <a id="hop-accept-merged"></a>accept → landing batch → merged | An accept lands through a batch: main moves to the recorded merge and is pushed. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): accept, then `pullboard land`, in 5-19 s | none | PASS |
 | <a id="hop-command-latency"></a>board command latency | Board commands answer in under 200 ms. | `test/harnesses/pipeline/e2e.harness.js` (8 Nov): `show` and `status` p50 107-396 ms with the resident board (over target in 3 of 4 runs at load 60), 521-1217 ms without | `pullboard status` 3.1 s on this board | PASS on the last run, live disagrees |
+| <a id="hop-board-write"></a>board write never queues | A write in a busy checkout answers, and holds the board lock under 1 s, past a slow same-session command, a long reader, a gate worker and dead holders. | `test/harnesses/pipeline/board-write.harness.js` (9 Nov), repro, fails on `58f204a4af^` (the add waits behind the slow command): see the commit for timings | none | PASS |
 
 What the matrix says today:
 
