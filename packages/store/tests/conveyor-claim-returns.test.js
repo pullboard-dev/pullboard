@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { firstRefusalArgs } from '../packages/items/index.js';
-import { fixture } from './next-take-fixture.js';
+import * as store from '../index.js';
+import { firstRefusalArgs } from '../../items/index.js';
+import { fixture } from './dispatch-fixture.js';
 
 /**
  * Queue, start and complete one refused gate for the seat's claim through the ordered board moves.
@@ -57,8 +57,8 @@ function onTheBoard(box, id) {
 }
 
 for (const [kind, code] of [['a red gate result', 'GATE_RED'], ['a submit refusal', 'CELLS_PLAN_UNPLACED']]) {
-  test(`clause 1: recording ${kind} with claim.returnToBoard releases the builder claim with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]`, async t => {
-    const box = await fixture(t);
+  test(`clause 1: recording ${kind} with claim.returnToBoard releases the builder claim with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]`, t => {
+    const box = fixture(t);
     box.board.gitRoot = box.root;
     const id = box.add(`Returned ${code}`);
     box.claim(id, box.seats.builder);
@@ -89,21 +89,21 @@ function reject(box, config) {
   return id;
 }
 
-test('clause 1: recording a reject with claim.returnToBoard releases the builder hold with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]', async t => {
-  const box = await fixture(t);
+test('clause 1: recording a reject with claim.returnToBoard releases the builder hold with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]', t => {
+  const box = fixture(t);
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30, returnToBoard: true } });
   onTheBoard(box, id);
 });
 
-test('clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', async t => {
-  const box = await fixture(t);
+test('clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
+  const box = fixture(t);
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } });
   assert.equal(store.firstRefusal(box.board, id)?.builder, box.seats.builder.id);
   assert.notEqual(offered(box, box.seats.actor), id);
 });
 
-test('clause 1: with claim.returnToBoard off a red gate still keeps the builder claim, so the setting is what returns it [C7,V4]', async t => {
-  const box = await fixture(t);
+test('clause 1: with claim.returnToBoard off a red gate still keeps the builder claim, so the setting is what returns it [C7,V4]', t => {
+  const box = fixture(t);
   box.board.gitRoot = box.root;
   const id = box.add('Kept red');
   box.claim(id, box.seats.builder);
