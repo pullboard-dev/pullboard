@@ -12,6 +12,7 @@ import { agentSessionDigest } from '../../core.js';
 import { pruneCursors } from './cost-cursor.js';
 import { sessionSnapshot } from './cost-session.js';
 import { sessionSource } from './cost-session.js';
+import { missingSessionReason } from './cost-session.js';
 import { usageDifference } from './cost-session.js';
 import { sharedBefore } from './cost-shared-ledger.js';
 import { sharedAfter } from './cost-shared-ledger.js';
@@ -80,7 +81,7 @@ function advance(state, entry, now, changed) {
     }
     if (delta.inputTokens === null || delta.outputTokens === null) {
       const reason = entry.recovered ? 'missed-claim-anchor' : entry.ambiguous ? 'shared-session'
-        : !entry.source ? 'native-session-unavailable' : !entry.snapshot ? 'no-native-baseline'
+        : !entry.source ? entry.missing ?? 'native-session-unavailable' : !entry.snapshot ? 'no-native-baseline'
           : !current ? 'native-session-unreadable-or-reset' : 'native-counter-unreadable-or-decreased';
       row.unknownReasons ??= [];
       if (!row.unknownReasons.includes(reason)) row.unknownReasons.push(reason);
@@ -123,6 +124,7 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
       advance(state, recovered, end, changed);
       if (interval.end === null) {
         recovered.source = sessionSource(environment);
+        recovered.missing = missingSessionReason(environment);
         recovered.snapshot = sessionSnapshot(recovered.source, undefined, now, state.cursors);
         state.active.push(recovered);
       }
@@ -143,7 +145,7 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         const source = sessionSource(environment);
         const interval = intervals.findLast((value) => value.item === item && value.end === null);
         const snapshot = sessionSnapshot(source, undefined, interval?.start ?? now, state.cursors);
-        const entry = { agent, item, claim: interval?.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot,
+        const entry = { agent, item, claim: interval?.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot, missing: missingSessionReason(environment),
           at: interval?.start ?? now, ambiguous: peers.length > 0 };
         state.active.push(entry);
         if (interval) state.seenClaims[interval.key] = true;
