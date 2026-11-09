@@ -89,7 +89,6 @@
     "src/blueprint-report.js->src/blueprints.js": 1,
     "src/blueprint-report.js->src/board.js": 1,
     "src/blueprint-report.js->src/config.js": 1,
-    "src/blueprint-report.js->src/doctrine.js": 1,
     "src/blueprint-report.js->src/spec.js": 1,
     "src/blueprint-set.js->packages/kernel/src/core/refused.js": 1,
     "src/blueprint-set.js->src/blueprints.js": 1,
