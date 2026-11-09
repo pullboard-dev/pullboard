@@ -4,7 +4,7 @@ import { itemFileCollisions } from '../../items/src/core/item-files.js';
 import { itemFiles } from '../../items/src/core/item-files.js';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
-import { wallLoadFactor } from '../../drive/index.js';
+import { wallLoadFactor } from '../../drive/core.js';
 import { readyItems } from '../../../src/queue-readiness.js';
 
 /** The pre-index reference: every candidate against every item. */

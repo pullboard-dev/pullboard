@@ -14,7 +14,7 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/drive/src/shell/file-watchdog.js';
+import { installFileWatchdog } from '../packages/drive/core.js';
 import {
   DEFAULT_TEST_FILE_TIMEOUT_MS,
   testFileTimeoutMs,

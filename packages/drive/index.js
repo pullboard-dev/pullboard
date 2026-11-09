@@ -17,5 +17,4 @@ export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDr
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/core/gate-drive.js';
 export { createGateAdmission, gateDispatcherRow } from './src/shell/gate-admission.js';
 export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, workTestRun, testRunState, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines } from './src/shell/test-run-queue.js';
-export { DEFAULT_FILE_IDLE_MS, DEFAULT_FILE_WALL_MS, fileIdleHung, fileWatchdogLimits, wallLoadFactor } from './src/core/file-watchdog-policy.js';
-export { installFileWatchdog } from './src/shell/file-watchdog.js';
+export * from './core.js';
