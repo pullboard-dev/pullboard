@@ -4,53 +4,37 @@ import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import {
-  basename,
-  dirname,
-  join,
-  resolve,
-} from 'node:path';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import {
-  computePlan,
-  readPlan,
-  writePlan,
-} from '../bin/cells-plan.js';
-import {
-  requireSubmitCells,
-  touchedCells,
-} from '../bin/cells-submit-checks.js';
-import { cellsAuditBacklog } from '../bin/cells-audit-backlog.js';
-import {
-  inventoryBuildCount,
-  validateAcceptedInventory,
-} from '../packages/codemap/index.js';
-import {
-  commonJsIn,
-  importsIn,
-  withImportParseCache,
-  readAcceptedCells,
-  warmAcceptedCells,
-} from '../packages/gate/index.js';
-import { withMainCheckout } from '../packages/landing/index.js';
-import { withFileLock } from '../packages/outbox/index.js';
-import {
-  analysisArtifactDescriptor,
-  readAnalysisArtifact,
-} from '../packages/resources/index.js';
-import {
-  fixture,
-  git,
-} from './cells-plan-fixture.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { readPlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { touchedCells } from '../../../bin/cells-submit-checks.js';
+import { cellsAuditBacklog } from '../../../bin/cells-audit-backlog.js';
+import { inventoryBuildCount } from '../../codemap/index.js';
+import { validateAcceptedInventory } from '../../codemap/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { importsIn } from '../../gate/index.js';
+import { withImportParseCache } from '../../gate/index.js';
+import { readAcceptedCells } from '../../gate/index.js';
+import { warmAcceptedCells } from '../../gate/index.js';
+import { withMainCheckout } from '../index.js';
+import { withFileLock } from '../../outbox/index.js';
+import { analysisArtifactDescriptor } from '../../resources/index.js';
+import { readAnalysisArtifact } from '../../resources/index.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
 
 /** Keep machine-wide cache writes in a disposable directory and restore the invoking process's setting. */
 function isolateMachine(t) {
@@ -300,7 +284,7 @@ test('trusted inventory transport rejects changed bytes, identity and symlink so
 
 /** Run a receiver in a separate process so real stdin chunking and EOF are exercised without changing this test runner. */
 function receiveFixture(directory, bytes, digest) {
-  const module = new URL('../packages/resources/index.js', import.meta.url).href;
+  const module = new URL('../../resources/index.js', import.meta.url).href;
   const code = `import {receiveAnalysisArtifact} from ${JSON.stringify(module)};
 import {readFileSync} from 'node:fs';
 const state={transportLost:false,rejectPendingFrame:null};
