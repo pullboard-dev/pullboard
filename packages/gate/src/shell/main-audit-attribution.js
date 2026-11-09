@@ -58,8 +58,8 @@ function regressionItem(regression) {
     expectedBuildMinutes: 30,
     criterion: `${test} failed in the main audit at ${tip} and passed in the last green audit at ${greenTip}. `
       + `Items landed between the two tips: ${suspects}. Failing cases: ${names.join('; ').slice(0, 1000)}. `
-      + `1. ${test} passes at main. 2. The change that broke it keeps its intent or is reverted with a note on its item. `
-      + '3. The full suite passes as run by the submit gate.',
+      + `1. ${test} passes at main. [test] 2. The change that broke it keeps its intent or is reverted with a note on its item. [reasoning] `
+      + '3. The full suite passes as run by the submit gate. [command]',
     brief: `Files: ${test}\nSource: main audit ${greenTip.slice(0, 12)}..${tip.slice(0, 12)}` };
 }
 
