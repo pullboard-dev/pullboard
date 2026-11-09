@@ -1,5 +1,5 @@
 /** Runtime preload policy surrounds the optional cache without entering the parser's source graph [C7]. */
-import { importParseScopes } from './module-import-cache-state.js';
+import { importParseScopes } from '../../../codemap/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
 
 /** Reuse real compile results within one census only while the current preload policy permits it. */

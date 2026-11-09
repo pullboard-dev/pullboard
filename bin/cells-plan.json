@@ -1987,6 +1987,8 @@
     "drive->kernel",
     "resources->jobs",
     "codemap->git",
+    "codemap->kernel",
+    "gate->codemap",
     "runners->config",
     "runners->verify",
     "landing->verify",

@@ -1,4 +1,6 @@
 {
+  "src/module-imports.js": "packages/codemap/src/shell/module-imports.js",
+  "src/module-import-cache-state.js": "packages/codemap/src/shell/module-import-cache-state.js",
   "src/cell-binding-uses.js": "packages/codemap/src/shell/cell-binding-uses.js",
   "src/cell-lint-baseline-plan.js": "packages/codemap/src/shell/cell-lint-baseline-plan.js",
   "src/cell-lint-exports.js": "packages/codemap/src/shell/cell-lint-exports.js",
