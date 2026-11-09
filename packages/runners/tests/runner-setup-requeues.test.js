@@ -3,13 +3,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+
+function dump(home) {
+  const out = [readdirSync(home).join(',')];
+  const db = new DatabaseSync(join(home, 'resources.sqlite'));
+  for (const { name } of db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()) out.push(name + ' ' + JSON.stringify(db.prepare('SELECT * FROM ' + name + ' LIMIT 8').all()).slice(0, 700));
+  return out.join('\n');
+}
 
 test('missing remote executable is RUNNER_SETUP and the original job requeues on another runner [C7]', t => {
   const box = cellProject(t);
@@ -48,6 +56,6 @@ console.log(JSON.stringify({seen,value}));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(result.status, 0, result.context);
   const record = JSON.parse(result.stdout.trim());
-  assert.deepEqual(record.seen, ['first', 'second'], readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8') + result.stderr.slice(-1500));
+  assert.deepEqual(record.seen, ['first', 'second'], dump(box.env.PULLBOARD_MACHINE_HOME) + result.stderr.slice(-1500));
   assert.equal(record.value, 'second');
 });
