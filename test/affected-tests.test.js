@@ -495,10 +495,11 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/gate/tests/cell-lint-guard.test.js',
     'test/privacy-scan-guard.test.js',
     'packages/gate/tests/shared-wait-guard.test.js',
+    'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
     'packages/gate/tests/wall-clock-budgets.test.js',
   ];
-  assert.equal(guards.length, 7, 'all selected guards are scanned');
+  assert.equal(guards.length, 8, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');
