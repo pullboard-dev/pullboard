@@ -10,6 +10,22 @@ import {
 } from './team-scenarios.fixture.js';
 import { resolve } from 'node:path';
 
+/**
+ * Add an item as a coordinator and read the refusal the relay reports for it. A linked board moves locally first and
+ * settles later [H21], so the add returns at once and the sync-time refusal appears in the device's status.
+ * `add` runs the add (any session); `device` reads the status.
+ */
+async function refusedCoordinatorAdd(device, lane, title, add = () => device.cli('add', lane, title)) {
+  const since = new Date().toISOString();
+  const added = await add();
+  assert.equal(added.code, 0, 'a linked board applies the move locally at once, then settles it with the relay');
+  const status = await device.cli('status');
+  assert.equal(status.code, 0, status.failure);
+  const refused = (status.document.relay.outboxRefusals ?? []).filter(entry => entry.queuedAt >= since).at(-1);
+  assert.equal(refused?.code, 'COORDINATOR_HELD', JSON.stringify(status.document.relay.outboxRefusals ?? null));
+  return refused;
+}
+
 test('one coordinator per board across machines [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
@@ -35,15 +51,13 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
     'the earlier session is refused after the takeover');
 
   // A second machine's main checkout acting as coordinator is refused, by name.
-  const second = await other.cli('add', box.lane, 'Planned on the second machine');
-  assert.notEqual(second.code, 0, 'a second coordinator is refused');
-  assert.equal(refusal(second).code, 'COORDINATOR_HELD');
+  const second = await refusedCoordinatorAdd(other, box.lane, 'Planned on the second machine');
   const firstName = `computer ${JSON.parse(box.readLink()).machine.slice(-8)}`;
   const secondName = `computer ${other.machine.slice(-8)}`;
   assert.notEqual(firstName, secondName, 'the two linked computers have different names');
-  assert.ok(refusal(second).message.includes(firstName), `the refusal names the holding computer: ${refusal(second).message}`);
-  assert.doesNotMatch(refusal(second).message, new RegExp(hostname(), 'u'), 'the name carries no host name');
-  assert.match(refusal(second).message, /pullboard takeover/u, 'the refusal names the takeover');
+  assert.ok(second.message.includes(firstName), `the refusal names the holding computer: ${second.message}`);
+  assert.doesNotMatch(second.message, new RegExp(hostname(), 'u'), 'the name carries no host name');
+  assert.match(second.message, /pullboard takeover/u, 'the refusal names the takeover');
 
   // Takeover passes the coordinator to the second machine, and the first is then refused by name.
   const taken = await other.cli('takeover');
@@ -51,9 +65,8 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   assert.equal(taken.document.coordinator, secondName, 'takeover reports the new holder');
   assert.equal(taken.document.previous, firstName, 'takeover reports the holder it replaced');
   assert.equal((await other.cli('add', box.lane, 'Planned on the second machine after takeover')).code, 0, 'the new holder coordinates');
-  const first = await box.cli('add', box.lane, 'Planned again on the first machine');
-  assert.equal(refusal(first).code, 'COORDINATOR_HELD', 'the earlier holder is now the second coordinator');
-  assert.ok(refusal(first).message.includes(secondName), `the refusal names the new holder: ${refusal(first).message}`);
+  const first = await refusedCoordinatorAdd(box, box.lane, 'Planned again on the first machine');
+  assert.ok(first.message.includes(secondName), `the refusal names the new holder: ${first.message}`);
 
   // Both replicas agree on the items each holder made, and on no others.
   for (const device of [box, other]) {
@@ -73,12 +86,11 @@ test('an agent session on a computer that does not hold the coordinator takes it
   const inSession = (...args) => relayFixtureChild(other.root, { ...other.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'second-computer-session' },
     [resolve(import.meta.dirname, '../bin/pullboard.js'), ...args, '--json']);
   assert.equal((await box.cli('add', box.lane, 'Planned on the holding computer')).code, 0, 'the first computer holds the coordinator');
-  const held = await inSession('add', box.lane, 'Planned before the takeover');
-  assert.equal(held.document?.error?.code, 'COORDINATOR_HELD', 'the second computer is refused by name');
-  assert.match(held.document.error.message, /pullboard takeover/u, 'the refusal names the takeover');
+  const held = await refusedCoordinatorAdd(other, box.lane, 'Planned before the takeover', () => inSession('add', box.lane, 'Planned before the takeover'));
+  assert.match(held.message, /pullboard takeover/u, 'the refusal names the takeover');
   const taken = await inSession('takeover');
   assert.equal(taken.code, 0, `the takeover the refusal names succeeds from the agent session: ${JSON.stringify(taken.document)}`);
   assert.equal(taken.document.coordinator, `computer ${other.machine.slice(-8)}`, 'the second computer now holds the coordinator');
   assert.equal((await inSession('add', box.lane, 'Planned after the takeover')).code, 0, 'the new holder coordinates');
-  assert.equal((await box.cli('add', box.lane, 'Planned again on the first computer')).document?.error?.code, 'COORDINATOR_HELD', 'the earlier holder is refused');
+  await refusedCoordinatorAdd(box, box.lane, 'Planned again on the first computer');
 });
