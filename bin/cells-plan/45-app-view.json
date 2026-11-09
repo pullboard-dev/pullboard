@@ -4,6 +4,7 @@
  "kind": "app",
  "root": "apps/view",
  "frontDoor": "apps/view/index.js",
+ "lightFrontDoor": "apps/view/core.js",
  "paths": [
   ["src/background-view.js","apps/view/src/shell/background-view.js","seed"],
   ["src/badge.js","apps/view/src/shell/badge.js","seed"],

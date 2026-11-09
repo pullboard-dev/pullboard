@@ -2907,7 +2907,7 @@
     "raw-board": 2,
     "model": 1
   },
-  "test/reserve-next-review-lock.test.js": {
+  "packages/store/tests/reserve-next-review-lock.test.js": {
     "model": 3,
     "raw-board": 4
   },
