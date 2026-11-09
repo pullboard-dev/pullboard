@@ -1,13 +1,14 @@
 /** Two coded claim releases leave a visible hold and one coordinator notice [C7,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { RELEASE_TWICE_HOLD_ENGINE } from '../packages/state/core.js';
-import { RELEASE_TWICE_ROUTE_ENGINE } from '../packages/state/core.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { RELEASE_TWICE_HOLD_ENGINE } from '../../../packages/state/core.js';
+import { RELEASE_TWICE_ROUTE_ENGINE } from '../../../packages/state/core.js';
 
 const commit = 'a'.repeat(40);
 test('two releases hold the item until coordinator lifts it [C7,H16]', t => {

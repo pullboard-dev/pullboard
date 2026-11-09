@@ -19,6 +19,29 @@ export function processTreeCpu(root) {
   });
 }
 
+/**
+ * The live descendants of `root` from one ps census, deepest first, so a hung file's holders of its output can be stopped.
+ * Why: a killed worker whose grandchild still holds the output pipe leaves the run waiting on the pipe, not the exit.
+ */
+export function processTreeDescendants(root) {
+  return new Promise((done) => {
+    const child = execFile('ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8', timeout: 2000, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout) => {
+        if (error) return done([]);
+        const parents = new Map();
+        for (const line of stdout.split('\n')) {
+          const match = /^\s*(\d+)\s+(\d+)\s*$/u.exec(line);
+          if (match && Number(match[1]) !== child.pid) parents.set(Number(match[1]), Number(match[2]));
+        }
+        const reached = [root];
+        for (let index = 0; index < reached.length; index++) {
+          for (const [pid, ppid] of parents) if (ppid === reached[index] && !reached.includes(pid)) reached.push(pid);
+        }
+        done(reached.slice(1).reverse());
+      });
+  });
+}
+
 /** The CPU of `root` and its live descendants from one ps census, leaving out the census process `self`. */
 function treeFromCensus(stdout, root, self) {
   const rows = new Map();

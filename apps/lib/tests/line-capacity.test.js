@@ -1,19 +1,23 @@
 /** Capacity uses real SQLite lifecycle observations and versioned claims, not modelled permanent seat roles [N2,B13,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { lineCapacitySnapshot } from '../packages/seats/index.js';
-import { LINE_CAPACITY_ENGINE } from '../packages/state/core.js';
-import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
-import { appliedSequence } from '../packages/state/index.js';
-import { replayHistoricalSeatMove } from './pre-grant-seats.js';
-import { runFixtureGit } from './fixture-child.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { lineCapacitySnapshot } from '../../../packages/seats/index.js';
+import { LINE_CAPACITY_ENGINE } from '../../../packages/state/core.js';
+import { applyEngineMove } from '../../../packages/state/index.js';
+import { prepareEngineMove } from '../../../packages/state/index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { appliedSequence } from '../../../packages/state/index.js';
+import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const HOUR = 3_600_000;
 const FREEZE = () => ({ text: 'private lifecycle bar', digest: 'private-lifecycle-bar' });

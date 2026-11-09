@@ -7,14 +7,19 @@
  * and nothing the code lacks, so a state can't exist that the map doesn't write down.
  */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { sep } from 'node:path';
 import { test } from 'node:test';
-import { MOVES, STATES } from '../packages/state/src/core/machine-declaration.js';
-import { PHASES } from '../packages/drive/src/core/drive-phase.js';
-import { FINISH_STEPS } from '../packages/land/src/core/finish-steps.js';
+import { MOVES } from '../index.js';
+import { STATES } from '../index.js';
+import { PHASES } from '../../drive/index.js';
+import { FINISH_STEPS } from '../../land/index.js';
 
-const ROOT = join(import.meta.dirname, '..');
+const ROOT = join(import.meta.dirname, '../../..');
 const MAP = JSON.parse(readFileSync(join(ROOT, 'test', 'state-machines.json'), 'utf8'));
 const HEADING = '## State machines';
 
