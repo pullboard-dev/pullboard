@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A verdict survives main moving through files the review never read, and a move that reaches it names the files (#1861) [V4,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -60,9 +60,9 @@ test('page is built', () => {
   box.git(box.web, 'add', 'web/lib.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
   json(box.run(box.web, 'submit', '1', '--json'));
-  // A landing between submit and review moves the composed main, so the sealed submit proof is not reused and the frozen check runs here.
-  writeFileSync(join(box.repo, 'web/shared.js'), `export const shared = 2;\n${PAD}\n`);
-  box.git(box.repo, 'add', 'web/shared.js');
+  // A landing between submit and review changes a file the check names, so the sealed submit proof is not reused and the frozen check runs here.
+  appendFileSync(join(box.repo, 'web/run-tests.js'), '// an earlier landing\n');
+  box.git(box.repo, 'add', 'web/run-tests.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
