@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { lex } from '../../kernel/index.js';
-import { AGENT_SHELL_MARKERS } from '../../kernel/src/core/discovery.js';
-import { SSH_SHELL_MARKERS } from '../../kernel/src/core/discovery.js';
+import { AGENT_SHELL_MARKERS } from '../../kernel/index.js';
+import { SSH_SHELL_MARKERS } from '../../kernel/index.js';
 import { styleSources } from '../../codemap/index.js';
 import { readEngineLeaves } from '../../../src/engine-numbers.js';
 import { gateJudgmentPath } from '../../verify/index.js';

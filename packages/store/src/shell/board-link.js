@@ -15,15 +15,15 @@
 import { Refused } from "../../../kernel/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { boardLinkBody } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkRecord } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkSigningText } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkFormat } from "../../../kernel/src/core/registry-guards.js";
-import { boardLinkName } from "../../../kernel/src/core/registry-guards.js";
-import { discloseBoardState } from "../../../kernel/src/core/registry-guards.js";
-export { discloseBoardState } from "../../../kernel/src/core/registry-guards.js";
-export { resolveBoardReference } from "../../../kernel/src/core/registry-guards.js";
-export { boardItemReference } from "../../../kernel/src/core/registry-guards.js";
+import { boardLinkBody } from "../../../kernel/index.js";
+import { boardLinkRecord } from "../../../kernel/index.js";
+import { boardLinkSigningText } from "../../../kernel/index.js";
+import { boardLinkFormat } from "../../../kernel/index.js";
+import { boardLinkName } from "../../../kernel/index.js";
+import { discloseBoardState } from "../../../kernel/index.js";
+export { discloseBoardState } from "../../../kernel/index.js";
+export { resolveBoardReference } from "../../../kernel/index.js";
+export { boardItemReference } from "../../../kernel/index.js";
 
 const PREFIX = 'board_link:';
 const VERIFIED_LINKS = new WeakSet();
