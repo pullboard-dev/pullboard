@@ -1,6 +1,6 @@
 import {
   frozenCheckTiming,
-} from '../../../../src/check-timing.js';
+} from '../../../items/core.js';
 /** Finite autonomous main-merge work uses ordinary admission, native receipts and ordered writes [C7,V4,H16]. */
 import {
   copyFileSync,

@@ -14,7 +14,6 @@
     "src/board-landing-lease.js",
     "src/board-store.js",
     "src/board.js",
-    "src/check-timing.js",
     "src/cli-context.js",
     "src/cli-main.js",
     "src/cli-presence.js",
@@ -31,7 +30,6 @@
     "src/runner-worker.js",
     "src/runners.js",
     "src/serve.js",
-    "src/spec.js",
     "src/view-state-summary.js",
     "src/view/test-policy.js",
     "src/view/test-roles.js"
