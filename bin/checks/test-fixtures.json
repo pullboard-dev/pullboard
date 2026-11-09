@@ -1827,9 +1827,8 @@
   "test/init.test.js": {
     "model": 1
   },
-  "test/inspection-clause-evidence.test.js": {
-    "raw-board": 10,
-    "model": 1
+  "packages/store/tests/inspection-clause-evidence.test.js": {
+    "raw-board": 9
   },
   "test/inspection-clauses.test.js": {
     "raw-board": 7
@@ -3782,9 +3781,8 @@
   "test/trunk-conflict.test.js": {
     "raw-board": 1
   },
-  "test/two-tier-diagnosis.test.js": {
-    "raw-board": 4,
-    "model": 2
+  "packages/store/tests/two-tier-diagnosis.test.js": {
+    "raw-board": 4
   },
   "test/typed-requests.test.js": {
     "tempdir": 1,
