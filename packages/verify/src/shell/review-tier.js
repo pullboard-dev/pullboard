@@ -93,8 +93,8 @@ const GUARD_TESTS = new Set([
   'test/review-tier.test.js', 'test/review-eligibility.test.js', 'test/review-reservation.test.js',
   'test/verdict-check.test.js', 'test/verdict-assurance.test.js', 'test/verdict-trunk.test.js',
   'test/machine.test.js', 'test/engine.test.js', 'test/engine-replay.test.js',
-  'test/person.test.js', 'test/person-request.test.js', 'test/person-credential-vault.test.js', 'test/seal.test.js',
-  'test/relay-auth-expired.test.js', 'test/relay-machine-auth.test.js', 'test/relay-agent.test.js',
+  'test/person.test.js', 'packages/kernel/tests/person-request.test.js', 'test/person-credential-vault.test.js', 'test/seal.test.js',
+  'test/relay-auth-expired.test.js', 'packages/state/tests/relay-machine-auth.test.js', 'test/relay-agent.test.js',
   'test/relay-outbox-format.test.js', 'packages/outbox/tests/relay-outbox-format.test.js', 'test/relay-parity.test.js', 'test/relay-parity-clock.test.js',
   'test/relay-sealed.test.js', 'test/relay-key.test.js', 'test/relay-device-keys.test.js', 'test/relay-phone-crypto.test.js',
   // Exact moved link guard bodies retain their Strict classification (#1574).
