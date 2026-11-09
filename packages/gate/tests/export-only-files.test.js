@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EXPORT_ONLY_CEILINGS } from '../src/core/export-only-files.js';
 import { exportOnly } from '../src/core/export-only-files.js';
+import { declaredDoorFiles } from '../src/core/export-only-files.js';
 import { exportOnlyProblems } from '../src/core/export-only-files.js';
 
 test('a file of one or two export lines is export-only; a front door, an engine leaf or real code is not [C7]', () => {
@@ -27,4 +28,26 @@ test('the ceilings list only files that are still export-only, sorted [C7]', () 
   const { files } = JSON.parse(readFileSync(join(root, EXPORT_ONLY_CEILINGS), 'utf8'));
   assert.deepEqual(files, [...files].sort());
   for (const file of files) assert.equal(exportOnly(file, readFileSync(join(root, file), 'utf8')), true, `${file} left the export-only shape; drop it from ${EXPORT_ONLY_CEILINGS}`);
+});
+
+/** A reader over an in-memory plan: an index naming one shard that declares the given door keys. */
+function planReader(doors) {
+  const files = { 'bin/cells-plan.json': JSON.stringify({ cells: [{ file: 'bin/cells-plan/01-a.json' }] }), 'bin/cells-plan/01-a.json': JSON.stringify(doors) };
+  return file => { if (!(file in files)) throw new Error('missing ' + file); return files[file]; };
+}
+
+test('a one-export door the plan declares passes; the same file undeclared is refused [C7]', () => {
+  const sources = [{ file: 'packages/a/core.js', source: "export { a } from './src/shell/a.js';\n" }, { file: 'packages/a/pure.js', source: "export { b } from './src/core/b.js';\n" }];
+  const declared = declaredDoorFiles(planReader({ lightFrontDoor: 'packages/a/core.js', pureDoor: 'packages/a/pure.js' }));
+  assert.deepEqual([...declared].sort(), ['packages/a/core.js', 'packages/a/pure.js']);
+  assert.deepEqual(exportOnlyProblems(sources, [], declared), []);
+  assert.deepEqual(exportOnlyProblems(sources, [], declaredDoorFiles(planReader({}))).map(row => row.path), ['packages/a/core.js', 'packages/a/pure.js']);
+  assert.deepEqual(exportOnlyProblems(sources, []).map(row => row.path), ['packages/a/core.js', 'packages/a/pure.js'], 'no third argument keeps the rule exactly');
+});
+
+test('a declared pureFrontDoor passes, and a malformed or missing plan exempts nothing [C7]', () => {
+  const sources = [{ file: 'packages/a/core.js', source: "export { a } from './src/core/a.js';\n" }];
+  assert.deepEqual(exportOnlyProblems(sources, [], declaredDoorFiles(planReader({ pureFrontDoor: 'packages/a/core.js' }))), []);
+  assert.equal(declaredDoorFiles(() => '{not json').size, 0);
+  assert.equal(declaredDoorFiles(() => { throw new Error('no plan'); }).size, 0);
 });

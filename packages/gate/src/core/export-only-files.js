@@ -25,15 +25,34 @@ export function exportOnly(file, source) {
 }
 
 /**
- * One problem per changed file that is export-only and not already in the ceilings.
+ * Every file the cells plan declares as a cell door: pureFrontDoor, lightFrontDoor and pureDoor, read from the plan index and its shards.
+ * Why: a declared door is the cell's real public entry, not a shim, so the export-only rule leaves it alone [C7].
+ *
+ * @param {(file: string) => string} read - Returns a repo-relative file's text; it may throw for a missing file.
+ * @returns {Set<string>} Empty when the plan is unreadable or malformed: nothing is exempt on a doubtful plan.
+ */
+export function declaredDoorFiles(read) {
+  const doors = new Set();
+  try {
+    for (const row of JSON.parse(read('bin/cells-plan.json')).cells ?? []) {
+      const cell = JSON.parse(read(row.file));
+      for (const key of ['pureFrontDoor', 'lightFrontDoor', 'pureDoor']) if (typeof cell[key] === 'string') doors.add(cell[key]);
+    }
+  } catch { return new Set(); }
+  return doors;
+}
+
+/**
+ * One problem per changed file that is export-only, not already in the ceilings and not a declared door.
  *
  * @param {{ file: string, source: string }[]} sources - The changed files that still exist.
  * @param {string[]} allowed - The ceilings file's paths.
+ * @param {Set<string>} [doors] - Files the cells plan declares as doors (declaredDoorFiles).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function exportOnlyProblems(sources, allowed) {
+export function exportOnlyProblems(sources, allowed, doors = new Set()) {
   const known = new Set(allowed);
-  return sources.filter(({ file, source }) => !known.has(file) && exportOnly(file, source)).map(({ file }) => ({
+  return sources.filter(({ file, source }) => !known.has(file) && !doors.has(file) && exportOnly(file, source)).map(({ file }) => ({
     path: file, line: 1,
     text: `a new export-only file; export these names from the module that defines them or from the cell's index.js (${EXPORT_ONLY_CEILINGS})`,
   }));

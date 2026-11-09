@@ -15,6 +15,7 @@ import { syncSpawnProblems } from '../../../../bin/checks/sync-spawn-in-leases.j
 import { assumptionProblems } from '../../../../bin/checks/no-runtime-assumptions.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { EXPORT_ONLY_CEILINGS } from '../core/export-only-files.js';
+import { declaredDoorFiles } from '../core/export-only-files.js';
 import { exportOnlyProblems } from '../core/export-only-files.js';
 import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
 import { loadBearingFailures } from '../core/load-bearing.js';
@@ -103,7 +104,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'export-only', run: ({ sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
-    return exportOnlyProblems(sources, allowed).map(row => `${row.path}:${row.line}: ${row.text}`);
+    return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   { name: 'empty-catch', run: growthCheck(emptyCatchProblems) },
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
