@@ -51,7 +51,7 @@ async function project(t, ratio = 3) {
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, stdio: 'pipe', encoding: 'utf8' });
   let at = Date.parse('2026-10-08T12:00:00.000Z');
   const clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
-  const box = { root, dir, clock, git };
+  const box = { root, dir, clock, git, bin };
   git(root, 'init', '-q', '-b', 'main');
   // The unattended runner pins attempts with Git from the process environment, which carries no identity.
   git(root, 'config', 'user.name', 'Review fixture'); git(root, 'config', 'user.email', 'review@example.invalid');
@@ -126,7 +126,7 @@ test('[Q1,V15] --build records the skipped review, and held claims renew normall
   assert.equal(renewal.code, 0, renewal.stderr);
   assert.equal(renewal.data.held, true);
   assert.equal(renewal.data.offer, undefined);
-  assert.equal(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, undefined);
+  assert.deepEqual(JSON.parse(store.events(box.board, { itemId: id }).at(-1).event_detail).reviewSkipped, detail.reviewSkipped, 'an explicit build records the same skip again');
   const invalid = await run(box, box.builder, ['next', '--build', '--verify', '--json']);
   assert.equal(invalid.code, 1);
   assert.equal(invalid.data.error.code, 'USAGE');
@@ -275,6 +275,10 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box, 'true');
+  // The runner commits in this process, so the repo's hooks find the pullboard launcher on PATH.
+  const path = process.env.PATH;
+  process.env.PATH = `${box.bin}:${path}`;
+  t.after(() => { process.env.PATH = path; });
   const ran = await run(box, box.builder, ['run', '--agent', COMMITTING_AGENT, '--items', '1', '--attempts', '1', '--minutes', '1']);
   assert.equal(ran.code, 0, ran.stderr);
   assert.equal(store.getItem(box.board, id).item_status, 'submitted', ran.stdout);
