@@ -157,7 +157,8 @@ export function repeatedBlockedCause(batches, item) {
   const causes = batch => {
     const found = [];
     // Why: #2550 was parked after two batches whose only reds were runner refusals; a fault is retried, never held.
-    if (batch.refusal?.code && !FAULTS.has(batch.refusal.code)) found.push({ kind: 'refusal', key: batch.refusal.code, detail: batch.refusal.message ?? batch.refusal.code });
+    // RUNNER_SOURCE has its own bounded retry (runnerSourceHold, three attempts) that lifts on a new head or main.
+    if (batch.refusal?.code && !FAULTS.has(batch.refusal.code) && batch.refusal.code !== 'RUNNER_SOURCE') found.push({ kind: 'refusal', key: batch.refusal.code, detail: batch.refusal.message ?? batch.refusal.code });
     for (const culprit of batch.culprits ?? []) {
       if (culprit.id !== item.item_id || culprit.commit !== item.item_commit) continue;
       for (const test of culprit.tests ?? []) if (test.file && test.name) {

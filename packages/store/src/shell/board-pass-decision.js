@@ -2,7 +2,7 @@ import { leadOwnsDecision } from "../../../seats/index.js";
 import { getShout } from "./board-read-auxiliary.js";
 import { PERSON } from "./board-query.js";
 import { COORDINATION_SHOUT } from "../core/board-shout-audience.js";
-import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
+import { shoutItemId } from "../../../kernel/index.js";
 import { atomic } from "./board-event-log.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
