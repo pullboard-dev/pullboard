@@ -2,7 +2,9 @@
 /** The receipt cell keys receipts by candidate and base and says when a composition can reuse one [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { receiptKey, reusable, receiptByKey } from '../packages/receipt/index.js';
+import { receiptKey } from '../index.js';
+import { reusable } from '../index.js';
+import { receiptByKey } from '../index.js';
 
 const receipt = { candidate: 'c1', base: 'b1', verdict: 'green' };
 

@@ -1,10 +1,16 @@
 /** Durable gate item 7: temp folders are caches named by tree id, rebuilt from the bundle, and a sweep never breaks a queued job [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { pinFor, cachePath, cacheFor, sweepCaches } from '../packages/pin/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { pinFor } from '../index.js';
+import { cachePath } from '../index.js';
+import { cacheFor } from '../index.js';
+import { sweepCaches } from '../index.js';
 
 /** Build a repo with one commit and return its path and tree id. */
 function repoWithTree() {
