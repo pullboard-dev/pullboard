@@ -2,9 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { dispatchWork, getItem, queueSubmitHandoff, setItem, setLineSetting } from '../packages/store/index.js';
-import { nextFor } from '../packages/store/src/shell/board-next-for.js';
-import { fixture } from './next-take-fixture.js';
+import { dispatchWork } from '../index.js';
+import { getItem } from '../index.js';
+import { nextFor } from '../index.js';
+import { queueSubmitHandoff } from '../index.js';
+import { setItem } from '../index.js';
+import { setLineSetting } from '../index.js';
+import { fixture } from './dispatch-fixture.js';
 
 /** Require both native selection paths to return the same item for the same board and seat. */
 function assertSameSelection(board, seat) {
@@ -13,8 +17,8 @@ function assertSameSelection(board, seat) {
   assert.equal(dispatched.item?.item_id ?? null, planned.item?.item_id ?? null);
 }
 
-test('interactive and automatic selection agree with no claim or a live claim [C7,#2899]', async t => {
-  const box = await fixture(t);
+test('interactive and automatic selection agree with no claim or a live claim [C7,#2899]', t => {
+  const box = fixture(t);
   const seat = box.seats.builder;
   const open = box.add('One eligible item');
   assertSameSelection(box.board, seat);
@@ -22,8 +26,8 @@ test('interactive and automatic selection agree with no claim or a live claim [C
   assertSameSelection(box.board, seat);
 });
 
-test('interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', async t => {
-  const box = await fixture(t);
+test('interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', t => {
+  const box = fixture(t);
   const seat = box.seats.builder;
   const queued = box.add('Claim with a queued gate');
   const available = box.add('Next eligible item');
@@ -40,8 +44,8 @@ test('interactive and automatic selection ignore a claim with a queued submit ha
   assert.ok(available > queued);
 });
 
-test('interactive and automatic selection agree on an own rejected item [C7,#2899]', async t => {
-  const box = await fixture(t);
+test('interactive and automatic selection agree on an own rejected item [C7,#2899]', t => {
+  const box = fixture(t);
   const seat = box.seats.builder;
   const rejected = box.add('Own rejected item');
   setLineSetting(box.board, { agentId: 'coordinator', key: 'returnRejectedWork', value: true,
@@ -54,7 +58,7 @@ test('interactive and automatic selection agree on an own rejected item [C7,#289
 test('nextFor and dispatchWork read held claims from the one heldClaim function, with no second claim filter [C7,#2899]', async () => {
   const { readFileSync } = await import('node:fs');
   for (const file of ['board-next-for.js', 'dispatch-eligibility.js']) {
-    const source = readFileSync(new URL(`../packages/store/src/shell/${file}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../src/shell/${file}`, import.meta.url), 'utf8');
     assert.match(source, /heldClaim\(board, agentId/u, `${file} calls heldClaim`);
     assert.doesNotMatch(source, /item_status === 'claimed' && [a-z]+\.item_owner === agentId/u, `${file} keeps no claim filter of its own`);
   }

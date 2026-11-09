@@ -1,27 +1,35 @@
 /** Rejection immediately returns work to every eligible seat while preserving V6's new-head guard [C7,V6]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
-import * as store from '../packages/store/index.js';
-import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { submitFixture } from './board-submit-fixture.js';
+import * as store from '../index.js';
+import { REJECT_OPEN_ENGINE } from '../../state/index.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+
+/** Write one file in a checkout and commit it, as a seat building in its own worktree does. */
+function commitFile(project, cwd, path, text, message) {
+  mkdirSync(join(cwd, path, '..'), { recursive: true });
+  writeFileSync(join(cwd, path), text);
+  project.git(cwd, 'add', '-A');
+  return project.tryGit(cwd, 'commit', '-q', '-m', message);
+}
 
 /** Bind native SQLite moves to real private Git history and hold the clock fixed throughout rejection and takeover. */
 function fixture(t, { engine = REJECT_OPEN_ENGINE, returnRejectedWork = true, reworkSameFamily = false } = {}) {
-  const e2e = createE2eHelpers();
-  const isolated = e2e.sandbox();
-  isolated.env.PULLBOARD_MODEL = 'Reject takeover fixture';
-  const box = e2e.project('true', isolated);
-  t.after(e2e.cleanup);
+  const project = cellProject(t);
+  const web = join(project.dir, 'web');
+  project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const at = Date.parse('2026-11-03T12:00:00.000Z');
-  const board = openBoard(':memory:', { now: () => new Date(at) }, { gitRoot: box.repo });
+  const board = cellBoard(t, ':memory:', { now: () => new Date(at) }, { gitRoot: project.repo });
   board.executionEngineVersion = engine;
-  t.after(() => store.closeBoard(board));
-  store.register(board, { lane: 'coordinator', path: box.repo });
-  const builder = store.register(board, { lane: 'web', path: box.web, route: 'mid', family: 'openai' });
-  const peer = store.register(board, { lane: 'web', path: `${box.dir}/peer`, route: 'mid', family: 'anthropic' });
-  const reviewer = store.register(board, { lane: 'web', path: `${box.dir}/review`, route: 'mid', family: 'google' });
+  store.register(board, { lane: 'coordinator', path: project.repo });
+  const builder = store.register(board, { lane: 'web', path: web, route: 'mid', family: 'openai' });
+  const peer = store.register(board, { lane: 'web', path: `${project.dir}/peer`, route: 'mid', family: 'anthropic' });
+  const reviewer = store.register(board, { lane: 'web', path: `${project.dir}/review`, route: 'mid', family: 'google' });
   for (const [key, value] of Object.entries({ returnRejectedWork, reworkSameFamily })) {
     store.setLineSetting(board, { agentId: 'coordinator', key, value, reason: 'Exercise the approved native routing setting', window: { fixture: 1 } });
   }
@@ -30,15 +38,15 @@ function fixture(t, { engine = REJECT_OPEN_ENGINE, returnRejectedWork = true, re
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'reject-open-bar' });
   const claim = (agentId, lane = 'web') => store.claim(board, id, { agentId, lane, leaseMs: 60 * 60_000, freeze });
   claim(builder);
-  assert.equal(e2e.commitFile(box, box.web, 'web/result.txt', 'first result\n', 'feat(web): first result [G1]').status, 0);
-  const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  const policyCommit = box.git(box.repo, 'rev-parse', 'main');
+  assert.equal(commitFile(project, web, 'web/result.txt', 'first result\n', 'feat(web): first result [G1]').status, 0);
+  const commit = project.git(web, 'rev-parse', 'HEAD');
+  const policyCommit = project.git(project.repo, 'rev-parse', 'main');
   const submit = (agentId, head = commit) => submitFixture(board, id, { agentId, commit: head,
-    tree: box.git(box.web, 'rev-parse', `${head}^{tree}`), policyCommit, clausePolicyCommit: policyCommit, inspectClauses: true });
+    tree: project.git(web, 'rev-parse', `${head}^{tree}`), policyCommit, clausePolicyCommit: policyCommit, inspectClauses: true });
   submit(builder);
   store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'OTHER', note: 'the frozen fix still needs rework',
     clause: 'the fix works', head: commit, digest: 'reject-open-bar', policy: 'any', reopenFirstRefusalMinutes: 30 });
-  return { board, box, e2e, id, builder, peer, claim, submit, at };
+  return { board, project, web, id, builder, peer, claim, submit, at };
 }
 
 for (const settings of [
@@ -58,16 +66,16 @@ for (const settings of [
     f.claim(f.peer);
     assert.equal(store.getItem(f.board, f.id).item_owner, f.peer);
     assert.throws(() => f.submit(f.peer), { code: 'HEAD_NOT_NEW' }, 'changing builders cannot reuse the rejected commit');
-    assert.equal(e2eCommit(f), 0);
-    const newHead = f.box.git(f.box.web, 'rev-parse', 'HEAD');
+    assert.equal(newCommit(f), 0);
+    const newHead = f.project.git(f.web, 'rev-parse', 'HEAD');
     f.submit(f.peer, newHead);
     assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
   });
 }
 
 /** Produce the new real Git head that V6 requires; no fake SHA bypasses the submit guard. */
-function e2eCommit(f) {
-  return f.e2e.commitFile(f.box, f.box.web, 'web/result.txt', 'corrected result\n', 'fix(web): correct result [G1]').status;
+function newCommit(f) {
+  return commitFile(f.project, f.web, 'web/result.txt', 'corrected result\n', 'fix(web): correct result [G1]').status;
 }
 
 test('current claims ignore a historical rejection reservation while historical replay retains it [C7,V6]', t => {
