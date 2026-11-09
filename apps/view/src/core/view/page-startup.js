@@ -1,5 +1,5 @@
 /**
- * The hosted page's startup helpers. src/cockpit.js embeds each one's source text in the page, so each may use only
+ * The hosted page's startup helpers. apps/cli/src/shell/cockpit.js embeds each one's source text in the page, so each may use only
  * its arguments and browser globals.
  */
 
