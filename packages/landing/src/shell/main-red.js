@@ -199,20 +199,21 @@ export async function withMainCheckout(root, commit, run, { onMainBranch = false
 
 /**
  * Main's exact commit as a runner source, read from the repository's object store: its tree and the trunk the runner
- * records, main's branch at that commit, as the temporary clone's HEAD named it. Null when the commit cannot be read.
+ * records, main's branch at `trunkCommit` (the commit itself for a main comparison, main's commit for an item head), as the
+ * temporary clone's HEAD named it. Null when the commit cannot be read.
  * Why: a clone had its own cache id, so every comparison shipped the whole history to a cold runner cache [C7,#3323].
  */
-function mainRunnerSource(root, commit) {
+export function mainRunnerSource(root, commit, trunkCommit = commit) {
   const tree = gitCall(root, ['rev-parse', '--verify', `${commit}^{tree}`], cleanGitEnvironment());
   if (tree.status !== 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tree.stdout.trim())) return null;
-  return { head: commit, tree: tree.stdout.trim(), trunk: { ref: mainCheckout(root)?.branch ?? 'refs/heads/main', commit } };
+  return { head: commit, tree: tree.stdout.trim(), trunk: { ref: mainCheckout(root)?.branch ?? 'refs/heads/main', commit: trunkCommit } };
 }
 
 /**
  * Whether main's copy of a test file asks for a desktop, read from the object store.
  * Why: a comparison with no working tree has no file to read, and only this one file is ever written, to a private folder.
  */
-function committedNeedsGui(root, commit, path) {
+export function committedNeedsGui(root, commit, path) {
   const blob = gitCall(root, ['show', `${commit}:${path}`], cleanGitEnvironment());
   if (blob.status !== 0) return false;
   const directory = mkdtempSync(join(realpathSync(tmpdir()), 'pullboard-main-gui-'));

@@ -606,7 +606,7 @@
     "hand-policy": 3,
     "raw-board": 7
   },
-  "test/attach-submit-eligibility.test.js": {
+  "packages/kernel/tests/attach-submit-eligibility.test.js": {
     "model": 1,
     "raw-board": 2
   },
@@ -655,7 +655,7 @@
     "tempdir": 1,
     "raw-board": 1
   },
-  "test/board-in-memory.test.js": {
+  "packages/kernel/tests/board-in-memory.test.js": {
     "raw-board": 4
   },
   "test/board-link-fixture.js": {
@@ -927,7 +927,7 @@
     "raw-cli": 2,
     "raw-board": 1
   },
-  "test/cockpit/activity-sentences.test.js": {
+  "apps/view/tests/cockpit/activity-sentences.test.js": {
     "model": 3
   },
   "test/cockpit/activity.test.js": {
@@ -941,7 +941,7 @@
     "tempdir": 4,
     "env-spread": 1
   },
-  "test/cockpit/agent-floor-data.js": {
+  "apps/view/tests/cockpit/agent-floor-data.js": {
     "model": 1
   },
   "test/cockpit/agent-floor-journey.test.js": {
@@ -1347,7 +1347,7 @@
   "test/cockpit/view-data.js": {
     "model": 3
   },
-  "test/cockpit/view-pure.test.js": {
+  "apps/view/tests/cockpit/view-pure.test.js": {
     "model": 1
   },
   "test/cockpit/view-startup.test.js": {
@@ -1743,7 +1743,7 @@
     "raw-board": 1,
     "tempdir": 2
   },
-  "test/handoff-urgent-first.test.js": {
+  "packages/kernel/tests/handoff-urgent-first.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -1849,7 +1849,7 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "test/item-list-retained-claim.test.js": {
+  "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
   "test/item-notes-engine.test.js": {
@@ -1960,7 +1960,7 @@
   "test/land.test.js": {
     "hand-policy": 1
   },
-  "test/landing-adaptive-batch.test.js": {
+  "packages/store/tests/landing-adaptive-batch.test.js": {
     "raw-board": 2
   },
   "test/landing-adopts-interrupted.test.js": {
@@ -1983,10 +1983,10 @@
     "model": 1,
     "hand-policy": 1
   },
-  "test/landing-bisect-base-red.test.js": {
+  "packages/store/tests/landing-bisect-base-red.test.js": {
     "raw-board": 1
   },
-  "test/landing-bisects-unaccounted.test.js": {
+  "packages/store/tests/landing-bisects-unaccounted.test.js": {
     "raw-board": 1
   },
   "test/landing-blocked-retry.test.js": {
@@ -2115,7 +2115,7 @@
   "packages/gate/tests/landing-wake-log.test.js": {
     "tempdir": 1
   },
-  "test/landing-withdrawn-dependency.test.js": {
+  "packages/store/tests/landing-withdrawn-dependency.test.js": {
     "tempdir": 2,
     "raw-board": 1
   },
@@ -2281,7 +2281,7 @@
     "raw-board": 18,
     "tempdir": 2
   },
-  "test/merge-read-ports.test.js": {
+  "packages/kernel/tests/merge-read-ports.test.js": {
     "raw-board": 2
   },
   "test/merged-idempotent.test.js": {
@@ -2397,7 +2397,7 @@
     "tempdir": 3,
     "env-spread": 1
   },
-  "test/open-decisions-projection.test.js": {
+  "packages/kernel/tests/open-decisions-projection.test.js": {
     "raw-board": 3
   },
   "test/outbox-ports.test.js": {
@@ -2987,7 +2987,7 @@
     "raw-board": 6,
     "model": 4
   },
-  "test/review-family-submitted-head.test.js": {
+  "packages/kernel/tests/review-family-submitted-head.test.js": {
     "raw-board": 3
   },
   "test/review-packet-fixture-cases.test.js": {
@@ -3014,7 +3014,7 @@
     "hand-policy": 2,
     "raw-board": 7
   },
-  "test/review-route-skips-author-session.test.js": {
+  "packages/kernel/tests/review-route-skips-author-session.test.js": {
     "raw-board": 2
   },
   "test/review-tier-default.test.js": {
@@ -3392,7 +3392,7 @@
   "test/selection-fallbacks.test.js": {
     "tempdir": 2
   },
-  "test/selector-gap-verdict.test.js": {
+  "packages/kernel/tests/selector-gap-verdict.test.js": {
     "raw-board": 4
   },
   "test/sentinel-cpu.test.js": {

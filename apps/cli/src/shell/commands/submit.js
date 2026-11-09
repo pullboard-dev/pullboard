@@ -586,12 +586,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
+  // A queued submit's doctrine hold runs in the runner's analysis job; only its rule lookup and receipt stay here [C7].
+  const runnerDoctrine = remoteMode && hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice) ? { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice,
+    timeoutMs: acceptedMain.config.check?.timeoutMs, ...(submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice) ? { fast: true } : {}) } : null;
   // The four trusted analysis parts run as one runner job on one lease and one main-pinned private check (#3379).
   const runRemotePart = sharedRemoteAnalysis(signal => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, doctrine: runnerDoctrine, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -854,7 +857,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       await preflightPassed;
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
-      try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+      try { return await runMachineryGuard(root, () => (runnerDoctrine ? cachedDoctrineHold(root, runnerDoctrine, async () => (await runRemotePart('doctrine', signal)).doctrine)
+        : hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
         ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
           ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
           : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {

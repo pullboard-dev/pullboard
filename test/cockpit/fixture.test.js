@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { waitForStableBoxes } from './stable.js';
-import { addItem, closeBoard } from '../../src/board.js';
+import { addItem, closeBoard } from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { projectState } from '../../apps/cli/src/shell/cli/view-state.js';
