@@ -1342,6 +1342,7 @@
     "flakes",
     "github",
     "health",
+    "merge",
     "pin",
     "receipt",
     "sentinels",
