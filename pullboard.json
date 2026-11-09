@@ -1,9 +1,6 @@
 {
   "name": "pullboard",
   "itemSizeBudget": 150,
-  "maintainers": [
-    "olevicor@icloud.com"
-  ],
   "gate": "npm run gate",
   "affectedTests": "node bin/run-tests.js",
   "submitGate": "landing",
