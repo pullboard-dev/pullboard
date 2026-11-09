@@ -1,17 +1,23 @@
 /** @pullboard-test-input source-tree */
 /** A real landing merge allocates and places history before exposing its amended commit [B3,C7,D3,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { amendLandingEngines } from '../packages/landing/index.js';
-import { computePlan, readPlan, writePlan } from '../bin/cells-plan.js';
-import { git } from './cells-plan-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
+import { amendLandingEngines } from '../index.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { readPlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
+const BIN = fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url));
 
 /** Build an actual two-parent item merge with a new engine leaf and the production canonical plan tool. */
 function fixture(t, { deleteMoves = false } = {}) {
