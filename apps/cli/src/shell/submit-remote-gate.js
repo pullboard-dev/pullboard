@@ -198,7 +198,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'remote-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
-    runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
+    runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, checkedSource, privateCheck: policy,
     ...(analysisArtifact ? { analysisArtifact: { file: analysisArtifact.file, bytes: analysisArtifact.bytes.length, sha256: analysisArtifact.digest, context: policy.sha256 } } : {}),
     metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
@@ -406,7 +406,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
       let result;
       try {
         result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
-          runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
+          runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, checkedSource, privateCheck: policy,
           metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
       } catch (error) {
         writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,

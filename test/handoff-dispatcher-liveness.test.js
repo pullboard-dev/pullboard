@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ensureHandoffDispatcher, handoffQueueDirectory, listResources, recoverHandoffDispatcher, takeResource } from '../packages/resources/index.js';
+import { recoverQueuedHandoffs } from '../apps/cli/src/shell/cli-main/handoff-recovery.js';
+import { wakesHandoffRecovery } from '../apps/cli/src/shell/cli-main/run-main.js';
 
 /** Run with a private machine home, restoring the environment afterwards. */
 async function withHome(action) {
@@ -81,3 +83,40 @@ test('clause 2: with the launch lock held, a queued-launch recovery from a board
   assert.ok(Date.now() - started < 1000, 'recovery does not queue behind the launcher that holds the lock'); // budget: declared by clause 2 of #3838 as under 1 s; a queued recovery would hang for the whole lock hold.
   assert.ok(!existsSync(join(handoffQueueDirectory(), 'dispatcher.json')), 'recovery launched nothing');
 })));
+
+/** Run one command line's recovery step as run-main does, against a private board, recording each detached check it starts. */
+async function recoveryStep(dir, positionals) {
+  const commonDir = join(dir, 'repo.git');
+  mkdirSync(join(commonDir, 'pullboard'), { recursive: true });
+  writeFileSync(join(commonDir, 'pullboard', 'board.sqlite'), '');
+  const starts = [];
+  if (wakesHandoffRecovery(positionals)) {
+    await recoverQueuedHandoffs({ cwd: dir, err() {} }, { repoInfo: () => ({ commonDir }) }, { start: (entry, options) => starts.push({ entry, options }) });
+  }
+  return starts;
+}
+
+/** Queue one captured launch file, as a submit does. */
+function queueLaunch() {
+  mkdirSync(handoffQueueDirectory(), { recursive: true });
+  writeFileSync(join(handoffQueueDirectory(), '0001-queued.json'), JSON.stringify({ tools: fileURLToPath(new URL('..', import.meta.url)), commonDir: process.cwd(), job: 'queued' }));
+}
+
+test('#3839 clause 1: heartbeat, inbox and hook commit-msg never call recoverQueuedHandoffs, and leave a queued launch queued [C7]', () => withHome(async dir => {
+  queueLaunch();
+  for (const command of [['heartbeat'], ['inbox'], ['hook', 'commit-msg']]) {
+    assert.deepEqual(await recoveryStep(dir, command), [], `${command.join(' ')} starts no recovery`);
+  }
+  assert.ok(existsSync(join(handoffQueueDirectory(), '0001-queued.json')), 'the launch stays queued');
+  assert.ok(!existsSync(join(handoffQueueDirectory(), 'recovery-woken')), 'no command claimed a recovery turn');
+}));
+
+for (const command of [['next'], ['submit', '12']]) {
+  test(`#3839 clause 1: ${command[0]} runs no recovery inline and hands it to the background job [C7]`, () => withHome(async dir => {
+    queueLaunch();
+    const starts = await recoveryStep(dir, command);
+    assert.equal(starts.length, 1, `${command[0]} starts one recovery check`);
+    assert.deepEqual(starts[0].options.args, ['--recover']);
+    assert.equal(starts[0].entry, fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url)));
+  }));
+}
