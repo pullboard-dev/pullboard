@@ -441,7 +441,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/show.js": {
-      "cells": 15,
+      "cells": 11,
       "deep": 0
     },
     "apps/cli/src/shell/commands/skills.js": {
@@ -457,7 +457,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/stats.js": {
-      "cells": 8,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/commands/status.js": {
@@ -2360,10 +2360,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/moves/src/core/moves/editItem.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/moves/src/core/moves/maintainStaleState.js": {
       "cells": 1,
       "deep": 0
@@ -3429,8 +3425,8 @@
       "deep": 0
     },
     "packages/store/src/shell/board-edit-item.js": {
-      "cells": 7,
-      "deep": 2
+      "cells": 6,
+      "deep": 0
     },
     "packages/store/src/shell/board-engine-ports.js": {
       "cells": 4,
@@ -3849,7 +3845,7 @@
       "deep": 0
     },
     "packages/verify/src/shell/bar-readiness.js": {
-      "cells": 3,
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/check-accept.js": {
@@ -3941,10 +3937,6 @@
       "deep": 0
     },
     "src/audit-failure-item.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/bar-corrections.js": {
       "cells": 1,
       "deep": 0
     },
