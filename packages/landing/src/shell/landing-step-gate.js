@@ -408,7 +408,7 @@ async function runGateGroup(state, label, options) {
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
-      stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext }));
+      stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
@@ -463,6 +463,20 @@ function earlyStaticChecks(state) {
   return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
     agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
     .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
+}
+
+/**
+ * The rerun files a landing gate may fan out over runner slots, with the command that runs a subset of them under the
+ * focused runner; the gate shards only when that command over every file is exactly the gate's command [C7].
+ *
+ * @param {any} state
+ * @param {string[]} files - The plan's files.
+ * @returns {{ files: string[], filesCommand: (files: string[]) => string, say: (line: string) => void } | null}
+ */
+export function landingGateShard(state, files) {
+  const runner = state.config.affectedTests?.trimEnd();
+  if (!runner || !Array.isArray(files) || files.length < 2) return null;
+  return { files: [...files], filesCommand: batch => `${runner} ${batch.map(file => quote('./' + file)).join(' ')}`, say: line => state.say?.(line) };
 }
 
 /** Merge and test one speculative prefix without giving its worker publication authority. */
