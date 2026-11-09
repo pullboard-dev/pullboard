@@ -7,6 +7,9 @@ import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { dropHandoffTicket } from '../../../../packages/resources/index.js';
+import { queuedElsewhere } from '../../../../packages/resources/index.js';
+import { recordHandoffQueue } from '../../../../packages/resources/index.js';
+import { replaceLostTicketOnce } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { assertToolTreeRoom } from '../../../../packages/items/index.js';
@@ -211,6 +214,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
  */
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
   const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart, urgent: true });
+  recordHandoffQueue(directory);
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
   await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
 }
@@ -338,6 +342,8 @@ export function sweepOrder(jobs) {
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
   // The gate's driver record is its drive job on the board, never a file beside the hand-off [C7].
   const readWorker = () => withBoardRead(ctx, board => readWorkerRecord(board, observed));
+  // A queued job placed in another machine queue is that queue's dispatcher's to judge; this one cannot see its ticket.
+  if (observed.state === 'queued' && queuedElsewhere(directory)) return;
   const workerRecord = readWorker();
   if (!workerRecord && observed.state === 'queued' && capturedLaunchUnseen(directory, observed.id)) {
     const unlaunched = await withHandoffQueueOrder(() => {
@@ -372,9 +378,9 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
     // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
     if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
-    // A lost place in line ends as infrastructure rather than relaunching: nothing records how often it was lost (#3153).
-    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST') throw new Refused('SUBMIT_HANDOFF_RECOVERY', worker.unstarted.message);
-    if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
+    // A lost place in line is re-placed once, at once; the marker counts it, so a second loss ends as infrastructure (#3153).
+    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST' && !replaceLostTicketOnce(directory)) throw new Refused('SUBMIT_HANDOFF_RECOVERY', `${worker.unstarted.message}, again after it was re-placed`);
+    if (worker.unstarted?.code !== 'HANDOFF_TICKET_LOST' && worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
       || !handoffToolsAllowed(request.tools, current.id)
