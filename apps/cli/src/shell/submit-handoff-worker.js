@@ -1,24 +1,33 @@
+import { refusalDocument } from '../core/next-step-words.js';
 /** A gate's driver runs canonical Submit from its captured private source, never the builder checkout [C7]. */
 import {
   existsSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
-  rmSync,
-  realpathSync,
 } from 'node:fs';
 import {
   dirname,
-  basename,
   join,
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tmpdir } from 'node:os';
-import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { gitSpawnSync } from '../../../../packages/git/index.js';
+import { cleanGitEnvironment } from '../../../../packages/git/index.js';
+import {
+  context,
+  withBoard,
+} from './cli-context.js';
+import { ordered } from './cli/claim.js';
+import {
+  bindSubmitHandoffOrigin,
+  submitHandoffRoot,
+  isSubmitHandoffWorker,
+} from '../../../../packages/sandbox/index.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { submitHere } from './commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { removeJobToolSnapshot } from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { closeGateSpans } from '../../../../packages/resources/index.js';
 import { gateSpanCause } from '../../../../packages/resources/index.js';
@@ -26,8 +35,8 @@ import { onDispatcherLifelineEnd } from '../../../../packages/resources/index.js
 import { gateSpanFolder } from '../../../../packages/jobs/index.js';
 import { openGateSpans } from '../../../../packages/resources/index.js';
 import { recordGateSpan } from '../../../../packages/resources/index.js';
-import { acceptedCellsFromJob } from './main-audit-produce.js';
-import { submitUntilSettled } from './submit-infra-requeue.js';
+import { acceptedCellsFromJob } from '../../../../apps/lib/index.js';
+import { submitUntilSettled } from '../../../../apps/lib/index.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
 import { withGateProgress } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
@@ -45,30 +54,6 @@ import { discardGateCheckout } from './gate-checkout-pool.js';
 import { returnGateCheckout } from './gate-checkout-pool.js';
 import { gateCheckoutPool } from './gate-checkout-pool.js';
 
-/** The CLI bindings this worker needs, handed in by its entry so the lib app never imports the cli app [C7]. */
-let ports = null;
-
-/**
- * Bind the CLI bindings the hand-off worker runs on: the context and board openers, the ordered board move, the refusal
- * document, the hand-off origin guards and canonical Submit.
- * Why: apps/lib sits below apps/cli in the cells order, so the caller (the gate driver's entry) passes them in.
- *
- * @param {{ context: Function, withBoard: Function, ordered: Function, refusalDocument: Function, bindSubmitHandoffOrigin: Function,
- *   submitHandoffRoot: Function, isSubmitHandoffWorker: Function, submitHere: Function }} bindings
- */
-export function bindSubmitHandoffPorts(bindings) { ports = bindings; }
-
-/**
- * One bound CLI binding by name.
- *
- * @param {string} name - The binding.
- * @returns {any}
- */
-function port(name) {
-  if (!ports) throw new Refused('SUBMIT_HANDOFF_PORTS', 'the hand-off worker has no CLI bindings; call bindSubmitHandoffPorts first');
-  return ports[name];
-}
-
 /** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
 function gateGit(args) {
   const result = gitSpawnSync(args, { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
@@ -80,7 +65,7 @@ function workerRequest(requestFile) {
   const request = JSON.parse(readFileSync(requestFile, 'utf8'));
   const directory = dirname(resolve(requestFile));
   const root = join(directory, 'source');
-  if (root !== port('submitHandoffRoot')(request.commonDir, { id: request.job })) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the request does not name its native job directory');
+  if (root !== submitHandoffRoot(request.commonDir, { id: request.job })) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the request does not name its native job directory');
   return { request, directory, root };
 }
 
@@ -98,7 +83,7 @@ export function submitHandoffClaimProblem(request, job, item, now) {
 
 /** Revalidate the immutable native queue and its live claimant immediately before each runner admission. */
 export function assertCurrentSubmitHandoff(ctx, request) {
-  const current = port('withBoard')(ctx, board => {
+  const current = withBoard(ctx, board => {
     const job = submitHandoff(board, request.item);
     let item = null;
     try { item = store.getItem(board, request.item); } catch (error) { if (error?.code !== 'NO_ITEM') throw error; }
@@ -111,13 +96,13 @@ export function assertCurrentSubmitHandoff(ctx, request) {
 
 /** Bind this process to the exact native queue before it can record even a failure. */
 function workerContext(request, directory, root, nativeBoard) {
-  const ctx = port('context')({ cwd: root, nativeBoard, relayJson: true,
+  const ctx = context({ cwd: root, nativeBoard, relayJson: true,
     say: line => process.stdout.write(String(line) + '\n'),
     err: line => process.stderr.write(String(line) + '\n'),
     result: value => { writeFileSync(join(directory, 'submission.json'), JSON.stringify(value) + '\n', { mode: 0o600 }); } });
-  const job = port('withBoard')(ctx, board => submitHandoff(board, request.item));
+  const job = withBoard(ctx, board => submitHandoff(board, request.item));
   if (!job || job.id !== request.job) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the original queued request is no longer current');
-  port('withBoard')(ctx, board => port('bindSubmitHandoffOrigin')(ctx, board, request.item, request.job));
+  withBoard(ctx, board => bindSubmitHandoffOrigin(ctx, board, request.item, request.job));
   ctx.submitHandoffAdmissionCheck = () => assertCurrentSubmitHandoff(ctx, request);
   return { ctx, job };
 }
@@ -141,28 +126,13 @@ export function failureCompletion(config, job, failure, keepSeat) {
 /** Retain a refusal and return only this process's still-current native job through the normal move. */
 async function recordWorkerFailure(ctx, request, directory, failure, { keepSeat = false } = {}) {
   writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
-  if (ctx && port('isSubmitHandoffWorker')(ctx)) {
+  if (ctx && isSubmitHandoffWorker(ctx)) {
     try {
-      const job = port('withBoard')(ctx, board => submitHandoff(board, request.item));
+      const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
-        await port('withBoard')(ctx, board => port('ordered')(ctx, board, 'completeSubmitHandoff', [request.item, failureCompletion(ctx.config, job, failure, keepSeat)]));
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, failureCompletion(ctx.config, job, failure, keepSeat)]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
-  }
-}
-
-/**
- * Remove only the executing job's own temporary tool snapshot, including aliased temporary roots. A shared commit
- * snapshot is never named for one job, so it stays for every other queued or running gate that names it [C7].
- *
- * @param {{ job: string, tools?: string }} request - The executing job's captured request.
- * @param {string} [tools] - The running tools folder; defaults to the folder this module was loaded from.
- */
-export function cleanupToolSnapshot(request, tools = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))) {
-  if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
-    && dirname(realpathSync(tools)) === realpathSync(tmpdir())
-    && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
-    rmSync(tools, { recursive: true, force: true });
   }
 }
 
@@ -201,7 +171,7 @@ export function handoffGreenResult(ctx, lockWaits) {
  * @param {any} error - The gate's refusal.
  */
 export function handoffRefusedResult(error) {
-  return { code: 1, ...port('refusalDocument')(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}), ...(error?.windowSpent === true ? { windowSpent: true } : {}) };
+  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}), ...(error?.windowSpent === true ? { windowSpent: true } : {}) };
 }
 
 /**
@@ -213,9 +183,9 @@ export function handoffRefusedResult(error) {
  * @param {{ item: number, infra?: string }} request
  * `healthy` and `wait` replace the rerun's runner probe and pause, as submitUntilSettled takes them; a fixture passes them.
  *
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, agentId?: string, submit?: Function, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, agentId?: string, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
  */
-export async function handoffGate(ctx, request, { waitInventory, submit = port('submitHere'), healthy, wait, agentId }) {
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
     // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
@@ -223,7 +193,7 @@ export async function handoffGate(ctx, request, { waitInventory, submit = port('
       const now = Date.now();
       recordGateSpan({ phase: 'rerun', start: now, end: now, host: rerun.hosts[0], outcome: 'retry', cause: 'infra-retry', code: rerun.code });
       try {
-        await port('withBoard')(ctx, board => port('ordered')(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
+        await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
           text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]));
       } catch (error) { process.stderr.write(`infrastructure rerun not recorded: ${error.message}\n`); }
     },
@@ -244,7 +214,7 @@ export async function handoffGate(ctx, request, { waitInventory, submit = port('
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: Function, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
  *   healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
  * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal, progress?: (detail: object) => void }) => Promise<object>}
  */
@@ -367,7 +337,7 @@ const BOARD_LOCKED = /database is locked|database table is locked|SQLITE_BUSY|SQ
  * coordinator-side recorder (`record`, boardRecorder by default), which alone writes them to the board [C7].
  *
  * @param {string} requestFile - The hand-off's captured request.json.
- * @param {{ nativeBoard: any, owner: string, record?: typeof boardRecorder, submit?: Function }} options - The
+ * @param {{ nativeBoard: any, owner: string, record?: typeof boardRecorder, submit?: typeof submitHere }} options - The
  *   board module, the driver id the dispatcher admitted, the recorder that writes the drive's rows, and the gate's Submit.
  * @returns {Promise<{ stalled?: boolean, stopped?: boolean } | undefined>} `stopped` when a stop signal ended the driver,
  *   whose handler frees the lease and exits the process; otherwise the result is recorded (`stalled` when a stalled run
@@ -395,7 +365,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     const owned = attached;
     attached = false;
     try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
-    finally { if (owned) cleanupToolSnapshot(request); }
+    finally { if (owned) removeJobToolSnapshot(request, dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))); }
   };
   /**
    * A stop signal stops the gate's child processes through their own signals and waits for them to close, then frees
@@ -409,7 +379,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     stopper.abort(new Refused('SUBMIT_HANDOFF_STOPPED', `the gate driver received ${signal}; the next driver resumes its job`));
     try {
       await settledWithin(inflight, DRIVER_STOP_GRACE_MS);
-      if (ctx) port('withBoard')(ctx, board => releaseLease(board.db, drive, owner));
+      if (ctx) withBoard(ctx, board => releaseLease(board.db, drive, owner));
     } catch (error) { process.stderr.write(`stopped gate driver could not free its lease: ${error.message}\n`); }
     finally {
       try { removeCheckout(); } catch { /* the next driver replaces a checkout a stopped driver could not remove */ }
@@ -439,14 +409,14 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     // Every phase this process runs records a span for the job, and gate-health reads them [C7].
     openGateSpans({ folder: gateSpanFolder(request.commonDir), job: request.job, item: request.item });
     queuedAt = Date.parse(job.at);
-    const started = await port('withBoard')(ctx, board => port('ordered')(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
+    const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
     // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
     if (!started.started && started.job?.state !== 'running') return;
     if (started.started) recordGateSpan({ phase: 'queued', start: queuedAt, end: Date.parse(started.job?.startedAt) || Date.now() });
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     // The dispatcher admitted the drive job by its place in line; the captured request names what it drives.
-    port('withBoard')(ctx, board => {
+    withBoard(ctx, board => {
       createJob(board.db, { id: drive, kind: GATE_DRIVE_KIND, item: request.item, candidate: request.commit });
       nameJob(board.db, drive, { item: request.item, candidate: request.commit });
     });
@@ -458,7 +428,8 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
       // The driver asks every 30 s whether this hand-off still serves its item; once it does not, the gate ends (#4072).
-      const serving = () => withBoard(ctx, board => store.handoffServes(board, request.item, request.job));
+      // A gate that has just submitted its item is finishing, not stale: handoffGateCurrent accepts the item submitted at the hand-off's head (#4614).
+      const serving = () => withBoard(ctx, board => store.handoffGateCurrent(board, request.item, request.job));
       const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null }, serving });
       // A gate whose item moved on records nothing more: its drive job already says why it ended.
       if (last.code === 'GATE_STALE') return { stale: true };
@@ -472,11 +443,11 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     // A red gate stays with the seat that built it, in its item folder; only a driver that failed hands the claim back (#3796).
     const resultStart = Date.now();
     if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result, { keepSeat: true });
-    else await port('withBoard')(ctx, board => port('ordered')(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
     const code = result.code === 0 ? null : result.error?.code ?? null;
     recordGateSpan({ phase: 'result', start: resultStart, outcome: result.code === 0 ? 'ok' : 'failed', code });
     recordGateSpan({ phase: 'gate', start: queuedAt, outcome: result.code === 0 ? 'green' : 'red', code });
-    port('withBoard')(ctx, board => finishJob(board.db, drive, owner));
+    withBoard(ctx, board => finishJob(board.db, drive, owner));
     return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.

@@ -10,14 +10,7 @@ import { createJob } from '../packages/jobs/index.js';
 import { runGateStages } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { driveOnce, gateSections } from '../packages/drive/index.js';
-import { bindSubmitHandoffPorts } from '../apps/lib/src/shell/submit-handoff-worker.js';
-import { handoffGate } from '../apps/lib/src/shell/submit-handoff-worker.js';
-import { drivenHandoffGate } from '../apps/lib/src/shell/submit-handoff-worker.js';
-import { handoffRefusedResult } from '../apps/lib/src/shell/submit-handoff-worker.js';
-import * as cli from '../apps/cli/index.js';
-import { submitHandoffPorts } from '../bin/gate-drive-worker.js';
-
-bindSubmitHandoffPorts(submitHandoffPorts(cli));
+import { handoffGate, drivenHandoffGate, handoffRefusedResult } from '../apps/cli/src/shell/submit-handoff-worker.js';
 
 const SUBMIT_SOURCE = new URL('../apps/cli/src/shell/commands/submit.js', import.meta.url);
 

@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/lib/src/shell/cli-hook-work.js apps/lib/src/shell/submit-handoff-worker.js */
+/** @pullboard-module-loads apps/lib/src/shell/cli-hook-work.js apps/cli/src/shell/submit-handoff-worker.js */
 /**
  * The process capabilities the CLI entry hands to apps/cli/src/shell/cli-main.js. The in-process entry and the resident board
  * process run commands with the same capabilities, so both compose them here [C7].
@@ -37,7 +37,7 @@ export function loadProcessPorts() {
     outboxHasPendingCreatedItem: (...args) => import('../packages/outbox/index.js').then(m => m.outboxHasPendingCreatedItem(...args)),
     checkpointWorker: fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url)),
     hookWorker: fileURLToPath(new URL('../apps/lib/src/shell/cli-hook-work.js', import.meta.url)),
-    submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)),
+    submitHandoffWorker: fileURLToPath(new URL('../apps/cli/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
       void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});

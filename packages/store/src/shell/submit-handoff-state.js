@@ -79,6 +79,28 @@ export function handoffServes(board, itemId, handoffId) {
 }
 
 /**
+ * Whether a running gate's own driver should keep going: its hand-off still serves its item, or the gate has just
+ * submitted the item at the head that hand-off submitted and only the stored result remains.
+ * Why: the gate's own submit move marks the item submitted while the hand-off still reads running, until
+ * completeSubmitHandoff stores the result, so a driver that asked only handoffServes would end its finished gate
+ * stale and never record it. Only a driver already running its gate asks this; admitting or resuming a driver still
+ * needs handoffServes, since startSubmitHandoff refuses a running hand-off whose item is no longer claimed (#4073).
+ *
+ * @param {any} board - An open board.
+ * @param {number} itemId
+ * @param {string} handoffId - The hand-off job id the gate runs for.
+ * @returns {boolean}
+ */
+export function handoffGateCurrent(board, itemId, handoffId) {
+  if (handoffServes(board, itemId, handoffId)) return true;
+  const handoff = submitHandoff(board, itemId);
+  if (!handoff || handoff.id !== handoffId || !['queued', 'running'].includes(handoff.state) || !handoff.commit) return false;
+  const item = board.db.prepare('SELECT item_status, item_built_by, item_frozen_digest, item_commit FROM item WHERE item_id = ?').get(itemId);
+  return item?.item_status === 'submitted' && item.item_built_by === handoff.agentId
+    && item.item_frozen_digest === handoff.digest && item.item_commit === handoff.commit;
+}
+
+/**
  * Whether a queued gate's refusal is the machine's, not the builder's source: an infrastructure code, or a worker that
  * exited on a signal before it recorded a result (SUBMIT_HANDOFF_EXIT naming a signal). Why: on 4 Nov 17 of 52 queued
  * reds were machine refusals charged to their builders, 3 of them workers stopped by SIGTERM (#3111).
