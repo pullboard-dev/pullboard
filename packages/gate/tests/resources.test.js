@@ -1458,7 +1458,7 @@ test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances'
   await release(live);
 });
 
-const CLI_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../src/cli.js')).href;
+const CLI_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../apps/cli/index.js')).href;
 
 /** Write what /proc would say: total and available memory, and the pressure stall averages. */
 function writeMemoryReading(file, { availableMB, fullAvg10 = 0, someAvg10 = 0, broken = false }) {
