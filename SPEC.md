@@ -94,6 +94,11 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: packages/store/tests/verdict-check.test.js | serves: V8
 - V20 [draft, must] Gates check only the change: a gate runs the item's own tests and checks. Anything that measures the whole system (speed budgets, end-to-end runs, the full suite, stability) runs in a scheduled sentinel on main, never in a gate or a landing. | gate: test/gate.test.js | serves: P1
 - V21 [draft, must] A failing sentinel files an item carrying what it measured, its limit and the commits since it last passed, so the fix goes through the loop. | gate: test/e2e.test.js | serves: V20
+- V22 [draft, must] Every test file has a runtime budget that only ratchets down: the default is 120 s, a file over it gets a recorded budget at its measured runner time, and a new or changed file over budget fails its gate naming the split. | gate: review
+- V23 [draft, must] Test files run under tier budgets: a cell test (under packages/<cell>/tests) 30 s, a component test (in the last cell it spans, no CLI) 60 s, and a journey (root test/, listed with a reason in bin/checks/test-journeys.json) 120 s. | gate: review
+- V24 [draft, must] A conformance scanner classifies every test file into a tier; its finding count and the root test/ count only go down, and a new unlisted root test/ file is refused at commit. | gate: review
+- V25 [draft, must] A sealed cell's submit selects only its own tests plus the contract tests at changed front doors. | gate: review
+- V26 [draft, must] Only the person grants item size overrides: --force-size is refused for every agent and the coordinator, and every other oversized item is split to 30 minutes or less. | gate: review
 
 ## O · Options
 - O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: packages/state/tests/settings.test.js | serves: O5
