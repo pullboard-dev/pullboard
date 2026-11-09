@@ -12,6 +12,7 @@ import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { landingSpan } from '../../../resources/index.js';
 import { reusableSubmitFiles } from './landing-receipt-reuse.js';
 import { gateVerdictOf } from './main-red-receipt.js';
 import { toolingFor } from '../../../pin/index.js';
@@ -32,6 +33,7 @@ import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { runGate } from '../../../gate/index.js';
+import { runStaticChecks } from '../../../gate/index.js';
 import { readGateReceipt } from '../../../gate/index.js';
 import { receiptStore } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
@@ -126,8 +128,28 @@ function fullGatePlan(state, owed = []) {
   return { config: { ...config, gate: command, [VALUE_GATE]: true }, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
-/** Bind each cached result to its exact full-gate or local-trunk guard plan. */
+/**
+ * Bind each cached result to its exact full-gate or local-trunk guard plan. A plan read with the board's own readers is
+ * kept on the state for its tree, base, items and focus, so a candidate's gate claim and its gate share one selection.
+ * Why: each selection walks every test's import closure, about 20 s on this repository, and a candidate made it twice
+ * before its gate started on 9 Nov [C7].
+ */
 export function batchGatePlan(state, options = {}) {
+  const key = Object.keys(options).every(name => name === 'focus') ? planKey(state, options.focus) : null;
+  if (key && state.plans?.has(key)) return state.plans.get(key);
+  const plan = choosePlan(state, options);
+  if (key) (state.plans ??= new Map()).set(key, plan);
+  return plan;
+}
+
+/** The key a kept plan is filed under, or null when the batch's tree cannot be read, so nothing is kept. */
+function planKey(state, focus) {
+  try { return JSON.stringify([headTree(state.batch.root), state.batch.base, state.batch.items.map(entry => [entry.id, entry.commit]), focus ?? null]); }
+  catch { return null; }
+}
+
+/** The plan batchGatePlan keeps: the selected plan, or the full gate for a per-item landing with no narrower plan. */
+function choosePlan(state, options) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
@@ -253,7 +275,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await smokeCandidate(state.batch.root, { record: true });
+  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
@@ -398,6 +420,18 @@ async function runGateGroup(state, label, options) {
   return result;
 }
 
+/**
+ * Start the static checks on the candidate's tree beside its gate. Their green receipt is keyed by tree, so the
+ * batch's trunk guards on this same tree cite it instead of queuing a second runner job after the gate; a red or
+ * failed run records nothing here and the trunk guards run and refuse as before.
+ * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
+ */
+function earlyStaticChecks(state) {
+  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+    agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
+}
+
 /** Merge and test one speculative prefix without giving its worker publication authority. */
 export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
@@ -418,7 +452,9 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   const claimed = await claimGate(tree, batchGatePlan(state).affectedGate);
   if (claimed.previous) state.gates.set(tree, claimed.previous);
   if (claimed.cached?.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, claimed.cached);
+  const staticChecks = claimed.cached ? null : earlyStaticChecks(state);
   const gate = claimed.cached ?? { ...await gateGroup(state, 'candidate'), proofRoot: state.batch.root, proofCommit: headCommit(state.batch.root) };
+  await staticChecks;
   if (!claimed.cached) await finishGate(tree, gate);
   await save(state, { state: gate.isGreen ? 'ready' : 'blocked' });
   return { batch: state.batch, gate };
