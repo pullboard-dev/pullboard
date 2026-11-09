@@ -1298,6 +1298,7 @@
   },
   "rootTests": 977,
   "sealed": [
+    "activity",
     "apps/relay",
     "drive",
     "flakes",
