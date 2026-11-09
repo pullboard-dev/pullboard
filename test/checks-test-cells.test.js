@@ -117,18 +117,19 @@ test('clause 2: a test in apps/<name>/tests importing its own app is its own cel
   assert.deepEqual([row.kind, row.problems], ['cell', []]);
 });
 
-test('clause 3: a listed pure helper may be imported by a cell test, and a listed helper that reaches product code is refused [C7]', () => {
+test('clause 3: a listed pure helper may be imported by a cell test, and a listed helper that launches the CLI is refused [C7]', () => {
   const root = fixture({
     'test/pure.js': "import { tmpdir } from 'node:os';\nexport const where = tmpdir;\n",
-    'test/impure.js': "import { a } from '../packages/a/index.js';\nexport const x = a;\n",
+    'test/impure.js': "import { spawnSync } from 'node:child_process';\nexport const run = () => spawnSync('node', ['bin/pullboard.js', 'list']);\n",
+    'test/uses-door.js': "import { a } from '../packages/a/index.js';\nexport const x = a;\n",
     'packages/a/tests/helped.test.js': "import { where } from '../../../test/pure.js';\nexport const x = where;\n",
   });
-  const listing = { ...readListing(root), pureHelpers: { 'test/pure.js': 'imports only node built-ins', 'test/impure.js': 'claimed pure' } };
+  const listing = { ...readListing(root), pureHelpers: { 'test/pure.js': 'imports only node built-ins', 'test/uses-door.js': 'imports a front door, launches nothing', 'test/impure.js': 'claimed pure' } };
   const row = classifyTests(root, { listing }).find(entry => entry.file === 'packages/a/tests/helped.test.js');
   assert.equal(row.kind, 'cell');
   const problems = testCellsProblems(root, { listing, facts: FACTS }).map(problem => `${problem.path}: ${problem.text}`);
-  assert.ok(problems.includes('test/impure.js: listed as a pure helper but imports packages/a/index.js, which is not a listed pure helper'), problems.join('\n'));
-  assert.ok(!problems.some(text => text.startsWith('test/pure.js')), 'a pure helper is not refused');
+  assert.ok(problems.includes('test/impure.js: listed as a pure helper but it launches the CLI or installs hooks'), problems.join('\n'));
+  assert.ok(!problems.some(text => text.startsWith('test/pure.js') || text.startsWith('test/uses-door.js')), 'a helper that launches nothing is not refused');
 });
 
 test('clause 1: a listed root test moved into its cell keeps its finding, and a brand-new cell test with a finding is refused; clause 2: the write re-keys it [C7]', () => {

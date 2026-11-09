@@ -103,21 +103,26 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
 }
 
 /**
- * Each listed pure helper that is not pure: missing, launching the CLI or installing hooks, or importing anything but node
- * built-ins and other listed pure helpers. A helper that reaches product code would carry another cell into every cell test.
+ * Each listed pure helper that is not pure (sealing rule 1): missing, or it or a test-side helper it imports launches the
+ * CLI or installs hooks. Running git or plain node child processes and importing product front doors are allowed.
  *
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function impurePureHelpers(root, listing) {
-  const helpers = pureHelperMap(listing.pureHelpers);
   const problems = [];
-  for (const path of Object.keys(helpers).sort()) {
+  for (const path of Object.keys(pureHelperMap(listing.pureHelpers)).sort()) {
     if (!existsSync(resolve(root, path))) { problems.push({ path: LISTING, line: 1, text: `listed pure helper ${path} does not exist` }); continue; }
-    const source = readFileSync(resolve(root, path), 'utf8');
-    if (CLI_LAUNCH.test(source) || HOOKS.test(source)) problems.push({ path, line: 1, text: 'listed as a pure helper but launches the CLI or installs hooks' });
-    for (const { specifier, line } of importSpecifiers(source)) {
-      const target = posix.normalize(posix.join(posix.dirname(path), specifier));
-      if (!Object.hasOwn(helpers, target)) problems.push({ path, line, text: `listed as a pure helper but imports ${target}, which is not a listed pure helper` });
+    const seen = new Set([path]), queue = [path];
+    for (let at = 0; at < queue.length; at++) {
+      const source = readFileSync(resolve(root, queue[at]), 'utf8');
+      if (CLI_LAUNCH.test(source) || HOOKS.test(source)) {
+        problems.push({ path, line: 1, text: `listed as a pure helper but ${queue[at] === path ? 'it' : queue[at]} launches the CLI or installs hooks` });
+        break;
+      }
+      for (const { specifier } of importSpecifiers(source)) {
+        const target = posix.normalize(posix.join(posix.dirname(queue[at]), specifier));
+        if (target.startsWith('test/') && !seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
+      }
     }
   }
   return problems;
