@@ -5,24 +5,35 @@ import { logEvent } from "./board-event-log.js";
 import { Refused } from "../../../kernel/index.js";
 import { coordinatorOnly } from "./board.js";
 import { setItem } from "./board.js";
+import { FORCED_MERGE_ENGINE } from "../../../../src/forced-merge-engine.js";
 
 /**
  * Record the commit a verified item landed as on the main line, e.g. after a squash merge.
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, note?: string }} merge
+ * A forced merge (`forced` is the reason) records work landed around the gate: the item becomes verified at that commit,
+ * even when it was open or withdrawn as met, and its event is marked forced so the board and /live count it as landed.
+ * Why: hand landings were withdrawn as met, which /live and stats do not count [C7].
+ *
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced }) {
   coordinatorOnly(agentId, 'records merges');
+  const reason = typeof forced === 'string' ? forced.trim() : '';
+  if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
+  if (reason && (board.executionEngineVersion !== undefined && board.executionEngineVersion < FORCED_MERGE_ENGINE)) {
+    throw new Refused('ENGINE_VERSION', `a forced merge requires engine ${FORCED_MERGE_ENGINE}; upgrade Pullboard before recording one`);
+  }
   atomic(board, () => {
     const item = itemById(board, id);
-    if (item.item_status !== 'verified') {
+    if (!reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
-    requireOutsideOwner(board, item);
-    setItem(board, id, { item_merged_commit: commit });
+    if (!reason) requireOutsideOwner(board, item);
+    setItem(board, id, reason ? { item_status: 'verified', item_merged_commit: commit } : { item_merged_commit: commit });
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
+      ...(reason ? { forced: true, reason, from: item.item_status } : {}),
       ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
   });
 }
