@@ -2006,6 +2006,7 @@
     "(root)->store",
     "(root)->doctrine",
     "person->doctrine",
-    "blueprints->doctrine"
+    "blueprints->doctrine",
+    "apps/relay->items"
   ]
 }

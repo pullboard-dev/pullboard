@@ -184,7 +184,7 @@
   "packages/git/tests/git-provenance.test.js": {
     "tempdir": 2
   },
-  "packages/items/tests/bar-native-session.test.js": {
+  "test/bar-native-session.test.js": {
     "model": 7,
     "hand-policy": 1,
     "raw-board": 2
@@ -193,7 +193,7 @@
     "repo-read": 1,
     "tempdir": 1
   },
-  "packages/items/tests/item-offer.test.js": {
+  "packages/store/tests/item-offer.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -1557,7 +1557,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/items/tests/family-stored-once.test.js": {
+  "packages/store/tests/family-stored-once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -2084,7 +2084,7 @@
     "raw-board": 2,
     "tempdir": 1
   },
-  "packages/items/tests/landing-runner-source-hold.test.js": {
+  "packages/landing/tests/landing-runner-source-hold.test.js": {
     "raw-board": 2,
     "tempdir": 2
   },
@@ -2656,7 +2656,7 @@
   "test/relay-boundary.test.js": {
     "repo-read": 2
   },
-  "test/relay-browser-assets.test.js": {
+  "apps/relay/tests/relay-browser-assets.test.js": {
     "tempdir": 2
   },
   "test/relay-browser-client.test.js": {

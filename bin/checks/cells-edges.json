@@ -757,8 +757,8 @@
       "deep": 2
     },
     "apps/relay/src/shell/browser-model.js": {
-      "cells": 3,
-      "deep": 2
+      "cells": 2,
+      "deep": 0
     },
     "apps/relay/src/shell/browser-page.js": {
       "cells": 4,
