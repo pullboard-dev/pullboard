@@ -22,14 +22,41 @@ const CLI_LAUNCH = /bin\/pullboard(?:\.js)?\b|\bapps\/cli\b|\be2e-helpers\b|\bna
 const HOOKS = /\binstallHooks\b|\bhooks\s+install\b|\bcore\.hooksPath\b|\binstall-hooks\b/u;
 
 /**
- * The cell a test file sits in: `packages/<cell>/tests/...` or `apps/<cell>/tests/...`; a file under root test/ has none.
+ * The cell a test file sits in, named as cellOf names it: `<cell>` for `packages/<cell>/tests/...` and `apps/<name>` for
+ * `apps/<name>/tests/...`, so an app test importing its own app is never read as leaving its cell; root test/ has none.
  *
  * @param {string} file - Repo-relative path.
  * @returns {string | null}
  */
 export function testCellOf(file) {
-  const match = /^(?:packages|apps)\/([^/]+)\/tests\//u.exec(file);
-  return match ? match[1] : null;
+  const match = /^(packages|apps)\/([^/]+)\/tests\//u.exec(file);
+  if (!match) return null;
+  return match[1] === 'apps' ? `apps/${match[2]}` : match[2];
+}
+
+/**
+ * Each planned cell's order from the bin/cells-plan.json index, keyed as cellOf names cells (an `app:<name>` cell is
+ * `apps/<name>`). A component test may import only cells below its own, so the order decides which front doors it may use.
+ *
+ * @param {string} root
+ * @returns {Map<string, number>}
+ */
+export function planOrder(root) {
+  const path = resolve(root, 'bin/cells-plan.json');
+  if (!existsSync(path)) return new Map();
+  const cells = JSON.parse(readFileSync(path, 'utf8')).cells ?? [];
+  return new Map(cells.map(cell => [cell.name.startsWith('app:') ? `apps/${cell.name.slice(4)}` : cell.name, cell.order]));
+}
+
+/** The listing's pure helpers as path to reason; an older array listing carries no reasons. */
+function pureHelperMap(pureHelpers) {
+  return Array.isArray(pureHelpers) ? Object.fromEntries(pureHelpers.map(path => [path, ''])) : { ...pureHelpers };
+}
+
+/** Whether a target is a cell's front door: its index.js, or the pure core.js entry of a package. */
+function frontDoor(target, cell) {
+  const base = cell.startsWith('apps/') ? cell : `packages/${cell}`;
+  return target === `${base}/index.js` || (!cell.startsWith('apps/') && target === `${base}/core.js`);
 }
 
 /** The committed listing: journeys with their reasons, the pure helpers and leaf cells a cell test may import, the ratchet, the sealed cells. */
@@ -44,21 +71,55 @@ export function readListing(root) {
  *
  * @param {string} file - Repo-relative path under `<cell>/tests/`.
  * @param {string} source
- * @param {{ pureHelpers?: string[], leaves?: string[] }} [listing]
+ * @param {{ pureHelpers?: string[] | Record<string, string>, leaves?: string[], order?: Map<string, number> }} [listing]
  * @returns {{ line: number, text: string }[]}
  */
-export function cellTestProblems(file, source, { pureHelpers = [], leaves = [] } = {}) {
+export function cellTestProblems(file, source, { pureHelpers = [], leaves = [], order = new Map() } = {}) {
+  return cellTestReading(file, source, { pureHelpers, leaves, order }).problems;
+}
+
+/**
+ * A cell test's problems and its tier. A unit test imports only its own cell, leaf front doors and pure helpers; a
+ * component test also imports front doors of cells below its own in plan order (V23: it lives in the last cell it spans).
+ *
+ * @returns {{ problems: { line: number, text: string }[], tier: 'unit' | 'component' }}
+ */
+export function cellTestReading(file, source, { pureHelpers = [], leaves = [], order = new Map() } = {}) {
   const own = testCellOf(file);
+  const helpers = pureHelperMap(pureHelpers);
   const problems = [];
+  let tier = 'unit';
   for (const { specifier, line } of importSpecifiers(source)) {
     const target = posix.normalize(posix.join(posix.dirname(file), specifier));
     const where = cellOf(target).cell;
-    if (where === own || pureHelpers.includes(target)) continue;
-    if (leaves.includes(where) && target === `${/^apps\//u.test(target) ? 'apps' : 'packages'}/${where}/index.js`) continue;
-    problems.push({ line, text: `imports ${target}, outside its own cell ${own}; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper` });
+    if (where === own || Object.hasOwn(helpers, target)) continue;
+    if (leaves.includes(where) && frontDoor(target, where)) continue;
+    if (frontDoor(target, where) && order.has(where) && order.has(own) && order.get(where) < order.get(own)) { tier = 'component'; continue; }
+    problems.push({ line, text: `imports ${target}, outside its own cell ${own}; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper` });
   }
   if (CLI_LAUNCH.test(source)) problems.push({ line: 1, text: 'spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it' });
   if (HOOKS.test(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
+  return { problems, tier };
+}
+
+/**
+ * Each listed pure helper that is not pure: missing, launching the CLI or installing hooks, or importing anything but node
+ * built-ins and other listed pure helpers. A helper that reaches product code would carry another cell into every cell test.
+ *
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function impurePureHelpers(root, listing) {
+  const helpers = pureHelperMap(listing.pureHelpers);
+  const problems = [];
+  for (const path of Object.keys(helpers).sort()) {
+    if (!existsSync(resolve(root, path))) { problems.push({ path: LISTING, line: 1, text: `listed pure helper ${path} does not exist` }); continue; }
+    const source = readFileSync(resolve(root, path), 'utf8');
+    if (CLI_LAUNCH.test(source) || HOOKS.test(source)) problems.push({ path, line: 1, text: 'listed as a pure helper but launches the CLI or installs hooks' });
+    for (const { specifier, line } of importSpecifiers(source)) {
+      const target = posix.normalize(posix.join(posix.dirname(path), specifier));
+      if (!Object.hasOwn(helpers, target)) problems.push({ path, line, text: `listed as a pure helper but imports ${target}, which is not a listed pure helper` });
+    }
+  }
   return problems;
 }
 
@@ -67,9 +128,9 @@ export function cellTestProblems(file, source, { pureHelpers = [], leaves = [] }
  *
  * @param {string} root
  * @param {{ files?: string[], read?: (file: string) => string, listing?: ReturnType<typeof readListing> }} [options]
- * @returns {{ file: string, kind: 'cell' | 'journey' | 'finding', cell: string | null, root: boolean, problems: { line: number, text: string }[] }[]}
+ * @returns {{ file: string, kind: 'cell' | 'journey' | 'finding', tier?: 'unit' | 'component' | null, cell: string | null, root: boolean, problems: { line: number, text: string }[] }[]}
  */
-export function classifyTests(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), listing = readListing(root) } = {}) {
+export function classifyTests(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), listing = readListing(root), order = planOrder(root) } = {}) {
   return (files ?? walk(root, TEST_FILE)).filter(file => TEST.test(file)).map(file => {
     const cell = testCellOf(file);
     if (!cell) {
@@ -77,8 +138,8 @@ export function classifyTests(root, { files, read = file => readFileSync(resolve
       if (typeof reason === 'string' && reason.trim()) return { file, kind: 'journey', cell: null, root: true, problems: [] };
       return { file, kind: 'finding', cell: null, root: true, problems: [{ line: 1, text: `unlisted root test; a test under test/ is a journey that names its reason in ${LISTING}, or it moves to its cell's tests/ folder` }] };
     }
-    const problems = cellTestProblems(file, read(file), listing);
-    return { file, kind: problems.length ? 'finding' : 'cell', cell, root: false, problems };
+    const { problems, tier } = cellTestReading(file, read(file), { ...listing, order });
+    return { file, kind: problems.length ? 'finding' : 'cell', tier: problems.length ? null : tier, cell, root: false, problems };
   });
 }
 
@@ -102,7 +163,7 @@ export function sealedReport(rows, { cells, deepImporters = {} }) {
 function cellFacts(root) {
   const files = walk(root, /^(?:packages|apps)\/.*\.[cm]?js$|^(?:src|bin)\/.*\.[cm]?js$/u);
   const cells = new Set(), deepImporters = {};
-  for (const file of files) { const match = /^(?:packages|apps)\/([^/]+)\//u.exec(file); if (match) cells.add(match[1]); }
+  for (const file of files) if (/^(?:packages|apps)\/[^/]+\//u.test(file)) cells.add(cellOf(file).cell);
   for (const file of files.filter(name => SOURCE.test(name) && !/(?:^|\/)tests?\//u.test(name))) {
     const own = cellOf(file).cell;
     for (const { specifier } of importSpecifiers(readFileSync(resolve(root, file), 'utf8'))) {
@@ -137,12 +198,13 @@ export function testCellsProblems(root, options = {}) {
   const current = testCellsReport(root, { ...options, listing });
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
+  problems.push(...impurePureHelpers(root, listing));
   for (const row of current.rows.filter(entry => entry.kind === 'finding' && !Object.hasOwn(listing.findings, entry.file))) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);
   }
   if (current.rootTests > listing.rootTests) add('test', 1, `${current.rootTests} root test files exceed the ratchet of ${listing.rootTests}; put new tests in their cell's tests/ folder`);
   const sealedNow = new Set(current.cells.filter(row => row.sealed).map(row => row.cell));
-  for (const cell of listing.sealed.filter(name => !sealedNow.has(name))) add(`packages/${cell}`, 1, `cell ${cell} is no longer sealed: a test breaks a cell-test rule or a file imports past its front door`);
+  for (const cell of listing.sealed.filter(name => !sealedNow.has(name))) add(cell.startsWith('apps/') ? cell : `packages/${cell}`, 1, `cell ${cell} is no longer sealed: a test breaks a cell-test rule or a file imports past its front door`);
   return problems;
 }
 
