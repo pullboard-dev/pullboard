@@ -612,11 +612,11 @@ function main(argv) {
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   if (mode === '--place-tests') {
-    if (rest.length) throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests (no arguments)');
+    if (rest.length && rest[0] !== '--batches') throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests [--batches [--max <n>] [--dry-run --plan <file>]]');
     const listed = tryGit(root, ['ls-files', '-z']);
     if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --place-tests');
     const tracked = listed.stdout.split('\0').filter(Boolean);
-    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root)).join('\n'));
+    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root), rest.length ? { args: rest, root, lex, git: args => tryGit(root, args), reread: () => cellInventory(root, { importsIn, commonJsIn }) } : null).join('\n'));
     return 0;
   }
   if (mode === '--move-tests') {

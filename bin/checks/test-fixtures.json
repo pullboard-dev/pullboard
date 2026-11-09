@@ -1858,7 +1858,7 @@
   "test/item-patch-cli.test.js": {
     "raw-board": 1
   },
-  "test/item-patch-compose.test.js": {
+  "packages/items/tests/item-patch-compose.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
