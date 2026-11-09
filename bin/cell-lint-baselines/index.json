@@ -96,7 +96,7 @@
       ]
     },
     "legacySource": {
-      "count": 1038,
+      "count": 1037,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/legacySource-001.json",
@@ -143,11 +143,11 @@
       "shards": []
     },
     "unreachable": {
-      "count": 384,
+      "count": 383,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/unreachable-001.json",
-          "sha256": "f305eb87463918295a64b70178280642f9dc5902175736f35f384b747cbf5ad5"
+          "sha256": "e0717692c0dabbb192c86b88865e68d4c6bb954b82b4831c00453d778546603d"
         }
       ]
     },
