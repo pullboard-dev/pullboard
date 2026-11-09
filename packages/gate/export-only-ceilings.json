@@ -10,8 +10,6 @@
     "packages/state/src/core/engine-metadata.js",
     "src/module-imports.js",
     "src/runner-worker.js",
-    "src/runners.js",
-    "src/view/test-policy.js",
-    "src/view/test-roles.js"
+    "src/runners.js"
   ]
 }
