@@ -419,41 +419,35 @@
     "raw-board": 16,
     "model": 3
   },
-  "packages/stats/tests/coordinator-actions.test.js": {
+  "apps/lib/tests/coordinator-actions.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 5
   },
   "packages/stats/tests/cost-dollars.test.js": {
-    "raw-board": 2,
     "model": 1
   },
-  "packages/stats/tests/flow-report.test.js": {
+  "test/cost-dollars-cli.test.js": {
+    "raw-board": 2
+  },
+  "apps/lib/tests/flow-report.test.js": {
     "tempdir": 2,
     "raw-board": 6
   },
-  "packages/stats/tests/stats-actors.test.js": {
+  "apps/lib/tests/stats-actors.test.js": {
     "raw-board": 3
   },
-  "packages/stats/tests/stats-build-time.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
-  },
-  "packages/stats/tests/stats-compare.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 6
-  },
-  "packages/stats/tests/stats-flow.test.js": {
+  "apps/lib/tests/stats-flow.test.js": {
     "tempdir": 2,
     "raw-board": 6
   },
-  "packages/stats/tests/stats-time.test.js": {
-    "tempdir": 2,
+  "packages/gate/tests/stats-time.test.js": {
+    "tempdir": 2
+  },
+  "test/stats-time-cli.test.js": {
     "model": 1
   },
-  "packages/stats/tests/usage-publish-batch.test.js": {
+  "test/usage-publish-batch.test.js": {
     "raw-board": 3,
     "model": 3
   },
@@ -3935,5 +3929,15 @@
     "model": 5,
     "raw-board": 6,
     "hand-policy": 1
+  },
+  "test/stats-build-time-fixture.js": {
+    "tempdir": 2,
+    "hand-policy": 1,
+    "raw-board": 4
+  },
+  "test/stats-compare-fixture.js": {
+    "tempdir": 2,
+    "hand-policy": 1,
+    "raw-board": 6
   }
 }
