@@ -22,6 +22,8 @@ import { recordWaits } from '../index.js';
 import { waitBudgets } from '../index.js';
 import { waitLines } from '../index.js';
 import { waitsSnapshot } from '../index.js';
+import { startServeSentinel } from '../index.js';
+import { WAITS_AUDIT_INTERVAL_MS } from '../index.js';
 import { localCensus } from '../src/shell/wait-surfaces.js';
 import { readRunnerJobs } from '../src/shell/wait-surfaces.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
@@ -257,4 +259,19 @@ test('a claim kept alive only by an orphaned heartbeat loop is a breach: the loo
   await waitForCondition(() => gone(loop), 'the heartbeat loop stops');
   assert.equal(m.board.db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id).item_status, 'open', 'next can hand the item to a live seat');
   assert.ok(recorded.reclaimed.some(line => line.includes(`#${id}: released`)));
+});
+
+test('the view runs the wait audit every minute, one pass at a time per board [C7]', async () => {
+  const timers = [], audited = [];
+  const observer = startServeSentinel({ projects: () => [{ root: '/one' }, { root: '/one' }], enabled: () => true,
+    every: () => ({ unref() {} }), cancel: () => {},
+    liveEvery: (callback, ms) => { timers.push({ callback, ms }); return { unref() {} }; }, liveCancel: () => {},
+    run: async () => {}, runCanary: async () => {}, canary: () => ({ close: async () => {} }), recover: async () => false,
+    audit: async root => { audited.push(root); } });
+  const audit = timers.find(timer => timer.callback.name === 'auditTick');
+  assert.equal(audit.ms, WAITS_AUDIT_INTERVAL_MS);
+  assert.ok(WAITS_AUDIT_INTERVAL_MS <= 60_000);
+  await audit.callback();
+  assert.deepEqual(audited, ['/one']);
+  await observer.close();
 });

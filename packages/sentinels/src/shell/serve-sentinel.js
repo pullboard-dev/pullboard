@@ -10,6 +10,8 @@ import { startRelayCanaryWatch } from "../../../link/index.js";
 export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
 /** A dead landing worker is replaced within two minutes, so its cheap pid check runs every minute (#2912). */
 export const LANDING_LIVENESS_INTERVAL_MS = 60_000;
+/** The wait audit runs every minute, so no hold, wait or process sits over its budget unseen for longer (C7). */
+export const WAITS_AUDIT_INTERVAL_MS = 60_000;
 const CLI = fileURLToPath(new URL('../../../../bin/pullboard.js', import.meta.url));
 
 /** Read the board and machine off switches before starting any background child. */
@@ -47,7 +49,8 @@ function refreshCanary(root, signal) {
 
 /** Start after the view listens; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
 export function startServeSentinel({ projectRoot, run = refreshBoard, projects = listProjects,
-  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval } = {}) {
+  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval,
+  audit = (root, signal) => run(root, signal, ['waits', 'record', '--json'], true) } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
   const lifetime = new AbortController();
   let pending = null;
@@ -80,13 +83,29 @@ export function startServeSentinel({ projectRoot, run = refreshBoard, projects =
   };
   const liveness = liveEvery(livenessTick, LANDING_LIVENESS_INTERVAL_MS);
   liveness.unref?.();
+  let auditing = null;
+  /** One wait audit at a time, in its own child; a slow runner ssh never delays landing liveness. */
+  const auditTick = () => {
+    if (auditing || lifetime.signal.aborted) return auditing;
+    auditing = Promise.resolve().then(async () => {
+      const roots = projectRoot ? [projectRoot] : projects().map(project => project.root);
+      for (const root of new Set(roots)) {
+        if (lifetime.signal.aborted) break;
+        try { if (enabled(root)) await audit(root, lifetime.signal); }
+        catch (error) { if (!lifetime.signal.aborted) onError(error); }
+      }
+    }).catch(onError).finally(() => { auditing = null; });
+    return auditing;
+  };
+  const waits = liveEvery(auditTick, WAITS_AUDIT_INTERVAL_MS);
+  waits.unref?.();
   const timer = every(tick, HEALTH_SENTINEL_INTERVAL_MS);
   timer.unref?.();
   return {
     /** Stop the interval and wait for the exact active child to finish shutting down. */
     async close() {
-      cancel(timer); liveCancel(liveness); lifetime.abort();
-      await Promise.all([pending, recovering, canaryWatch.close()]);
+      cancel(timer); liveCancel(liveness); liveCancel(waits); lifetime.abort();
+      await Promise.all([pending, recovering, auditing, canaryWatch.close()]);
     },
   };
 }
