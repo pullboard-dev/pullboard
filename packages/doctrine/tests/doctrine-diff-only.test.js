@@ -30,7 +30,7 @@ export function todoProblems(root) {
 }
 runCheck(import.meta, todoProblems);
 `;
-const DOCTRINE = '# Doctrine\n\n## Q · Quality\n- Q1 [approved, must] No TODO markers. | gate: check node bin/checks/todo.js | count: 2\n';
+const DOCTRINE = '# Doctrine\n\n## Q · Quality\n- Q1 [approved, must] No TODO markers. | gate: check node bin/checks/empty-catch.js | count: 2\n';
 
 /** A real repo whose main carries the rule and two TODOs in one file, with many untouched files. */
 function repo() {
@@ -43,7 +43,7 @@ function repo() {
   git('config', 'commit.gpgsign', 'false');
   mkdirSync(join(root, 'bin', 'checks'), { recursive: true });
   mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'bin', 'checks', 'todo.js'), CHECK);
+  writeFileSync(join(root, 'bin', 'checks', 'empty-catch.js'), CHECK);
   writeFileSync(join(root, 'bin', 'checks', 'scan.js'), STUB);
   writeFileSync(join(root, 'DOCTRINE.md'), DOCTRINE);
   writeFileSync(join(root, 'src', 'old.js'), '// TODO one\n// TODO two\n');
@@ -98,7 +98,7 @@ test('removing a problem lowers the count and an old problem in a changed file i
 
 test('a rule that is not file-local keeps the established full run [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.root, 'DOCTRINE.md'), DOCTRINE.replace('node bin/checks/todo.js', 'grep -rn TODO src'));
+  writeFileSync(join(box.root, 'DOCTRINE.md'), DOCTRINE.replace('node bin/checks/empty-catch.js', 'grep -rn TODO src'));
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'chore: grep rule');
   assert.equal(submitRulesNarrowable(box.root, box.git('rev-parse', 'HEAD'), 'DOCTRINE.md'), false);
