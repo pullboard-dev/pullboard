@@ -115,7 +115,7 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
 });
 
 
-test('a second clean acceptance inside cadence retains its wake without another acceptance [B35,B3,R3]', async t => {
+test('a second clean acceptance inside cadence lands at once with no wake queued [B35,B3,R3]', async t => {
   const { box, config, id, reviewer } = fixture(t, false, false, '10m');
   json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
   assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
@@ -137,7 +137,7 @@ test('a second clean acceptance inside cadence retains its wake without another 
     [fileURLToPath(new URL('./automatic-landing-cadence.fixture.js', import.meta.url)), box.repo, String(second)],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
-  // The child proves either native completion or fresh deferred custody, independently of host timing.
+  // The child proves the second acceptance lands at once without queueing a wake.
 });
 
 
