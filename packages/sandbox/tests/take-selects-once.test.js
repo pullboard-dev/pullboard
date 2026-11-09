@@ -94,7 +94,7 @@ test('next --take calls its selection and review offer once each [C7]', async t 
   box.add('Second open item');
   const counts = counted(t, takeSelection);
   const taken = await take(box);
-  assert.equal(taken.item.item_id, first);
+  assert.equal(taken.item?.item_id, first, JSON.stringify(taken));
   assert.deepEqual(counts, { selected: 1, reviewOffer: 1 }, 'the write transaction selected nothing');
 });
 
@@ -105,7 +105,7 @@ test('a holding seat returns its claim from next --take without the mandatory re
   box.claim(held, box.seats.actor);
   const counts = counted(t, takeSelection);
   const taken = await take(box);
-  assert.equal(taken.item.item_id, held);
+  assert.equal(taken.item?.item_id, held, JSON.stringify(taken));
   assert.deepEqual(counts, { selected: 1, reviewOffer: 0 });
   assert.deepEqual(actorClaims(box), [held]);
 });
@@ -118,7 +118,7 @@ test('next --take: the write runs only the chosen item claim guards and selects 
   const counts = counted(t, takeSelection, { selected: (value, call) => { if (call === 1) box.claim(value.item.item_id); } });
   const result = await take(box);
   assert.equal(store.getItem(box.board, raced).item_owner, box.seats.builder.id, 'the peer keeps the raced item');
-  assert.equal(result.item.item_id, spare);
+  assert.equal(result.item?.item_id, spare, JSON.stringify(result));
   assert.deepEqual(actorClaims(box), [spare]);
   assert.equal(counts.selected, 2, 'one read selection per loop, none inside a write');
 });
