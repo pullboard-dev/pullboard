@@ -20,7 +20,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { readSealedDescriptor } from '../packages/pages/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
-import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
+import { PROOF_RUN_ENGINE } from '../packages/state/core.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;

@@ -5,7 +5,7 @@ import * as store from '../packages/store/index.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { nextTake } from '../packages/sandbox/index.js';
-import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../packages/state/core.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyRelayMove } from '../packages/state/index.js';
 import { fixtureBoard } from './board-fixture.js';

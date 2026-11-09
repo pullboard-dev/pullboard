@@ -12,7 +12,7 @@ import { checkAtCommit } from '../apps/runner/index.js';
 import { checkBaseline } from '../packages/gate/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../packages/store/index.js';
-import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../packages/codemap/index.js';
 import { prepareCauseProof, runCheckAt } from '../packages/rigor/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';

@@ -7,7 +7,7 @@ import { COORDINATOR } from "../../../config/index.js";
 import { coordinatorHolder } from "../../../seats/core.js";
 import { Refused } from "../../../kernel/core.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../src/landing-local-lease-engine.js";
+import { LANDING_LOCAL_LEASE_ENGINE } from "../../../state/core.js";
 import {
   localLandingEntry,
   rememberLocalLanding,

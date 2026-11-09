@@ -1,10 +1,10 @@
-import { SAME_FAMILY_REFUSAL_ENGINE } from '../../../../src/same-family-refusal-engine.js';
+import { SAME_FAMILY_REFUSAL_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
+import { STRICT_COMPOSITION_ENGINE } from '../../../state/core.js';
 import { classifiedStrict } from '../shell/review-tier.js';
 import { reviewTierFloor } from '../shell/review-tier.js';
-import { REVIEW_ROUTING_ENGINE } from '../../../../src/review-routing-engine.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
+import { REVIEW_ROUTING_ENGINE } from '../../../state/core.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../../../state/core.js';
 import { Refused } from '../../../kernel/index.js';
 
 import { familyName } from '../../../items/core.js';

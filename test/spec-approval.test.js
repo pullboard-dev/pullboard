@@ -12,7 +12,7 @@ import { gitReadSignature } from '../packages/git/index.js';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec/index.js';
-import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
+import { SPEC_APPROVAL_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';

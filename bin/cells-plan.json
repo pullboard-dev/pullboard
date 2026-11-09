@@ -442,207 +442,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/exit-rules-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/known-main-autofile-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-default-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/activity-delivery-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/activity-news-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/agent-grant-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/auto-escalate-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/automatic-dispatch-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/bar-check-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/bar-ready-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/bar-sign-grant-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/board-members-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/ci-flake-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/companion-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/computer-name-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/coordinator-hold-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/cpu-sentinel-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/critical-path-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/cross-repo-dependency-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/decision-origin-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/decision-queue-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/engine-metadata.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/engine-next.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/engine-numbers.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/file-growth-notice-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/flake-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/flow-size-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/focus-milestone-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/gate-run-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/gone-claim-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/handoff-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/health-cap-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/historical-authors-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/item-notes-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/item-patch-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/item-shout-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/job-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/known-main-failures-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/known-main-reworks-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/land-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/landing-collision-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/landing-environment-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/landing-lease-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/landing-local-lease-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/lane-lead-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/line-capacity-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/line-order-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/line-settings-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/mechanical-merge-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/merge-only-verdict-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/milestone-limit-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -655,182 +459,6 @@
     },
     {
       "path": "src/move-history/legacy.json",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/outside-intake-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/parent-session-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/people-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/person-signing-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/pr-bridge-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/private-rehome-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/proof-run-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/quarantine-core-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/quoted-landing-failure-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/reference-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/rejected-work-return-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/reopen-cause-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/reopen-first-refusal-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-grant-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-independence-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-family-relax-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-routing-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-skip-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/rigor-auto-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/rigor-notice-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/row-draft-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/ruling-owner-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/sentinel-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/source-advance-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/spec-approval-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/spec-draft-refreeze-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/spec-revision-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/spec-verdict-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/strong-rejection-notice-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/submit-admission-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/submitted-conflict-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/test-economics-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/trunk-conflict-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/typed-requests-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/unchanged-refreeze-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/verdict-withdraw-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/withdraw-milestone-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/work-order-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/check-timing-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/coordinator-shout-kinds-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/family-alias-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/generated-docs-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/item-patch-submit-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/live-route-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -886,47 +514,11 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/patch-author-identity-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/patch-follow-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/patch-review-custody-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/reject-clause-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/review-tier-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/run-timing-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/train-landing-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/166.json",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/check-widen-self-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/167.json",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/next-idle-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -938,27 +530,7 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/no-eligible-reviewer-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/170.json",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/family-declare-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/main-audit-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/stale-state-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/lease-lapse-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -974,10 +546,6 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/strict-composition-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/174.json",
       "reason": "canonical engine identity retained in src during package moves"
     },
@@ -986,15 +554,7 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/quarantine-verdict-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/176.json",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/auto-submit-quarantine-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -1006,10 +566,6 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/known-main-owner-pattern-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/179.json",
       "reason": "canonical engine identity retained in src during package moves"
     },
@@ -1018,19 +574,7 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/submit-handoff-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/train-check-repoint-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/181.json",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/pipeline-cause-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
@@ -1046,10 +590,6 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/release-reasons-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/185.json",
       "reason": "canonical engine identity retained in src during package moves"
     },
@@ -1058,24 +598,8 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/rework-same-family-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "src/move-history/187.json",
       "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/cost-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/cost-input-split-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
-      "path": "src/usage-batch-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
     },
     {
       "path": "bin/cells-move-closure.js",
@@ -1086,15 +610,7 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
-      "path": "src/health-sentinel-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-remove-shims.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/claim-idle-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1102,15 +618,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/claim-progress-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/189.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-progress-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1118,19 +626,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/rejection-return-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/claim-returns-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/191.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/vendor-family-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1138,27 +634,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/milestone-placement-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/193.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/milestone-rank-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/coordinator-actions-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/194.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/same-family-refusal-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1168,18 +648,6 @@
     {
       "path": "bin/main-red-refresh.js",
       "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/clause-inspection-engine.js",
-      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
-    },
-    {
-      "path": "src/infra-release-engine.js",
-      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
-    },
-    {
-      "path": "src/main-red-focus-engine.js",
-      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
     },
     {
       "path": "test/inspection-clauses.test.js",
@@ -1194,15 +662,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/blocked-dependencies-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/guarded-docs-refresh.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/item-folder-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1226,10 +686,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/submit-proof-reuse-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/198.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1238,15 +694,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/release-twice-hold-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/200.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/machine-verdict-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1254,15 +702,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/untouched-claim-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/untouched-claim-observation.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/review-family-seat-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1278,23 +718,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/rigor-instructions-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/focus-boundary-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/item-slice-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/205.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/review-request-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1303,10 +727,6 @@
     },
     {
       "path": "src/move-history/207.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/expected-build-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1336,14 +756,6 @@
       "reason": "Railway deploy checklist stays beside the deployed relay/Dockerfile (#1592)"
     },
     {
-      "path": "src/reviews-first-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/queue-preempt-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/210.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1356,19 +768,7 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/taken-over-release-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/211.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/milestone-queue-order-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/queue-fairness-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1385,14 +785,6 @@
     },
     {
       "path": "bin/cells-reorg.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/queued-red-return-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/flake-ratchet-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1413,23 +805,6 @@
     },
     {
       "path": "bin/checks/static-tree-registry.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/main-red-failure-lines-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/release-quality-hold-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/strict-rename-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
-      "path": "src/live-release-placement-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1470,15 +845,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/pinned-claim-lapse-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/dead-handoff-retry-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
       "path": "src/move-history/220.json",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
@@ -1498,27 +864,8 @@
       "owner": "resources"
     },
     {
-      "path": "src/verified-item-hold-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/223.json",
       "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/two-tier-diagnosis-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
-      "path": "src/reject-open-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
-      "path": "src/clause-evidence-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
     },
     {
       "path": "src/move-history/224.json",
@@ -1541,11 +888,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/known-main-running-file-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
       "path": "src/move-history/226.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1554,39 +896,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/route-calibration-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
-      "path": "src/ownership-wait-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/accepted-reland-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
       "path": "src/move-history/229.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/stranded-dependency-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move",
-      "owner": "state"
-    },
-    {
-      "path": "src/ledger-quarantine-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/quarantine-backfill-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1638,39 +952,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/infra-handoff-recovery-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/main-red-withdraw-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/per-item-full-suite-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/release-twice-route-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/seat-gone-release-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/tier-row-change.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/builder-family-required-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/240.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/review-head-builder-family-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1690,19 +976,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/shadow-tier1-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/gate-slot-services.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
       "path": "src/move-history/244.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/item-patch-auto-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1752,6 +1030,10 @@
     },
     {
       "path": "src/move-history/249.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/hop-matrix.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -2165,6 +1447,14 @@
       ]
     },
     {
+      "cell": "state",
+      "row": [
+        "src/plan-merge-engine.js",
+        "packages/state/src/shell/plan-merge-engine.js",
+        "rule"
+      ]
+    },
+    {
       "cell": "app:cli",
       "row": [
         "src/submit-handoff-origin.js",
@@ -2255,174 +1545,6 @@
     {
       "cell": "state",
       "row": [
-        "src/exit-rules-engine.js",
-        "packages/state/src/core/exit-rules-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/known-main-autofile-engine.js",
-        "packages/state/src/core/known-main-autofile-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-default-engine.js",
-        "packages/state/src/core/review-default-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/activity-delivery-engine.js",
-        "packages/state/src/core/activity-delivery-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/activity-news-engine.js",
-        "packages/state/src/core/activity-news-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/agent-grant-engine.js",
-        "packages/state/src/core/agent-grant-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/auto-escalate-engine.js",
-        "packages/state/src/core/auto-escalate-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/automatic-dispatch-engine.js",
-        "packages/state/src/core/automatic-dispatch-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/bar-check-engine.js",
-        "packages/state/src/core/bar-check-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/bar-ready-engine.js",
-        "packages/state/src/core/bar-ready-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/bar-sign-grant-engine.js",
-        "packages/state/src/core/bar-sign-grant-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/board-members-engine.js",
-        "packages/state/src/core/board-members-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/ci-flake-engine.js",
-        "packages/state/src/core/ci-flake-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/companion-engine.js",
-        "packages/state/src/core/companion-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/computer-name-engine.js",
-        "packages/state/src/core/computer-name-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/coordinator-hold-engine.js",
-        "packages/state/src/core/coordinator-hold-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/cpu-sentinel-engine.js",
-        "packages/state/src/core/cpu-sentinel-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/critical-path-engine.js",
-        "packages/state/src/core/critical-path-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/cross-repo-dependency-engine.js",
-        "packages/state/src/core/cross-repo-dependency-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/decision-origin-engine.js",
-        "packages/state/src/core/decision-origin-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/decision-queue-engine.js",
-        "packages/state/src/core/decision-queue-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/engine-metadata.js",
         "packages/state/src/shell/engine-metadata.js",
         "seed"
@@ -2431,232 +1553,8 @@
     {
       "cell": "state",
       "row": [
-        "src/engine-next.js",
-        "packages/state/src/shell/engine-next.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/engine-numbers.js",
         "packages/state/src/shell/engine-numbers.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/file-growth-notice-engine.js",
-        "packages/state/src/core/file-growth-notice-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/flake-engine.js",
-        "packages/state/src/core/flake-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/flow-size-engine.js",
-        "packages/state/src/core/flow-size-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/focus-milestone-engine.js",
-        "packages/state/src/core/focus-milestone-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/gate-run-engine.js",
-        "packages/state/src/core/gate-run-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/gone-claim-engine.js",
-        "packages/state/src/core/gone-claim-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/handoff-engine.js",
-        "packages/state/src/core/handoff-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/health-cap-engine.js",
-        "packages/state/src/core/health-cap-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/historical-authors-engine.js",
-        "packages/state/src/core/historical-authors-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/item-notes-engine.js",
-        "packages/state/src/core/item-notes-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/item-patch-engine.js",
-        "packages/state/src/core/item-patch-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/item-shout-engine.js",
-        "packages/state/src/core/item-shout-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/job-engine.js",
-        "packages/state/src/core/job-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/known-main-failures-engine.js",
-        "packages/state/src/core/known-main-failures-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/known-main-reworks-engine.js",
-        "packages/state/src/core/known-main-reworks-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/land-engine.js",
-        "packages/state/src/core/land-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/landing-collision-engine.js",
-        "packages/state/src/core/landing-collision-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/landing-environment-engine.js",
-        "packages/state/src/core/landing-environment-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/landing-lease-engine.js",
-        "packages/state/src/core/landing-lease-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/landing-local-lease-engine.js",
-        "packages/state/src/core/landing-local-lease-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/lane-lead-engine.js",
-        "packages/state/src/core/lane-lead-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/line-capacity-engine.js",
-        "packages/state/src/core/line-capacity-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/line-order-engine.js",
-        "packages/state/src/core/line-order-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/line-settings-engine.js",
-        "packages/state/src/core/line-settings-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/mechanical-merge-engine.js",
-        "packages/state/src/core/mechanical-merge-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/merge-only-verdict-engine.js",
-        "packages/state/src/core/merge-only-verdict-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/milestone-limit-engine.js",
-        "packages/state/src/core/milestone-limit-engine.js",
         "seed"
       ]
     },
@@ -2681,350 +1579,6 @@
       "row": [
         "src/move-history/legacy.json",
         "packages/state/src/shell/move-history/legacy.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/outside-intake-engine.js",
-        "packages/state/src/core/outside-intake-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/parent-session-engine.js",
-        "packages/state/src/core/parent-session-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/people-engine.js",
-        "packages/state/src/core/people-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/person-signing-engine.js",
-        "packages/state/src/core/person-signing-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/pr-bridge-engine.js",
-        "packages/state/src/core/pr-bridge-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/private-rehome-engine.js",
-        "packages/state/src/core/private-rehome-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/proof-run-engine.js",
-        "packages/state/src/core/proof-run-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/quarantine-core-engine.js",
-        "packages/state/src/shell/quarantine-core-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/quoted-landing-failure-engine.js",
-        "packages/state/src/core/quoted-landing-failure-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/reference-engine.js",
-        "packages/state/src/core/reference-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/rejected-work-return-engine.js",
-        "packages/state/src/core/rejected-work-return-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/reopen-cause-engine.js",
-        "packages/state/src/core/reopen-cause-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/reopen-first-refusal-engine.js",
-        "packages/state/src/core/reopen-first-refusal-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-grant-engine.js",
-        "packages/state/src/core/review-grant-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-independence-engine.js",
-        "packages/state/src/core/review-independence-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-routing-engine.js",
-        "packages/state/src/core/review-routing-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-skip-engine.js",
-        "packages/state/src/core/review-skip-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/rigor-auto-engine.js",
-        "packages/state/src/core/rigor-auto-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/rigor-notice-engine.js",
-        "packages/state/src/core/rigor-notice-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/row-draft-engine.js",
-        "packages/state/src/core/row-draft-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/ruling-owner-engine.js",
-        "packages/state/src/core/ruling-owner-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/sentinel-engine.js",
-        "packages/state/src/core/sentinel-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/source-advance-engine.js",
-        "packages/state/src/core/source-advance-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/spec-approval-engine.js",
-        "packages/state/src/core/spec-approval-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/spec-draft-refreeze-engine.js",
-        "packages/state/src/core/spec-draft-refreeze-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/spec-revision-engine.js",
-        "packages/state/src/core/spec-revision-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/spec-verdict-engine.js",
-        "packages/state/src/core/spec-verdict-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/strong-rejection-notice-engine.js",
-        "packages/state/src/core/strong-rejection-notice-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/submit-admission-engine.js",
-        "packages/state/src/core/submit-admission-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/submitted-conflict-engine.js",
-        "packages/state/src/core/submitted-conflict-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/test-economics-engine.js",
-        "packages/state/src/core/test-economics-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/trunk-conflict-engine.js",
-        "packages/state/src/core/trunk-conflict-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/typed-requests-engine.js",
-        "packages/state/src/core/typed-requests-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/unchanged-refreeze-engine.js",
-        "packages/state/src/core/unchanged-refreeze-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/verdict-withdraw-engine.js",
-        "packages/state/src/core/verdict-withdraw-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/withdraw-milestone-engine.js",
-        "packages/state/src/core/withdraw-milestone-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/work-order-engine.js",
-        "packages/state/src/core/work-order-engine.js",
-        "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/check-timing-engine.js",
-        "packages/state/src/core/check-timing-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/coordinator-shout-kinds-engine.js",
-        "packages/state/src/core/coordinator-shout-kinds-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/family-alias-engine.js",
-        "packages/state/src/core/family-alias-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/generated-docs-engine.js",
-        "packages/state/src/core/generated-docs-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/item-patch-submit-engine.js",
-        "packages/state/src/core/item-patch-submit-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/live-route-engine.js",
-        "packages/state/src/core/live-route-engine.js",
         "rule"
       ]
     },
@@ -3135,62 +1689,6 @@
     {
       "cell": "state",
       "row": [
-        "src/patch-author-identity-engine.js",
-        "packages/state/src/core/patch-author-identity-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/patch-follow-engine.js",
-        "packages/state/src/core/patch-follow-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/patch-review-custody-engine.js",
-        "packages/state/src/core/patch-review-custody-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/reject-clause-engine.js",
-        "packages/state/src/core/reject-clause-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/review-tier-engine.js",
-        "packages/state/src/core/review-tier-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/run-timing-engine.js",
-        "packages/state/src/core/run-timing-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/train-landing-engine.js",
-        "packages/state/src/core/train-landing-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/166.json",
         "packages/state/src/shell/move-history/166.json",
         "rule"
@@ -3199,24 +1697,8 @@
     {
       "cell": "state",
       "row": [
-        "src/check-widen-self-engine.js",
-        "packages/state/src/core/check-widen-self-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/167.json",
         "packages/state/src/shell/move-history/167.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/next-idle-engine.js",
-        "packages/state/src/core/next-idle-engine.js",
         "rule"
       ]
     },
@@ -3239,48 +1721,8 @@
     {
       "cell": "state",
       "row": [
-        "src/no-eligible-reviewer-engine.js",
-        "packages/state/src/core/no-eligible-reviewer-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/170.json",
         "packages/state/src/shell/move-history/170.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/family-declare-engine.js",
-        "packages/state/src/core/family-declare-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/main-audit-engine.js",
-        "packages/state/src/core/main-audit-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/stale-state-engine.js",
-        "packages/state/src/core/stale-state-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/lease-lapse-engine.js",
-        "packages/state/src/core/lease-lapse-engine.js",
         "rule"
       ]
     },
@@ -3311,14 +1753,6 @@
     {
       "cell": "state",
       "row": [
-        "src/strict-composition-engine.js",
-        "packages/state/src/core/strict-composition-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/174.json",
         "packages/state/src/shell/move-history/174.json",
         "rule"
@@ -3335,24 +1769,8 @@
     {
       "cell": "state",
       "row": [
-        "src/quarantine-verdict-engine.js",
-        "packages/state/src/shell/quarantine-verdict-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/176.json",
         "packages/state/src/shell/move-history/176.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/auto-submit-quarantine-engine.js",
-        "packages/state/src/shell/auto-submit-quarantine-engine.js",
         "rule"
       ]
     },
@@ -3375,14 +1793,6 @@
     {
       "cell": "state",
       "row": [
-        "src/known-main-owner-pattern-engine.js",
-        "packages/state/src/shell/known-main-owner-pattern-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/179.json",
         "packages/state/src/shell/move-history/179.json",
         "rule"
@@ -3399,32 +1809,8 @@
     {
       "cell": "state",
       "row": [
-        "src/submit-handoff-engine.js",
-        "packages/state/src/core/submit-handoff-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/train-check-repoint-engine.js",
-        "packages/state/src/core/train-check-repoint-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/181.json",
         "packages/state/src/shell/move-history/181.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/pipeline-cause-engine.js",
-        "packages/state/src/core/pipeline-cause-engine.js",
         "rule"
       ]
     },
@@ -3455,14 +1841,6 @@
     {
       "cell": "state",
       "row": [
-        "src/release-reasons-engine.js",
-        "packages/state/src/core/release-reasons-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
         "src/move-history/185.json",
         "packages/state/src/shell/move-history/185.json",
         "rule"
@@ -3473,38 +1851,6 @@
       "row": [
         "src/move-history/186.json",
         "packages/state/src/shell/move-history/186.json",
-        "rule"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/rework-same-family-engine.js",
-        "packages/state/src/core/rework-same-family-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "stats",
-      "row": [
-        "src/cost-engine.js",
-        "packages/stats/src/shell/cost-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "stats",
-      "row": [
-        "src/cost-input-split-engine.js",
-        "packages/stats/src/shell/cost-input-split-engine.js",
-        "rule"
-      ]
-    },
-    {
-      "cell": "stats",
-      "row": [
-        "src/usage-batch-engine.js",
-        "packages/stats/src/shell/usage-batch-engine.js",
         "rule"
       ]
     },
@@ -3563,6 +1909,10 @@
     "stats->store",
     "sync->store",
     "apps/cli->kernel",
-    "apps/cli->git"
+    "apps/cli->git",
+    "health->state",
+    "moves->state",
+    "rigor->state",
+    "sandbox->state"
   ]
 }

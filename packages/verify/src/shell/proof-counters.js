@@ -6,7 +6,7 @@ import { appendReportCounter } from '../../../stats/index.js';
 import { emptyReportCounter } from '../../../stats/index.js';
 import { reportEvent } from '../../../stats/index.js';
 import { newReportPolicy } from '../../../stats/index.js';
-import { NATIVE_FLAKE_ENGINE } from '../../../../src/flake-engine.js';
+import { NATIVE_FLAKE_ENGINE } from '../../../state/core.js';
 /** Rebuildable, local proof projections maintained with the event that produced them [R1,R2]. */
 import { moveFlowItem } from '../../../stats/index.js';
 import { roleOf } from '../../../stats/index.js';
@@ -52,10 +52,35 @@ function put(board, key, value) {
     .run(PREFIX + key, encode(value));
 }
 
-/** Read one kind of projection in event insertion order, preserving historical tie ordering. */
+/** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
+const APPEND_ONLY_KINDS = new Set(['event']);
+/** Each board file's kept append-only shards, decoded, with the rowid and key of the last one read. */
+const keptShards = new Map();
+
+/**
+ * Read one kind of projection in event insertion order, preserving historical tie ordering.
+ *
+ * An append-only kind is kept decoded per board file and read again only past the last row kept [C7]. Why: the
+ * per-event shards number one per board event, and decoding all of them on every state build cost most of a build.
+ * The kept rows are checked by their first and last rowid and key, so a cleared and rebuilt projection is read anew.
+ * Readers share the kept rows and only read them.
+ */
 export function proofCounterRows(board, kind) {
-  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${PREFIX}${kind}:*`)
+  const file = APPEND_ONLY_KINDS.has(kind) && typeof board.db.location === 'function' ? board.db.location() : null;
+  if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${PREFIX}${kind}:*`)
     .map(row => decode(row.meta_value));
+  const id = `${file}\0${kind}`;
+  let kept = keptShards.get(id);
+  const at = board.db.prepare('SELECT meta_key FROM board_meta WHERE rowid = ?');
+  if (kept && (at.get(kept.firstRowid)?.meta_key !== kept.firstKey || at.get(kept.lastRowid)?.meta_key !== kept.lastKey)) kept = null;
+  if (!kept) kept = { rows: [], firstRowid: 0, firstKey: null, lastRowid: 0, lastKey: null };
+  const added = board.db.prepare('SELECT rowid, meta_key, meta_value FROM board_meta WHERE rowid > ? AND meta_key GLOB ? ORDER BY rowid').all(kept.lastRowid, `${PREFIX}${kind}:*`);
+  if (added.length) {
+    kept = { ...kept, rows: kept.rows.concat(added.map(row => decode(row.meta_value))), lastRowid: added.at(-1).rowid, lastKey: added.at(-1).meta_key };
+    if (kept.firstKey === null) Object.assign(kept, { firstRowid: added[0].rowid, firstKey: added[0].meta_key });
+  }
+  keptShards.set(id, kept);
+  return kept.rows.slice();
 }
 
 /** Whether a newer writer stored the flow report, so this older code must leave it alone. */

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { SPEC_DRAFT_REFREEZE_ENGINE } from '../src/spec-draft-refreeze-engine.js';
+import { SPEC_DRAFT_REFREEZE_ENGINE } from '../packages/state/core.js';
 import { rowDecisions } from '../packages/spec/index.js';
 import { prepareSpecRefreezes, specRefreezeSkips } from '../packages/spec/index.js';
 import { fixtureBoard } from './board-fixture.js';

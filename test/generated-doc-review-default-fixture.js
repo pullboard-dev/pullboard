@@ -6,7 +6,7 @@ import { addItem } from '../packages/store/index.js';
 import { claim } from '../packages/store/index.js';
 import { appendFact } from '../packages/store/index.js';
 import { events } from '../packages/store/index.js';
-import { REVIEW_DEFAULT_ENGINE } from '../src/review-default-engine.js';
+import { REVIEW_DEFAULT_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 /** Upgrade a genuine old fixture prefix and return only its new typed board event. */

@@ -36,15 +36,19 @@ function joined(parts, unseen) {
 /**
  * Start the materializer for one API server.
  *
- * @param {{ portsModule: string, projects: () => any[], scope?: { projectRoot: string }, isMain?: boolean, onStateBuild?: Function, onRecord?: Function, Refused: Function }} options
+ * @param {{ portsModule: string, projects: () => any[], scope?: { projectRoot: string }, isMain?: boolean, onStateBuild?: Function, onRecord?: Function, onFailure?: Function, Refused: Function }} options
  * portsModule names a module whose boardStatePorts() gives the worker its view projections and board openers.
  * The worker runs until close(), which the server's own close calls.
  */
-export function startStateMaterializer({ portsModule, projects, scope, isMain, onStateBuild, onRecord, Refused }) {
-  const worker = new Worker(new URL('./state-materializer-worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects() } });
+export function startStateMaterializer({ portsModule, projects, scope, isMain, onStateBuild, onRecord, onFailure, Refused }) {
+  // The worker takes none of this process's preloads: a test runner's per-file preload, run again in a thread,
+  // claimed the file's test slot a second time and killed the worker, so every state read failed [C7].
+  const { NODE_TEST_CONTEXT: _testContext, ...workerEnv } = process.env;
+  const worker = new Worker(new URL('./state-materializer-worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects() }, execArgv: [], env: workerEnv });
   const boards = new Map();
   const listeners = new Set();
   let failure = null;
+  let closing = false;
   let nextId = 0;
 
   /** The materializer's record of one board, made on its first read. */
@@ -98,8 +102,15 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       entry.timer = setTimeout(() => { entry.timer = null; request(entry); }, entry.waiters.length ? 0 : BUILD_GAP_MS);
     }
   });
-  worker.on('error', (error) => { failure = error; for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(error); entry.waiters = []; } });
-  worker.on('exit', (code) => { failure ??= new Error(`the state worker exited with code ${code}`); });
+  /** Stop serving from the worker for good: every waiting read fails over to the request thread's own build. */
+  function stopped(error) {
+    if (failure || closing) return;
+    failure = error;
+    onFailure?.(error);
+    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(error); entry.waiters = []; }
+  }
+  worker.on('error', stopped);
+  worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
 
   /** The latest record of a board, asking for a fresh build; it waits only while the board has none yet. */
   function latest(board, { full = false } = {}) {
@@ -178,6 +189,7 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     close() {
       for (const entry of boards.values()) clearTimeout(entry.timer);
       if (failure) return;
+      closing = true;
       worker.postMessage({ type: 'close' });
     },
   };

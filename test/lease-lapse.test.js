@@ -13,9 +13,9 @@ import { captureLapsedClaims } from '../packages/health/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
-import { LEASE_LAPSE_ENGINE } from '../src/lease-lapse-engine.js';
-import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
-import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
+import { LEASE_LAPSE_ENGINE } from '../packages/state/core.js';
+import { RELEASE_REASONS_ENGINE } from '../packages/state/core.js';
+import { STALE_STATE_ENGINE } from '../packages/state/core.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 
 const MINUTE = 60_000;

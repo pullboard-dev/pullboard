@@ -1,5 +1,5 @@
 /** Exact-row verifier operation; its actor is the actual joined caller [V4,H16]. */
-import { SPEC_VERDICT_ENGINE } from "../../../../../src/spec-verdict-engine.js";
+import { SPEC_VERDICT_ENGINE } from "../../../../state/core.js";
 
 /** Older replicas must refuse rather than lose independent verdict semantics. */
 function minimumEngine() { return SPEC_VERDICT_ENGINE; }

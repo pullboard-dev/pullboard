@@ -10,8 +10,8 @@ import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { refuseLiveAttach } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
-import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
-import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
+import { STRICT_COMPOSITION_ENGINE } from '../packages/state/core.js';
+import { FAMILY_DECLARE_ENGINE } from '../packages/state/core.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });

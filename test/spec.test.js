@@ -15,7 +15,7 @@ import { openBoard, draftSpecRow, recordRowVerification } from '../apps/lib/inde
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
+import { SPEC_VERDICT_ENGINE } from '../packages/state/core.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';

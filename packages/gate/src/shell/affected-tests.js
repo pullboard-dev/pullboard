@@ -382,10 +382,10 @@ function buildGraph(root, commit, prior, probe) {
     addModules(g, g.paths, probe);
   }
   // Discovery is not an import: the command registry loads each apps/cli/src/shell/commands module, and machine.js reads each
-  // src/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
+  // packages/state/src/core/engines/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
   for (const module of g.paths) {
     const reader = module.startsWith('apps/cli/src/shell/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/shell/commands/'.length)) ? COMMAND_REGISTRY
-      : module.startsWith('src/') && ENGINE_CANDIDATE.test(module.slice('src/'.length)) ? 'src/machine.js' : null;
+      : module.startsWith('packages/state/src/core/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/core/engines/'.length)) ? 'src/machine.js' : null;
     if (!reader) continue;
     if (!g.reverse.has(module)) g.reverse.set(module, new Set());
     g.reverse.get(module).add(reader);

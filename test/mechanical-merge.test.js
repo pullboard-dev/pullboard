@@ -24,8 +24,8 @@ import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../packages/landing/index.js';
 import { withRecordedConflictContext } from '../packages/state/index.js';
 import { reopen as reopenMove } from '../packages/moves/index.js';
-import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { MECHANICAL_MERGE_ENGINE } from '../packages/state/core.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 
 console.log('# MECHANICAL_RUNTIME ' + JSON.stringify({ node: process.version, execPath: process.execPath,
   platform: process.platform, arch: process.arch, host: hostname(), binarySha256: createHash('sha256').update(readFileSync(nodeExecutable)).digest('hex') }));

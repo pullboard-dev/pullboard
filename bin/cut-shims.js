@@ -108,7 +108,7 @@ function statements(source, info) {
     // A statement's clause is short: read a window before the literal, not the whole prefix, so each file lexes in linear time.
     const from = Math.max(0, literal.start - 4000);
     const before = (from ? '\n' : '') + info.code.slice(from, literal.start);
-    if (/\bimport\s*\(\s*$/u.test(before)) { rows.push({ kind: 'dynamic', literal }); continue; }
+    if (/\bimport\s*\(\s*$/u.test(before)) { rows.push({ kind: 'dynamic', literal, start: literal.start, end: literal.end, clause: '' }); continue; }
     const match = /(^|[;\n}])(\s*)(import|export)\b([^;'"]*?)\bfrom\s*$/u.exec(before)
       ?? /(^|[;\n}])(\s*)(import)()\s*$/u.exec(before);
     if (!match) continue;
@@ -175,7 +175,7 @@ function readShim(repo, file) {
   const info = repo.lexOf(file);
   const rows = statements(source, info);
   let rest = info.code;
-  for (const row of [...rows].sort((a, b) => (b.start ?? 0) - (a.start ?? 0))) if (row.start !== undefined) rest = rest.slice(0, row.start) + rest.slice(row.end);
+  for (const row of [...rows].sort((a, b) => b.start - a.start)) if (row.kind !== 'dynamic') rest = rest.slice(0, row.start) + rest.slice(row.end);
   if (rest.trim() || !rows.length || rows.some(row => row.kind !== 'export')) return null;
   const named = new Map(), stars = [];
   for (const row of rows) {
@@ -236,10 +236,47 @@ function render(kind, rows, file, module, quote) {
   return rows.map(row => `${kind} { ${row.imported === row.local ? row.imported : `${row.imported} as ${row.local}`} } from ${spec};`).join('\n');
 }
 
+/**
+ * Repoint a namespace import of a one-door shim, renaming each `ns.member` to the door's real name for it. Why: a shim
+ * can rename on re-export (src/board.js gives board_ensureCoordinator as ensureCoordinator), so swapping only the
+ * import would change which function runs. A namespace used other than through a named member is held.
+ */
+function namespace(repo, file, row, shim, door) {
+  const ns = /([\w$]+)$/u.exec(row.clause)[1];
+  const info = repo.lexOf(file);
+  const also = [];
+  const uses = new RegExp(`(?<![\\w$.])${ns.replace('$', '\\$')}\\b`, 'gu');
+  for (const match of info.code.matchAll(uses)) {
+    if (match.index >= row.start && match.index < row.end) continue;
+    const member = /^\s*\.\s*([\w$]+)/u.exec(info.code.slice(match.index + ns.length));
+    if (!member) return { hold: `${file} uses the ${ns} namespace other than through a named member` };
+    const source = forwarded(repo, shim, member[1]);
+    if (!source || !exportsOf(repo, door).has(source.name)) return { hold: `${file} reads ${ns}.${member[1]}, which no front door behind it exports` };
+    if (source.name !== member[1]) {
+      const at = match.index + ns.length + member[0].length - member[1].length;
+      also.push({ start: at, end: at + member[1].length, text: source.name });
+    }
+  }
+  return { text: `${row.kind} ${row.clause} from ${row.literal.quote}${specifier(file, door)}${row.literal.quote};`, also };
+}
+
+/** Apply a file's chosen rewrites, each a statement span plus any member renames, from the last offset to the first. */
+function applyRows(source, rows) {
+  const spans = rows.flatMap(row => [row.span ? { ...row.span, text: row.text } : { start: row.start, end: row.end, text: row.text }, ...(row.also ?? [])]);
+  for (const span of spans.sort((a, b) => b.start - a.start)) source = source.slice(0, span.start) + span.text + source.slice(span.end);
+  return source;
+}
+
 /** Plan the replacement text for one statement that reads a shim, or the reason it cannot be rewritten. */
 function rewrite(repo, file, row, shim) {
   const quote = row.literal.quote;
-  if (row.kind === 'dynamic') return { hold: `${file} loads it with a dynamic import` };
+  if (row.kind === 'dynamic') {
+    // A dynamic import reads the whole namespace; the one door serves it unchanged only when no name is renamed.
+    const door = shim.doors.length === 1 ? shim.doors[0] : null;
+    const plain = door && [...shim.named].every(([name, row2]) => row2.name === name && origin(repo, door, name) !== null);
+    if (!plain || file.startsWith(`${unitOf(door)}/`)) return { hold: `${file} loads it with a dynamic import, and no single door serves the same names` };
+    return { text: specifier(file, door), span: { start: row.literal.start + 1, end: row.literal.end - 1 } };
+  }
   if (row.kind === 'bare') return { text: shim.doors.map(door => `import ${quote}${specifier(file, door)}${quote};`).join('\n') };
   let pairs;
   if (row.clause.startsWith('{')) pairs = bindings(row.clause.slice(1, -1));
@@ -249,6 +286,8 @@ function rewrite(repo, file, row, shim) {
     pairs = [...shim.named.keys()].map(name => ({ imported: name, local: name }));
   } else if (/^\*\s*as\s+[\w$]+$/u.test(row.clause) && !shim.named.size && shim.stars.length === 1 && !file.startsWith(`${unitOf(shim.stars[0])}/`)) {
     return { text: `${row.kind} ${row.clause} from ${quote}${specifier(file, shim.stars[0])}${quote};` };
+  } else if (/^\*\s*as\s+[\w$]+$/u.test(row.clause) && shim.doors.length === 1 && !file.startsWith(`${unitOf(shim.doors[0])}/`)) {
+    return namespace(repo, file, row, shim, shim.doors[0]);
   } else return { hold: `${file} takes it as ${row.clause || 'a default'}, which a front door would widen` };
   if (!pairs) return { hold: `${file} has an import list this script does not read` };
   const groups = new Map();
@@ -308,7 +347,7 @@ function mentions(text, path) {
 }
 
 /** Find, rewrite and delete every shim; leave the ones a rule keeps, with why. */
-export function cutShims(root, { write = true, frozen = [] } = {}) {
+export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}) {
   const repo = loadRepo(root);
   const pkg = JSON.parse(repo.files.get('package.json'));
   const lanes = JSON.parse(repo.files.get('pullboard.json')).lanes ?? {};
@@ -344,12 +383,14 @@ export function cutShims(root, { write = true, frozen = [] } = {}) {
       if (isFrozen(file)) { keep(target, `imported by ${file} (frozen)`); continue; }
       const plan = rewrite(repo, file, row, shims.get(target));
       if (plan.hold) { keep(target, plan.hold); continue; }
-      edits.set(file, [...edits.get(file) ?? [], { ...row, shim: target, text: plan.text }]);
+      edits.set(file, [...edits.get(file) ?? [], { ...row, shim: target, text: plan.text, span: plan.span, also: plan.also }]);
     }
   }
+  // A file read by hand and found to name shim paths only as data (a policy list, a logical audit identity, an import-map key).
+  const named = new Set(reviewed);
   for (const [file, source] of repo.files) {
-    if (PLAN_FILE.test(file) || HISTORY.has(file)) continue;
-    const handled = new Set((statementsOf.get(file) ?? []).filter(row => row.kind !== 'dynamic').map(row => row.literal.start));
+    if (PLAN_FILE.test(file) || HISTORY.has(file) || named.has(file)) continue;
+    const handled = new Set((statementsOf.get(file) ?? []).map(row => row.literal.start));
     const info = repo.lexOf(file);
     let text = source;
     if (info && /\.m?js$/u.test(file)) {
@@ -361,7 +402,7 @@ export function cutShims(root, { write = true, frozen = [] } = {}) {
       }
       // In a script, a path counts where code or a string names it; a comment or a static import is neither.
       const chars = info.bare.split('');
-      for (const row of statementsOf.get(file) ?? []) if (row.kind !== 'dynamic') for (let k = row.literal.start; k < row.literal.end; k++) chars[k] = ' ';
+      for (const row of statementsOf.get(file) ?? []) for (let k = row.literal.start; k < row.literal.end; k++) chars[k] = ' ';
       text = chars.join('');
     }
     for (const shim of shims.keys()) {
@@ -377,10 +418,11 @@ export function cutShims(root, { write = true, frozen = [] } = {}) {
     declared: new Set(JSON.parse(repo.files.get('bin/cells-plan.json') ?? '{}').allowedEdges ?? []),
   };
   for (const [file, rows] of edits) {
-    let source = repo.files.get(file);
+    const original = repo.files.get(file);
+    let source = original;
     const accepted = [];
     for (const row of [...rows].sort((a, b) => b.start - a.start)) {
-      const next = source.slice(0, row.start) + row.text + source.slice(row.end);
+      const next = applyRows(original, [...accepted, row]);
       const before = cellEdges(file, source);
       if (withinRatchet(ratchet, file, next) || [...cellEdges(file, next)].every(to => before.has(to))) { source = next; accepted.push(row); }
       else keep(row.shim, `repointing ${file} would raise its cross-cell imports past bin/checks/cells-edges.json`);
@@ -400,9 +442,7 @@ export function cutShims(root, { write = true, frozen = [] } = {}) {
     if (cutSet.has(file)) continue;
     const live = rows.filter(row => cutSet.has(row.shim)).sort((a, b) => b.start - a.start);
     if (!live.length) continue;
-    let source = repo.files.get(file);
-    for (const row of live) source = source.slice(0, row.start) + row.text + source.slice(row.end);
-    changed.set(file, source);
+    changed.set(file, applyRows(repo.files.get(file), live));
     rewritten.push(...live.map(row => ({ file, shim: row.shim })));
   }
   if (write) {
@@ -427,7 +467,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const at = process.argv.indexOf('--frozen');
   // --frozen <file> lists one path per line, or a folder ending in /, that this run must not write.
   const frozen = at > 0 ? readFileSync(process.argv[at + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
-  const result = cutShims(process.cwd(), { write: !dry, frozen });
+  const seen = process.argv.indexOf('--reviewed');
+  // --reviewed <file> lists, one per line, files whose path mentions were checked by hand and load nothing.
+  const reviewed = seen > 0 ? readFileSync(process.argv[seen + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
+  const result = cutShims(process.cwd(), { write: !dry, frozen, reviewed });
   for (const shim of result.cut) console.log(`cut ${shim}`);
   for (const [shim, reasons] of result.kept) console.log(`kept ${shim}: ${[...new Set(reasons)].join('; ')}`);
   console.log(`${result.found} shims found, ${result.cut.length} cut, ${result.kept.length} kept; ${result.rewritten.length} imports rewritten in ${result.files.length} files`);
