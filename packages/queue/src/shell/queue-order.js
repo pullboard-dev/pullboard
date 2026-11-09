@@ -3,6 +3,10 @@
 export const QUEUE_CLASSES = ['landing', 'review', 'submit', 'other'];
 /** By default a waiter moves up one class for every this long it has waited, so no class starves. */
 export const QUEUE_AGE_MS = 30 * 60_000;
+/** The kinds of a gate's own follow-up runs, such as its main comparison, which already ran its tests and only needs to finish. */
+export const FOLLOW_UP_KINDS = Object.freeze(['main-red']);
+/** How much earlier a follow-up run counts as having arrived: it passes later work, never a run that waited this much longer. */
+export const FOLLOW_UP_CREDIT_MS = 10 * 60_000;
 /** Landings first, then arrival: the order every pool keeps unless the machine opts in to reviews first. */
 export const ARRIVAL_ORDER = Object.freeze({ reviewsFirst: false, ageMs: QUEUE_AGE_MS });
 
@@ -94,7 +98,7 @@ export function orderedWaiters(waiters, now, order) {
   /** Opportunity positions are consumed separately from immutable waiter identity tickets. */
   const opportunity = waiter => releaseOrder ? waiter.queue_ticket ?? waiter.ticket : waiter.ticket;
   const line = [...waiters].sort((left, right) => rank(left) - rank(right) || opportunity(left) - opportunity(right) || left.ticket - right.ticket);
-  if (!releaseOrder) return line;
+  if (!releaseOrder) return followUpsForward(line, now);
   const positions = new Map();
   line.forEach((waiter, index) => {
     const waited = Math.max(0, now - (Date.parse(waiter.since ?? '') || now));
@@ -109,5 +113,36 @@ export function orderedWaiters(waiters, now, order) {
     const entries = group.map(index => line[index]).sort((left, right) => left.release_rank - right.release_rank || opportunity(left) - opportunity(right) || left.ticket - right.ticket);
     group.forEach((index, at) => { line[index] = { ...entries[at], queue_ticket: tickets[at] }; });
   }
-  return line;
+  return followUpsForward(line, now);
+}
+
+/** Whether a waiter is a gate's own follow-up run; a landing keeps its own place at the front. */
+function followUp(waiter) {
+  return FOLLOW_UP_KINDS.includes(waiter.kind) && waiter.landing !== 1 && waiter.landing !== true;
+}
+
+/**
+ * Move each follow-up run ahead of every non-landing waiter that arrived after it, or less than
+ * FOLLOW_UP_CREDIT_MS before it; follow-ups keep their own order. Why: a red gate's main comparison waited at
+ * place 31 behind new gates for 5.6 minutes (#3910), although its gate had already run its tests. The credit
+ * bounds the jump, so a new gate that has waited 10 minutes longer still goes first and none starves.
+ * It applies only while every waiter was queued by a client that knows it (followUpAware), so mixed
+ * versions on one machine rank the line the same way, as classOrderInEffect does for classes.
+ *
+ * @param {object[]} line - The line in its class or arrival order.
+ * @param {number} now - The clock reading that stands in for an unreadable arrival time.
+ * @returns {object[]}
+ */
+function followUpsForward(line, now) {
+  if (!line.some(followUp) || !line.every(waiter => waiter.followUpAware === 1)) return line;
+  const arrived = waiter => Date.parse(waiter.since ?? '') || now;
+  const pending = line.filter(followUp);
+  const ordered = [];
+  for (const waiter of line) {
+    if (followUp(waiter)) continue;
+    const landing = waiter.landing === 1 || waiter.landing === true;
+    while (!landing && pending.length && arrived(waiter) > arrived(pending[0]) - FOLLOW_UP_CREDIT_MS) ordered.push(pending.shift());
+    ordered.push(waiter);
+  }
+  return [...ordered, ...pending];
 }
