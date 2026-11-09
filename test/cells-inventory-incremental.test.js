@@ -114,7 +114,8 @@ test('package.json, the kernel front door and discovery.js keep the full census 
 /** Commit one added test file on top of main in the job checkout and leave it checked out. */
 function addFileCandidate(job, main, name) {
   git(job, 'checkout', '-q', '--detach', main);
-  writeFileSync(join(job, 'test', name), 'export const probe = true;\n');
+  // A diff confined to root test/ and docs/ skips the cells step (bin/cells-submit-checks.js), so the probe lands in a cell's tests folder.
+  writeFileSync(join(job, 'packages', 'items', 'tests', name), 'export const probe = true;\n');
   git(job, 'add', '-A');
   git(job, 'commit', '-q', '-m', `add ${name}`);
   return git(job, 'rev-parse', 'HEAD').trim();
