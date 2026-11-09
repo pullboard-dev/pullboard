@@ -2015,6 +2015,8 @@
     "items->git",
     "items->kernel",
     "items->store",
+    "items->queue",
+    "queue->kernel",
     "keys->store",
     "landing->git",
     "landing->pin",
