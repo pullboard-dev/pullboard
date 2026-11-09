@@ -156,7 +156,7 @@
   "test/gate-admission-p95-fixture.js": {
     "poll": 1
   },
-  "test/gate-admission.test.js": {
+  "packages/gate/tests/gate-admission.test.js": {
     "sleep": 5
   },
   "test/gate-profile.test.js": {

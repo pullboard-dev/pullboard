@@ -1,26 +1,35 @@
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
-import { executionServices } from './gate-execution-fixture.js';
-import { executionServicesSource } from './gate-execution-fixture.js';
-import { withGateSlot } from '../packages/gate/index.js';
-import { awaitNestedRun } from '../packages/gate/index.js';
-import { measureFileInflation } from './gate-admission-p95-fixture.js';
+import { executionServices } from '../../../test/gate-execution-fixture.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { withGateSlot } from '../index.js';
+import { awaitNestedRun } from '../index.js';
+import { measureFileInflation } from '../../../test/gate-admission-p95-fixture.js';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  runFixtureChild,
-  runFixtureChildAsync,
-  safeFixtureDiagnostic,
-  startFixtureChild,
-} from './fixture-child.js';
-import { TEST_FILE_CORES_ENV, TEST_FILE_POOL_ENV, occupiedPlaces } from '../packages/gate/index.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { safeFixtureDiagnostic } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
+import { TEST_FILE_CORES_ENV } from '../index.js';
+import { TEST_FILE_POOL_ENV } from '../index.js';
+import { occupiedPlaces } from '../index.js';
+import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
+import { GATE_SLOT_POOL_ENV } from '../../resources/index.js';
+import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
+import { BROWSER_SLOT_HELD_ENV } from '../../resources/index.js';
 
-const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../bin/run-tests.js', import.meta.url));
 // Keep generated launch code as data: this classifier test never launches the browser it describes.
 const browserFixtureSource = ["// pullboard: browser\nimport { spawn } from 'node:child_process';\nspawn('Google", " Chrome');\n"].join('');
 
@@ -31,8 +40,8 @@ test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t)
   writeFileSync(join(root, 'bin/run-tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
-  const admission = new URL('../packages/gate/src/shell/browser-admission.js', import.meta.url).href;
-  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
+  const admission = new URL('../src/shell/browser-admission.js', import.meta.url).href;
+  const gate = new URL('../index.js', import.meta.url).href;
   const commands = [
     ['browser', 'out=$(node bin/run-tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
     ['unknown', 'eval "$CHECK"', true],
@@ -94,7 +103,7 @@ test('shell admission preserves opaque suffixes and the existing short-slot boun
     [capture('$FILES'), true], [capture('test/core.test.js --unknown'), true],
     [capture('test/core.test.js; node launch-browser.js'), true],
   ];
-  const admission = new URL('../packages/gate/src/shell/browser-admission.js', import.meta.url).href;
+  const admission = new URL('../src/shell/browser-admission.js', import.meta.url).href;
   const source = `import { checkNeedsBrowser, explicitCheckFiles } from ${JSON.stringify(admission)};
 const decisions = [];
 for (const [command] of ${JSON.stringify(commands)}) decisions.push(await checkNeedsBrowser(process.cwd(), command));
@@ -241,8 +250,8 @@ test('busy parent', async () => {
 });
 
 test('an async parent lends its token through awaitNestedRun [C7]', async (t) => {
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
-  const api = await import('../packages/gate/index.js');
+  const poolModule = new URL('../index.js', import.meta.url).href;
+  const api = await import('../index.js');
   assert.equal(typeof api.awaitNestedRun, 'function', 'an explicit yielding-wait helper is available');
   const { root, env, log } = fixture(t, 1);
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
@@ -303,7 +312,7 @@ test('parent without the explicit wait', { timeout: 10_000 }, async (t) => {
 
 test('an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
   writeFileSync(join(root, 'parent.test.js'), `import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -348,7 +357,7 @@ test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
 
 test('async offers preserve spawn argument overloads and Node validation [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../index.js', import.meta.url).href;
   const probe = join(root, 'options.sh');
   const marker = join(root, 'options-output');
   writeFileSync(probe, String.raw`#!/bin/sh
@@ -399,7 +408,9 @@ export function observation(result) {
 `);
   const oracle = join(root, 'native-oracle.mjs');
   writeFileSync(oracle, `import { spawnSync } from 'node:child_process';
-import { variants, startVariant, observation } from './spawn-cases.mjs';
+import { variants } from '../../../test/spawn-cases.mjs';
+import { startVariant } from '../../../test/spawn-cases.mjs';
+import { observation } from '../../../test/spawn-cases.mjs';
 const records = variants.map(variant => {
   try { return { variant, observed: observation(startVariant(spawnSync, variant)) }; }
   catch (error) { return { variant, observed: { error: error.code } }; }
@@ -419,7 +430,9 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
-import { variants, startVariant, observation } from './spawn-cases.mjs';
+import { variants } from '../../../test/spawn-cases.mjs';
+import { startVariant } from '../../../test/spawn-cases.mjs';
+import { observation } from '../../../test/spawn-cases.mjs';
 test('offered spawn matches independently loaded Node', async () => {
   const expected = JSON.parse(readFileSync('expected.json', 'utf8'));
   for (const variant of variants) {
@@ -437,7 +450,7 @@ test('offered spawn matches independently loaded Node', async () => {
 
 test('an async loan whose cleanup fails exits without resuming its parent [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 test('borrowed child', async () => {
@@ -446,7 +459,8 @@ test('borrowed child', async () => {
 });
 `);
   writeFileSync(join(root, 'parent.test.js'), `import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';

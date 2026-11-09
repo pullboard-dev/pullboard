@@ -1607,7 +1607,7 @@
     "tempdir": 2,
     "hand-policy": 1
   },
-  "test/gate-admission.test.js": {
+  "packages/gate/tests/gate-admission.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "env-spread": 1
@@ -2177,7 +2177,7 @@
     "hand-policy": 2,
     "raw-board": 8
   },
-  "test/main-compare-any-runner.test.js": {
+  "packages/landing/tests/main-compare-any-runner.test.js": {
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 2
@@ -2876,7 +2876,7 @@
   "test/reopen-evidence.test.js": {
     "raw-board": 1
   },
-  "test/requeue-restriction-valid.test.js": {
+  "packages/gate/tests/requeue-restriction-valid.test.js": {
     "tempdir": 2,
     "hand-policy": 2
   },
@@ -3212,7 +3212,7 @@
   "test/runner-request.test.js": {
     "tempdir": 2
   },
-  "test/runner-requeue-unpins.test.js": {
+  "packages/gate/tests/runner-requeue-unpins.test.js": {
     "tempdir": 2,
     "hand-policy": 2
   },
