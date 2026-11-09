@@ -1410,7 +1410,7 @@
     },
     "packages/gate/src/shell/browser-admission.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -2793,8 +2793,8 @@
       "deep": 0
     },
     "packages/sandbox/src/shell/execution-environment.js": {
-      "cells": 2,
-      "deep": 2
+      "cells": 1,
+      "deep": 0
     },
     "packages/sandbox/src/shell/next-take.js": {
       "cells": 4,
@@ -2833,8 +2833,8 @@
       "deep": 0
     },
     "packages/sandbox/src/shell/trusted-policy-read.js": {
-      "cells": 3,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/sandbox/src/shell/trusted-policy.js": {
       "cells": 5,
@@ -3242,7 +3242,7 @@
     },
     "packages/stats/src/shell/cost-read.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/stats/src/shell/cost-shared.js": {
       "cells": 2,
@@ -3826,7 +3826,7 @@
     },
     "packages/verify/src/core/proof-provenance.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/verify/src/core/required-review-family.js": {
       "cells": 3,
@@ -5483,6 +5483,7 @@
     "packages/store/core.js": 34,
     "packages/sandbox/core.js": 14,
     "packages/doctrine/core.js": 50,
-    "packages/gate/core.js": 10
+    "packages/gate/core.js": 10,
+    "packages/config/core.js": 9
   }
 }
