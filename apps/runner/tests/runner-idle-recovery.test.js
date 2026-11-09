@@ -7,10 +7,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Exercise the real pinned worker and recovery store against a private SSH destination, never the machine pool. */
 function control(t, body) {
@@ -19,7 +19,7 @@ function control(t, body) {
   const requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, home, machineHome, root, join(root, 'jobs')]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
-  const url = file => pathToFileURL(join(import.meta.dirname, '../src', file)).href;
+  const url = file => pathToFileURL(join(import.meta.dirname, '../../../src', file)).href;
   const source = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';

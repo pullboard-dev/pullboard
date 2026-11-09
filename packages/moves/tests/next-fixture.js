@@ -33,8 +33,8 @@ export function counted(t, seam, after = {}) {
 /**
  * A real repo and board with an actor seat at the repo root and a peer builder in the same lane, and plain ports in
  * place of the command line's: board work on the open board, the current seat as this seat, claims through the claim
- * move, and no item folders. With `reviewers`, three review-lane seats join too (sibling, sameFamily, outside), and
- * `family` and `policy` set the project's review rules. `box.as(name)` makes another seat the one that runs next.
+ * move, and no item folders. With `reviewers`, the coordinator and three review-lane seats join too (sibling,
+ * sameFamily, outside), and `family` and `policy` set the project's review rules. `box.as(name)` makes another seat the one that runs next.
  */
 export function fixture(t, { reviewers = false, family, policy } = {}) {
   const config = {};
@@ -49,6 +49,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha' }),
     builder: cellSeat(board, { lane: 'web', path: builderPath, family: 'Family Alpha' }) };
   if (reviewers) {
+    store.board_ensureCoordinator(board, join(project.dir, 'coordinator'));
     for (const [name, vendor] of [['sibling', 'Family Beta'], ['sameFamily', 'Family Alpha'], ['outside', 'Family Beta']]) {
       const path = join(project.dir, name);
       mkdirSync(path);
@@ -91,7 +92,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
     as: name => { current = seats[name]; },
     /** File an ordinary runnable item in the actor's lane, or another configured lane. */
     add: (title, options = {}) => cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
-      brief: `Files: ${options.lane ?? 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
+      brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
     /** Publish synthetic board state at the repo's head as the builder's submission, with no gate receipt. */
     submit: id => {
       claim(id);

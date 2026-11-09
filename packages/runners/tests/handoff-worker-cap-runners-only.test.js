@@ -7,8 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { handoffWorkerCapacity } from '../index.js';
-import { currentCapacity } from '../../../bin/handoff-worker-dispatcher.js';
+import { handoffWorkerCapacity } from '../../resources/index.js';
+import { currentCapacity } from '../index.js';
 
 const RUNNERS = [{ host: 'one@runner-one', slots: 9, browser: 2, node: '/usr/bin/node' }, { host: 'two@runner-two', slots: 9, browser: 2, node: '/usr/bin/node' },
   { host: 'three@runner-three', slots: 10, browser: 2, node: '/usr/bin/node' }];

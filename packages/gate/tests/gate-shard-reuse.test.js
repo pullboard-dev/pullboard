@@ -1,13 +1,18 @@
 /** A gate rerun after an infrastructure end runs only the proof shards with no recorded pass for the same tree [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { BATCH_DROP_LIMIT, proveBatches, shardPassStore } from '../packages/gate/src/shell/proof-shards.js';
-import { readTestOutcomes, formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
-import { INFRASTRUCTURE_CODES, submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { BATCH_DROP_LIMIT } from '../src/shell/proof-shards.js';
+import { proveBatches } from '../src/shell/proof-shards.js';
+import { shardPassStore } from '../src/shell/proof-shards.js';
+import { readTestOutcomes } from '../src/shell/test-outcomes.js';
+import { formatTestOutcomes } from '../src/shell/test-outcomes.js';
+import { INFRASTRUCTURE_CODES } from '../../../apps/lib/src/shell/submit-infra-requeue.js';
+import { submitUntilSettled } from '../../../apps/lib/src/shell/submit-infra-requeue.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
 const TREE = 'c'.repeat(40);
