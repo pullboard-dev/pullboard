@@ -92,6 +92,13 @@ export function recordJobRow(db, row) {
  */
 export const GATE_STALL_MS = 20 * 60_000;
 
+/**
+ * The least time between two progress steps a gate writes: a gate reports each runner-wait poll and a beat a minute
+ * while tests run, and this keeps the step log to about two rows a minute while a report still lands well inside
+ * every 2 minutes.
+ */
+const GATE_PROGRESS_STEP_MS = 30_000;
+
 /** Reruns of the same candidate after a stalled run; the next stall ends the gate as infrastructure. */
 export const GATE_STALL_RETRIES = 1;
 
@@ -329,7 +336,8 @@ function observeStages(rows, job, seen, now, ended = null) {
 
 /**
  * One run of a whole gate, renewing the lease while it runs and watching the job's steps: the run ends with the gate's
- * result, or as stalled once no step was written for `stallMs`. A stalled run's stages get its signal and it records
+ * result, or as stalled once no step was written for `stallMs`. The gate's `run.progress` reports write
+ * `gate.progress` steps, so a gate that waits for a runner or runs tests a long while is not stalled. A stalled run's stages get its signal and it records
  * nothing more, so a stage that never settles cannot hold the gate.
  *
  * @param {JobRows} rows
@@ -351,7 +359,16 @@ async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkM
       if (at - last.at >= stallMs) resolvePromise({ stalled: { idleMs: at - last.at, lastStep: last.name } });
     }, checkMs);
   });
-  const run = Promise.resolve().then(() => gate(observeStages(rows, view.id, seen, now, ended.signal), { signal: ended.signal }))
+  // A gate waiting for a runner or running tests reports progress; each report past the bound is a step (#3829).
+  let reported = -Infinity;
+  const progress = (detail = {}) => {
+    const at = now();
+    if (ended.signal.aborted || at - reported < GATE_PROGRESS_STEP_MS) return;
+    reported = at;
+    rows.step(view.id, 'gate.progress', { waiting: detail.waiting === true, running: detail.running === true }, { seq: seen.progress, now: at });
+    seen.progress += 1;
+  };
+  const run = Promise.resolve().then(() => gate(observeStages(rows, view.id, seen, now, ended.signal), { signal: ended.signal, progress }))
     .then(result => ({ result }));
   try {
     const outcome = await Promise.race([run, stalled]);
@@ -376,13 +393,14 @@ async function attemptGate(rows, view, { gate, owner, now, seen, stallMs, checkM
  *
  * @param {JobRows} rows
  * @param {ReturnType<typeof jobView>} view
- * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal }) => Promise<object>, owner: string, now: () => number,
+ * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal, progress: (detail?: { waiting?: boolean, running?: boolean }) => void }) => Promise<object>, owner: string, now: () => number,
  *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object }} options
  * @returns {Promise<number>} Always 0: a gate owes nothing once its result is written.
  */
 async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal }) {
   if (typeof gate !== 'function') throw new Refused('DRIVE_GATE', `Job ${view.id} runs a whole gate: pass { gate } to driveOnce.`);
-  const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length };
+  const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length,
+    progress: view.steps.filter(step => step.name === 'gate.progress').length };
   let stalls = view.steps.filter(step => step.name === 'gate.stalled').length;
   let result;
   for (;;) {

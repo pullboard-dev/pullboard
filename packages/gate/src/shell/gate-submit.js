@@ -75,6 +75,8 @@ import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
 import { proveBatches } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
+import { progressingWait } from './gate-progress.js';
+import { whileGateRuns } from './gate-progress.js';
 import {
   commandWord,
   runStaticChecks,
@@ -202,7 +204,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
-  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission };
+  // Each runner-wait poll and a beat while tests run report progress to a driving drive cell (#3829).
+  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
   const diagnostics = [];
   const gateResult = await withGateSlot(root, async (lease) => {
@@ -278,9 +281,9 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     };
     // One remote lease holds one controller at a time. Local phases can still overlap; either way,
     // drain both phases even on rejection so their receipts and the admission lease stay accurate.
-    const outcomes = lease.runner
+    const outcomes = await whileGateRuns(async () => (lease.runner
       ? [...await Promise.allSettled([criterionRun()]), ...await Promise.allSettled([prove()])]
-      : await Promise.allSettled([criterionRun(), prove()]);
+      : await Promise.allSettled([criterionRun(), prove()])));
     lease.tracker?.mark('ranAt');
     lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
     const active = [criterionLease, proofLease].filter(value => value.environment);
