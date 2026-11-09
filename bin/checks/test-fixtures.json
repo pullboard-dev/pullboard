@@ -323,14 +323,6 @@
   "packages/sandbox/tests/trusted-policy.test.js": {
     "hand-policy": 1
   },
-  "packages/spec/tests/doctrine-rulings.test.js": {
-    "model": 1
-  },
-  "packages/spec/tests/signoff.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 5
-  },
   "packages/state/tests/bar-corrections.test.js": {
     "tempdir": 2,
     "env-spread": 1,
@@ -496,6 +488,9 @@
   },
   "packages/store/tests/landing-noop.test.js": {
     "raw-board": 1
+  },
+  "packages/store/tests/milestone-placement.test.js": {
+    "raw-board": 4
   },
   "packages/store/tests/review-family-relaxation.test.js": {
     "raw-board": 2
@@ -1444,6 +1439,9 @@
     "tempdir": 1,
     "hand-policy": 3
   },
+  "test/doctrine-rulings.test.js": {
+    "model": 1
+  },
   "test/doctrine.test.js": {
     "tempdir": 1,
     "repo-read": 2,
@@ -2292,9 +2290,6 @@
   },
   "packages/landing/tests/merged-plan-check.test.js": {
     "tempdir": 6
-  },
-  "test/milestone-placement.test.js": {
-    "raw-board": 4
   },
   "test/mixed-mode-drill-fixture.js": {
     "model": 1
@@ -3465,6 +3460,11 @@
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 2
+  },
+  "test/signoff.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "hand-policy": 5
   },
   "test/skills.test.js": {
     "tempdir": 2,
