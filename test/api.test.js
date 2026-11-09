@@ -47,7 +47,7 @@ import {
   nextSseEvent,
   shellWord,
   timedMs,
-  addRoutedItem, addLightViaCli,
+  addRoutedItem, addLightViaCli, commitWork, checkOutSubmitted,
 } from './api-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
@@ -1411,8 +1411,8 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
 
     builds.length = 0;
     await move('claim', ids[0], {}, builder.agent);
-    await move('submit', ids[0], {}, builder.agent);
-    await move('next', undefined, { verify: true }, verifier.agent);
+    commitWork(box, builder, ids[0]); await move('submit', ids[0], {}, builder.agent);
+    checkOutSubmitted(box, builder, verifier); await move('next', undefined, { verify: true }, verifier.agent);
     // Keep the fixture's trunk fixed so automatic landing cannot invalidate every item during this incremental check.
     writeFileSync(join(box.repo, 'landing-fixture-dirty'), 'hold the trunk\n');
     await move('verify', ids[0], { decision: 'accept', reason: 'CRITERION_MET', note: 'verified dependency' }, verifier.agent);
