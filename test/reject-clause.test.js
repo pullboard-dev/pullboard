@@ -244,7 +244,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   const reviewer = join(box.dir, 'clause-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   box.env.CODEX_THREAD_ID = 'independent-clause-review-fixture';
-  assert.equal(fixtureJoin(box.run, reviewer, 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong').code, 0);
   const reserved = box.run(reviewer, 'next', '--verify', String(id), '--json');
   assert.equal(reserved.code, 0, reserved.out || reserved.err);
   assert.equal(JSON.parse(reserved.out).item.item_id, id);
