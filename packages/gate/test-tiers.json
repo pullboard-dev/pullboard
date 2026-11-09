@@ -4280,6 +4280,31 @@
       ]
     },
     {
+      "file": "packages/spec/tests/signer-signature.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/codemap",
+        "packages/config",
+        "packages/gate",
+        "packages/git",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/pin",
+        "packages/queue",
+        "packages/resources",
+        "packages/spec",
+        "packages/state",
+        "packages/transport"
+      ],
+      "reasons": [
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/transport/src/shell/ssh.js",
+        "cross-package: imports more than one package",
+        "process: packages/codemap/src/core/shim-count-ratchet.js"
+      ]
+    },
+    {
       "file": "packages/state/tests/bar-corrections.test.js",
       "tier": "T3",
       "packages": [
@@ -54473,31 +54498,6 @@
         "process: bin/cells-data-reads.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
-      ]
-    },
-    {
-      "file": "packages/spec/tests/signer-signature.test.js",
-      "tier": "T3",
-      "packages": [
-        ".",
-        "packages/codemap",
-        "packages/config",
-        "packages/gate",
-        "packages/git",
-        "packages/jobs",
-        "packages/kernel",
-        "packages/pin",
-        "packages/queue",
-        "packages/resources",
-        "packages/spec",
-        "packages/state",
-        "packages/transport"
-      ],
-      "reasons": [
-        "board: packages/config/src/shell/settings-inventory.js",
-        "browser: packages/transport/src/shell/ssh.js",
-        "cross-package: imports more than one package",
-        "process: packages/codemap/src/core/shim-count-ratchet.js"
       ]
     }
   ]
