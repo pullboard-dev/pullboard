@@ -113,7 +113,7 @@ function project() {
 function laneWorktree(box, lane, branch) {
   const path = join(box.dir, `${lane}-worktree`);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = fixtureJoin(box.run, path, lane);
+  const joined = fixtureJoin(box.run, path, lane, '--route', 'strong');
   assert.equal(joined.code, 0, joined.err);
   return path;
 }
