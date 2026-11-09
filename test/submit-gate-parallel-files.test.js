@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { freeRunnerSlots, mergeShardRuns, runProofShards } from '../packages/gate/src/shell/proof-shards.js';
+import { PROOF_BATCH_FILES, freeRunnerSlots, mergeShardRuns, proofShardCount, runProofShards } from '../packages/gate/src/shell/proof-shards.js';
 import { proofFields } from '../packages/verify/index.js';
 import { privateFixtureFiles } from './fixture-child.js';
 
@@ -49,6 +49,34 @@ test('clause 1: prove fans proof files across free slots into one receipt: N fil
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), FILES, 'every file runs exactly once');
   const slowest = Math.max(...Object.values(FILE_MS));
   assert.ok(runners.clock.now < slowest * 1.5, `the proof's wall time ${runners.clock.now} ms stays under 1.5x the slowest file's ${slowest} ms`);
+});
+
+test('clause 1: prove fans proof files across free slots into one receipt: 6 files on 3 free slots run one parallel pass of 3 shards, not 2 sequential batches [C7]', { timeout: 10_000 }, async () => {
+  const six = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
+  assert.equal(proofShardCount(six.length, { batchFiles: PROOF_BATCH_FILES }), 2, 'batches of 3 would make 2 batches');
+  assert.equal(proofShardCount(six.length, { freeSlots: 3 }), 3, 'with no batch size the files split one shard per free slot');
+  const calls = [];
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let allStarted;
+  const started = new Promise(resolve => { allStarted = resolve; });
+  /** One shard run that stays open until the test releases every run, so a sequential second batch could never start. */
+  const run = label => async files => {
+    calls.push({ label, files });
+    if (calls.length === 3) allStarted();
+    await held;
+    return { isGreen: true, exitCode: 0, output: `ok ${files.join(' ')}`, executionRunner: `runner-${label}` };
+  };
+  const proof = runProofShards(six, { freeSlots: 3, retryMs: 10, runFirst: run('gate'), takeSlot: lane => lane(run('slot')) });
+  await started;
+  assert.equal(calls.length, 3, 'three shards are running at once before any has finished');
+  assert.deepEqual(calls.map(call => call.files.length), [2, 2, 2], 'each shard holds a third of the files');
+  assert.deepEqual(calls.map(call => call.label).sort(), ['gate', 'slot', 'slot'], 'the gate lane and two slot lanes each run one shard');
+  release();
+  const shards = await proof;
+  assert.equal(calls.length, 3, 'no lane ran a second batch after its first');
+  assert.equal(shards.length, 3);
+  assert.deepEqual(shards.flatMap(shard => shard.files).sort(), six, 'every file runs exactly once');
 });
 
 test('clause 1: prove fans proof files across free slots into one receipt: the merged run is one receipt holding each shard\'s files [C7]', async () => {
