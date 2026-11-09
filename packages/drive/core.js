@@ -5,3 +5,4 @@ export { fileWatchdogLimits } from './src/core/file-watchdog-policy.js';
 export { wallLoadFactor } from './src/core/file-watchdog-policy.js';
 export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { FILE_WATCHDOG_WORKER } from './src/shell/file-watchdog.js';
+export { parseWorkerProcessIdentity, workerProcessIdentityQuery, isWorkerProcessIdentityTimeout } from './src/core/worker-process-identity.js';

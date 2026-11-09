@@ -1303,12 +1303,14 @@
     "flakes",
     "github",
     "health",
+    "land",
     "mcp",
     "merge",
     "pin",
     "receipt",
     "rigor",
     "sentinels",
+    "shouts",
     "sync"
   ],
   "splits": {}

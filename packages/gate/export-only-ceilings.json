@@ -35,7 +35,6 @@
     "src/landing-failure-report.js",
     "src/landing-shards.js",
     "src/landing-test-policy.js",
-    "src/landing-worker-identity.js",
     "src/machine.js",
     "src/module-imports.js",
     "src/move-registry.js",
