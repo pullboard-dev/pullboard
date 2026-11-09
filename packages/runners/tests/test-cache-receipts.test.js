@@ -13,9 +13,9 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { cacheSummary } from '../../gate/src/shell/test-cache-account.js';
-import { readCacheRows } from '../../gate/src/shell/test-cache-account.js';
-import { renderTestSummary } from '../../gate/src/shell/test-output-summary.js';
+import { cacheSummary } from '../../gate/index.js';
+import { readCacheRows } from '../../gate/index.js';
+import { renderTestSummary } from '../../gate/index.js';
 
 /** A fixture test that passes when its module says green. */
 function fixtureTest(module) {

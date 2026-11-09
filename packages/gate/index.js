@@ -96,10 +96,10 @@ export { STATIC_CHECKS, runStaticRegistry } from './src/shell/static-check-regis
 export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
-export { freeRunnerSlots } from "./src/shell/proof-shards.js";
+export { PROOF_BATCH_FILES, PROOF_MAX_SHARDS, PROOF_MIN_SHARD_MS, SHARD_ADMIT_MS, SHARD_STARTUP_MS, freeRunnerSlots, mergeShardRuns, proofShardCount, runProofShards, shardStartupMs } from "./src/shell/proof-shards.js";
 export { keepClaimsAlive } from "./src/shell/seat-keepalive.js";
 export { gateHealthLines } from "./src/core/gate-health.js";
 export { gateHealthReport } from "./src/shell/gate-health.js";
 export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
-export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';
+export { cacheSummary, firstChangedInput, readCacheRows, recordInputParts } from './src/shell/test-cache-account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/shell/test-shards.js";
