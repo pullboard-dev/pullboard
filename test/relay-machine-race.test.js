@@ -163,7 +163,8 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { relaySenderIo } from ${JSON.stringify(NATIVE_MODULE)};
     const root = process.cwd();
     const io = await relaySenderIo(root, { cwd: root, stdout: { write() {} }, stderr: { write() {} }, say() {}, err() {}, onEvent() {} });
-    const result = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'ordinary agent shout after phone race', lanes: [] }], io);
+    // The sender io queues local-first moves; this check needs the move sent now, so it takes one position before the board is read.
+    const result = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'ordinary agent shout after phone race', lanes: [] }], { ...io, relayOutbox: () => false });
     process.stdout.write(JSON.stringify({ acknowledged: Number.isSafeInteger(result) }));
   `);
   assert.equal(ordinary.code, 0, 'the native machine remains able to issue ordinary agent work');
