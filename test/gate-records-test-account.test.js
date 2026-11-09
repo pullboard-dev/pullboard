@@ -83,7 +83,7 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   commit(box, box.repo, 'docs: advance main after the selected gate [G1]');
   const reviewer = join(box.dir, 'account-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer');
+  await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer', '--route', 'strong');
   const accepted = await json(box, reviewer, 'verify', String(id), 'accept', '--no-next', '--read', 'all',
     '--note', 'Both selected files have a native source-bound account.');
   assert.equal(accepted.decision, 'ACCEPT');
