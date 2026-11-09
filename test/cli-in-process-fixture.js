@@ -2,7 +2,7 @@
 import { Readable } from 'node:stream';
 import { main } from './native-cli-fixture.js';
 import { HOOK_WORKER } from '../apps/lib/index.js';
-import { launchRelaySender } from '../apps/lib/index.js';
+import { launchRelaySender } from '../apps/cli/index.js';
 
 let pending = Promise.resolve();
 
