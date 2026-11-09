@@ -9358,21 +9358,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "packages/resources/tests/runner-leak-heal-spares-live-jobs.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "resources",
-        "runners"
-      ],
-      "reasons": [
-        "imports past resources front door (packages/resources/src/shell/runner-leak-heal.js)",
-        "imports past runners front door (packages/runners/src/shell/runner-leak-stop.js)",
-        "spawns a child process (test/runner-leak-heal-spares-live-jobs.test.js)"
-      ]
-    },
     "test/runner-load-aware-dispatch.test.js": {
       "cells": [
         "app:lib",
