@@ -5,10 +5,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
-import { JOB_SCHEMA_SQL } from '../packages/store/index.js';
-import { healthFindingNotice, normalizedHealthFindings } from '../packages/store/index.js';
-import { firstUnparsedLine, unaccountedRedFindings } from '../packages/health/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { JOB_SCHEMA_SQL } from '../../store/index.js';
+import { healthFindingNotice } from '../../store/index.js';
+import { normalizedHealthFindings } from '../../store/index.js';
+import { firstUnparsedLine } from '../index.js';
+import { unaccountedRedFindings } from '../index.js';
 
 const MINUTE = 60_000;
 const NOW = Date.UTC(2026, 10, 8, 18, 0, 0);
