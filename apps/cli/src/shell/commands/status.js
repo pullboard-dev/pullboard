@@ -28,8 +28,8 @@ import { refusingBadPolicy } from '../disk-use.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { join } from 'node:path';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
-import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
-import { landingLine } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhy } from '../../../../../packages/landing/core.js';
+import { landingLine } from '../../../../../packages/landing/core.js';
 import * as store from '../../../../../packages/store/index.js';
 import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../cli-read-context.js';

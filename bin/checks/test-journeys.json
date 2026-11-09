@@ -3175,23 +3175,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/dirty-tooling-lib.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "runners",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/disk-use.test.js": {
       "cells": [
         "app:cli",
@@ -3672,7 +3655,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/gate-admission.test.js": {
+    "packages/gate/tests/gate-admission.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -5435,7 +5418,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/main-compare-any-runner.test.js": {
+    "packages/landing/tests/main-compare-any-runner.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -6089,16 +6072,6 @@
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "runs the CLI (test/next-take-fixture.js)",
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/next-step-no-wait.test.js": {
-      "cells": [
-        "app:cli",
-        "config"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/core/next-step-defaults.js)",
-        "imports past config front door (packages/config/src/core/json-output.js)"
       ]
     },
     "test/next-steps.test.js": {
@@ -8257,24 +8230,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/release-focus.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "spec",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/release-ineligible-next.test.js": {
       "cells": [
         "app:cli",
@@ -8424,7 +8379,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/requeue-restriction-valid.test.js": {
+    "packages/gate/tests/requeue-restriction-valid.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -9361,7 +9316,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-requeue-unpins.test.js": {
+    "packages/gate/tests/runner-requeue-unpins.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -9716,17 +9671,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/self-session-verify-next.test.js": {
-      "cells": [
-        "items",
-        "kernel",
-        "moves"
-      ],
-      "reasons": [
-        "imports past items front door (packages/items/src/shell/item-sessions.js)",
-        "imports past moves front door (packages/moves/src/core/moves/verify.js)"
       ]
     },
     "test/sentinel-rank.test.js": {

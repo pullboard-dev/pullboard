@@ -239,7 +239,6 @@
     "test/gui-admission.test.js->src/gui-admission.js": 1,
     "test/gui-admission.test.js->src/gui-session.js": 1,
     "test/gui-admission.test.js->test/fixture-child.js": 1,
-    "test/gui-marker-fixture.js->src/module-imports.js": 1,
     "test/gui-marker-guard.test.js->src/gui-admission.js": 1,
     "test/gui-marker-guard.test.js->test/fixture-child.js": 1,
     "test/gui-marker-guard.test.js->test/gui-marker-fixture.js": 1,

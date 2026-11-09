@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
 import { json } from './land-board-fixture.js';
@@ -52,9 +52,12 @@ function fixture(t) {
     json(box, root, 'submit', String(id));
     return { id, head, file, lane };
   });
+  // Main moves after both submits, so no submit receipt answers for a landing tree and each landing gate really runs [C7].
+  writeFileSync(join(box.repo, 'main-moved-after-submit.txt'), 'main moved after the submits\n');
+  commit(box, box.repo, 'chore: move main after the submits');
   const reviewer = join(box.dir, 'crash-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, entries[0].head);
-  json(box, reviewer, 'join', 'api');
+  json(box, reviewer, 'join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong');
   return { box, entries, reviewer, remote };
 }
 
@@ -82,7 +85,7 @@ async function crash(t, box, reviewer, id, stage) {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
     await closed;
   });
-  await waitForFixtureProgress({ child, ready: () => existsSync(marker), progress: () => output.length, description: 'landing reaches ' + stage });
+  await waitForFixtureProgress({ child, ready: () => existsSync(marker), progress: () => output.length, description: 'landing reaches ' + stage + ' ' + JSON.stringify(output) });
   const owner = JSON.parse(readFileSync(marker, 'utf8'));
   assert.equal(owner.stage, stage);
   assert.ok(Number.isSafeInteger(owner.pid) && owner.pid > 0 && owner.pid !== process.pid);
@@ -90,8 +93,11 @@ async function crash(t, box, reviewer, id, stage) {
   assert.ok(before && before.state !== 'landed', 'a durable unfinished batch precedes the real kill');
   process.kill(owner.pid, 'SIGKILL');
   workerKilled = true;
-  const [code] = await closed;
-  assert.equal(code, 0, output); // The verdict survives its post-verdict landing failure.
+  // Landing runs inside the accepting command's own process (f226542983), so the kill ends that command; the
+  // recorded verdict is what survives it.
+  const [code, signal] = await closed;
+  assert.equal(signal, 'SIGKILL', 'the killed process was the landing: ' + JSON.stringify({ code, output }));
+  assert.equal(onBoard(box, board => getItem(board, id).item_status), 'verified', 'the verdict survives the killed landing');
   return before.id;
 }
 

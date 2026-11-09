@@ -64,16 +64,24 @@ function missingImports(graph) {
 function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reason]); }
 
 /**
- * The refusal for a composed module that does not parse, naming the changed files that fail alone.
- * Why: a duplicate import in a composition killed the worker as LAND_WORKER, which blamed no item and left the batch
- * pinned in merging; a parse failure is the composed content's own and ends the batch terminally [C7].
+ * The changed ES modules that do not parse alone at the composed tip.
+ * Why: the inventory reads through tolerantImportsIn, which treats an uncompilable source as importing nothing, so the
+ * parse failure must be found here, directly, or a duplicate import lands [C7].
  */
-function parseRefusal(root, tip, changed) {
-  const broken = changed.filter(file => /\.(?:m?js)$/u.test(file)).filter(file => {
+function brokenModules(root, tip, changed) {
+  return changed.filter(file => /\.(?:m?js)$/u.test(file)).filter(file => {
     const shown = tryGit(root, ['show', `${tip}:${file}`]);
     if (shown.status !== 0) return false;
     try { importsIn([shown.stdout], undefined); return false; } catch { return true; }
   });
+}
+
+/**
+ * The refusal for a composed module that does not parse, naming the changed files that fail alone.
+ * Why: a duplicate import in a composition killed the worker as LAND_WORKER, which blamed no item and left the batch
+ * pinned in merging; a parse failure is the composed content's own and ends the batch terminally [C7].
+ */
+function parseRefusal(root, tip, changed, broken = brokenModules(root, tip, changed)) {
   const refusal = new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
   refusal.broken = broken;
   return refusal;
@@ -83,6 +91,8 @@ function parseRefusal(root, tip, changed) {
 export async function requireLandingModuleResolution(root, base, tip) {
   const before = await graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
+  const broken = brokenModules(root, tip, changed);
+  if (broken.length) throw parseRefusal(root, tip, changed, broken);
   let after;
   try { after = await graphAt(root, tip, before, changed); }
   catch (error) {

@@ -11,7 +11,7 @@ import { MACHINE } from '../../../../packages/state/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { lex } from '../../../../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from '../core/browser-approval-card.js';
-import { composeViewStyles } from '../../../view/src/shell/view-styles.js';
+import { composeViewStyles } from '../../../view/core.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
 const STYLES = composeViewStyles() + APPROVAL_CARD_STYLES;

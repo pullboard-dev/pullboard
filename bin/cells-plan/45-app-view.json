@@ -92,10 +92,7 @@
   ["src/view-api-ports.js","apps/view/src/shell/view-api-ports.js","rule"],
   ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
- "reexports": [
-  "src/view/test-policy.js",
-  "src/view/test-roles.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"git","imports":4,"before":true},

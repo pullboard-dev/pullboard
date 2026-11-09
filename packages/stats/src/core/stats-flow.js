@@ -9,7 +9,7 @@ import { recordReportPolicy } from './stats-flow-report.js';
 import { projectReport } from './stats-flow-report.js';
 import { projectReportWindows } from './stats-flow-report.js';
 import { safeReportPolicy } from './stats-flow-report.js';
-import { proofEventDetail } from '../../../kernel/index.js';
+import { proofEventDetail } from '../../../kernel/pure.js';
 import {
   newWindowTrace,
   observeFlowStage,
