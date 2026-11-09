@@ -69,4 +69,4 @@ export function assertWorkerFence(board, fence, root) {
   if (mainCheckout(root)?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed; start a fresh land command for its current branch');
   return holder;
 }
-import { assertLandingLease } from '../../../../src/board-landing-lease.js';
+import { assertLandingLease } from '../../../store/index.js';

@@ -215,6 +215,7 @@
         "src/view.css",
         "src/view/",
         "apps/view/",
+        "bin/cells-plan/45-app-view.json",
         "test/cockpit.test.js",
         "test/cockpit/",
         "test/journeys.test.js"
