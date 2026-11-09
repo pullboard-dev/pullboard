@@ -1,14 +1,18 @@
 /** Known-main proof links retain helper execution identity without rewriting older rows [V4,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ownersOf, linkKnownMainReworks, requireKnownMainReworks } from '../packages/store/index.js';
-import { submissionProof } from '../packages/state/src/core/submission-proof.js';
-import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../packages/state/core.js';
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../packages/state/core.js';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
+import { ownersOf } from '../index.js';
+import { linkKnownMainReworks } from '../index.js';
+import { requireKnownMainReworks } from '../index.js';
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../state/core.js';
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../state/core.js';
+import * as store from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { submissionProof } from '../../state/index.js';
+import { exportBoard } from '../index.js';
+import { importBoard } from '../index.js';
 
 const failure = { file: 'test/move-registry-merge-cases.js', ran: 'test/move-registry.test.js',
   name: 'the helper-defined move case [C7]', signature: 'a'.repeat(64) };

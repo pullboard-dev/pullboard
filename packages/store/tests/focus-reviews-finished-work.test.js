@@ -1,17 +1,41 @@
 /** Focus never hides finished, green-gated work from review, while builds stay inside the focus [C7, #2961]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import * as store from '../packages/store/index.js';
-import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
+import { recordSubmitHandoff } from '../../jobs/index.js';
+import * as store from '../index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { cellItem } from '../../../test/cell-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
+
+const HOUR = 60 * 60 * 1000;
+/** The minimal frozen bar a claim needs. */
+const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+
+/** A coordinator plus one strong builder and one strong reviewer on a real in-memory board. */
+function boardFixture(t) {
+  const board = fixtureBoard(t);
+  cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
+  const builder = cellSeat(board, { lane: 'core', path: '/builder' }).id;
+  const reviewer = cellSeat(board, { lane: 'review', path: '/reviewer' }).id;
+  return { board, builder, reviewer };
+}
+
+/** Add an item and submit it through the board's normal claim and submit moves. */
+function submitted(board, builder, title, route, number) {
+  const id = cellItem(board, { lane: 'core', title, route }).item_id;
+  store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const hash = String(number).repeat(40);
+  submitFixture(board, id, { agentId: builder, commit: hash, tree: hash });
+  return id;
+}
 
 /**
  * A real board plus a step that puts focus on 0.9.3 with overflow off. The 0.9.3 milestone holds one
  * focused item; the caller adds its outside items first, since the setting's window counts later work.
  */
 function focusedBoard(t) {
-  const { board, builder, reviewer } = boardFixture();
-  t.after(() => store.closeBoard(board));
+  const { board, builder, reviewer } = boardFixture(t);
   const focused = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Focused' });
   /** Turn focus on with overflow off. */
   const focus = () => {
