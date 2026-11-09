@@ -284,6 +284,14 @@ test('clause 1: a ledger that names none of a completed move\'s keys is never pa
   try { absent = readBlocks(commonDir, { mentioning: ['f'.repeat(64)] }); } finally { JSON.parse = parse; }
   assert.deepEqual(absent, []);
   assert.equal(parsed, 0, 'no ledger line was parsed for a key it does not hold');
-  const named = readBlocks(commonDir, { mentioning: [`${'a'.repeat(63)}3`] });
-  assert.deepEqual(named, readBlocks(commonDir), 'a key the ledger names reads every block, as an unfiltered read does');
+  const key = `${'a'.repeat(63)}3`;
+  // A clear of one named block must still remove it, so clears are read too.
+  fs.appendFileSync(join(commonDir, 'pullboard', 'blocks.jsonl'), JSON.stringify({ kind: 'clear', at: '2026-11-09T00:00:01.000Z', ids: ['b3'] }) + '\n');
+  parsed = 0;
+  JSON.parse = function(...args) { parsed++; return parse.apply(this, args); };
+  let named;
+  try { named = readBlocks(commonDir, { mentioning: [key] }); } finally { JSON.parse = parse; }
+  assert.deepEqual(named, readBlocks(commonDir).filter(block => block.moveKey === key), 'the blocks naming the key, as an unfiltered read gives them');
+  assert.ok(!named.some(block => block.id === 'b3'), 'the cleared block stays cleared');
+  assert.equal(parsed, 2_001, 'only the lines naming the key and the clear were parsed');
 });

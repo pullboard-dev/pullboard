@@ -96,8 +96,8 @@ function stampOf(line) {
  * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
  * cannot change a block inside the window [C7].
  *
- * With `mentioning`, a ledger whose text holds none of those strings has no matching block and is never parsed:
- * the clear after every successful command parsed a 29 MB ledger to find nothing [C7].
+ * With `mentioning`, only blocks naming one of those strings are returned, and only their lines and clears are
+ * parsed: the clear after every successful command parsed a whole 29 MB ledger to find nothing [C7].
  *
  * @param {string} commonDir
  * @param {{ since?: Date, mentioning?: string[] }} [options]
@@ -119,6 +119,8 @@ export function readBlocks(commonDir, { since, mentioning } = {}) {
   let legacy = 0;
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
+    // Only a block naming a word, or a clear that may remove it, can change the answer; other lines stay unparsed.
+    if (mentioning && !line.includes('"kind":"clear"') && !mentioning.some(word => line.includes(word))) continue;
     // A line recorded before the bound cannot change a block inside the window, so it is skipped unparsed.
     if (since && stampOf(line) < from) continue;
     let block;
