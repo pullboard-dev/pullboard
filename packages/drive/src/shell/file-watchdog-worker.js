@@ -12,7 +12,9 @@ const tests = new Map();
 const startedAt = new Map();
 const deadlines = new Map();
 let quietAt = performance.now();
-let tree = processTreeCpu(process.pid);
+let tree = null;
+void processTreeCpu(process.pid).then(sample => { if (tree === null) tree = sample; });
+let sampling = false;
 let treeMicros = 0;
 let outputStamp = 0;
 let killed = false;
@@ -76,12 +78,15 @@ function wallCheck() {
   else setTimeout(wallCheck, 250);
 }
 setTimeout(wallCheck, workerData.wallMs);
-setInterval(() => {
+setInterval(async () => {
+  // One census at a time: a slow ps never stacks samples, and the next tick measures from the last finished one.
+  if (sampling) return;
+  sampling = true;
   const beforeSample = process.cpuUsage();
-  const current = processTreeCpu(process.pid);
-  const sampling = process.cpuUsage(beforeSample);
+  const current = await processTreeCpu(process.pid).finally(() => { sampling = false; });
+  const spent = process.cpuUsage(beforeSample);
   if (!current || !tree) { tree = current; activity(); return; }
-  treeMicros += Math.max(0, treeCpuDelta(tree, current) - sampling.user - sampling.system);
+  treeMicros += Math.max(0, treeCpuDelta(tree, current) - spent.user - spent.system);
   tree = current;
   if (workerData.outputMarker) {
     try {
