@@ -157,11 +157,11 @@
   "packages/gate/tests/land-affected.test.js": {
     "model": 1
   },
-  "packages/gate/tests/landing-no-nested-shards.test.js": {
+  "packages/landing/tests/landing-no-nested-shards.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
-  "packages/gate/tests/landing-stage-composition.test.js": {
+  "packages/landing/tests/landing-stage-composition.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/resources.test.js": {
@@ -169,7 +169,7 @@
     "env-spread": 1,
     "hand-policy": 5
   },
-  "packages/gate/tests/runner-closure.test.js": {
+  "packages/runners/tests/runner-closure.test.js": {
     "repo-read": 1
   },
   "packages/gate/tests/runner-timing.test.js": {
@@ -665,7 +665,7 @@
   "test/board-link.test.js": {
     "tempdir": 1
   },
-  "packages/verify/tests/board-lock-hold.test.js": {
+  "apps/lib/tests/board-lock-hold.test.js": {
     "tempdir": 1,
     "raw-board": 7
   },
@@ -811,7 +811,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "packages/verify/tests/check-proves-nothing.test.js": {
+  "apps/lib/tests/check-proves-nothing.test.js": {
     "raw-board": 1
   },
   "test/check-receipts.test.js": {
@@ -2190,7 +2190,7 @@
     "raw-board": 44,
     "hand-policy": 2
   },
-  "packages/gate/tests/main-audit-attribution.test.js": {
+  "apps/lib/tests/main-audit-attribution.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 9
@@ -2202,7 +2202,7 @@
     "model": 1,
     "raw-board": 1
   },
-  "packages/gate/tests/main-audit-plain-commit.test.js": {
+  "apps/lib/tests/main-audit-plain-commit.test.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 2

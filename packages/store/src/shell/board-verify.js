@@ -1,6 +1,8 @@
 import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { rejectionReturnEnabled } from '../core/rework-family-routing.js';
-import * as rejectClause from "../../../verify/src/shell/reject-clause.js";
+import { finishVerdict } from "../../../verify/index.js";
+import { rejectionClauseDetail } from "../../../verify/index.js";
+import { rejectionClauseProblem } from "../../../verify/index.js";
 import { requireSourceAdvanceReview } from "../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../state/core.js";
 import { itemPatchReviewProblem } from "../../../items/index.js";
@@ -129,10 +131,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null : new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`)),
         noteGiven: () => (suppliedNote ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
         causeWellFormed: () => causeProblem(cause),
-        clauseWellFormed: found => isAccept ? null : rejectClause.rejectionClauseProblem(found, clause, engine),
+        clauseWellFormed: found => isAccept ? null : rejectionClauseProblem(found, clause, engine),
       },
       before: (found) => {
-        if (!isAccept) clauseDetail = rejectClause.rejectionClauseDetail(found, clause, engine);
+        if (!isAccept) clauseDetail = rejectionClauseDetail(found, clause, engine);
         recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head });
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
@@ -142,7 +144,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       if (rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
       else if (engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
     }
-    const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+    const trigger = finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb, knownMainFailures: proofKnown }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout,

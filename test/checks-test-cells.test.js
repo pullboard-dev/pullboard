@@ -9,6 +9,7 @@ import {
   readListing,
   testCellsProblems,
   testCellsReport,
+  installsHooks,
   spawnsCli,
   writeTestCells,
 } from '../bin/checks/test-cells.js';
@@ -167,4 +168,30 @@ test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper cha
   assert.equal(rows['packages/a/tests/data.test.js'].kind, 'cell');
   assert.equal(rows['packages/a/tests/chain.test.js'].kind, 'finding');
   assert.match(rows['packages/a/tests/chain.test.js'].problems.at(-1).text, /spawns or reaches the CLI/u);
+});
+
+test('clause 1: a hooks install is an installHooks call or a hooksPath set to a folder, never a disable or an output string [C7]', () => {
+  assert.equal(installsHooks("runFixtureChild('git', ['-c', 'core.hooksPath=/dev/null', 'commit']);\n"), false, 'pointing hooks at /dev/null disables them');
+  assert.equal(installsHooks("const expected = ['set core.hooksPath to .githooks'];\n"), false, 'an expected output line installs nothing');
+  assert.equal(installsHooks('installHooks(root);\n'), true);
+  assert.equal(installsHooks("spawnSync('git', ['config', 'core.hooksPath', '.githooks']);\n"), true);
+});
+
+test('clause 1: a declared split counts as its one source and its targets carry the source finding; clause 2: a bad split is refused [C7]', () => {
+  const root = fixture({
+    'bin/checks/test-cells.json': JSON.stringify({ journeys: {}, pureHelpers: [], leaves: [], findings: { 'test/slow.test.js': 'unlisted root test', 'test/unlisted.test.js': 'unlisted root test', 'packages/b/tests/spawns.test.js': 'spawns the CLI' }, rootTests: 2, sealed: [],
+      splits: { 'test/slow.test.js': ['test/slow-a.test.js', 'test/slow-b.test.js', 'test/slow-c.test.js'] } }),
+    'test/slow-a.test.js': "import test from 'node:test';\ntest('a', () => {});\n",
+    'test/slow-b.test.js': "import test from 'node:test';\ntest('b', () => {});\n",
+    'test/slow-c.test.js': "import test from 'node:test';\ntest('c', () => {});\n",
+  });
+  assert.equal(testCellsReport(root, { facts: FACTS }).rootTests, 2, 'three split files count as their one source');
+  assert.deepEqual(testCellsProblems(root, { facts: FACTS }), [], 'no new finding and no higher root count');
+  writeFileSync(join(root, 'test/extra.test.js'), "import test from 'node:test';\ntest('x', () => {});\n");
+  assert.ok(testCellsProblems(root, { facts: FACTS }).some(problem => /root test files exceed the ratchet/u.test(problem.text)), 'a root test outside any split still counts');
+  const listing = { ...readListing(root), splits: { 'test/slow.test.js': ['test/slow-a.test.js', 'test/missing.test.js'], 'test/other.test.js': ['test/slow-a.test.js', 'packages/a/tests/good.test.js'] } };
+  const texts = testCellsProblems(root, { listing, facts: FACTS }).map(problem => problem.text);
+  assert.ok(texts.includes('split test/slow.test.js target test/missing.test.js does not exist'), texts.join('\n'));
+  assert.ok(texts.includes('split test/other.test.js target packages/a/tests/good.test.js is not a root test file'), texts.join('\n'));
+  assert.ok(texts.includes('split target test/slow-a.test.js sits in two splits, test/slow.test.js and test/other.test.js'), texts.join('\n'));
 });

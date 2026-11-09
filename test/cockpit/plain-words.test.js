@@ -9,12 +9,12 @@ import { test } from 'node:test';
 import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { recordGateRun } from '../../apps/lib/index.js';
-import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
+import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../packages/state/index.js';
 import { activityWords } from '../../apps/view/index.js';
 import { runGate } from '../../packages/gate/index.js';
-import { runnerExecutionServices } from '../../src/runners.js';
-import { landingExecutionServices } from '../../src/landing-shards.js';
-import { readGateReceipt, receiptStore } from '../../src/gate-run-receipt.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
+import { readGateReceipt, receiptStore } from '../../packages/gate/index.js';
 import { machine, project, build, sendBack, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 /** Seed authoritative health transitions through the normal ordered receiver, never fabricated event rows. */

@@ -99,7 +99,7 @@ test('native view submit validates its core companion placement on the composed 
 
 /** Keep the pure authority boundary explicit; native journeys above supply real Git/index reads. */
 function syntheticPlanChange(change = value => value, ownNewFile = path => path === 'src/view/new.css') {
-  const path = 'bin/cells-plan/39-app-view.json';
+  const path = 'bin/cells-plan/45-app-view.json';
   const index = { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] };
   const cell = { name: 'app:view', order: 39, root: 'apps/view', paths: [
     ['src/view/old.css', 'apps/view/src/shell/view/old.css', 'seed'],

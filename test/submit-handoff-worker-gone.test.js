@@ -5,7 +5,7 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { execFileSync, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { gateDriveJobId, readGateDrive } from '../packages/drive/index.js';
 import { fixture, state } from './submit-handoff-fixture.js';

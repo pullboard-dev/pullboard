@@ -24,6 +24,22 @@ const SPAWN = /\b(?:spawn|spawnSync|execFile|execFileSync|fork|exec|execSync|run
 const CLI_ENTRIES = new Set(['apps/cli/index.js', 'bin/pullboard.js', 'test/e2e-helpers.js', 'test/native-cli-fixture.js', 'test/cli-in-process-fixture.js']);
 
 /**
+ * Whether a source installs git hooks: an installHooks call, or a child-process call that runs a hooks install or sets
+ * core.hooksPath to a folder. Pointing core.hooksPath at /dev/null disables hooks, and a string naming the setting in
+ * expected output installs nothing [C7].
+ */
+export function installsHooks(source) {
+  if (/\binstallHooks\s*\(/u.test(source)) return true;
+  for (const call of source.matchAll(SPAWN)) {
+    const args = call[1];
+    if (/['"`]hooks['"`]\s*,\s*['"`]install['"`]|\bhooks\s+install\b|install-hooks/u.test(args)) return true;
+    const path = /core\.hooksPath(?:=|['"`]\s*,\s*['"`])([^'"`\s,)]*)/u.exec(args);
+    if (path && path[1] && path[1] !== '/dev/null') return true;
+  }
+  return false;
+}
+
+/**
  * Whether a source spawns the CLI: a child-process call whose arguments name bin/pullboard.js, or name a variable that a
  * path expression (join, resolve or new URL) points at bin/pullboard.js. A plain data string that only mentions the path
  * launches nothing [C7].
@@ -58,7 +74,6 @@ export function reachedCliEntry(root, file) {
   }
   return null;
 }
-const HOOKS = /\binstallHooks\b|\bhooks\s+install\b|\bcore\.hooksPath\b|\binstall-hooks\b/u;
 
 /**
  * The cell a test file sits in, named as cellOf names it: `<cell>` for `packages/<cell>/tests/...` and `apps/<name>` for
@@ -101,7 +116,7 @@ function frontDoor(target, cell) {
 /** The committed listing: journeys with their reasons, the pure helpers and leaf cells a cell test may import, the ratchet, the sealed cells. */
 export function readListing(root) {
   const path = resolve(root, LISTING);
-  const empty = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: [] };
+  const empty = { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 0, sealed: [], splits: {} };
   return existsSync(path) ? { ...empty, ...JSON.parse(readFileSync(path, 'utf8')) } : empty;
 }
 
@@ -137,7 +152,7 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
     problems.push({ line, text: `imports ${target}, outside its own cell ${own}; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper` });
   }
   if (spawnsCli(source) || (root && reachedCliEntry(root, file))) problems.push({ line: 1, text: 'spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it' });
-  if (HOOKS.test(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
+  if (installsHooks(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
   return { problems, tier };
 }
 
@@ -166,7 +181,7 @@ function impurity(root, path) {
     const file = queue[at];
     if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
     const source = readFileSync(resolve(root, file), 'utf8');
-    if (file.startsWith('test/') && (spawnsCli(source) || HOOKS.test(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    if (file.startsWith('test/') && (spawnsCli(source) || installsHooks(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
     for (const { specifier } of importSpecifiers(source)) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
@@ -236,7 +251,37 @@ export function testCellsReport(root, { facts, ...options } = {}) {
   const rows = classifyTests(root, options);
   const findings = {};
   for (const row of rows.filter(entry => entry.kind === 'finding')) findings[row.file] = row.problems.map(problem => problem.text);
-  return { rows, findings, rootTests: rows.filter(row => row.root).length, cells: sealedReport(rows, facts ?? cellFacts(root)) };
+  return { rows, findings, rootTests: rootTestCount(rows, (options.listing ?? readListing(root)).splits), cells: sealedReport(rows, facts ?? cellFacts(root)) };
+}
+
+/**
+ * The root test count, where the present targets of each declared split count as their one source: splitting a slow root
+ * journey into files adds no test, so it never raises the ratchet. The split's own case-coverage test proves every case
+ * lands in exactly one target.
+ */
+export function rootTestCount(rows, splits = {}) {
+  const root = new Set(rows.filter(row => row.root).map(row => row.file));
+  let count = root.size;
+  for (const [source, targets] of Object.entries(splits ?? {})) {
+    const present = (Array.isArray(targets) ? targets : []).filter(target => root.has(target)).length;
+    if (present && !root.has(source)) count -= present - 1;
+  }
+  return count;
+}
+
+/** Each malformed declared split: a target that is missing or not a root test, or a target in two splits. */
+function splitProblems(root, splits = {}) {
+  const problems = [], seen = new Map();
+  for (const [source, targets] of Object.entries(splits ?? {})) {
+    if (!Array.isArray(targets) || !targets.length) { problems.push({ path: LISTING, line: 1, text: `split ${source} names no target files` }); continue; }
+    for (const target of targets) {
+      if (!target.startsWith('test/') || !TEST.test(target)) problems.push({ path: LISTING, line: 1, text: `split ${source} target ${target} is not a root test file` });
+      else if (!existsSync(resolve(root, target))) problems.push({ path: LISTING, line: 1, text: `split ${source} target ${target} does not exist` });
+      if (seen.has(target)) problems.push({ path: LISTING, line: 1, text: `split target ${target} sits in two splits, ${seen.get(target)} and ${source}` });
+      seen.set(target, source);
+    }
+  }
+  return problems;
 }
 
 /**
@@ -246,6 +291,10 @@ export function testCellsReport(root, { facts, ...options } = {}) {
  */
 function listedFinding(listing, file) {
   if (Object.hasOwn(listing.findings, file)) return true;
+  // A target of a declared split carries the finding its source had.
+  for (const [source, targets] of Object.entries(listing.splits ?? {})) {
+    if (Array.isArray(targets) && targets.includes(file) && Object.hasOwn(listing.findings, source)) return true;
+  }
   const moved = /^(?:packages|apps)\/[^/]+\/tests\/(.+)$/u.exec(file);
   return Boolean(moved) && Object.hasOwn(listing.findings, `test/${moved[1]}`);
 }
@@ -262,6 +311,7 @@ export function testCellsProblems(root, options = {}) {
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
   problems.push(...impurePureHelpers(root, listing));
+  problems.push(...splitProblems(root, listing.splits));
   for (const row of current.rows.filter(entry => entry.kind === 'finding' && !listedFinding(listing, entry.file))) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);
   }

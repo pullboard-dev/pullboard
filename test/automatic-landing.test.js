@@ -49,10 +49,11 @@ function fixture(t, manualOverride = false, redStatic = false, cadence) {
   json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, 'web/result.txt'), 'built\n');
   const head = commit(box, box.web, 'feat(web): build the result [G1]');
-  json(box, box.web, 'submit', String(id));
+  json(box, box.web, 'submit', String(id), '--wait', '--no-next');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  json(box, reviewer, 'join', 'api');
+  // An unrouted item is strong, so its reviewer joins strong.
+  json(box, reviewer, 'join', 'api', '--route', 'strong');
   return { box, config, id, head, reviewer };
 }
 
@@ -114,7 +115,7 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
 });
 
 
-test('a second clean acceptance inside cadence retains its wake without another acceptance [B35,B3,R3]', async t => {
+test('a second clean acceptance inside cadence lands at once with no wake queued [B35,B3,R3]', async t => {
   const { box, config, id, reviewer } = fixture(t, false, false, '10m');
   json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
   assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
@@ -126,7 +127,7 @@ test('a second clean acceptance inside cadence retains its wake without another 
   json(box, box.web, 'claim', String(second));
   writeFileSync(join(box.web, 'web/second.txt'), 'second\n');
   const head = commit(box, box.web, 'feat(web): second clean result [G1]');
-  json(box, box.web, 'submit', String(second));
+  json(box, box.web, 'submit', String(second), '--wait', '--no-next');
   box.git(reviewer, 'checkout', '-q', '--detach', head);
   json(box, reviewer, 'verify', String(second), 'accept', '--note', 'Second clean result frozen check passed.');
   config.landing.manualOverride = false;
@@ -136,7 +137,7 @@ test('a second clean acceptance inside cadence retains its wake without another 
     [fileURLToPath(new URL('./automatic-landing-cadence.fixture.js', import.meta.url)), box.repo, String(second)],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
-  // The child proves either native completion or fresh deferred custody, independently of host timing.
+  // The child proves the second acceptance lands at once without queueing a wake.
 });
 
 
