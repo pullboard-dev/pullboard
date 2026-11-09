@@ -35,6 +35,7 @@ import * as store from '../../../../packages/store/index.js';
 import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
+import { withGateProgress } from '../../../../packages/gate/index.js';
 import { drainLoop } from '../../../../packages/drive/index.js';
 import { rowSink } from '../../../../packages/drive/index.js';
 import { recordJobRow } from '../../../../packages/drive/index.js';
@@ -218,20 +219,21 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
  * more is written to the drive job, which stays resumable at its last saved step. The drive cell's `run.signal` ends
  * one run the same way when it stalls, so that run starts no new stage and no rerun while the cell reruns the same
- * candidate (#3661).
+ * candidate (#3661). The cell's `run.progress` is what the gate's runner waits and test runs report to, so a long
+ * healthy tests section is never read as a stall (#3829).
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
  * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
  *   healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
- * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal }) => Promise<object>}
+ * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal, progress?: (detail: object) => void }) => Promise<object>}
  */
 export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
-  return async (observe, { signal: ended } = {}) => {
+  return async (observe, { signal: ended, progress } = {}) => {
     const halt = stop && ended ? AbortSignal.any([stop, ended]) : stop ?? ended;
     const runStages = (stages, settings) => runGateStages(observe(halt ? stoppableStages(stages, halt, inflight) : stages), settings);
     ctx.runGateStages = runStages;
-    try { return await handoffGate(ctx, request, options); }
+    try { return await withGateProgress(progress, () => handoffGate(ctx, request, options)); }
     catch (error) {
       if (halt?.aborted) return new Promise(() => {});
       return handoffRefusedResult(error);
@@ -303,10 +305,33 @@ export function boardRecorder(nativeBoard, file) {
   const board = nativeBoard.openBoard(file);
   return {
     view: job => jobView(board.db, job),
-    record: row => recordJobRow(board.db, /** @type {any} */ (row)),
+    record: row => recordTicketSafely(row, () => recordJobRow(board.db, /** @type {any} */ (row))),
     close: () => store.closeBoard(board),
   };
 }
+
+/**
+ * Apply one drive row; a lease ticket that meets a locked board answers "not held" instead of throwing, and the next
+ * tick tries again. Every other row, and every other failure, throws as before.
+ * Why: lease renewals run from a timer, so a thrown "database is locked" there is uncaught and ends the driver
+ * mid-gate; every worker crash logged on 7-8 Nov was this one (8 of 8), each a dead gate on a healthy candidate [C7].
+ *
+ * @param {{ type: string, action?: string, job?: string }} row - The row the drive loop emitted.
+ * @param {() => any} write - Writes the row to the board.
+ * @param {(line: string) => void} [say] - Where a skipped ticket is noted.
+ * @returns {any} The write's answer, or false for a ticket the locked board did not take.
+ */
+export function recordTicketSafely(row, write, say = line => process.stderr.write(line + '\n')) {
+  try { return write(); }
+  catch (error) {
+    if (row?.type !== 'ticket' || !BOARD_LOCKED.test(String(error?.message ?? ''))) throw error;
+    say(`gate lease ${row.action} for ${row.job} met a locked board (${error.message}); the next tick tries again`);
+    return false;
+  }
+}
+
+/** A SQLite lock or busy failure, as node:sqlite reports it. */
+const BOARD_LOCKED = /database is locked|database table is locked|SQLITE_BUSY|SQLITE_LOCKED/u;
 
 /**
  * Run one queued submit gate as a drive-cell job, in this process: the dispatcher admitted it to `owner` and started
@@ -359,6 +384,8 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
    * Why: no process is load-bearing; the job rows, not this process, hold the gate's state.
    */
   const terminate = signal => async () => {
+    // Said in worker.log, so a stopped driver is never read as a silent death.
+    process.stderr.write(`gate driver ${process.pid} received ${signal}; stopping, the next driver resumes job ${request.job}\n`);
     stopper.abort(new Refused('SUBMIT_HANDOFF_STOPPED', `the gate driver received ${signal}; the next driver resumes its job`));
     try {
       await settledWithin(inflight, DRIVER_STOP_GRACE_MS);
