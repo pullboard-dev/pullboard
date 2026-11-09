@@ -1,6 +1,9 @@
 {
   "journeys": {},
-  "pureHelpers": [],
+  "pureHelpers": [
+    "test/cell-fixture.js",
+    "test/fixture-child.js"
+  ],
   "leaves": [],
   "findings": {
     "apps/cli/tests/cli-io-gate-wait-default.test.js": "imports apps/cli/index.js, outside its own cell cli; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -103,8 +106,6 @@
     "packages/doctrine/tests/doctrine-measured-baseline.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
     "packages/doctrine/tests/package.test.js": "imports test/fixture-child.js, outside its own cell doctrine; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/doctrine/tests/ratchet-rename.test.js": "installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it",
-    "packages/flakes/tests/flake-ratchet-busy-board.test.js": "imports apps/lib/index.js, outside its own cell flakes; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/flakes/tests/native-flakes.test.js": "imports test/fixture-child.js, outside its own cell flakes; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/affected-graph-cache.test.js": "imports test/fixture-child.js, outside its own cell gate; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/affected-source-loads.test.js": "imports test/fixture-child.js, outside its own cell gate; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/bar-coverage.test.js": "imports packages/verify/index.js, outside its own cell gate; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -292,7 +293,6 @@
     "packages/sandbox/tests/trusted-policy-ancestry.test.js": "imports test/fixture-child.js, outside its own cell sandbox; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/sandbox/tests/trusted-policy.test.js": "imports test/e2e-helpers.js, outside its own cell sandbox; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/checkout-writers.test.js": "imports test/e2e-helpers.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/seats/tests/claim-watchdog.test.js": "imports packages/health/index.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/seats/tests/projects.test.js": "imports test/fixture-child.js, outside its own cell seats; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/sentinels/tests/waits.test.js": "imports test/board-fixture.js, outside its own cell sentinels; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/spec/tests/doctrine-rulings.test.js": "imports test/e2e-helpers.js, outside its own cell spec; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -1405,6 +1405,7 @@
   },
   "rootTests": 1024,
   "sealed": [
+    "flakes",
     "github",
     "receipt"
   ]

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { heartbeatCommand } from '../apps/cli/src/shell/cli-presence.js';
 import { stopSeatKeepalive } from '../apps/cli/src/shell/cli-presence.js';
@@ -99,7 +99,7 @@ test('[C7,#2960] the keepalive heartbeat never keeps a finished command\'s proce
   stopSeatKeepalive();
   const f = fixture(t);
   const script = `
-    const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)});
     const store = await import(${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)});
     const { heartbeatCommand } = await import(${JSON.stringify(new URL('../apps/cli/src/shell/cli-presence.js', import.meta.url).href)});
     const board = openBoard(${JSON.stringify(f.file)});
