@@ -115,7 +115,7 @@ function committedToolingMatches(root, commit, files) {
 
 /** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
 export function trustedTooling() {
-  const installation = committedRunnerController(TOOL_ROOT);
+  const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
   const { entry, files } = installation ? runnerPackage(root) : loadedToolingFiles();

@@ -80,7 +80,7 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
@@ -96,7 +96,7 @@ export async function runOnRunnerAsync(root, command, options) {
   // The dispatch span starts before the tooling export, so the export is attributed, not a gap after admission [C7].
   const dispatchStart = Date.now();
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;

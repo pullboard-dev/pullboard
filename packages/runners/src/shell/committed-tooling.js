@@ -4,6 +4,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -12,6 +14,10 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { dropStagingFolder } from '../../../pin/index.js';
+import { placeKeyedFolder } from '../../../pin/index.js';
+import { sweepKeyedFolders } from '../../../pin/index.js';
+import { touchKeyedFolder } from '../../../pin/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
@@ -40,15 +46,53 @@ export function archivedToolingSource(root) {
   return source;
 }
 
-/** Make one owned git-archive installation; callers drain their controller before removing it. */
-export function committedRunnerController(root) {
+/** The prefix of every committed controller folder; a shared one adds its 32-hex key. */
+const PREFIX = 'pullboard-committed-runner-';
+/** How long an unused shared controller folder stays before a new export removes it; no gate dispatch lives this long. */
+const SHARED_KEEP_MS = 6 * 3_600_000;
+
+/**
+ * The shared export of one repository's commit when it is complete and this user's alone, else null. Why the checks: a
+ * folder another user could write might hold a controller that is not this commit's, so it is never reused.
+ */
+function sharedExport(directory, root, commit, tree) {
+  try {
+    const state = statSync(directory);
+    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o022) !== 0) return null;
+    const source = JSON.parse(readFileSync(join(directory, MANIFEST), 'utf8'));
+    if (source.version !== 1 || source.root !== resolve(root) || source.commit !== commit || source.tree !== tree
+      || !existsSync(join(directory, 'bin/runner-controller.js'))) return null;
+    touchKeyedFolder(directory);
+    return directory;
+  } catch { return null; }
+}
+
+/** Remove shared controller folders unused for SHARED_KEEP_MS, except `keep`. */
+function pruneSharedExports(keep) {
+  const shared = new RegExp(`^${PREFIX}[a-f0-9]{32}$`, 'u');
+  sweepKeyedFolders(tmpdir(), { matches: name => shared.test(name), keep, maxAgeMs: SHARED_KEEP_MS });
+}
+
+/**
+ * Make one owned git-archive installation; callers drain their controller before removing it. With `shared`, the
+ * export of a commit is made once and reused by every later dispatch of that commit, whose cleanup leaves it in place.
+ * Why: every runner dispatch exported and unpacked the whole tooling tree twice, about a second each when idle and far
+ * more at load, before it could connect (9 Nov) [C7]. A commit names its tree, so the export never changes.
+ *
+ * @param {string} root
+ * @param {{ shared?: boolean }} [options]
+ */
+export function committedRunnerController(root, { shared = false } = {}) {
   if (!existsSync(join(root, '.git'))) return null;
   const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
   const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
   if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
     throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
   }
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-committed-runner-'));
+  const target = shared ? join(tmpdir(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
+  const reused = target && sharedExport(target, root, commit, tree);
+  if (reused) return { root: reused, entry: join(reused, 'bin/runner-controller.js'), commit, tree, cleanup() {} };
+  const directory = mkdtempSync(join(tmpdir(), PREFIX));
   try {
     // A repository's local attributes and CRLF filters can alter git-archive bytes too. An
     // isolated object view overrides every conversion without touching the user's Git settings.
@@ -65,6 +109,18 @@ export function committedRunnerController(root) {
       throw new Refused('RUNNER_TOOLING_FILES', 'the selected Git archive has no runner controller; restore committed tooling');
     }
     writeFileSync(join(directory, MANIFEST), JSON.stringify({ version: 1, root: resolve(root), commit, tree }), { flag: 'wx', mode: 0o400 });
+    if (target) {
+      // Renamed into place whole, so no dispatch sees half an export; a concurrent export that won the rename is the
+      // same commit. A folder in the way that is not this commit's own leaves this export private, as before.
+      const moved = placeKeyedFolder(directory, target);
+      const placed = sharedExport(target, root, commit, tree);
+      if (placed) {
+        if (!moved) dropStagingFolder(directory);
+        pruneSharedExports(placed);
+        return { root: placed, entry: join(placed, 'bin/runner-controller.js'), commit, tree, cleanup() {} };
+      }
+      if (moved) throw new Refused('RUNNER_TOOLING_FILES', 'the shared runner tooling export could not be read back; retry from the committed installation');
+    }
     return { root: directory, entry: join(directory, 'bin/runner-controller.js'), commit, tree,
       cleanup() { rmSync(directory, { recursive: true, force: true }); } };
   } catch (error) {
