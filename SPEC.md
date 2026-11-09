@@ -99,6 +99,8 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V24 [draft, must] A conformance scanner classifies every test file into a tier and names each finding's broken rule; a pure helper qualifies only after an audit shows it spawns no CLI and installs no hooks; findings follow renames; the finding count and the root test/ count only go down, so a move to root is paid for by moves into cells in the same commit; a new unlisted root test/ file is refused at commit. | gate: review
 - V25 [draft, must] A sealed cell's submit selects only its own tests plus the contract tests at changed front doors. | gate: review
 - V26 [draft, must] Only the person grants item size overrides: --force-size is refused for every agent and the coordinator, and every other oversized item is split to 30 minutes or less. | gate: review
+- V32 [draft, must] The repository root holds only `apps/`, `packages/`, `docs/`, `test/` and `skills/`, plus `package.json` and the project's documents. (Corey approved 9 Nov.) | gate: review
+- V33 [draft, must] Every cell holds only `index.js`, an optional `light.js` and `browser.js`, `src/logic/`, `src/io/`, `tests/`, an optional `data/`, and, in an app, an optional command file named after its command. (Corey approved 9 Nov.) | gate: review
 
 ## O · Options
 - O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: packages/state/tests/settings.test.js | serves: O5

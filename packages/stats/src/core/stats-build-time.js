@@ -1,5 +1,5 @@
 /** Project build intervals from recorded claim/submit boundaries, retaining missing evidence [B35,R1,R2,C7]. */
-import { proofEventDetail } from '../../../kernel/index.js';
+import { proofEventDetail } from '../../../kernel/pure.js';
 
 /** Show each item's latest landed build; the caller supplies the item scorer through its front door. */
 export function buildTimeStats(history, items, catalog, scoreCriterion) {

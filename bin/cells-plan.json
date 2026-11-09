@@ -2015,6 +2015,7 @@
     "runners->transport",
     "activity->store",
     "(root)->apps/cli",
+    "(root)->apps/lib",
     "(root)->apps/view",
     "(root)->sandbox",
     "apps/cli->doctrine",
