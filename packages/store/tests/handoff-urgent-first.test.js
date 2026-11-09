@@ -11,8 +11,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { itemUrgent } from '../../store/index.js';
+import * as store from '../index.js';
+import { itemUrgent } from '../index.js';
 import {
   drainHandoffQueue,
   handoffQueueDirectory,
