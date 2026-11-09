@@ -418,8 +418,8 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   // The undeclared coordinator builds nothing, so the claiming next runs from a builder seat that serves the item's route.
   const builderPath = join(box.dir, 'app-next');
   await box.git(repo, 'worktree', 'add', '-q', builderPath, '-b', 'app/next');
-  await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'light']);
-  await json(box, repo, 'add', ['app', 'Next item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'strong']);
+  await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   assert.equal((await json(box, builderPath, 'next')).item.item_title, 'Next item');
   await json(box, repo, 'forget', ['.']);
 
@@ -811,7 +811,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'loop', ['declare', 'catalog-job', '--every', '10m', '--owner', 'coordinator'], 'declare')).job.every, '10m');
   assert.equal((await json(source, source.repo, 'loop', ['ran', 'catalog-job'], 'ran')).job.runs, 1);
   assert.equal((await json(source, source.repo, 'loop')).jobs[0].name, 'catalog-job');
-  const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog', '--route', 'light', '--criterion', 'the companion is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog', '--route', 'mid', '--criterion', 'the companion is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   assert.equal(companion.item.item_parent_id, catalog.item_id);
   assert.equal(companion.created, true);
   await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'add');
