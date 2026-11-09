@@ -8,8 +8,9 @@ import * as store from '../packages/store/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { cadenceDeferral, landingCadenceStatus } from '../packages/landing/index.js';
 import { acceptedVerdict } from '../packages/verify/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { json, onBoard } from './land-board-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -48,7 +49,7 @@ function configure(box, cadence) {
 function accepted(box, name) {
   const root = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-  json(box, root, 'join', 'web');
+  joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }); // the strong route, as items are filed
   const file = `web/${name}.txt`;
   const id = json(box, box.repo, 'add', 'web', name, '--specs', 'G1', '--criterion', `${name} exists`, '--check', `test -f ${file}`).item.item_id;
   json(box, root, 'claim', String(id));
@@ -109,9 +110,11 @@ test('landing cadence is opt-in and validates both compatible policy forms [E30,
   assert.equal(configFromSource('{"landing":{"cadence":"10m"}}').landing.cadenceMs, EVERY);
   assert.equal(configFromSource('{"landing":{"cadence":{"every":"10m","accepted":5}}}').landing.cadenceMs, EVERY);
   for (const cadence of [{ every: '0m', accepted: 5 }, { every: '10m', accepted: 0 }, { every: '10m', accepted: 1.5 },
-    { every: '10m' }, { every: '10m', accepted: 5, extra: true }, [], null]) {
+    { every: '10m' }, [], null]) {
     assert.throws(() => configFromSource(JSON.stringify({ landing: { cadence } })), /BAD_CONFIG/u);
   }
+  // An unknown key is a future setting: the validator ignores it and keeps the known policy [N26, forward-compat, f226542983].
+  assert.equal(configFromSource('{"landing":{"cadence":{"every":"10m","accepted":5,"extra":true}}}').landing.cadenceMs, EVERY);
 });
 
 test('land runs on cadence at either injected-clock boundary and lands all waiting acceptances [E30,E10,E29]', { timeout: 120_000 }, // budget: two private real submit/accept cycles and one full landing; hang ceiling, not speed.
