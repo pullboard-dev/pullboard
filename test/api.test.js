@@ -47,7 +47,7 @@ import {
   nextSseEvent,
   shellWord,
   timedMs,
-  addLightItem, addLightViaCli,
+  addRoutedItem, addLightViaCli,
 } from './api-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
@@ -1302,9 +1302,9 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const ids = [];
   try {
     for (let index = 0; index < 300; index += 1) {
-      ids.push(addLightItem(board, {
+      ids.push(addRoutedItem(board, {
         by: 'coordinator', lane: 'app', title: `Incremental item ${String(index + 1).padStart(3, '0')}`,
-        criterion: `Exercise item projection ${index + 1}`, specIds: ['G1'],
+        criterion: `Exercise item projection ${index + 1}`, specIds: ['G1'], route: index === 2 ? 'mid' : 'light',
         brief: 'Files:\n- app/incremental-fixture.js\nChange:\n- Preserve the fixture item.\nTest:\n- The API projection matches a full rebuild.',
         check: 'true',
         ...(index === 1 ? { after: [ids[0]] } : {}),
@@ -1565,8 +1565,8 @@ test('[N26,A2] an item detail answers under 20 ms on a large board', async (t) =
   const board = openBoard(boardFile, undefined, { isMain: true });
   const ids = [];
   try {
-    for (let index = 0; index < 1000; index += 1) ids.push(addLightItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
-      criterion: `Detail ${index + 1}`, specIds: ['G1'], brief: 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.', check: 'true' }));
+    for (let index = 0; index < 1000; index += 1) ids.push(addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `Large item ${index + 1}`,
+      criterion: `Detail ${index + 1}`, specIds: ['G1'], route: 'light', brief: 'Files:\n- app/large.js\nChange:\n- Keep it.\nTest:\n- It reads fast.', check: 'true' }));
     const insert = board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, 'coordinator', 'edit', ?, '{}')");
     board.db.exec('BEGIN'); // One transaction seeds the remaining events up to 40,000.
     for (let event = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n; event < 40_000; event += 1) insert.run(new Date(Date.UTC(2026, 0, 1, 0, 0, event)).toISOString(), ids[event % 1000]);

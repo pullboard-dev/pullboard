@@ -122,12 +122,12 @@ export function bindApiFixtureMachine(t, env) {
 }
 
 /**
- * Add an item routed light the way the board admits one: filed mid, then diagnosed by the coordinator.
+ * Add an item at a route the way the board admits it: a light item is filed mid, then diagnosed by the coordinator.
  * Why: a light item needs a current diagnosis fact (#3120), so a direct light add refuses DIAGNOSIS_REQUIRED.
  */
-export function addLightItem(board, fields) {
-  const id = addBoardItem(board, { ...fields, route: 'mid' });
-  appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: fields.brief });
+export function addRoutedItem(board, fields) {
+  const id = addBoardItem(board, { ...fields, route: fields.route === 'light' ? 'mid' : fields.route });
+  if (fields.route === 'light') appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: fields.brief });
   return id;
 }
 
