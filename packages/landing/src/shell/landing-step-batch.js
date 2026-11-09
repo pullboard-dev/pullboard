@@ -513,7 +513,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const crash = isCrash(error);
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
       try { await recordRefusal(state, crashRefusal(error)); }
-      catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
+      // ERR_INVALID_STATE is node:sqlite's closed handle: the batch was stopped and abandoned, and its stop was recorded.
+      catch (noticeError) { say(`landing refusal could not be recorded: ${noticeError.code ?? 'ERROR'}${noticeError.code === 'ERR_INVALID_STATE' ? ' (the board closed under a batch its stop abandoned; the stop was recorded)' : ''}: ${String(noticeError.message ?? '').slice(0, 200)}`); }
     }
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].

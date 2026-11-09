@@ -18,20 +18,22 @@ function zombie(db, id, item, idleMs) {
   assert.equal(takeJob(db, id, 'fallback:next:1', { now: at, leaseMs: 120_000 }).taken, true);
 }
 
-/** Run one fallback pass on a real board file, failing if it drives a job it should have ended. */
-async function pass(t, build, active) {
+/** Run one fallback pass on a real board file, recording which jobs it drove and each job's view after it. */
+async function pass(t, build, active, ids) {
   const files = privateFixtureFiles('pullboard-zombie-board-');
   return withFixtureBoard(join(files.root, 'board.sqlite'), async board => {
     build(board.db);
     const driven = [];
     const outcome = await reclaimPass(board.db, { owner: 'fallback:next:2', now: () => NOW, active,
       drive: async (db, job) => { driven.push(job); return { transition: null, phase: 'running', job: jobView(db, job) }; } });
-    return { outcome, driven, view: id => jobView(board.db, id) };
+    // Read every view while the board is still open.
+    const views = new Map(ids.map(id => [id, jobView(board.db, id)]));
+    return { outcome, driven, view: id => views.get(id) };
   });
 }
 
 test('clause 1: a lapsed gate job whose item is no longer submitted at its commit ends withdrawn and stale, never driven [C7]', async t => {
-  const { driven, view } = await pass(t, db => zombie(db, 'handoff-drive-stale', 2662, 60_000), () => false);
+  const { driven, view } = await pass(t, db => zombie(db, 'handoff-drive-stale', 2662, 60_000), () => false, ['handoff-drive-stale']);
   assert.deepEqual(driven, [], 'no fallback driver takes it');
   const job = view('handoff-drive-stale');
   assert.equal(job.step, 'done');
@@ -45,7 +47,7 @@ test('clause 2: a lapsed gate job with no progress for 20 minutes ends as infras
   const { driven, view } = await pass(t, db => {
     zombie(db, 'handoff-drive-idle', 3474, GATE_JOB_NO_PROGRESS_MS + 60_000);
     zombie(db, 'handoff-drive-recent', 3475, 3 * 60_000);
-  }, () => true);
+  }, () => true, ['handoff-drive-idle', 'handoff-drive-recent']);
   const idle = view('handoff-drive-idle');
   assert.equal(idle.step, 'done');
   const ended = idle.steps.find(step => step.name === 'ended').payload;
