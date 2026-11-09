@@ -4,34 +4,38 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { currentToolsName } from '../apps/cli/src/shell/submit-handoff.js';
 import { dispatcherPass, handOver, staleDispatcherTools } from '../bin/handoff-worker-dispatcher.js';
 import { drainHandoffQueue, finishRunningWorkers, listResources, queueHandoffLaunch, reserveHandoffTicket } from '../packages/resources/index.js';
 
-/** A clean tool root at one commit and a waiting launch whose request names it. */
-function toolRootWithLaunch() {
+/** A tool root at one commit, and two waiting launches: one captured at an older tooling commit, one at its HEAD. */
+function launchesAtTwoCommits(t) {
   const tool = privateFixtureFiles('pullboard-dispatch-tool-root-');
   for (const args of [['init', '-q'], ['config', 'user.email', 'dispatch@example.test'], ['config', 'user.name', 'Dispatch Test']]) runFixtureGit(['-C', tool.root, ...args]);
   tool.write('packages/drive/index.js', 'export const VERSION = 1;\n');
   runFixtureGit(['-C', tool.root, 'add', '-A']);
-  runFixtureGit(['-C', tool.root, 'commit', '-q', '-m', 'tooling']);
-  const job = privateFixtureFiles('pullboard-dispatch-job-');
-  job.write('request.json', JSON.stringify({ job: 'job-stale', toolRoot: tool.root }) + '\n');
-  return { tool, launch: { directory: job.root, job: 'job-stale', commonDir: join(tool.root, '.git') } };
+  runFixtureGit(['-C', tool.root, 'commit', '-q', '-m', 'tooling A']);
+  const a = runFixtureGit(['-C', tool.root, 'rev-parse', 'HEAD']);
+  tool.write('packages/drive/index.js', 'export const VERSION = 2;\n');
+  runFixtureGit(['-C', tool.root, 'commit', '-q', '-am', 'tooling B']);
+  const b = runFixtureGit(['-C', tool.root, 'rev-parse', 'HEAD']);
+  const snapshots = privateFixtureFiles('pullboard-dispatch-snapshots-');
+  const folder = commit => { const path = join(snapshots.root, `pullboard-handoff-tools-${commit}`); mkdirSync(path, { recursive: true }); return path; };
+  const launch = (job, commit) => {
+    const files = privateFixtureFiles('pullboard-dispatch-job-');
+    files.write('request.json', JSON.stringify({ job, toolRoot: tool.root, toolsCommit: commit }) + '\n');
+    return { directory: files.root, job, tools: folder(commit) };
+  };
+  const launches = [launch('job-old', a), launch('job-new', b)];
+  t.after(() => rmSync(snapshots.root, { recursive: true, force: true }));
+  return { launches, old: launches[0].tools, current: launches[1].tools };
 }
 
-test('clause 1: a dispatcher whose tools snapshot is not its tool root\'s current main tooling names the current tooling, and one on main names none [C7]', () => {
-  const { tool, launch } = toolRootWithLaunch();
-  const current = currentToolsName(tool.root);
-  assert.match(current, /^pullboard-handoff-tools-[0-9a-f]{40}$/u);
-  const built = [];
-  const snapshot = (root, job) => { built.push([root, job]); return `/tmp/${current}`; };
-  const stale = '/tmp/pullboard-handoff-tools-' + '0'.repeat(40);
-  assert.equal(staleDispatcherTools({ own: stale, launches: () => [launch], snapshot }), `/tmp/${current}`, 'a stale dispatcher is handed the current snapshot');
-  assert.deepEqual(built, [[tool.root, 'job-stale']], 'the current snapshot is built from the tool root the launch names');
-  assert.equal(staleDispatcherTools({ own: `/tmp/${current}`, launches: () => [launch], snapshot }), null, 'a dispatcher on current tooling keeps launching');
-  assert.equal(staleDispatcherTools({ own: tool.root, launches: () => [launch], snapshot }), null, 'a dispatcher run from a checkout never hands over');
-  assert.equal(staleDispatcherTools({ own: stale, launches: () => [], snapshot }), null, 'with nothing waiting there is nothing to hand over');
+test('clause 1: a dispatcher whose tools snapshot is not its tool root\'s current main tooling names the current tooling, and one on main names none [C7]', t => {
+  const { launches, old, current } = launchesAtTwoCommits(t);
+  assert.equal(staleDispatcherTools({ own: old, launches: () => launches }), current, 'a dispatcher on older tools is handed the snapshot captured at main\'s HEAD');
+  assert.equal(staleDispatcherTools({ own: current, launches: () => launches }), null, 'a dispatcher on main tooling keeps launching, though an older launch still waits');
+  assert.equal(staleDispatcherTools({ own: '/Users/someone/pullboard', launches: () => launches }), null, 'a dispatcher run from a checkout never hands over');
+  assert.equal(staleDispatcherTools({ own: old, launches: () => [launches[0]] }), null, 'with no launch captured at main\'s HEAD there is nothing to hand over to');
 });
 
 test('clause 1: a stale dispatcher stops taking jobs, frees the machine lock, launches one on main tooling, lets its workers finish and exits [C7]', async () => {
@@ -55,10 +59,10 @@ test('clause 1: a stale dispatcher stops taking jobs, frees the machine lock, la
     // One gate this dispatcher started is still running at the hand-over; it ends once the new dispatcher is up.
     const worker = { exited: false, slot: 'slot-1', job: 'job-running' };
     const running = new Map([['worker-1', worker]]);
-    const launch = async (tools, cwd) => { launched.push({ tools, cwd }); order.push('launched'); worker.exited = true; return true; };
+    const launch = async (tools, cwd, options) => { launched.push({ tools, cwd, owner: options.owner }); order.push('launched'); worker.exited = true; return true; };
     const finish = workers => finishRunningWorkers(workers, { pollMs: 5, releaseSlot: slot => order.push(`released ${slot}`) });
-    await handOver(error.tools, row, code => order.push(`exit ${code}`), { launch, running, finish });
-    assert.equal(row.released, 1, 'the stale dispatcher freed its row first');
+    await handOver(error.tools, code => order.push(`exit ${code}`), { launch, running, finish, owner: 'dispatcher:row-owner' });
+    assert.equal(launched[0].owner, 'dispatcher:row-owner', 'the successor takes over the row this dispatcher renewed');
     assert.deepEqual(launched.map(entry => entry.tools), ['/tmp/current-tools'], 'one dispatcher is launched, from current main tooling');
     assert.deepEqual(order, ['launched', 'released slot-1', 'exit 0'], 'it let its running gate finish, freed its slot, then exited');
   } finally {
@@ -82,7 +86,7 @@ test('clause 2: a dispatcher whose row another dispatcher took stops launching a
     assert.equal(error?.code, 'DISPATCHER_REPLACED', 'the first pass after the row moved ends the drain');
     const launched = [];
     const exits = [];
-    await handOver(error.tools, row, code => exits.push(code), { launch: async (...args) => { launched.push(args); return true; }, finish: async () => {} });
+    await handOver(error.tools, code => exits.push(code), { launch: async (...args) => { launched.push(args); return true; }, finish: async () => {} });
     assert.deepEqual(launched, [], 'it leaves the machine to the dispatcher that took the row');
     assert.equal(row.released, 0, 'it never frees a row it no longer holds');
     assert.deepEqual(exits, [0]);
