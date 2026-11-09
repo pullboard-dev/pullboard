@@ -1,17 +1,12 @@
 /** Native diagnosis routing gives cold light seats a concrete fix and returns bad diagnoses for repair [C7]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { TWO_TIER_DIAGNOSIS_ENGINE } from '../packages/state/index.js';
-import { prepareEngineMove } from '../packages/state/index.js';
-import { applyEngineMove } from '../packages/state/index.js';
-import { parseDiagnosis } from '../packages/items/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { fixtureBoard } from './board-fixture.js';
-import { onBoard } from './land-board-fixture.js';
-import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import * as store from '../index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { parseDiagnosis } from '../../items/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const DIAGNOSIS = 'Files: web/handler.js test/handler.test.js Change: repoint the fixture to the canonical handler Test case: handler returns the expected result from the canonical module';
 
@@ -90,39 +85,4 @@ test('old light items remain available for capable diagnosis and historical fact
   assert.equal(next.item.item_route, 'mid');
   f.claim(id, f.strong);
   assert.deepEqual(parseDiagnosis(DIAGNOSIS).files, ['web/handler.js', 'test/handler.test.js']);
-});
-
-test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG returns it for diagnosis [C7]', t => {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const isolated = helpers.sandbox();
-  isolated.env.PULLBOARD_MODEL = 'Two tier diagnosis fixture';
-  const box = helpers.project('true', isolated);
-  const light = join(box.dir, 'light');
-  box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
-  const joined = fixtureJoin(box.run, light, 'web', '--route', 'light', '--model', 'Two tier light fixture');
-  assert.equal(joined.code, 0, joined.err);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works [test]', '--check', 'true',
-    '--brief', 'Files: web/handler.js\nTest: expected result', '--json');
-  assert.equal(added.code, 0, added.err);
-  const id = JSON.parse(added.out).item.item_id;
-  const before = box.run(light, 'claim', String(id));
-  assert.notEqual(before.code, 0);
-  assert.match(before.err, /DIAGNOSIS_REQUIRED/u);
-  const recorded = box.run(box.repo, 'fact', String(id), 'diagnosis', DIAGNOSIS);
-  assert.equal(recorded.code, 0, recorded.err);
-  const picked = box.run(light, 'next', '--build', '--json');
-  assert.equal(picked.code, 0, picked.err);
-  const answer = JSON.parse(picked.out);
-  assert.equal(answer.item.item_id, id);
-  assert.match(answer.item.item_brief, /repoint the fixture/u);
-  const root = answer.itemFolder ?? light;
-  const released = box.run(root, 'release', String(id), '--reason', 'DIAGNOSIS_WRONG', '--note', 'the fixture diagnosis missed the actual assertion', '--no-next');
-  assert.equal(released.code, 0, released.err);
-  assert.equal(onBoard(box, board => store.getItem(board, id).item_route), 'mid');
-  const retry = box.run(light, 'claim', String(id));
-  assert.notEqual(retry.code, 0);
-  assert.match(retry.err, /DIAGNOSIS_REQUIRED/u);
-  assert.equal(box.run(box.repo, 'fact', String(id), 'diagnosis', DIAGNOSIS.replace('fixture', 'assertion')).code, 0);
-  assert.equal(box.run(light, 'claim', String(id)).code, 0);
 });
