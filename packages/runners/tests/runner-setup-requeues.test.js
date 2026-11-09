@@ -13,10 +13,10 @@ import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 test('missing remote executable is RUNNER_SETUP and the original job requeues on another runner [C7]', t => {
   const box = cellProject(t);
   // The same private ssh stand-in the registration fixture gives this case, with no CLI process.
-  const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
+  const paths = Object.fromEntries(['home', 'bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
   for (const path of [...Object.values(paths), box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(path, { recursive: true });
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome, machineHome: paths.remoteMachine, requests: join(box.dir, 'requests.jsonl') });
-  const env = { ...box.env, PATH: `${paths.bin}:${box.env.PATH}` };
+  const env = { ...box.env, HOME: paths.home, PATH: `${paths.bin}:${box.env.PATH}` };
   for (const key of ['NODE_OPTIONS', 'NODE_TEST_CONTEXT', 'NODE_PATH']) delete env[key];
   const gate = pathToFileURL(resolve(import.meta.dirname, '../../gate/index.js')).href;
   const runners = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
