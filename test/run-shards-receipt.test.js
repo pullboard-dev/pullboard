@@ -1,38 +1,67 @@
 /** The shards of one run merge into one result and receipt, and a failing file in any shard fails the run naming it [C7]. */
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { mergeRunShards, planRunShards } from '../packages/landing/index.js';
+import { proveBatches } from '../packages/gate/src/shell/proof-shards.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
-const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
-const ROWS = {
-  'test/a.test.js': { file: 'test/a.test.js', pass: 3, fail: 0, skip: 1, exit: 0 },
-  'test/b.test.js': { file: 'test/b.test.js', pass: 2, fail: 0, skip: 0, exit: 0 },
-  'test/c.test.js': { file: 'test/c.test.js', pass: 5, fail: 0, skip: 0, exit: 0 },
-  'test/d.test.js': { file: 'test/d.test.js', pass: 1, fail: 0, skip: 0, exit: 0 },
+const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
+const COMMAND = 'node bin/run-tests.js ';
+const TREE = 'c'.repeat(40);
+const COMMIT = 'd'.repeat(40);
+const filesCommand = files => COMMAND + files.map(file => './' + file).join(' ');
+
+/** Own a private machine home, so the shard pass store is this test's alone. */
+function machine(t) {
+  const { root: directory } = privateFixtureFiles('pullboard-run-shards-');
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(directory, 'machine');
+  mkdirSync(process.env.PULLBOARD_MACHINE_HOME);
+  t.after(() => {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previous;
+    rmSync(directory, { recursive: true, force: true });
+  });
+}
+
+/** A runner-lease execution whose batches go through `runBatch`, as the gate's first lane does. */
+function execution(runBatch) {
+  return { gateLease: { runner: { host: 'fixture-gate' }, executionServices: { runners: {
+    runOnRunnerAsync: async (root, command) => runBatch(command.slice(COMMAND.length).split(' ').map(file => file.replace(/^\.\//u, ''))) } } },
+  remoteCommand: filesCommand(FILES), remoteOptions: { source: { commit: COMMIT, tree: TREE }, metadata: { timingRunId: randomUUID() } } };
+}
+
+/** A second runner slot that runs the batches it pulls through the same fixture run. */
+const slotFor = runBatch => async lane => lane(files => runBatch(files));
+
+/** One batch's run: red when it holds a file in `bad`, naming that file in its output. */
+const batchRun = bad => files => {
+  const red = files.filter(file => bad.includes(file));
+  return { isGreen: red.length === 0, exitCode: red.length ? 1 : 0, executionRunner: 'fixture-a', remoteWallMs: 5,
+    executionSource: { commit: COMMIT, tree: TREE }, output: red.length ? `not ok ${red.join(' ')}` : `ok ${files.join(' ')}` };
 };
-const report = shard => ({ files: shard.files.map(file => ROWS[file]) });
 
-test('clause 1: shards of one run merge into one result and receipt identical in content to a single-slot run [test] [C7]', () => {
-  const single = mergeRunShards(FILES, [report({ files: FILES })]);
-  assert.equal(single.exit, 0);
-  assert.deepEqual([single.pass, single.fail, single.skip], [11, 0, 1]);
-  for (const slots of [2, 3, 4]) {
-    const shards = planRunShards(FILES, slots, { 'test/a.test.js': 100, 'test/b.test.js': 10, 'test/c.test.js': 50 });
-    assert.ok(shards.length > 1);
-    assert.deepEqual(mergeRunShards(FILES, shards.map(report).reverse()), single, `${slots} slots merge to the single-slot receipt`);
-  }
+test('clause 1: shards of one run merge into one result and receipt identical in content to a single-slot run [test] [C7]', async t => {
+  machine(t);
+  const takeSlot = slotFor(batchRun([]));
+  const run = size => proveBatches('/controller', execution(batchRun([])), { files: FILES, filesCommand, takeSlot, freeSlots: 2, batchFiles: size, passes: null });
+  const single = await run(FILES.length);
+  const split = await run(2);
+  assert.ok(split.shards.length > 1, 'the files ran as several shards');
+  assert.equal(single.isGreen, true);
+  assert.deepEqual([split.isGreen, split.exitCode, split.failingFiles], [single.isGreen, single.exitCode, single.failingFiles]);
+  assert.deepEqual(split.shards.flatMap(shard => shard.files).sort(), FILES, 'the one receipt names every file once');
 });
 
-test('clause 2: a failing file in any shard fails the run with that file named, and a file no shard reported fails it too [test] [C7]', () => {
-  const shards = planRunShards(FILES, 2, {});
-  const red = shards.map(shard => ({ files: shard.files.map(file => file === 'test/c.test.js' ? { ...ROWS[file], pass: 4, fail: 1, exit: 1 } : ROWS[file]) }));
-  const merged = mergeRunShards(FILES, red);
-  assert.equal(merged.exit, 1);
-  assert.deepEqual(merged.failing, ['test/c.test.js']);
-  assert.equal(merged.fail, 1);
-  const lost = mergeRunShards(FILES, [report(shards[0])]);
-  assert.equal(lost.exit, 1);
-  assert.deepEqual(lost.failing, shards[1].files.slice().sort((x, y) => FILES.indexOf(x) - FILES.indexOf(y)));
-  const retried = mergeRunShards(FILES, [...red, report({ files: ['test/c.test.js'] })]);
-  assert.deepEqual(retried.failing, ['test/c.test.js'], 'a green rerun does not hide a red');
+test('clause 2: a failing file in any shard fails the run with that file named [test] [C7]', async t => {
+  machine(t);
+  const bad = batchRun(['test/d.test.js']);
+  const takeSlot = slotFor(bad);
+  const merged = await proveBatches('/controller', execution(bad), { files: FILES, filesCommand, takeSlot, freeSlots: 2, batchFiles: 2, passes: null });
+  assert.equal(merged.isGreen, false);
+  assert.equal(merged.exitCode, 1);
+  assert.deepEqual(merged.failingFiles, ['test/d.test.js']);
+  assert.match(merged.output, /not ok test\/d\.test\.js/u);
 });

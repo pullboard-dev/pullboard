@@ -34,30 +34,3 @@ export function ordinaryRunShards({ files, freeSlots, times = {}, root = null, l
   if (landing || shard || insideRunnerSlot) return [{ files: [...files], weight: files.length }];
   return planRunShards(files, freeSlots, times, root);
 }
-
-/**
- * Merge the results of one run's shards into the one result and receipt a single-slot run would give.
- * Why: the receipt content is per-file and sorted into the run's own file order, so it is identical however the files
- * were split; a failing file in any shard fails the run and is named, and a file no shard reported fails it too, so a
- * lost shard can never read green. Wall time is not content and stays out of the receipt.
- *
- * @param {string[]} files - The run's selected files, in the order today's single pass uses.
- * @param {{ files: { file: string, pass?: number, fail?: number, skip?: number, exit?: number }[] }[]} shards - One report per shard.
- * @returns {{ exit: number, pass: number, fail: number, skip: number, failing: string[],
- *   files: { file: string, pass: number, fail: number, skip: number, exit: number }[] }}
- */
-export function mergeRunShards(files, shards) {
-  const reported = new Map();
-  for (const shard of shards) for (const row of shard.files ?? []) {
-    const seen = reported.get(row.file);
-    const next = { file: row.file, pass: row.pass ?? 0, fail: row.fail ?? 0, skip: row.skip ?? 0, exit: row.exit ?? 0 };
-    // A file reported twice (a retried shard) keeps its worst outcome, so a red never hides behind a rerun's green.
-    reported.set(row.file, seen ? { file: row.file, pass: Math.max(seen.pass, next.pass), fail: Math.max(seen.fail, next.fail),
-      skip: Math.max(seen.skip, next.skip), exit: seen.exit || next.exit } : next);
-  }
-  const order = [...files, ...[...reported.keys()].filter(file => !files.includes(file)).sort()];
-  const rows = order.map(file => reported.get(file) ?? { file, pass: 0, fail: 0, skip: 0, exit: 1 });
-  const failing = rows.filter(row => row.exit !== 0 || row.fail > 0).map(row => row.file);
-  const total = key => rows.reduce((sum, row) => sum + row[key], 0);
-  return { exit: failing.length ? 1 : 0, pass: total('pass'), fail: total('fail'), skip: total('skip'), failing, files: rows };
-}
