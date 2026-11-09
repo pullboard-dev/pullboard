@@ -33,6 +33,7 @@ import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { runGate } from '../../../gate/index.js';
+import { runStaticChecks } from '../../../gate/index.js';
 import { readGateReceipt } from '../../../gate/index.js';
 import { receiptStore } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
@@ -419,6 +420,18 @@ async function runGateGroup(state, label, options) {
   return result;
 }
 
+/**
+ * Start the static checks on the candidate's tree beside its gate. Their green receipt is keyed by tree, so the
+ * batch's trunk guards on this same tree cite it instead of queuing a second runner job after the gate; a red or
+ * failed run records nothing here and the trunk guards run and refuse as before.
+ * Why: the trunk's static checks waited 80 to 230 s on a runner after a green candidate gate on 9 Nov [C7].
+ */
+function earlyStaticChecks(state) {
+  return landingSpan('static', () => runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+    agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
+    .catch(() => null); // The trunk guards rerun a red or failed static check and refuse with its output.
+}
+
 /** Merge and test one speculative prefix without giving its worker publication authority. */
 export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
@@ -439,7 +452,9 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   const claimed = await claimGate(tree, batchGatePlan(state).affectedGate);
   if (claimed.previous) state.gates.set(tree, claimed.previous);
   if (claimed.cached?.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, claimed.cached);
+  const staticChecks = claimed.cached ? null : earlyStaticChecks(state);
   const gate = claimed.cached ?? { ...await gateGroup(state, 'candidate'), proofRoot: state.batch.root, proofCommit: headCommit(state.batch.root) };
+  await staticChecks;
   if (!claimed.cached) await finishGate(tree, gate);
   await save(state, { state: gate.isGreen ? 'ready' : 'blocked' });
   return { batch: state.batch, gate };
