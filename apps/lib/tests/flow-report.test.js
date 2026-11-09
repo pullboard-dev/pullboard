@@ -1,17 +1,17 @@
 /** Hand-computed flow reporting uses real Git/SQLite and immutable native history [R1,R2]. */
-import { events as readStatsEvents } from '../../store/index.js';
-import { counterProofStats as readStatsCounter } from '../../verify/index.js';
+import { events as readStatsEvents } from '../../../packages/store/index.js';
+import { counterProofStats as readStatsCounter } from '../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { exportBoard } from '../../store/index.js';
-import { importBoard } from '../../store/index.js';
-import { proofStats } from '../src/shell/stats.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */

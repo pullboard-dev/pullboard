@@ -36,7 +36,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as native from '../apps/lib/index.js';
-import * as legacy from '../packages/store/index.js';
+import * as door from '../packages/store/index.js';
 import { board as library } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../packages/store/index.js';
@@ -44,6 +44,39 @@ import { recordRowDraft } from '../packages/spec/index.js';
 import { setPersonSigning } from '../packages/person/index.js';
 import { recordGateRun } from '../packages/flakes/index.js';
 import { advanceItemSource } from '../packages/sandbox/index.js';
+
+/** The 192 store names the library's public board has always exposed; the door now exports many more [C7,B1,B2]. */
+const STORE_NAMES = [
+  'ACCEPT_REASON', 'BOARD_BUSY_TIMEOUT_MS', 'EVENT_LOG_VERSION', 'EVIDENCE_KINDS', 'FACT_KINDS', 'PERSON', 'REJECT_REASONS', 'ROUTES',
+  'SCHEMA_VERSION', 'SIGNED_EVENT_LOG_VERSION', 'acceptCheck', 'acceptedVerdict', 'actOnActivity', 'activityDeliveryState', 'addItem',
+  'agentActivity', 'agentAt', 'agentById', 'agentCreator', 'allShouts', 'answerDecision', 'answerTypedRequests', 'appendFact', 'applyRehomeItem',
+  'applyRowDecisions', 'approveOutside', 'atomic', 'attachItemPatch', 'boardBusyError', 'boardId', 'buildOrder', 'canTake', 'canonicalFamily',
+  'canonicalMilestoneTarget', 'checkedLandingCommit', 'claim', 'closeBoard', 'completeCheckBaseline', 'completeSubmitHandoff', 'coordinatorCheck',
+  'coordinatorHolder', 'coordinatorOnly', 'createItemSlice', 'decisionAndEvidenceShouts', 'decisionAnswers', 'declareJob', 'editItem',
+  'ensureCoordinator', 'escalate', 'events', 'eventsOfKinds', 'factReference', 'fileTypedRequest', 'finishLandingBatch', 'followItemPatches',
+  'foreignBlockers', 'foreignDependencyStates', 'getItem', 'getShout', 'holdItem', 'holdLane', 'inbox', 'intakeOutside', 'itemById',
+  'itemCheckAuthor', 'itemFiles', 'itemHold', 'itemPatchDigest', 'itemPatches', 'itemRedirect', 'itemThread', 'itemsInStatus', 'landingBatches',
+  'landingFlakes', 'landingLeaseMove', 'landingLeaseState', 'landingTestDefects', 'landingWaiverCovers', 'landingWaiverKind', 'laneHold',
+  'laneHolds', 'laneLeads', 'lastMoves', 'lineSettings', 'linkPublishRepair', 'listAgents', 'listItems', 'logEvent', 'maintainStaleState', 'merged',
+  'milestonePriorities', 'milestones', 'moveItem', 'nextFor', 'nextSeatId', 'onlyCoordinator', 'openBoardReadOnly', 'openDecisions', 'openHandoff',
+  'openRequests', 'passDecision', 'peekShouts', 'pendingRefreeze', 'pendingRefreezeProblem', 'planCompanion', 'postRigorNotices', 'prepareClaim',
+  'prepareMergeOnlySubmit', 'prepareQueueSubmitHandoff', 'projectItemThreads', 'proofReceipts', 'queueSubmitHandoff', 'readBoardMembers',
+  'readBoardSnapshot', 'readEventLogVersion', 'recentEvents', 'recentShouts', 'recordActivityDelivery', 'recordAttempt', 'recordExitProgress',
+  'recordHealthFindings', 'recordJobRun', 'recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordLandingWaiver',
+  'recordNextIdle', 'recordProofRun', 'recordRelayRefusal', 'recordRowDecisions', 'recordSharedUsage', 'recordSpecApprovalBaseline', 'recordUsage',
+  'recordUsageBatch', 'refreeze', 'register', 'rehomeDestinationItemId', 'rehomeImport', 'rehomeItem', 'relatedItems', 'release', 'releaseItemHold',
+  'releaseLane', 'removeItemPatch', 'reopen', 'requestCompanion', 'requireExitActive', 'reserveNextReview', 'reserveRehomeItemId', 'reserveReview',
+  'reviewHolder', 'reviewOffer', 'reviewQueue', 'reviewQueueBreakdown', 'reviewReleaseCooldown', 'reviewReleaseNoteProblem', 'reviewerChecks',
+  'rowDecisions', 'rowDrafts', 'rowVerifications', 'schemaMissing', 'seatEnrolled', 'seatFamily', 'seatLineage', 'setBarReady', 'setBoardMembers',
+  'setItem', 'setLaneLead', 'setLineSetting', 'shout', 'shoutDetails', 'signBar', 'specApprovalBaseline', 'specApprovalBaselineExists',
+  'startSubmitHandoff', 'stats', 'submit', 'submitInvariantEvents', 'systemClock', 'takeCoordinator', 'takeHandoff', 'typedRequests', 'unreadCount',
+  'unverifiedSubmissions', 'validateItemAddition', 'validateItemEdit', 'verdictReviewProblem', 'verdictsFor', 'verify', 'withVerifierStanding',
+  'withdraw', 'writeRefused',
+];
+/** The library names the store's write variants, which the door exports under a board_ prefix [C7,B1,B2]. */
+const WRITE_VARIANTS = { ensureCoordinator: 'board_ensureCoordinator', recordNextIdle: 'board_recordNextIdle' };
+/** The store surface the library keeps: the explicit names, read from the door. */
+const legacy = Object.fromEntries(STORE_NAMES.map(name => [name, door[WRITE_VARIANTS[name] ?? name]]));
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
@@ -435,4 +468,16 @@ test('sandbox policy capabilities refuse before any SQLite path is created [C7,B
     }, error => error.code === 'NO_POLICY' && error.message.includes(`sandboxPolicyReads.${name}`));
     assert.equal(existsSync(join(directory, 'never-created')), false);
   }
+});
+
+/** The library's public board is the explicit store names plus the 32 native operations, so a wider store door never widens it [C7,B1,B2]. */
+test('the library public board exposes exactly its explicit name list [C7,B1,B2]', () => {
+  const native = [
+    'addMilestone', 'advanceItemSource', 'beginSentinelRun', 'decideSentinel', 'decideSpecRevisions', 'draftSpecRow', 'editMilestone',
+    'editMilestoneItems', 'finishSentinelRun', 'flakeLedger', 'flakeQuarantines', 'gateRuns', 'landingWaiverFor', 'landingWaivers', 'moveMilestone',
+    'openBoard', 'openBoardForRead', 'orderMilestoneItems', 'personProposals', 'personSigning', 'proposePersonMove', 'proposeSentinel',
+    'recordFlakeObservation', 'recordGateRun', 'recordPublishFinding', 'recordRowVerification', 'recordTrainLanding', 'removeMilestone', 'roadmap',
+    'setPersonSigning', 'shipMilestone', 'waivedLandingProof',
+  ];
+  assert.deepEqual(Object.keys(library).sort(), [...STORE_NAMES, ...native].sort());
 });

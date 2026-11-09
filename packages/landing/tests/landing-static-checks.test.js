@@ -1,12 +1,12 @@
 /** A landing batch turns a red submit static check on the merged tree into a named refusal that charges only the changing items [C7,#3345]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Refused } from '../packages/kernel/index.js';
-import { itemRefusalText } from '../packages/landing/src/core/item-refusal.js';
-import { entriesTouching } from '../packages/landing/src/shell/landing-static-checks.js';
-import { landingStaticRefusal } from '../packages/landing/src/shell/landing-static-checks.js';
-import { fixture } from './cells-plan-fixture.js';
-import { git } from './cells-plan-fixture.js';
+import { Refused } from '../../kernel/index.js';
+import { itemRefusalText } from '../src/core/item-refusal.js';
+import { entriesTouching } from '../src/shell/landing-static-checks.js';
+import { landingStaticRefusal } from '../src/shell/landing-static-checks.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
 
 /** A cells-plan fixture repository (identity set, no hooks) plus two branches each adding one file, and the merge of both. */
 function repository(t) {
