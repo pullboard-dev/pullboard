@@ -1,9 +1,9 @@
 /** Plain obligations and explicit clock observations; native Needs interactions remain journeys [N26,B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { personNeeds } from '../../packages/spec/core.js';
-import { heldNote } from '../../apps/view/src/shell/view/held-items.js';
-import { heldChip } from '../../apps/view/src/shell/view/held-items.js';
+import { personNeeds } from '../../../../packages/spec/core.js';
+import { heldNote } from '../../src/shell/view/held-items.js';
+import { heldChip } from '../../src/shell/view/held-items.js';
 
 test('only person-owned blocks become calls, grouped by command with the latest observed reason [N26,B26,C7]', () => {
   const state = { blocks: [
