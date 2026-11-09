@@ -132,7 +132,7 @@ test('[A2,C7] a state read after one appended event serves the materialized buil
   assert.ok(delta.document.delta, 'a delta from a sequence the server sent is answered, not reset');
   await api.close();
   const cache = join(box.root, '.git', 'pullboard', 'state-cache');
-  assert.ok(existsSync(cache) && readdirSync(cache).some((name) => name.endsWith('.snapshot')), 'closing saves the board state to disk');
+  assert.ok(existsSync(cache) && readdirSync(cache).some((name) => name.endsWith('.result')), 'closing saves the board state to disk');
 
   const restarted = [];
   const again = await materializedApi(t, box, restarted);

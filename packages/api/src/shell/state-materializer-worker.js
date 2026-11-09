@@ -4,16 +4,12 @@
  *
  * It saves each board's latest build to disk, keyed by the board, the code that built it and its last event id,
  * so a restarted server serves the saved record at once and its first build extends the saved one rather than
- * starting over. The snapshots live in the board's pullboard/state-cache folder, or PULLBOARD_STATE_CACHE_DIR.
+ * starting over. The pin cell keeps them, as results keyed by the board, in the board's state-cache folder or
+ * PULLBOARD_STATE_CACHE_DIR; a snapshot from other code fails its key and is rebuilt.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deserialize } from 'node:v8';
@@ -29,6 +25,7 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 const { createStateSnapshots } = await import('./api.js');
+const { loadKeyedResult, saveKeyedResult, savedKeyedResults } = await import('../../../pin/index.js');
 
 /** How often, at most, a board's snapshot is saved while it keeps changing. */
 const SAVE_EVERY_MS = 60_000;
@@ -71,37 +68,41 @@ const code = codeStamp(snapshots.formats);
 const restored = new Set();
 const saved = new Map();
 
-/** Where one board's snapshot lives, and the key a saved one must match. */
+/** Where one board's snapshot lives: its folder, the board's cache id that names it, and the key a saved one must match. */
 function snapshotFile(board) {
   const { cacheId, folder } = snapshots.snapshotPlace(board);
-  const dir = process.env.PULLBOARD_STATE_CACHE_DIR || folder;
-  return { cacheId, key: `${cacheId}\0${code}`, file: join(dir, createHash('sha256').update(cacheId).digest('hex').slice(0, 24) + '.snapshot') };
+  return { cacheId, key: `${cacheId}\0${code}`, folder: process.env.PULLBOARD_STATE_CACHE_DIR || folder };
+}
+
+/** Restore one decoded snapshot and post its record, when it was saved by this code for this board. */
+function restoreValue(value, board) {
+  if (value?.version !== SNAPSHOT_VERSION || !board || value.key !== snapshotFile(board).key) return;
+  const key = board.id + '\0' + board.root;
+  if (restored.has(key)) return;
+  restored.add(key);
+  snapshots.restore(value.carry);
+  parentPort.postMessage({ type: 'record', key, board, restored: true, record: { ...value.record, current: false } });
 }
 
 /** Serve a board's saved record at once and resume its builds from the saved build, when its key matches. */
 function restoreSaved(message) {
   if (restored.has(message.key)) return;
-  restored.add(message.key);
   try {
-    const { key, file } = snapshotFile(message.board);
-    const value = deserialize(readFileSync(file));
-    if (value?.version !== SNAPSHOT_VERSION || value.key !== key) return;
-    snapshots.restore(value.carry);
-    parentPort.postMessage({ type: 'record', key: message.key, board: message.board, restored: true, record: { ...value.record, current: false } });
+    const { cacheId, folder } = snapshotFile(message.board);
+    const bytes = loadKeyedResult(folder, cacheId);
+    if (bytes) restoreValue(deserialize(bytes), message.board);
   } catch { /* No usable snapshot: the first build starts from the board itself. */ }
+  restored.add(message.key);
 }
 
-/** Save a board's latest build and record, through a temporary file so a reader never sees half of one. */
+/** Save a board's latest build and record as the pin cell's result for that board. */
 function save(board, record, { force = false } = {}) {
-  const { cacheId, key, file } = snapshotFile(board);
+  const { cacheId, key, folder } = snapshotFile(board);
   if (!force && Date.now() - (saved.get(cacheId)?.at ?? 0) < SAVE_EVERY_MS) return;
   const carry = snapshots.carry(cacheId);
   if (!carry) return;
   try {
-    mkdirSync(dirname(file), { recursive: true });
-    const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
-    renameSync(temporary, file);
+    saveKeyedResult(folder, cacheId, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
     saved.set(cacheId, { at: Date.now(), board, record, sequence: record.sequence });
   } catch { /* A snapshot only speeds the next start; failing to save one never fails a build. */ }
 }
@@ -121,17 +122,10 @@ function prewarm() {
     try { folders.add(process.env.PULLBOARD_STATE_CACHE_DIR || snapshots.snapshotPlace({ id: '', root: project.root }).folder); } catch { /* An unreadable project has no snapshot. */ }
   }
   for (const folder of folders) {
-    let names = [];
-    try { names = readdirSync(folder).filter((name) => name.endsWith('.snapshot')); } catch { continue; }
-    for (const name of names) {
+    for (const bytes of savedKeyedResults(folder)) {
       try {
-        const value = deserialize(readFileSync(join(folder, name)));
-        if (value?.version !== SNAPSHOT_VERSION || !value.board || value.key !== snapshotFile(value.board).key) continue;
-        const key = value.board.id + '\0' + value.board.root;
-        if (restored.has(key)) continue;
-        restored.add(key);
-        snapshots.restore(value.carry);
-        parentPort.postMessage({ type: 'record', key, board: value.board, restored: true, record: { ...value.record, current: false } });
+        const value = deserialize(bytes);
+        restoreValue(value, value?.board);
       } catch { /* No usable snapshot: that board's first build starts from the board itself. */ }
     }
   }
