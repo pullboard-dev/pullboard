@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import * as store from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';

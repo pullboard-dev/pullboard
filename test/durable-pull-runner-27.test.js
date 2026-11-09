@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob, takeJob, renewLease, releaseLease, writeStep, jobView } from '../packages/jobs/index.js';
 import { treeOf, bundleFor } from '../packages/pin/index.js';
 import { checkSignedResult, resultStatement } from '../packages/receipt/index.js';
