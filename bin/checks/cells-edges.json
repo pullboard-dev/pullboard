@@ -1428,10 +1428,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/gate/src/shell/chrome-clone-check.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/gate/src/shell/coordinator-release.js": {
       "cells": 4,
       "deep": 0

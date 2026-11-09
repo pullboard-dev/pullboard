@@ -2,4 +2,3 @@
 export { itemById, firstRefusal } from './src/core/board-item-read.js';
 export { itemCheckBaseline } from './src/core/board-item-check-read.js';
 export { milestones } from './src/core/board-milestones-read.js';
-export { nativeUserDirectory } from './src/shell/native-user-directory.js';
