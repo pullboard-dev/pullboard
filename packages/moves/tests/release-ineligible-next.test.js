@@ -18,7 +18,7 @@ test('clause 1: INELIGIBLE release is never offered back to that seat, while ano
   const id = box.add('Ineligible item');
   const autoClaim = await take(box);
   assert.equal(autoClaim.item.item_id, id);
-  store.release(box.board, id, box.seats.actor.id, 'This seat cannot take the work.', undefined, 'INELIGIBLE');
+  store.release(box.board, id, box.seats.actor.id, 'This seat cannot take the work.', { worktreeSnapshot: box.ports.claimWorktreeSnapshot() }, 'INELIGIBLE');
   const releaseDetail = JSON.parse(store.events(box.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
   assert.equal(releaseDetail.untouchedAutoClaim, true, 'the fixture exercises a real untouched automatic claim release');
   box.advance(31 * 60_000);
