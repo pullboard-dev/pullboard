@@ -1,4 +1,4 @@
-/** A claimed item's frozen lane policy refreshes to the current lanes at the next claim or renew [C7]. */
+/** A new claim refreshes a frozen lane policy to current main; a held renewal keeps it [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
