@@ -40,7 +40,7 @@ const HELP_EXAMPLES = {
   relay: 'pullboard relay on --all', 'relay recover': 'pullboard relay recover --skip 12', sync: 'pullboard sync',
   'lane add': 'pullboard lane add web --owns apps/web/', lane: 'pullboard lane add web --owns apps/web/',
   queue: 'pullboard queue', roadmap: 'pullboard roadmap', rigor: 'pullboard rigor', 'rigor quality': 'pullboard rigor quality --rule silent-catch', 'rigor draft': 'pullboard rigor draft "refusal:MERGE_LOST" "Merges keep every hunk" --check "node bin/checks/merges.js" --red 0123456 --green 89abcde', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
-  'milestone order': 'pullboard milestone order "0.7.0" 13,12',
+  'milestone order': 'pullboard milestone order "0.7.0" 13,12 --reason "the release notes need it first"',
   'milestone pin': 'pullboard milestone pin "0.7.0" 13 --reason "the release notes need it first"',
   'milestone sink': 'pullboard milestone sink "0.7.0" 12 --reason "waits on a design answer"',
   'milestone lift': 'pullboard milestone lift "0.7.0" 12,13',
