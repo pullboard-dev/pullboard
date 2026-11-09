@@ -201,12 +201,14 @@ function holdLease(rows, view, owner, now) {
  * @param {string} repo
  * @param {number} now
  */
-function capture(rows, view, repo, now) {
+function capture(rows, view, repo, now, ran = null) {
   if (!repo) throw new Refused('DRIVE_REPO', 'driveOnce needs the repository to capture a job: pass { repo }.');
   if (!view.candidate) throw new Refused('DRIVE_CANDIDATE', `Job ${view.id} names no candidate commit: create it with { candidate }.`);
   const pin = toolingFor(repo, view.candidate);
   const base = view.base ? treeOf(repo, view.base) : null;
-  rows.step(view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base }, { now });
+  // The commit of the gate machinery this driver runs beside the source it proves, so a retry on current tooling shows both.
+  const machinery = ran?.toolsCommit ? { toolsCommit: ran.toolsCommit, source: view.candidate } : {};
+  rows.step(view.id, 'captured', { tree: pin.tree, tooling: pin.tooling, pinned: pin.pinned, base, ...machinery }, { now });
 }
 
 /**
@@ -480,11 +482,12 @@ function flakeTargets(step, captured, collected, failures) {
  *   gate?: (observe: (stages: object[]) => object[]) => Promise<object>,
  *   transport?: { connect: Function }, sections?: (collected: object) => object,
  *   failures?: (collected: object) => { file: string, case: string }[], tooling?: boolean, source?: boolean, bundles?: string,
- *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, now?: () => number }} options - A whole gate that
- *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error).
+ *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, ran?: { toolsCommit?: string | null }, now?: () => number }} options - A whole gate that
+ *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error). `ran.toolsCommit`, the
+ *   commit of the tools this driver runs, is recorded on `captured` with the source commit it proves.
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
   const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (db));
   const view = rows.view(job);
@@ -495,7 +498,7 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
   if (!holdLease(rows, view, owner, at)) return { transition: null, phase: before, job: rows.view(job), code: 'JOB_LEASED' };
   const channels = transport ?? sharedTransport();
   let owed;
-  if (before === 'queued') capture(rows, view, repo, at);
+  if (before === 'queued') capture(rows, view, repo, at, ran);
   else if (before === 'captured') await send(rows, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
   else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(rows, view, { gate, owner, now, stallMs, stallCheckMs, stalled });
   else if (before === 'running') owed = await collect(rows, view, { transport: channels, owner, now: at });

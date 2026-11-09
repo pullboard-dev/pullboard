@@ -25,6 +25,7 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
   basename,
@@ -65,6 +66,7 @@ import { duringWriteTurn } from './process-identities.js';
 import { freshIdentity } from './process-identities.js';
 import { processIdentity } from './process-identities.js';
 import { refreshIdentities } from './process-identities.js';
+import { refreshIdentitiesAsync } from './process-identities.js';
 import { differentStart } from './holder-liveness.js';
 import { pollingNow } from './runner-placement.js';
 import { requiredRunnerHosts } from './runner-placement.js';
@@ -309,12 +311,13 @@ function slotDatabaseLocked(error) {
 }
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine, so it gets 10 s. */
-function slotDatabaseOpeners(file) {
+async function slotDatabaseOpeners(file) {
   const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
   if (!lsof) return [];
-  let output = '';
-  try { output = execFileSync(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }); }
-  catch (error) { output = typeof error.stdout === 'string' ? error.stdout : ''; }
+  // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
+  const output = await new Promise(resolve => {
+    execFile(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000 }, (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
+  });
   const openers = [];
   for (const line of output.split('\n')) {
     if (line.startsWith('p')) openers.push({ pid: Number(line.slice(1)), command: '' });
@@ -334,7 +337,7 @@ async function retryLockedSlotDatabase(file, work) {
       if (!slotDatabaseLocked(error)) throw error;
       const elapsed = Date.now() - startedAt;
       if (elapsed >= deadline) {
-        const openers = slotDatabaseOpeners(file);
+        const openers = await slotDatabaseOpeners(file);
         const holder = openers.length ? `held by one of: ${openers.map(({ pid, command }) => `pid ${pid}${command ? ` (${command})` : ''}`).join(', ')}` : 'lock holder unknown';
         const stopped = new Refused('SLOT_DB_LOCKED', `never ran: the gate slot database ${file} stayed locked for ${elapsed}ms, past the ${deadline}ms deadline (${holder}). The run did not start, so this is not a test failure; rerun it.`);
         stopped.neverRanExitCode = NEVER_RAN_EXIT_CODE;
@@ -349,6 +352,11 @@ async function retryLockedSlotDatabase(file, work) {
 /** Check whether the operating system still recognizes this process ID. */
 function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/** Read every listed holder and waiter identity without blocking the loop, so the synchronous refresh before the next write turn finds them current. A failed read only leaves it to that refresh. */
+async function warmListedIdentities(db) {
+  try { await refreshIdentitiesAsync(livenessPids(db)); } catch { /* A closed or busy database leaves the synchronous refresh to do its own work. */ }
 }
 
 /** Read the start identity to store with a lease when the OS can provide it. */
@@ -1043,6 +1051,7 @@ export async function takeResource(options) {
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
       await options.beforeAdmission?.(); const order = queueOrder(scope);
+      await warmListedIdentities(db);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
@@ -1158,7 +1167,9 @@ export async function takeResource(options) {
         let heartbeat;
         /** Keep the active holder lease alive while its executor is running. */
         const startHeartbeat = () => {
-          heartbeat = loopHeartbeat ? undefined : setInterval(() => {
+          heartbeat = loopHeartbeat ? undefined : setInterval(async () => {
+            if (released || transferred || lost) return;
+            await warmListedIdentities(db);
             if (released || transferred || lost) return;
             try {
               const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes, false);
