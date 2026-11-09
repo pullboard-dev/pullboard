@@ -35,18 +35,19 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   const context = JSON.parse(hooked.stdout).hookSpecificOutput?.additionalContext ?? '';
   assert.match(context, /next: pullboard next/u, 'the actual session hook gives the same queue instruction');
   assert.doesNotMatch(context, /wait for (?:an? )?assignment|wait to be assigned/iu);
+  // 4657576b18: a plain next with no lane work finishes at once with the end-your-turn answer, never a refusal.
   const empty = box.run(box.web, 'next', '--json');
-  assert.equal(empty.code, 1, empty.out);
-  const refusal = JSON.parse(empty.out).error;
-  assert.equal(refusal.code, 'NOTHING_FREE');
-  assert.match(refusal.message, /lane web/u);
-  assert.match(refusal.message, /route strong/u);
-  assert.match(refusal.message + refusal.next, /pullboard next --wait 9/u, 'no-work output names when to ask the queue again');
+  assert.equal(empty.code, 0, empty.out);
+  const idle = JSON.parse(empty.out);
+  assert.equal(idle.item, null);
+  assert.equal(idle.next, 'nothing for this seat: end your turn', 'no-work output tells the seat to end its turn, not to wait');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Held work', '--criterion', 'A marker exists', '--check', 'test -f web/ready').code, 0);
   assert.equal(box.run(box.repo, 'hold', 'web', '--reason', 'Release approval is pending').code, 0);
   const held = box.run(box.web, 'next', '--json');
-  assert.equal(held.code, 1, held.out);
-  assert.match(JSON.parse(held.out).error.message, /Release approval is pending/u, 'a real lane hold is explained, not bypassed');
+  assert.equal(held.code, 0, held.out);
+  const heldAnswer = JSON.parse(held.out);
+  assert.equal(heldAnswer.item, null);
+  assert.match(heldAnswer.reasons.join('\n'), /Release approval is pending/u, 'a real lane hold is explained, not bypassed');
   assert.equal(box.run(box.repo, 'hold', 'web', '--off').code, 0);
   const next = box.run(box.web, 'next', '--json');
   assert.equal(next.code, 0, next.err || next.out);

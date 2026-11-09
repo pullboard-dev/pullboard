@@ -105,6 +105,7 @@ test('clause 1: two consecutive blocked batches with the same refusal park only 
   assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_DIRTY')], ITEM), null);
   assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_ADOPT')],
     { ...ITEM, item_commit: 'c'.repeat(40) }), null);
+  assert.equal(repeatedBlockedCause([refused(), refused()], ITEM), null, 'RUNNER_SOURCE keeps its own three-attempt retry, not the two-batch park');
 });
 
 test('clause 1: two consecutive blocked batches with the same named failing case park it, but a different case does not [C7]', () => {

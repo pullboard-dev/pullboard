@@ -2,7 +2,7 @@
   "docs/shots/capture-browser.test.js": {
     "sleep": 1
   },
-  "packages/config/tests/watch.test.js": {
+  "test/watch.test.js": {
     "poll": 1
   },
   "packages/gate/tests/check.test.js": {
@@ -213,7 +213,7 @@
   "test/next-deadline.test.js": {
     "sleep": 1
   },
-  "test/package-files-copies.test.js": {
+  "packages/runners/tests/package-files-copies.test.js": {
     "poll": 3,
     "sleep": 2
   },
