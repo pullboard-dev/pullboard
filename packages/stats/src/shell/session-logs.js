@@ -1,6 +1,6 @@
 /**
  * Read the agents' own session logs, Claude transcripts and Codex rollouts, into activity segments and token buckets
- * for the pipeline ledger [C7,N2]. Read only: the logs are never written. A small cache beside the board keeps each
+ * for the pipeline ledger [C7,N2]. Read only: the logs are never written. A keyed store the caller passes in keeps each
  * file's fold and the byte offset it reached, so a later read parses only what the file gained since.
  */
 import { closeSync } from 'node:fs';
@@ -10,8 +10,6 @@ import { readdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { loadKeyedResult } from '../../../pin/index.js';
-import { saveKeyedResult } from '../../../pin/index.js';
 import { KEEP_MS } from '../core/session-activity.js';
 import { foldText } from '../core/session-activity.js';
 import { newFold } from '../core/session-activity.js';
@@ -76,15 +74,23 @@ export function sessionFiles({ root, since, home = homedir() }) {
 }
 
 /**
+ * The keyed store a caller hands in for folds: the CLI builds it from the pin cell's keyed results, so this cell
+ * never writes a file of its own.
+ *
+ * @typedef {{ load: (key: string) => Uint8Array|null, save: (key: string, bytes: Uint8Array) => void }} SessionCache
+ */
+
+/**
  * Read one cached fold, or null when there is none, it is for another file, or the file shrank or was replaced.
  *
- * @param {string} folder - the keyed result folder
+ * @param {SessionCache|null} cache
  * @param {{ file: string, ino: number, size: number }} source
  * @returns {object|null}
  */
-function cached(folder, source) {
+function cached(cache, source) {
+  if (!cache) return null;
   try {
-    const value = JSON.parse(loadKeyedResult(folder, source.file)?.toString('utf8') ?? 'null');
+    const value = JSON.parse(cache.load(source.file)?.toString('utf8') ?? 'null');
     if (value.v !== CACHE_VERSION || value.file !== source.file || value.ino !== source.ino || value.offset > source.size) return null;
     return value;
   } catch { return null; }
@@ -125,11 +131,12 @@ function advance(source, fold) {
 /**
  * Save a fold as a result keyed by its session file, whole or not at all; a failure only costs the next read a refold.
  *
- * @param {string} folder
+ * @param {SessionCache|null} cache
  * @param {object} fold
  */
-function store(folder, fold) {
-  try { saveKeyedResult(folder, fold.file, Buffer.from(JSON.stringify(fold))); }
+function store(cache, fold) {
+  if (!cache) return;
+  try { cache.save(fold.file, Buffer.from(JSON.stringify(fold))); }
   catch { /* The cache is an accelerator; the ledger stands without it. */ }
 }
 
@@ -138,25 +145,24 @@ function store(folder, fold) {
  *
  * @param {object} options
  * @param {string} options.root - the repository's main checkout
- * @param {string} options.commonDir - the common Git directory; the cache lives under it
+ * @param {SessionCache|null} [options.cache] - where folds persist between reads; none refolds every time
  * @param {number} options.since
  * @param {number} options.now
  * @param {(cwd: string|null) => boolean} options.keep - which working folders belong to this repository
  * @param {string} [options.home]
  * @returns {{ segments: object[], buckets: object[], parsed: number }} parsed counts the files that gained bytes
  */
-export function readSessions({ root, commonDir, since, now, keep, home }) {
-  const folder = join(commonDir, 'pullboard', 'ledger-cache');
+export function readSessions({ root, since, now, keep, home, cache = null }) {
   const segments = [], buckets = [];
   let parsed = 0;
   for (const source of sessionFiles({ root, since, home })) {
-    const fold = cached(folder, source) ?? { v: CACHE_VERSION, file: source.file, ino: source.ino, offset: 0, state: newFold(source.provider), segments: [], buckets: [] };
+    const fold = cached(cache, source) ?? { v: CACHE_VERSION, file: source.file, ino: source.ino, offset: 0, state: newFold(source.provider), segments: [], buckets: [] };
     if (advance(source, fold)) {
       parsed += 1;
       const oldest = now - KEEP_MS;
       fold.segments = fold.segments.filter(segment => segment.e >= oldest);
       fold.buckets = fold.buckets.filter(bucket => bucket.t >= oldest && (bucket.fresh || bucket.read || bucket.write || bucket.out));
-      store(folder, fold);
+      store(cache, fold);
     }
     const wanted = source.provider === 'claude' ? () => true : keep;
     for (const segment of [...fold.segments, ...openTail(fold.state, now)]) if (segment.e >= since && segment.s <= now && wanted(segment.c)) segments.push(segment);

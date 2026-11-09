@@ -237,7 +237,7 @@ function scratch(t) {
 }
 
 test('session logs are read once: a later read folds only the bytes a log gained, and matches a full fold [C7,N2]', t => {
-  const { home, repo, commonDir } = scratch(t);
+  const { home, repo } = scratch(t);
   const claudeFolder = join(home, '.claude', 'projects', claudeProjectName(repo));
   const codexFolder = join(home, '.codex', 'sessions', '2026', '11', '09');
   mkdirSync(claudeFolder, { recursive: true });
@@ -248,7 +248,9 @@ test('session logs are read once: a later read folds only the bytes a log gained
   writeFileSync(join(codexFolder, 'rollout-a.jsonl'), jsonl(codexRows(`${repo}-seat-3`)));
   writeFileSync(join(codexFolder, 'rollout-other.jsonl'), jsonl(codexRows('/elsewhere/project')));
   const keep = cwd => typeof cwd === 'string' && cwd.startsWith(repo);
-  const window = { root: repo, commonDir, since: 0, now: T0 + 3_600_000, keep, home };
+  const saved = new Map();
+  const cache = { load: key => saved.get(key) ?? null, save: (key, bytes) => saved.set(key, bytes) };
+  const window = { root: repo, since: 0, now: T0 + 3_600_000, keep, home, cache };
   const first = readSessions(window);
   assert.equal(first.parsed, 3);
   assert.ok(first.buckets.every(bucket => bucket.c !== '/elsewhere/project'), 'another project\'s Codex rollout is left out');

@@ -1909,7 +1909,6 @@
     "stats->store",
     "stats->jobs",
     "stats->resources",
-    "stats->pin",
     "apps/cli->stats",
     "sync->store",
     "apps/cli->kernel",

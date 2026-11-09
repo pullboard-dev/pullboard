@@ -55,9 +55,10 @@ function kinds(list) {
  * @param {number} options.now
  * @param {number|null} [options.item]
  * @param {string} [options.home] - where the session logs live; the user's home by default
+ * @param {import('./session-logs.js').SessionCache|null} [options.cache] - the keyed store for parsed session logs
  * @returns {ReturnType<typeof pipelineLedger> & { read: object }}
  */
-export function readPipelineLedger(db, { commonDir, since, now, item = null, home }) {
+export function readPipelineLedger(db, { commonDir, since, now, item = null, home, cache = null }) {
   const started = Date.now();
   let windowStart = since;
   if (item !== null) {
@@ -101,7 +102,7 @@ export function readPipelineLedger(db, { commonDir, since, now, item = null, hom
   // The main checkout is the folder that holds the common Git directory; seats sit in it or beside it.
   const root = basename(commonDir) === '.git' ? dirname(commonDir) : commonDir;
   const keep = cwd => typeof cwd === 'string' && (cwd.startsWith(root) || agents.some(agent => cwd === agent.path || cwd.startsWith(agent.path + '/')));
-  const sessions = readSessions({ root, commonDir, since: windowStart, now, keep, home });
+  const sessions = readSessions({ root, since: windowStart, now, keep, home, cache });
   const ledger = pipelineLedger({ since: windowStart, now, item, events, seatEvents, gateSpans, landingSpans, batches: [...batches.values()], receipts, sessions, agents });
   return { ...ledger, read: { boardMs, sessionsMs: Date.now() - started - boardMs, sessionFilesParsed: sessions.parsed, segments: sessions.segments.length, buckets: sessions.buckets.length } };
 }

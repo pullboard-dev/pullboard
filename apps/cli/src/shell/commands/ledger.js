@@ -7,6 +7,9 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import * as store from '../../../../../packages/store/index.js';
 import { ledgerLines } from '../../../../../packages/stats/index.js';
 import { readPipelineLedger } from '../../../../../packages/stats/index.js';
+import { loadKeyedResult } from '../../../../../packages/pin/index.js';
+import { saveKeyedResult } from '../../../../../packages/pin/index.js';
+import { join } from 'node:path';
 import {
   agentApprovalLine,
   itemAgentApprovals,
@@ -64,7 +67,10 @@ function pipeline(io, { first, second, rest, values }) {
   if (since === null) throw refusal('USAGE', `--since takes a number and s, m, h or d, like 2h; ${PIPELINE_USAGE}`);
   const item = values.item === undefined ? null : Number(String(values.item).replace(/^#/u, ''));
   if (item !== null && !Number.isSafeInteger(item)) throw refusal('USAGE', `--item takes an item number, like --item 42; ${PIPELINE_USAGE}`);
-  const ledger = withBoardRead(ctx, board => readPipelineLedger(board.db, { commonDir: ctx.info.commonDir, since, now, item }));
+  // Parsed session logs persist as pin keyed results, so a later ledger reads only what the logs gained.
+  const folder = join(ctx.info.commonDir, 'pullboard', 'ledger-cache');
+  const cache = { load: key => loadKeyedResult(folder, key), save: (key, bytes) => saveKeyedResult(folder, key, bytes) };
+  const ledger = withBoardRead(ctx, board => readPipelineLedger(board.db, { commonDir: ctx.info.commonDir, since, now, item, cache }));
   io.result?.(ledger);
   if (item !== null && !ledger.ledgers.length) { io.say(`#${item} has no claim on the board yet; nothing to trace`); return 0; }
   for (const line of ledgerLines(ledger, window)) io.say(line);
