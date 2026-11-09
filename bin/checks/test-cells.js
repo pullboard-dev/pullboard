@@ -24,6 +24,22 @@ const SPAWN = /\b(?:spawn|spawnSync|execFile|execFileSync|fork|exec|execSync|run
 const CLI_ENTRIES = new Set(['apps/cli/index.js', 'bin/pullboard.js', 'test/e2e-helpers.js', 'test/native-cli-fixture.js', 'test/cli-in-process-fixture.js']);
 
 /**
+ * Whether a source installs git hooks: an installHooks call, or a child-process call that runs a hooks install or sets
+ * core.hooksPath to a folder. Pointing core.hooksPath at /dev/null disables hooks, and a string naming the setting in
+ * expected output installs nothing [C7].
+ */
+export function installsHooks(source) {
+  if (/\binstallHooks\s*\(/u.test(source)) return true;
+  for (const call of source.matchAll(SPAWN)) {
+    const args = call[1];
+    if (/['"`]hooks['"`]\s*,\s*['"`]install['"`]|\bhooks\s+install\b|install-hooks/u.test(args)) return true;
+    const path = /core\.hooksPath(?:=|['"`]\s*,\s*['"`])([^'"`\s,)]*)/u.exec(args);
+    if (path && path[1] && path[1] !== '/dev/null') return true;
+  }
+  return false;
+}
+
+/**
  * Whether a source spawns the CLI: a child-process call whose arguments name bin/pullboard.js, or name a variable that a
  * path expression (join, resolve or new URL) points at bin/pullboard.js. A plain data string that only mentions the path
  * launches nothing [C7].
@@ -58,7 +74,6 @@ export function reachedCliEntry(root, file) {
   }
   return null;
 }
-const HOOKS = /\binstallHooks\b|\bhooks\s+install\b|\bcore\.hooksPath\b|\binstall-hooks\b/u;
 
 /**
  * The cell a test file sits in, named as cellOf names it: `<cell>` for `packages/<cell>/tests/...` and `apps/<name>` for
@@ -137,7 +152,7 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
     problems.push({ line, text: `imports ${target}, outside its own cell ${own}; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper` });
   }
   if (spawnsCli(source) || (root && reachedCliEntry(root, file))) problems.push({ line: 1, text: 'spawns or reaches the CLI; a cell test spawns no CLI, so move it to the journeys or cut the CLI out of it' });
-  if (HOOKS.test(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
+  if (installsHooks(source)) problems.push({ line: 1, text: 'installs hooks; a cell test installs none, so move it to the journeys or cut the hooks out of it' });
   return { problems, tier };
 }
 
@@ -166,7 +181,7 @@ function impurity(root, path) {
     const file = queue[at];
     if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
     const source = readFileSync(resolve(root, file), 'utf8');
-    if (file.startsWith('test/') && (spawnsCli(source) || HOOKS.test(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    if (file.startsWith('test/') && (spawnsCli(source) || installsHooks(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
     for (const { specifier } of importSpecifiers(source)) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
