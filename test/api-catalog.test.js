@@ -36,7 +36,7 @@ import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixtur
 import { relayClientFixture } from './relay-client-fixture.js';
 import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
 import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { FIXTURE_MODEL, fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -377,7 +377,6 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'edit', ['1', '--criterion', 'the edited API item is verified', '--check', 'true']);
   await json(box, repo, 'show', ['1']);
   await json(box, repo, 'list', ['--all']);
-  await json(box, repo, 'next');
   await json(box, repo, 'claim', ['1']);
   await json(box, repo, 'check', ['1']);
   await json(box, repo, 'release', ['1', '--reason', 'BLOCKED', '--no-next']);
@@ -415,6 +414,13 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
   await json(box, reviewPath, 'run', ['--agent', 'true', '--items', '1']);
+
+  // The undeclared coordinator builds nothing, so the claiming next runs from a builder seat that serves the item's route.
+  const builderPath = join(box.dir, 'app-next');
+  await box.git(repo, 'worktree', 'add', '-q', builderPath, '-b', 'app/next');
+  await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'light']);
+  await json(box, repo, 'add', ['app', 'Next item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
+  assert.equal((await json(box, builderPath, 'next')).item.item_title, 'Next item');
   await json(box, repo, 'forget', ['.']);
 
   const tour = await json(box, repo, 'tour');
@@ -541,7 +547,18 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   }, 'show');
   assert.equal(noRow.error.code, 'NO_ROW');
 
-  const nothingFree = await box.run(repo, 'next', '--json');
+  // The plain loop finishes at once: a coordinator seat with nothing to build gets one successful document, not a refusal.
+  const plainLoop = await box.run(repo, 'next', '--json');
+  assert.equal(plainLoop.status, 0);
+  assert.equal(plainLoop.stderr, '');
+  assert.deepEqual(JSON.parse(plainLoop.stdout), {
+    version: 1,
+    item: null,
+    next: 'nothing for this seat: end your turn',
+    reasons: ["no open items in the coordinator lane; lane items are built from each lane's own worktree"],
+  });
+  // A bounded wait that finds nothing is the refusal: one JSON document with the exact public error fields.
+  const nothingFree = await box.run(repo, 'next', '--wait', '0', '--json');
   assert.equal(nothingFree.status, 1);
   assert.equal(nothingFree.stderr, '');
   const nextDocument = JSON.parse(nothingFree.stdout);
@@ -551,8 +568,8 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   shapeFor('next');
   assert.deepEqual(nextDocument.error, {
     code: 'NOTHING_FREE',
-    message: "no open items in the coordinator lane; lane items are built from each lane's own worktree. To keep looking: pullboard next --wait 9 (minutes; give the command a ten-minute timeout)",
-    next: 'To keep looking: pullboard next --wait 9 (minutes; give the command a ten-minute timeout)',
+    message: "no item is free; no open items in the coordinator lane; lane items are built from each lane's own worktree. To keep looking: pullboard next --take",
+    next: 'To keep looking: pullboard next --take',
   });
 
   const unknown = await box.run(repo, 'status', '--not-a-real-flag', '--json');
@@ -794,7 +811,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'loop', ['declare', 'catalog-job', '--every', '10m', '--owner', 'coordinator'], 'declare')).job.every, '10m');
   assert.equal((await json(source, source.repo, 'loop', ['ran', 'catalog-job'], 'ran')).job.runs, 1);
   assert.equal((await json(source, source.repo, 'loop')).jobs[0].name, 'catalog-job');
-  const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog']);
+  const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog', '--route', 'light', '--criterion', 'the companion is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   assert.equal(companion.item.item_parent_id, catalog.item_id);
   assert.equal(companion.created, true);
   await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'add');
@@ -904,8 +921,8 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.match(slice.map, /src\/map-fixture\.js/u);
   const plain = await box.run(box.repo, 'map', 'mapFixture');
   assert.equal(plain.status, 0, plain.stderr);
-  assert.match(plain.stdout, /\nnext: pullboard next --wait 1\n$/u, 'the text-only footer is present');
-  assert.equal(plain.stdout.replace(/\nnext: pullboard next --wait 1\n$/u, '\n'), `${card.map}\n`,
+  assert.match(plain.stdout, /\nnext: pullboard next\n$/u, 'the text-only footer is present');
+  assert.equal(plain.stdout.replace(/\nnext: pullboard next\n$/u, '\n'), `${card.map}\n`,
     'JSON carries exactly the ordinary rendered card, excluding only its trailing text action');
 });
 
