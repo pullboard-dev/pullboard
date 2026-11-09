@@ -123,7 +123,7 @@ export function requireGateExecutionServices(value) {
 /**
  * The refusal for a run whose worker could not verify cleanup after the command had started (its READY came): the
  * tests left a process or handle running past their end. Null for any other failure, including a cleanup timeout
- * before READY, which stays the runner's infrastructure and is retried. Why: #3301's shard hung, the worker could not
+ * before READY or one that names no leftover process (an overflowed journal), which stay the runner's infrastructure and are retried. Why: #3301's shard hung, the worker could not
  * drain it, and the gate retried the same red on two runners for 39 minutes (9 Nov) [C7].
  *
  * @param {any} error
@@ -132,6 +132,8 @@ export function requireGateExecutionServices(value) {
  */
 export function testLeakRefusal(error, host) {
   if (!(error instanceof Refused) || error.code !== 'RUNNER_CLEANUP_TIMEOUT' || error.diagnostic?.phase !== 'ready') return null;
+  // A leak needs proof of a leftover process. An overflowed spawn journal names none: the runner cannot verify its own cleanup, which stays its infrastructure.
+  if (!(error.diagnostic?.cleanup?.processes?.length > 0)) return null;
   const refused = new Refused('RUNNER_TEST_LEAK', `the tests ran on ${host} and left processes that did not exit within 30 seconds of the run (${error.message}); a test leaves a child process, server or open handle running: stop it in the test's cleanup, commit, and submit again`);
   refused.diagnostic = error.diagnostic;
   return refused;
