@@ -3878,7 +3878,7 @@
   "packages/gate/tests/wall-clock-budgets.test.js": {
     "tempdir": 7
   },
-  "packages/verify/tests/wall-limit-load-scaled.test.js": {
+  "packages/drive/tests/wall-limit-load-scaled.test.js": {
     "tempdir": 1
   },
   "test/webkit-fixture.js": {
