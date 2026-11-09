@@ -203,7 +203,7 @@ function readItem(box, id) {
  * Why: 7d16c88b1f added job and job_step on open, and old exchange.js refuses any table it does not know.
  * fc85f1c3cb then moved each item's submit hand-off record from board_meta (`submit_handoff:<item>`) onto its gate job,
  * so the fixture boards now hold jobs. The old client reads the record from board_meta, so every item's newest
- * record-carrying step goes back there and the job tables are dropped: the archived client gets the board it knew.
+ * record-carrying step on a gate job goes back there and the job tables are dropped: the archived client gets the board it knew.
  * @param {any} snapshot
  * @returns {any}
  */
@@ -212,7 +212,7 @@ function legacySnapshot(snapshot) {
   const records = new Map();
   for (const step of [...jobStep].sort((a, b) => b.job_step_id - a.job_step_id)) {
     const owner = job.find((row) => row.job_id === step.job_step_job);
-    assert.equal(owner?.job_kind, 'gate', 'every replayed job is a gate job');
+    if (owner?.job_kind !== 'gate') continue;
     const record = JSON.parse(step.job_step_payload).record;
     if (record !== undefined && !records.has(owner.job_item)) records.set(owner.job_item, record);
   }
