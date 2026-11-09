@@ -26,6 +26,10 @@ function acceptedProject({ separate = false } = {}) {
   const entry = itemWorktree(box, 1);
   submitItem(box, entry);
   acceptItem(box, entry);
+  // A landing tree equal to the submit tree reuses the submit receipt and runs no gate; one commit on main first makes the landing gate run (#4259).
+  writeFileSync(join(box.repo, 'before-landing.md'), 'before\n');
+  box.git(box.repo, 'add', 'before-landing.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: main moves before the landing');
   return { box, entry };
 }
 
