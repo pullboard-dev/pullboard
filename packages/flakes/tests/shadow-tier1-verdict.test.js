@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 /** Every gate receipt carries the verdict tier 1 alone would give, as report-only shadow evidence [V4,H16]. */
-import * as store from '../packages/store/index.js';
-import { recordGateRun } from '../packages/flakes/index.js';
-import { receiptFields, tier1Shadow, tier1ShadowFields } from '../packages/verify/index.js';
-import { SHADOW_TIER1_ENGINE } from '../packages/state/core.js';
-import { fixtureBoard } from './board-fixture.js';
+import * as store from '../../store/index.js';
+import { recordGateRun } from '../index.js';
+import { receiptFields } from '../../verify/index.js';
+import { tier1Shadow } from '../../verify/index.js';
+import { tier1ShadowFields } from '../../verify/index.js';
+import { SHADOW_TIER1_ENGINE } from '../../state/core.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const SHA = 'a'.repeat(40);
 const failure = { file: 'test/near.test.js', name: 'near case [V4]' };

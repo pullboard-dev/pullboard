@@ -6,12 +6,12 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { takeResource } from '../packages/resources/index.js';
-import { recordRunnerMeasurement } from '../packages/config/index.js';
-import { loadMachineSettings } from '../packages/config/index.js';
-import { gateRunnerLoadPolicy } from '../packages/gate/index.js';
-import { refreshRunnerMeasurements } from '../packages/runners/index.js';
-import { cellProject } from './cell-fixture.js';
+import { takeResource } from '../../resources/index.js';
+import { recordRunnerMeasurement } from '../../config/index.js';
+import { loadMachineSettings } from '../../config/index.js';
+import { gateRunnerLoadPolicy } from '../../gate/index.js';
+import { refreshRunnerMeasurements } from '../index.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 
 /** Scope real machine admission to disposable fixture storage. */
 function box(t) {
