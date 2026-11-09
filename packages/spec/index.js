@@ -27,5 +27,6 @@ export { planSpecRevision, revisionReference, validSpecRevision, validRevisionAp
 export { SPEC_REFREEZE, applySpecRowDecisions } from "./src/shell/spec-row-apply.js";
 export { parseRowVerification, rowVerificationFormatProblems, rowVerificationSource, verifiedRowSource } from "./src/core/spec-verdict-format.js";
 export { rowVerifications, recordRowVerification, rowVerificationFindings, planRowVerificationApply } from "./src/shell/spec-verdicts.js";
-export { STATUSES, TIERS, SIGNOFFS_FILE, SPEC_GRAMMAR_VERSION, ID_RE, replaceRowGate, parseSpec, loadSpec, legacyDoctrineRenameBase, checkFieldFindings, gateFiles, missingGateFindings, lintSpec, nextRowId, insertSectionRows, idProblems, frozenCriterion, readSignoffs, standings, unmetRows, signOff, citedIds, permanenceProblems, deletedIds, headerRows, CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText } from "./src/shell/spec.js";
+export { parseSpec, STATUSES, TIERS, SPEC_GRAMMAR_VERSION, ID_RE } from "./core.js";
+export { SIGNOFFS_FILE, replaceRowGate, loadSpec, legacyDoctrineRenameBase, checkFieldFindings, gateFiles, missingGateFindings, lintSpec, nextRowId, insertSectionRows, idProblems, frozenCriterion, readSignoffs, standings, unmetRows, signOff, citedIds, permanenceProblems, deletedIds, headerRows, CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText } from "./src/shell/spec.js";
 export { specGateMoveOnly } from "./src/shell/spec-gate-move.js";
