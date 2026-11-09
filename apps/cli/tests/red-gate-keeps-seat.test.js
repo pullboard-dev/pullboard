@@ -1,10 +1,11 @@
 /** A red submit gate keeps its item with the seat that built it, and next never hands out an item red only on main reds [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { failureCompletion } from '../apps/cli/src/shell/submit-handoff-worker.js';
-import { recordSubmitHandoff } from '../packages/jobs/index.js';
-import { addItem, nextFor } from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import { failureCompletion } from '../src/shell/submit-handoff-worker.js';
+import { recordSubmitHandoff } from '../../../packages/jobs/index.js';
+import { addItem } from '../../../packages/store/index.js';
+import { nextFor } from '../../../packages/store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const HEAD = 'a'.repeat(40);
 const JOB = { id: 'job-1', agentId: 'web-1' };

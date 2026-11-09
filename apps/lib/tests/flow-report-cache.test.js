@@ -1,27 +1,27 @@
 /** Report capability migration preserves existing indexed read-only statistics [R1,R2]. */
-import { events as readStatsEvents } from '../packages/store/index.js';
-import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
+import { events as readStatsEvents } from '../../../packages/store/index.js';
+import { counterProofStats as readStatsCounter } from '../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { addMilestone } from '../packages/store/index.js';
-import { editMilestoneItems } from '../packages/store/index.js';
-import { editMilestone } from '../packages/store/index.js';
-import { shipMilestone } from '../packages/store/index.js';
-import { removeMilestone } from '../packages/store/index.js';
-import { orderMilestoneItems } from '../packages/store/index.js';
-import { proofStats } from '../packages/stats/index.js';
-import { flowStats } from '../packages/stats/index.js';
-import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
-import { ensureProofCounters } from '../packages/verify/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
+import * as store from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { addMilestone } from '../../../packages/store/index.js';
+import { editMilestoneItems } from '../../../packages/store/index.js';
+import { editMilestone } from '../../../packages/store/index.js';
+import { shipMilestone } from '../../../packages/store/index.js';
+import { removeMilestone } from '../../../packages/store/index.js';
+import { orderMilestoneItems } from '../../../packages/store/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
+import { flowStats } from '../../../packages/stats/index.js';
+import { FLOW_REPORT_VERSION } from '../../../packages/stats/index.js';
+import { ensureProofCounters } from '../../../packages/verify/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../../../packages/state/core.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };

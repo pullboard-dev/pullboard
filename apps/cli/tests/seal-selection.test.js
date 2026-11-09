@@ -26,10 +26,10 @@ import {
   selectTestTiers,
   testTierReport,
   writeTestTiers,
-} from '../packages/gate/index.js';
-import { runFixtureGit } from './fixture-child.js';
-import { namedProofTests } from '../apps/cli/src/shell/cli/submit.js';
-import { executionServices } from './gate-execution-fixture.js';
+} from '../../../packages/gate/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { namedProofTests } from '../src/shell/cli/submit.js';
+import { executionServices } from '../../../test/gate-execution-fixture.js';
 
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];
 const BASE_TEST = 'packages/base/tests/base.test.js';

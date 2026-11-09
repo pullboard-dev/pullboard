@@ -1,13 +1,18 @@
 /** The hand-off tools snapshot is named by the tooling trees, and stale unused ones are swept [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { temporaryDirectory } from './board-fixture.js';
-import { temporaryRepository } from './board-submit-fixture.js';
-import { toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
-import { sweepToolTrees } from '../packages/items/index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
+import { toolsSnapshot } from '../src/shell/submit-handoff.js';
+import { sweepToolTrees } from '../../../packages/items/index.js';
 
 /** Run git in a folder with no user config. */
 function git(cwd, ...args) {
