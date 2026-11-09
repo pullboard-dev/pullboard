@@ -1944,6 +1944,7 @@
     "api->store",
     "apps/lib->store",
     "apps/lib->apps/cli",
+    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",

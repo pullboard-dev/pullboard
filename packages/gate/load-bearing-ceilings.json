@@ -80,9 +80,6 @@
     "detached": 1,
     "unref": 1
   },
-  "apps/lib/src/shell/submit-handoff-worker.js": {
-    "state-file": 5
-  },
   "apps/relay/src/shell/service.js": {
     "daemon-loop": 1,
     "unref": 1
