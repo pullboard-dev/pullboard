@@ -22,7 +22,7 @@
     },
     "apps/cli/src/core/next-step-words.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "apps/cli/src/core/public-export-guard.js": {
       "cells": 1,
@@ -4252,10 +4252,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/check-timing.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4476,10 +4472,6 @@
       "cells": 2,
       "deep": 0
     },
-    "src/module-imports.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "src/outside-store.js": {
       "cells": 1,
       "deep": 0
@@ -4542,7 +4534,7 @@
     },
     "src/runner-worker.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "src/runners.js": {
       "cells": 1,
@@ -4572,10 +4564,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/spec.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/submission-record.js": {
       "cells": 1,
       "deep": 0
@@ -4597,14 +4585,6 @@
       "deep": 0
     },
     "src/untouched-claim-observation.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-policy.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-roles.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4692,10 +4672,6 @@
     "<-apps/view": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-moves": {
-      "imports": [],
-      "deepImporters": 1
     },
     "<-state": {
       "imports": [],

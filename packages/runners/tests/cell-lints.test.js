@@ -1,13 +1,14 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input ** */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
+import { copyPackageFiles } from '../index.js';
+import { packageFiles } from '../index.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -17,21 +18,21 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { cellLintFiles } from '../packages/codemap/index.js';
-import { readCellLintBaseline } from '../packages/codemap/index.js';
-import { storedCellLintFiles } from '../packages/codemap/index.js';
-import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { planCellLintBaseline } from '../packages/codemap/index.js';
-import { cellLintReport } from '../packages/codemap/index.js';
-import { CELL_METRICS } from '../packages/codemap/index.js';
-import { cellLintBaseline } from '../packages/codemap/index.js';
-import { cellLintGrowth } from '../packages/codemap/index.js';
-import { lowerCellLintBaseline } from '../packages/codemap/index.js';
-import { runFixtureChild } from './fixture-child.js';
-import { fixture as planFixture } from './cells-plan-fixture.js';
+import { cellLintFiles } from '../../codemap/index.js';
+import { readCellLintBaseline } from '../../codemap/index.js';
+import { storedCellLintFiles } from '../../codemap/index.js';
+import { writeCellLintBaseline } from '../../codemap/index.js';
+import { planCellLintBaseline } from '../../codemap/index.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { CELL_METRICS } from '../../codemap/index.js';
+import { cellLintBaseline } from '../../codemap/index.js';
+import { cellLintGrowth } from '../../codemap/index.js';
+import { lowerCellLintBaseline } from '../../codemap/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { fixture as planFixture } from '../../../test/cells-plan-fixture.js';
 
-const BIN = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
-const PLAN_BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
+const BIN = fileURLToPath(new URL('../../../bin/cell-lints.js', import.meta.url));
+const PLAN_BIN = fileURLToPath(new URL('../../../bin/cells-plan.js', import.meta.url));
 const TRANSITION_FILE = 'bin/cells-plan/transition.json';
 /** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
 function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
@@ -535,7 +536,7 @@ test('the pre-cell transition keeps real cycles strict and reports every other f
 
 test('the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
   const box = fixture(t);
-  const source = fileURLToPath(new URL('../', import.meta.url));
+  const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
     ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
       || file.startsWith('packages/kernel/src/')) });
@@ -671,7 +672,7 @@ test('an export used only through a literal dynamic import of a shim is reachabl
 
 test('discovered command reach requires the exact kernel front door and discovery body [C7,CD62]', t => {
   const box = fixture(t);
-  const source = fileURLToPath(new URL('../', import.meta.url));
+  const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
     file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/shell/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
