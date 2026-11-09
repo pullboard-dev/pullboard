@@ -96,7 +96,7 @@
       ]
     },
     "legacySource": {
-      "count": 1037,
+      "count": 1036,
       "shards": [
         {
           "file": "bin/cell-lint-baselines/legacySource-001.json",
