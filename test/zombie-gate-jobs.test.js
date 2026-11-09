@@ -41,7 +41,7 @@ async function pass(t, build, active, ids) {
 }
 
 test('clause 1: a lapsed gate job whose item is no longer submitted at its commit ends withdrawn and stale, never driven [C7]', async t => {
-  const { driven, view } = await pass(t, db => zombie(db, 'handoff-drive-stale', 2662, 60_000), () => false, ['handoff-drive-stale']);
+  const { driven, view } = await pass(t, db => zombie(db, 'handoff-drive-stale', 2662, 5 * 60_000), () => false, ['handoff-drive-stale']);
   assert.deepEqual(driven, [], 'no fallback driver takes it');
   const job = view('handoff-drive-stale');
   assert.equal(job.step, 'done');
