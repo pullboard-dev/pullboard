@@ -5,14 +5,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { closeCellBoard } from '../../../test/cell-fixture.js';
+import { openCellBoard } from '../../../test/cell-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: a hold row carries the move and the slowest named step with its ms [C7,P4]', () => {
-  const box = helpers.project('true');
+test('clause 1: a hold row carries the move and the slowest named step with its ms [C7,P4]', t => {
+  const box = cellProject(t);
+  closeCellBoard(openCellBoard(box.boardFile));
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'move-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
@@ -41,8 +45,9 @@ test('clause 1: a hold row carries the move and the slowest named step with its 
   }
 });
 
-test('clause 1: a write with no named move body still carries a move on every hold row [C7,P4]', () => {
-  const box = helpers.project('true');
+test('clause 1: a write with no named move body still carries a move on every hold row [C7,P4]', t => {
+  const box = cellProject(t);
+  closeCellBoard(openCellBoard(box.boardFile));
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'unnamed-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `

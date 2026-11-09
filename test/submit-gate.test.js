@@ -199,7 +199,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
   const selection = selectAffectedTests(box.root, { base, commit });
   assert.equal(selection.full, false, 'declared scanners add their own files without selecting unrelated tests');
   assert.deepEqual(selection.files, expected, 'a change only to the browser test selects the real scanner names');
-  assert.ok(readFileSync(join(import.meta.dirname, 'wall-clock-budgets.test.js'), 'utf8').startsWith(declaration),
+  assert.ok(readFileSync(join(import.meta.dirname, '../packages/gate/tests/wall-clock-budgets.test.js'), 'utf8').startsWith(declaration),
     'the repository clock scanner declares its test-tree input');
   for (const path of ['test/support.js', 'test/new.test.js', 'test.js']) {
     assert.deepEqual(selectAffectedTests(box.root, { base, commit, changed: [path] }).files,
@@ -215,7 +215,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
   // Use committed repository sources so a real scanner cannot be replaced by a synthetic stand-in.
   const repository = resolve(import.meta.dirname, '..');
   const actual = privateRepo(t);
-  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/'], {
+  const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'packages/gate/tests/'], {
     cwd: repository, encoding: 'utf8',
   }).split('\0').filter(path => /\.[cm]?js$/u.test(path));
   const actualBase = copyRepositoryFixture(actual, repository, tracked);
@@ -225,7 +225,8 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
     ['test/cockpit/demo.test.js'], 'the real-source fixture changes only the cockpit test');
   const actualSelection = selectAffectedTests(actual.root, { base: actualBase, commit: actualCommit });
   assert.equal(actualSelection.full, false, 'a cockpit-only input keeps affected selection');
-  for (const scanner of ['test/board-file-guard.test.js', 'test/shared-wait-guard.test.js', 'test/wall-clock-budgets.test.js']) {
+  for (const scanner of ['test/board-file-guard.test.js', 'packages/gate/tests/shared-wait-guard.test.js',
+    'packages/gate/tests/wall-clock-budgets.test.js']) {
     assert.ok(actualSelection.files.includes(scanner), 'actual test-tree reader selected: ' + scanner);
   }
 });
@@ -281,7 +282,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   const actualSelection = selectAffectedTests(actual.root, { base: actualBase, commit: actualCommit });
   assert.equal(actualSelection.full, false, 'an unimported source addition keeps affected selection');
   for (const scanner of ['test/boundary.test.js', 'test/machine.test.js', 'packages/doctrine/tests/package.test.js',
-    'test/submit-gate.test.js', 'test/wall-clock-budgets.test.js']) {
+    'test/submit-gate.test.js', 'packages/gate/tests/wall-clock-budgets.test.js']) {
     assert.ok(readFileSync(join(repository, scanner), 'utf8').split(/\r?\n/u).slice(0, 2).includes(sourceInput.trimEnd()),
       'actual source-tree reader declares its input: ' + scanner);
     assert.ok(actualSelection.files.includes(scanner), 'actual source-tree reader selected: ' + scanner);
