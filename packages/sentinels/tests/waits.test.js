@@ -276,6 +276,21 @@ test('the view runs the wait audit every minute, one pass at a time per board [C
   await observer.close();
 });
 
+test('with sixty breaches the run records one shout line under 400 characters on the real board [C7]', async t => {
+  const m = machine(t);
+  const rows = Array.from({ length: 60 }, (_, index) => ({ surface: 'gate', key: `gate:#${1000 + index}:gate`, holder: `#${1000 + index} gate shard.started ${'x'.repeat(80)}`,
+    pid: null, ageMs: 40 * 3_600_000, budgetName: 'gateProgressMs', budgetMs: 300_000, breach: true, waiters: [], oldestWaiterMs: 0,
+    context: null, detail: 'lease owner fallback:status:1 (gone)', evidence: '/repo/.git/pullboard/board.sqlite' }));
+  const said = [];
+  const recorded = await recordWaits({ budgets: waitBudgets(), rows, notes: [] },
+    m.ports({ shout: text => { said.push(text); return shout(m.board, { from: 'sentinel', to: 'coordinator', lanes: [], text }); } }));
+  assert.equal(recorded.filed.length, 60, 'each cause still gets its own item with the detail');
+  assert.equal(said.length, 1);
+  assert.ok(said[0].length < 400, `the shout is ${said[0].length} characters`);
+  assert.doesNotMatch(said[0], /\n/u, 'one line');
+  assert.match(said[0], new RegExp(`^waits: 60 over budget, filed #${recorded.filed[0].id} #${recorded.filed[1].id} .* and \\d+ more, reclaimed 0; pullboard waits for detail$`, 'u'));
+});
+
 test('waits record files a mid item add accepts: Files: naming the holder\'s source, a Test: line and a check [C7]', async t => {
   const m = machine(t);
   const holder = m.sleeper(), waiter = m.sleeper();

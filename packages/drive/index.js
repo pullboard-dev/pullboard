@@ -8,7 +8,7 @@ export { drainLoop, DRAIN_INTERVAL_MS } from './src/shell/drain-loop.js';
 export { rowSink, boardRows, recordJobRow, isJobRows } from './src/shell/drive-once.js';
 export { queueFlakeDiagnoses, startFlakeDiagnose, finishFlakeDiagnose, driveFlakeDiagnose, jobbedFlakeObserver, flakeDiagnosesFor } from './src/shell/flake-diagnose.js';
 export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/core/flake-diagnose.js';
-export { reclaimPass, lapsedGateJobs, FALLBACK_BUDGET_MS } from './src/shell/fallback-reclaim.js';
+export { reclaimPass, lapsedGateJobs, endDeadGateJobs, FALLBACK_BUDGET_MS, GATE_JOB_NO_PROGRESS_MS } from './src/shell/fallback-reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/shell/keyed-result.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/core/keyed-result.js';
 export { driveLanding } from './src/shell/drive-landing.js';
