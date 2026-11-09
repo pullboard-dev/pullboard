@@ -1991,6 +1991,7 @@
     "runners->transport",
     "activity->store",
     "(root)->apps/cli",
+    "(root)->apps/lib",
     "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",

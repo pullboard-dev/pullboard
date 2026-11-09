@@ -1042,7 +1042,7 @@
     },
     "bin/gate-drive-worker.js": {
       "cells": 1,
-      "deep": 2
+      "deep": 1
     },
     "bin/gate-slot-services.js": {
       "cells": 4,
@@ -4893,10 +4893,6 @@
     "<-codemap": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-apps/lib": {
-      "imports": [],
-      "deepImporters": 1
     },
     "<-apps/cli": {
       "imports": [],
