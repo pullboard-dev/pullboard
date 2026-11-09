@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -47,6 +48,6 @@ console.log(JSON.stringify({seen,value}));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(result.status, 0, result.context);
   const record = JSON.parse(result.stdout.trim());
-  assert.deepEqual(record.seen, ['first', 'second']);
+  assert.deepEqual(record.seen, ['first', 'second'], readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8') + result.stderr.slice(-1500));
   assert.equal(record.value, 'second');
 });
