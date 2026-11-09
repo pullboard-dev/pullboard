@@ -1,12 +1,21 @@
 /** The handoff dispatcher holds a flat number of resources database connections across passes, locked or not [C7,#3338]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readlinkSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { SLOT_DB_LOCK_ENV, closeResourceConnections, drainHandoffQueue, listResources, reuseResourceConnections, takeResource } from '../packages/resources/index.js';
-import { temporaryDirectory } from './board-fixture.js';
+import { SLOT_DB_LOCK_ENV } from '../index.js';
+import { closeResourceConnections } from '../index.js';
+import { drainHandoffQueue } from '../index.js';
+import { listResources } from '../index.js';
+import { reuseResourceConnections } from '../index.js';
+import { takeResource } from '../index.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
 
 /** Build a private machine home and put the environment back afterwards. */
 function fixture() {
