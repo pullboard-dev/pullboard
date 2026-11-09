@@ -1,7 +1,7 @@
 /** A person's landing waiver wakes a backed-off lander at once, so a held trunk it releases lands without waiting [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { landingWakeTrigger } from '../packages/landing/index.js';
+import { landingWakeTrigger } from '../index.js';
 
 const held = { 'test/submit-auto-merge.test.js': 'a'.repeat(40) };
 
