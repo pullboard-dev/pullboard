@@ -49,7 +49,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
   const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha' }),
     builder: cellSeat(board, { lane: 'web', path: builderPath, family: 'Family Alpha' }) };
   if (reviewers) {
-    store.board_ensureCoordinator(board, project.repo);
+    store.board_ensureCoordinator(board, join(project.dir, 'coordinator'));
     for (const [name, vendor] of [['sibling', 'Family Beta'], ['sameFamily', 'Family Alpha'], ['outside', 'Family Beta']]) {
       const path = join(project.dir, name);
       mkdirSync(path);
