@@ -710,10 +710,10 @@ test('clause 2: diagnostics run in the granted slot and leave the verdict untouc
   const run = { isGreen: false, name: 'red-run' };
   const onFailure = Object.assign(async (observed, context) => { seen.push([observed.name, context.lease.timingOperation]); }, { queue: async () => {} });
   const granted = { proof: null };
-  const withSlot = async work => { await work(granted); };
+  const withSlot = async (_root, work) => { await work(granted); };
   await (await startDiagnostics('/unused', onFailure, [[run, { root: '/unused', command: 'true', lease: { proof: 'p' } }]], {}, { withSlot })).done;
   assert.deepEqual(seen, [['red-run', 'submit']], 'the observer ran once, in the granted slot');
-  const failing = async () => { throw Object.assign(new Error('no slot'), { code: 'GATE_INFRA_EXHAUSTED' }); };
+  const failing = async (_root, _work) => { throw Object.assign(new Error('no slot'), { code: 'GATE_INFRA_EXHAUSTED' }); };
   await (await startDiagnostics('/unused', onFailure, [[run, { root: '/unused', command: 'true', lease: {} }]], {}, { withSlot: failing })).done;
   assert.equal(run.isGreen, false, 'a failed diagnostics slot never changes the red verdict');
 });
