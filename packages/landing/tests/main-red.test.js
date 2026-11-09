@@ -100,10 +100,13 @@ function put(root, path, value) {
   writeFileSync(file, value);
 }
 
-/** Run the real CLI in a private checkout and preserve its separate output streams. */
+/**
+ * Run the real CLI in a private checkout and preserve its separate output streams. Why: the fixture child's `failure`
+ * text folds stdout timing lines in after stderr, which would hide the refusal's closing `next:` line.
+ */
 function cli(root, env, ...args) {
   const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
-  return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '' };
+  return { code: result.status, out: result.stdout ?? '', err: result.stderr || result.failure || '' };
 }
 
 /** Commit fixture state with the isolated test identity and the requested spec citation. */
@@ -206,7 +209,7 @@ function inheritedMessage(result, { row, item, testFile = 'test/inherited.test.j
   assert.match(result.err, new RegExp(testFile.replaceAll('.', '\\.'), 'u'));
   if (row && item) {
     assert.match(result.err, new RegExp(`approved row ${row} .*open rework #${item} owns it`, 'u'));
-    assert.ok(result.err.trimEnd().endsWith(`next: land #${item} first, then submit again`), JSON.stringify(result.err.slice(-600)));
+    assert.ok(result.err.trimEnd().endsWith(`next: land #${item} first, then submit again`));
     assert.equal((result.err.match(/^next: /gmu) ?? []).length, 1, 'the specific recovery is printed once');
   } else {
     assert.doesNotMatch(result.err, /approved row|open rework #\d+/u);
