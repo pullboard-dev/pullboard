@@ -46,7 +46,7 @@ test('clause 2: refreshing each tab three times shows the same title every time,
       get: () => shown, set: (value) => { titleWrites.push(value); shown = value; } }); }`);
     const seen = {};
     for (const tab of TABS) {
-      page.run(`openTab(${JSON.stringify(tab)})`);
+      page.run(`openTab(${JSON.stringify(tab)}); render()`);
       await page.run('refresh()');
       const before = page.run('titleWrites.length');
       const titles = [];
@@ -57,9 +57,8 @@ test('clause 2: refreshing each tab three times shows the same title every time,
       assert.deepEqual(titles, Array(3).fill(titles[0]), tab + ': the same title across three refreshes');
       assert.equal(page.run('titleWrites.length'), before, tab + ': a refresh that changes nothing writes no title');
       seen[tab] = titles[0];
-      if (tab === 'roadmap') seen.roadmapContext = page.run('JSON.stringify({tab:view.tab,group:Boolean(data.groups.find(group=>group.key===view.root)),project:Boolean(data.project),milestoneCount:data.project?.milestones?.length ?? null})');
     }
-    assert.match(seen.roadmap, /^\(\d+ remaining\) tab-title · Roadmap · Pullboard$/u, `Roadmap carries its remaining count: ${JSON.stringify({title:seen.roadmap,context:seen.roadmapContext})}`);
+    assert.match(seen.roadmap, /^\(\d+ remaining\) tab-title · Roadmap · Pullboard$/u, 'Roadmap carries its remaining count');
     assert.equal(seen.cost, 'tab-title · Cost · Pullboard', 'Cost carries the Cost label');
     for (const tab of TABS.filter(tab => !['roadmap', 'cost'].includes(tab))) assert.match(seen[tab], /^(?:\(\d+\) )?tab-title · Pullboard$/u, tab + ' keeps the needs title');
   } finally {
