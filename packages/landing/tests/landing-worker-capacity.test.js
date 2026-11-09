@@ -9,17 +9,17 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChildAsync } from './fixture-child.js';
-import { runFixtureGit } from './fixture-child.js';
-import { executionServices } from './gate-execution-fixture.js';
-import { takeResource } from '../packages/resources/index.js';
-import { withGateSlot } from '../packages/gate/index.js';
-import { automaticLandingDirectory } from '../packages/landing/index.js';
-import { resumeAutomaticLanding } from '../packages/landing/index.js';
-import { scheduleAutomaticLanding } from '../packages/landing/index.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { executionServices } from '../../../test/gate-execution-fixture.js';
+import { takeResource } from '../../resources/index.js';
+import { withGateSlot } from '../../gate/index.js';
+import { automaticLandingDirectory } from '../index.js';
+import { resumeAutomaticLanding } from '../index.js';
+import { scheduleAutomaticLanding } from '../index.js';
 
-const WORKER = new URL('../bin/automatic-landing.js', import.meta.url);
-const SCHEDULER = new URL('../packages/landing/index.js', import.meta.url);
+const WORKER = new URL('../../../bin/automatic-landing.js', import.meta.url);
+const SCHEDULER = new URL('../index.js', import.meta.url);
 
 /** A private real repository and machine home; the machine home stands in for one runner's own ~/.pullboard. */
 function machine(t, settings) {
