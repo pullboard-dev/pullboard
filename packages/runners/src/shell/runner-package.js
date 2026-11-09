@@ -6,6 +6,7 @@ import {
   dirname,
   join,
   posix,
+  resolve,
 } from 'node:path';
 import { packageFiles } from './package-files.js';
 import { runtimeUrls } from '../core/runner-runtime-urls.js';
