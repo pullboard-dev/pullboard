@@ -472,15 +472,19 @@ export async function withLandingGateSlot(root, action, options = {}) {
  * Where a landing gate's own command runs. A sharded landing runs its controller here, so run-tests fans one shard out
  * to each runner; placed whole on a runner, it was already inside a runner slot and never sharded, so every landing ran
  * its selection serially on one runner (about 30 minutes) [C7,#3158].
+ * A runners-only machine (the coordinator) keeps the runner placement: its controller is a bin/run-tests.js process,
+ * which the coordinator test guard refuses at once, so every landing gate there went red in 3 s with no named
+ * failure and every landing ended LAND_DIAGNOSTIC from 06:57Z on 9 Nov (#3899). There the placement is the machine's
+ * runner-only admission, so the gate, or a local-trunk guard, runs on a runner like a submit gate does.
  *
  * @param {string} root
- * @param {{ required?: unknown }} [facts]
- * @returns {{ remote?: false, runnerOnly?: false, runnerWaitMs?: undefined, runnerDeadlineAt?: undefined }}
+ * @param {{ required?: unknown, admission?: ReturnType<typeof gateRunnerAdmission> }} [facts] - admission defaults to this machine's.
+ * @returns {{ remote?: boolean, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number }}
  */
-export function landingControllerPlacement(root, { required } = {}) {
+export function landingControllerPlacement(root, { required, admission = gateRunnerAdmission() } = {}) {
+  if (admission?.runnerOnly === true) return admission;
   // Only a gate's own controller calls this; its shards keep their runner placement and read runners-only themselves
-  // (runLandingShards' own gateRunnerAdmission), so a runners-only machine still runs no shard here. The controller runs
-  // no test file itself, so it stays here even on a runners-only machine; sent to a runner it could never fan out.
+  // (runLandingShards' own gateRunnerAdmission).
   if (required) return {};
   // Dropping runners-only drops its captured wait and deadline too, which the slot refuses without it.
   return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined } : {};

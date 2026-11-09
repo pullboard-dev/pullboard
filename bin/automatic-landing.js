@@ -190,8 +190,8 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   let observed = landingObservation(root);
   if (!observed.waiting) return;
   const before = observed;
-  let held = null, refused = false;
-  try { await land(context(wakeIo(root))); }
+  let held = null, refused = false, ran = null;
+  try { ran = await land(context(wakeIo(root))); }
   catch (error) {
     if (error.code === 'LAND_CODE_STALE') return handover();
     if (HELD_TRUNK_REFUSALS.has(error.code)) {
@@ -206,8 +206,9 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   if (staleCode()) return handover();
   observed = landingObservation(root);
   if (!observed.waiting) return;
+  // A batch that ended blocked with untried work waiting moved the queue: the next run takes that work now, no back-off [C7].
   const moved = observed.main !== before.main || observed.branch !== before.branch
-    || observed.verified.join() !== before.verified.join();
+    || observed.verified.join() !== before.verified.join() || ran?.untried === true;
   // A repairable refusal keeps waiting for a main correction below; a held trunk or an empty landing backs off.
   if (held || !refused && !moved) {
     const outcome = held ?? NOTHING_TO_LAND;
@@ -228,6 +229,7 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
     }
     return { reloadAt: next.retryAt, workerUrl: new URL('./automatic-landing.js', import.meta.url), backoff: next };
   }
+  if (ran?.untried === true) return { reloadAt: new Date(now() + 1000).toISOString(), workerUrl: new URL('./automatic-landing.js', import.meta.url) };
   while (observed.main === before.main && observed.branch === before.branch) {
     if (observed.pending !== before.pending) return;
     await wait(pollMs);

@@ -120,6 +120,34 @@ export function requireGateExecutionServices(value) {
     landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
 }
 
+/**
+ * The refusal for a run whose worker could not verify cleanup after the command had started (its READY came): the
+ * tests left a process or handle running past their end. Null for any other failure, including a cleanup timeout
+ * before READY, which stays the runner's infrastructure and is retried. Why: #3301's shard hung, the worker could not
+ * drain it, and the gate retried the same red on two runners for 39 minutes (9 Nov) [C7].
+ *
+ * @param {any} error
+ * @param {string} host
+ * @returns {Refused|null}
+ */
+export function testLeakRefusal(error, host) {
+  if (!(error instanceof Refused) || error.code !== 'RUNNER_CLEANUP_TIMEOUT' || error.diagnostic?.phase !== 'ready') return null;
+  const refused = new Refused('RUNNER_TEST_LEAK', `the tests ran on ${host} and left processes that did not exit within 30 seconds of the run (${error.message}); a test leaves a child process, server or open handle running: stop it in the test's cleanup, commit, and submit again`);
+  refused.diagnostic = error.diagnostic;
+  return refused;
+}
+
+/**
+ * Record one phase of a gate run under its slot, from `start` until now, for the open gate's span telemetry [C7].
+ * Why here: the slot already owns the gate's admission and retry spans, so its callers need no telemetry import.
+ *
+ * @param {string} phase
+ * @param {number} start - Epoch milliseconds.
+ */
+export function recordSlotPhase(phase, start) {
+  recordGateSpan({ phase, start, outcome: 'done' });
+}
+
 /** Close a gated run's receipt (#836) as its evidence is written; the slot's release records this same receipt. */
 export function settleReceipt(lease) {
   if (!lease?.tracker) return undefined;
@@ -374,10 +402,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
       try {
+        // A timed-out run is the tests' red, recorded as it came back: retrying it elsewhere ran #3301's hang three
+        // times, 13 minutes each (9 Nov) [C7].
         const result = await action(lease);
-        if (lease.runner && runnerOnly && (itemCheck || kind === 'review') && result?.timedOut === true) {
-          throw new RunnerDropped(lease.runner.host, { reason: 'run-timeout' });
-        }
         if (infrastructureAttempts.length) {
           infrastructureAttempts.push({ kind: 'retry', code: null, runner: lease.runner?.host ?? 'local',
             outcome: result?.isGreen === false || result?.state === 'red' ? 'check-red' : 'completed', at: new Date().toISOString() });
@@ -392,6 +419,11 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
             lease.cancelRunner(error.runnerCancellation);
           }
           throw error;
+        }
+        // Processes the tests left behind after they ran are the tests' red, not the runner's: never retried (#3301).
+        if (lease.runner) {
+          const leaked = testLeakRefusal(error, lease.runner.host);
+          if (leaked) throw leaked;
         }
         // Unverified cleanup belongs to the runner; runner-only checks retain remote admission on retry.
         const setup = error instanceof Refused && error.code === 'RUNNER_SETUP';
