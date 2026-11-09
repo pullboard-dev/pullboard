@@ -13,6 +13,7 @@ import { candidateTags } from './runner-history-pack.js';
 import { originAncestor } from './runner-history-pack.js';
 import { validRunnerTrunk } from './runner-policy.js';
 import { remoteWorkerLaunch } from './runner-remote-tooling.js';
+import { runtimeHeld } from './runner-runtime-held.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { protectHistory } from './runner-source-scan.js';
@@ -141,9 +142,10 @@ export async function requestFor(root, command, { runner, source, browser = fals
       encodedSpec = Buffer.from(JSON.stringify(spec));
     }
     if (encodedSpec.length > 1024 ** 2) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling request exceeds its safe transfer limit; keep this run local');
-    const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime, '', spec.recovery);
+    const reusedRuntime = runtimeHeld(runner.host, tooling.sha256);
+    const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime, '', spec.recovery, { reuse: reusedRuntime });
     // These are transport hang ceilings, independent of the command's execution budget.
-    return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    return { spec, runner, exchange, reusedRuntime, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
       '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([capsule, Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };

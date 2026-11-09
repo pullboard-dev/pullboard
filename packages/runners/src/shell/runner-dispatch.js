@@ -8,6 +8,8 @@ import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
+import { forgetRuntimeHeld } from './runner-runtime-held.js';
+import { recordRuntimeHeld } from './runner-runtime-held.js';
 import { spawnSsh } from '../../../transport/index.js';
 import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './runner-result.js';
@@ -392,6 +394,7 @@ async function runInController(root, command, options, ports) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
         if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
           mark('ready'); heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
+          recordRuntimeHeld(request.runner?.host, request.spec.tooling?.sha256); // Its next launch sends no runtime bytes (#4140).
           const ceiling = runCeilingMs(request.spec);
           if (ceiling !== null) runCeilingTimer = setTimeout(() => {
             if (receiptSeen || error) return;
@@ -444,6 +447,8 @@ async function runInController(root, command, options, ports) {
     child.once('error', failure => { error ??= failure; });
     child.stdin.write(request.frame);
     const waited = await transport.wait();
+    // A reused runtime that never reached READY may be gone or changed: the next launch sends the full capsule (#4140).
+    if (request.reusedRuntime && request.phase !== 'ready') forgetRuntimeHeld(request.runner?.host, request.spec.tooling?.sha256);
     let status = waited.status;
     const signal = waited.signal;
     clearTimeout(receiptTimer);
