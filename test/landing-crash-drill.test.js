@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
 import { json } from './land-board-fixture.js';
@@ -54,7 +54,7 @@ function fixture(t) {
   });
   const reviewer = join(box.dir, 'crash-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, entries[0].head);
-  json(box, reviewer, 'join', 'api');
+  json(box, reviewer, 'join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong');
   return { box, entries, reviewer, remote };
 }
 
