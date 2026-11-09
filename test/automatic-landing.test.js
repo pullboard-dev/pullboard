@@ -49,10 +49,11 @@ function fixture(t, manualOverride = false, redStatic = false, cadence) {
   json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, 'web/result.txt'), 'built\n');
   const head = commit(box, box.web, 'feat(web): build the result [G1]');
-  json(box, box.web, 'submit', String(id));
+  json(box, box.web, 'submit', String(id), '--wait', '--no-next');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  json(box, reviewer, 'join', 'api');
+  // An unrouted item is strong, so its reviewer joins strong.
+  json(box, reviewer, 'join', 'api', '--route', 'strong');
   return { box, config, id, head, reviewer };
 }
 
@@ -126,7 +127,7 @@ test('a second clean acceptance inside cadence retains its wake without another 
   json(box, box.web, 'claim', String(second));
   writeFileSync(join(box.web, 'web/second.txt'), 'second\n');
   const head = commit(box, box.web, 'feat(web): second clean result [G1]');
-  json(box, box.web, 'submit', String(second));
+  json(box, box.web, 'submit', String(second), '--wait', '--no-next');
   box.git(reviewer, 'checkout', '-q', '--detach', head);
   json(box, reviewer, 'verify', String(second), 'accept', '--note', 'Second clean result frozen check passed.');
   config.landing.manualOverride = false;
