@@ -92,6 +92,8 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
 - V18 [draft, must] Accept runs the repo's install step before the frozen check; a failed install or timeout reads unverified, never red. | gate: test/e2e.test.js | serves: V2
 - V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: packages/store/tests/verdict-check.test.js | serves: V8
+- V20 [draft, must] Gates check only the change: a gate runs the item's own tests and checks. Anything that measures the whole system (speed budgets, end-to-end runs, the full suite, stability) runs in a scheduled sentinel on main, never in a gate or a landing. | gate: test/gate.test.js | serves: P1
+- V21 [draft, must] A failing sentinel files an item carrying what it measured, its limit and the commits since it last passed, so the fix goes through the loop. | gate: test/e2e.test.js | serves: V20
 
 ## O · Options
 - O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: packages/state/tests/settings.test.js | serves: O5

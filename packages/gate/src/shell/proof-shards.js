@@ -439,6 +439,25 @@ export async function proveBatches(root, execution, { files, filesCommand, takeS
 }
 
 /**
+ * The files a red shard failed on, in the proof's own file order: those the shard's output names, or every file of a red
+ * shard whose output names none, so a red run never reads without a file and a green shard names nothing.
+ * Why: the receipt merge keeps one output and one exit, and the person fixing a red needs the file, not the shard [C7].
+ *
+ * @param {{ files: string[], run: object }[]} shards
+ * @returns {string[]} The failing files, each once, in the order the shards list their files.
+ */
+export function failingShardFiles(shards) {
+  const failing = new Set();
+  for (const { files, run } of shards) {
+    if (run.isGreen === true) continue;
+    const output = String(run.output ?? '');
+    const named = files.filter(file => output.includes(file.replace(/^\.\//u, '')));
+    for (const file of named.length ? named : files) failing.add(file);
+  }
+  return [...failing];
+}
+
+/**
  * Merge shard runs into the one run the proof receipt records: one output, green only when every shard is, the first
  * red exit, the first shard's stage accounting (the others' are already profiled in their own slots), and each shard's files, exit, runner and duration kept in `shards`. Execution facts come from the first
  * shard; any shard whose source differs marks the whole run's source as changed, so the receipt is never clean on it.
@@ -459,6 +478,7 @@ export function mergeShardRuns(shards) {
     output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: joined('testRuntimes'),
     executionSourceUnchanged: sameSource && runs.every(run => run.executionSourceUnchanged !== false),
     ...(runs.some(run => run.timedOut) ? { timedOut: true } : {}),
+    failingFiles: failingShardFiles(shards),
     shards: shards.map(({ files, run }) => ({ files: [...files], exitCode: Number.isSafeInteger(run.exitCode) ? run.exitCode : null,
       runner: typeof run.executionRunner === 'string' && run.executionRunner ? run.executionRunner : null,
       durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? (run.seconds ?? 0) * 1000)) })) };
