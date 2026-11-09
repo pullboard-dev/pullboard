@@ -1,6 +1,6 @@
 /** Historical submitted heads cannot bypass review after a sibling resubmission [V17,V1]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -8,15 +8,8 @@ import { fixtureAdd } from './testkit-fixture.js';
 import { FIXTURE_MODEL, FIXTURE_MODEL_EARLIER, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
-/**
- * Remove only this file's real repositories, retrying transient directory contention.
- * A successful submit starts a detached comparison that can finish writing during teardown;
- * Node retries ENOTEMPTY rather than failing the historical-head assertions after they passed [C7,#2817].
- */
-function cleanup() {
-  for (const dir of e2e.sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
-}
-after(cleanup);
+// The shared cleanup waits up to 30 s for a detached writer; a private 2 s loop failed with ENOTEMPTY on a loaded runner [C7,#2817,#3192].
+after(e2e.cleanup);
 
 /** Add a real board item through the coordinator CLI. */
 function add(box, title) {
