@@ -9180,7 +9180,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/board-lock-hold.test.js",
+      "file": "apps/lib/tests/board-lock-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11224,7 +11224,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/check-proves-nothing.test.js",
+      "file": "apps/lib/tests/check-proves-nothing.test.js",
       "tier": "T3",
       "packages": [
         ".",
