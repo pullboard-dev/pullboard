@@ -1,4 +1,6 @@
 /** Foreground and queued submits survive an unrelated main move during their check; any pullboard.json policy change still refuses [V4,H16,C7]. */
+import { trialLedgerKey } from '../packages/gate/index.js';
+import { composeAfterProof, requireSubmitComposition } from '../packages/items/index.js';
 import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -47,6 +49,22 @@ async function ownedCleanup(helpers, box, jobId) {
   const tools = JSON.parse(readFileSync(request, 'utf8')).tools;
   if (/^pullboard-handoff-tools-[0-9a-f]+$/u.test(basename(tools))) assert.ok(existsSync(tools), 'the shared tools snapshot stays for the next submit');
   else await helpers.waitFor(() => !existsSync(tools), 'owned queued worker private tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+}
+
+/**
+ * Put both composition rules past their trial, the way twenty clean real gates would: MAIN_NOT_COMPOSED is a trial
+ * refusal that only reports until then, and each rule keeps its own trial under the one code.
+ */
+function enforceCompositionRules(box) {
+  const file = join(box.repo, '.git/pullboard/refusal-trials.json');
+  const codes = {};
+  for (const rule of [requireSubmitComposition, composeAfterProof]) {
+    const options = { rule: ['composition', rule.toString()] };
+    codes[trialLedgerKey('MAIN_NOT_COMPOSED', options)] = { code: 'MAIN_NOT_COMPOSED', identity: 'seeded', start: 0, falseRefusals: 0 };
+  }
+  assert.equal(Object.keys(codes).length, 2, 'each rule keeps its own trial under one code');
+  mkdirSync(join(box.repo, '.git/pullboard'), { recursive: true });
+  writeFileSync(file, JSON.stringify({ version: 2, gates: 20, codes }) + '\n');
 }
 
 /**
@@ -100,6 +118,7 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   assert.equal(built.status, 0, built.stderr);
   const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
   assert.equal(ready.code, 0, ready.out + ready.err);
+  if (mode === 'policy') enforceCompositionRules(box);
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   const result = runFixtureChild(process.execPath, [helpers.BIN, 'submit', String(box.id), '--no-next'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
