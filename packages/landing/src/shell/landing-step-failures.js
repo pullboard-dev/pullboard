@@ -4,7 +4,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { completeGate } from './landing-completion.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 
 /** Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. */
 export function landingFailures(output, root, { excludeCancelled = false } = {}) {

@@ -3,7 +3,7 @@ import { relayFetch } from './relay-adapter.js';
  * The terminal side of signed person moves [E22,B26,H16]: the passkey step a person-only command takes, the
  * `pullboard settings person.signed` switch, and pinning the relay's stamp key from this board's own relay origin.
  */
-import * as store from "../../../../src/board.js";
+import * as store from "../../../store/index.js";
 import {
   attestAuthority,
   authorityAttested,
