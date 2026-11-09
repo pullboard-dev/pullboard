@@ -224,8 +224,8 @@ test('committed plan deletion and malformed shards refuse; an unstaged placement
   box.git(box.repo, 'commit', '-q', '-m', 'chore: remove fixture plan for the negative control');
   assert.throws(() => requirePlannedSource(box.repo, base, box.git(box.repo, 'rev-parse', 'HEAD')), /restore the committed cells plan/);
   box.git(box.repo, 'reset', '--hard', head);
-  writeFileSync(join(box.repo, 'bin/cells-plan/13-items.json'), '{ malformed JSON');
-  box.git(box.repo, 'add', 'bin/cells-plan/13-items.json');
+  writeFileSync(join(box.repo, 'bin/cells-plan/19-items.json'), '{ malformed JSON');
+  box.git(box.repo, 'add', 'bin/cells-plan/19-items.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: corrupt only the private plan shard');
   assert.throws(() => requirePlannedSource(box.repo, base, box.git(box.repo, 'rev-parse', 'HEAD')), /valid committed cells plan JSON/);
 });

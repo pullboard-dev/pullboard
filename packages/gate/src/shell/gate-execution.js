@@ -84,8 +84,8 @@ import {
 import {
   captureTestRuntimes,
   executionEnvironment,
-  testRuntimeEnvironment,
 } from '../../../sandbox/index.js';
+import { testRuntimeEnvironment } from '../../../verify/core.js';
 import {
   gitPath,
   headCommit,
