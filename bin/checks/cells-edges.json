@@ -22,7 +22,7 @@
     },
     "apps/cli/src/core/next-step-words.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "apps/cli/src/core/public-export-guard.js": {
       "cells": 1,
@@ -4744,10 +4744,6 @@
     "<-apps/view": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-moves": {
-      "imports": [],
-      "deepImporters": 1
     },
     "<-state": {
       "imports": [],
