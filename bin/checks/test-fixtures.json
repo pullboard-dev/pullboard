@@ -3045,7 +3045,7 @@
   "test/route-calibration.test.js": {
     "model": 1
   },
-  "apps/lib/tests/route-capacity.test.js": {
+  "test/route-capacity.test.js": {
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 5
