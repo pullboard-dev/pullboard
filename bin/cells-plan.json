@@ -1529,6 +1529,22 @@
         "packages/gate/tests/landing-stage-composition.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "blueprints",
+      "row": [
+        "test/blueprint.test.js",
+        "packages/blueprints/tests/blueprint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/lsof-lookups.test.js",
+        "packages/resources/tests/lsof-lookups.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2006,6 +2022,8 @@
     "commits->kernel",
     "rigor->store",
     "(root)->store",
+    "spec->kernel",
+    "gate->spec",
     "(root)->doctrine",
     "person->doctrine",
     "blueprints->doctrine"
