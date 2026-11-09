@@ -3287,7 +3287,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/add-lanes.test.js",
+      "file": "test/add-lanes.test.js",
       "tier": "T3",
       "packages": [
         "packages/kernel"
@@ -3297,7 +3297,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/agent-session.test.js",
+      "file": "test/agent-session.test.js",
       "tier": "T3",
       "packages": [
         "packages/git",
@@ -3313,7 +3313,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/approved-row-changes.test.js",
+      "file": "test/approved-row-changes.test.js",
       "tier": "T3",
       "packages": [
         "packages/kernel"
@@ -3323,7 +3323,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/implies-phone.test.js",
+      "file": "test/implies-phone.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3381,7 +3381,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/intake.test.js",
+      "file": "test/intake.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3438,7 +3438,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/person-credential-vault.test.js",
+      "file": "packages/keys/tests/person-credential-vault.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3480,7 +3480,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/person.test.js",
+      "file": "test/person.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3535,7 +3535,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/relay-key.test.js",
+      "file": "packages/keys/tests/relay-key.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3577,7 +3577,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/relay-page-layout.test.js",
+      "file": "packages/pages/tests/relay-page-layout.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3619,7 +3619,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/relay-person-credential.test.js",
+      "file": "test/relay-person-credential.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3677,7 +3677,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/relay-person-requests.test.js",
+      "file": "test/relay-person-requests.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3735,7 +3735,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/relay-upload-status.test.js",
+      "file": "test/relay-upload-status.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3793,7 +3793,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/row-decisions.test.js",
+      "file": "test/row-decisions.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3836,7 +3836,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/sealed-pages.test.js",
+      "file": "packages/pages/tests/sealed-pages-integrity.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -3878,7 +3878,7 @@
       ]
     },
     {
-      "file": "packages/person/tests/stale-frozen-items.test.js",
+      "file": "test/stale-frozen-items.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22524,7 +22524,7 @@
       ]
     },
     {
-      "file": "test/gate-admission.test.js",
+      "file": "packages/gate/tests/gate-admission.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26901,7 +26901,7 @@
       ]
     },
     {
-      "file": "test/land-local-guard.test.js",
+      "file": "packages/landing/tests/land-local-guard.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30393,7 +30393,7 @@
       ]
     },
     {
-      "file": "test/main-compare-any-runner.test.js",
+      "file": "packages/landing/tests/main-compare-any-runner.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33793,7 +33793,7 @@
       ]
     },
     {
-      "file": "packages/kernel/tests/person-request.test.js",
+      "file": "packages/person/tests/person-request.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -40511,7 +40511,7 @@
       ]
     },
     {
-      "file": "test/requeue-restriction-valid.test.js",
+      "file": "packages/gate/tests/requeue-restriction-valid.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -44364,7 +44364,7 @@
       ]
     },
     {
-      "file": "test/runner-requeue-unpins.test.js",
+      "file": "packages/gate/tests/runner-requeue-unpins.test.js",
       "tier": "T3",
       "packages": [
         ".",

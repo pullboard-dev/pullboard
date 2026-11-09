@@ -6,7 +6,7 @@ import {
   reportFixtureChildFailure,
   runFixtureChild,
   runFixtureGit,
-} from "../../../test/fixture-child.js";
+} from "./fixture-child.js";
 import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
@@ -28,14 +28,14 @@ import {
   after,
   test,
 } from 'node:test';
-import { parseSpec } from "../../spec/index.js";
+import { parseSpec } from "../packages/spec/index.js";
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
-} from "../../kernel/src/core/discovery.js";
-import { fetchFresh } from "../../../test/http-fixture.js";
+} from "../packages/kernel/src/core/discovery.js";
+import { fetchFresh } from "./http-fixture.js";
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC_FILE = 'SPEC.md';
 const DOCTRINE_FILE = 'DOCTRINE.md';
 const TEMP_DIRS = [];

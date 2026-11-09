@@ -21,12 +21,12 @@ import {
   generateBoardKey,
   seal,
   unseal,
-} from "../../kernel/src/core/seal.js";
+} from "../../kernel/index.js";
 import {
   forgetBoardKey,
   readBoardKey,
   storeBoardKey,
-} from "../../keys/index.js";
+} from "../index.js";
 
 /**
  * Give one test a private home and a PATH with no keychain executable, forcing the documented file fallback.

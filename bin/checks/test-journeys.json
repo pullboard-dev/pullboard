@@ -3655,7 +3655,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/gate-admission.test.js": {
+    "packages/gate/tests/gate-admission.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -5418,7 +5418,7 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/main-compare-any-runner.test.js": {
+    "packages/landing/tests/main-compare-any-runner.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -8379,7 +8379,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/requeue-restriction-valid.test.js": {
+    "packages/gate/tests/requeue-restriction-valid.test.js": {
       "cells": [
         "gate",
         "landing",
@@ -9316,7 +9316,7 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/runner-requeue-unpins.test.js": {
+    "packages/gate/tests/runner-requeue-unpins.test.js": {
       "cells": [
         "gate",
         "landing",

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import {
   generateBoardKey,
   seal,
-} from "../../kernel/src/core/seal.js";
+} from "../../kernel/index.js";
 import {
   PAGE_BYTES,
   PAGE_CIPHER_BYTES,
@@ -17,7 +17,7 @@ import {
   readSealedValue,
   writeSealedValue,
   writeSealedDescriptor,
-} from "../../pages/index.js";
+} from "../index.js";
 
 /** Retain only synthetic encrypted objects, with a distinct private reuse cache and observable reads. */
 async function storage() {

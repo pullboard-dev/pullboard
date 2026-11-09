@@ -1,14 +1,19 @@
 /** @pullboard-test-input source-tree */
 /** Quarantined execution is re-admitted across the compatible fleet with a fresh deadline [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { awaitNestedRun } from '../packages/gate/index.js';
-import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
-import { executionServicesSource } from './gate-execution-fixture.js';
-import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { awaitNestedRun } from '../index.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Keep the real resource database, settings, Git source and SSH stand-in private to each case. */
 function fixture(t) {
@@ -41,8 +46,8 @@ for (const [reason, infrastructureRetryCount] of [['cleanup-unverified', 0], ['c
     const box = fixture(t);
     await execute(box, `
 import assert from 'node:assert/strict';
-import {takeResource,listResources} from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
-import {gateRunnerWaitMs} from ${JSON.stringify(new URL('../packages/config/index.js', import.meta.url).href)};
+import {takeResource,listResources} from ${JSON.stringify(new URL('../../resources/index.js', import.meta.url).href)};
+import {gateRunnerWaitMs} from ${JSON.stringify(new URL('../../config/index.js', import.meta.url).href)};
 const runners=${JSON.stringify(box.runners)},budget=gateRunnerWaitMs();
 const originalNow=Date.now;let now=originalNow();Date.now=()=>now;
 let lease;
@@ -73,12 +78,12 @@ test('a quarantined pinned first runner sends the real command to the free secon
   const requests = join(box.directory, 'requests.jsonl');
   writeFileSync(join(box.bin, 'package.json'), JSON.stringify({ type: 'module' }));
   installSshStandIn({ bin: box.bin, worker: box.worker, home: box.remoteHome, machineHome: box.remoteMachine, requests });
-  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
+  const gate = new URL('../index.js', import.meta.url).href;
   const output = await execute(box, `
 import assert from 'node:assert/strict';
-import {DatabaseSync} from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
-import {Refused} from ${JSON.stringify(new URL('../packages/kernel/index.js', import.meta.url).href)};
+import {Refused} from ${JSON.stringify(new URL('../../kernel/index.js', import.meta.url).href)};
 ${executionServicesSource(gate)}
 const seen=[],deadlines=[];
 const completed=await withGateSlot(process.cwd(),async lease=>{
