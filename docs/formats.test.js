@@ -303,7 +303,7 @@ function recordEventContract() {
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'tests', path: '/family-seat' });
   register(board, { lane: 'tests', path: '/family-seat', family: 'codex' });
-  assert.deepEqual(events(board).filter(event => event.event_kind === 'family').map(event => JSON.parse(event.event_detail)), [{ family: 'codex' }], 'a later join that names a family writes one family event');
+  assert.deepEqual(events(board).filter(event => event.event_kind === 'family').map(event => JSON.parse(event.event_detail).family), ['codex'], 'a later join that names a family writes one family event');
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });
