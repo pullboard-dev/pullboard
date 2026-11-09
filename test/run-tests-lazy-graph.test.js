@@ -84,7 +84,7 @@ test('clause 2: the runner reads the worker process identity from the drive ligh
   assert.match(readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/packages\/drive\/core\.js'/u);
 });
 
-const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
+const RUNNER_TARGETS = ['packages/store/src/shell/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
 const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
 
 /**
@@ -105,7 +105,7 @@ function importParents(entry) {
   return parent;
 }
 
-test('clause 1: bin/run-tests.js static graph does not reach src/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+test('clause 1: bin/run-tests.js static graph does not reach packages/store/src/shell/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
   const runner = importParents('bin/run-tests.js');
   for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {

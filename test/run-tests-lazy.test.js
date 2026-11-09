@@ -19,8 +19,8 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
-const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
-const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
+const HEAVY = ['packages/gate/src/shell/gate.js', 'packages/store/src/shell/board.js', 'src/machine.js'];
+const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'packages/store/src/shell/board.js', 'packages/state/index.js'];
 
 test('clause 1: a real named-file run meets its declared ten-second import-check budget [C7,V4]', { cpuLoad: true }, t => {
   const declaredBudget = 10_000;
@@ -128,7 +128,7 @@ function knownLiteralBoardImporters(closures, modules) {
     assert.ok(releaseSource.includes(`load('${reader}')`), `release capture loads its lazy read-only store module ${reader}`);
   }
   for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
-  assert.ok(!releaseImports.includes('../../../../src/board.js'), 'release capture does not import the writer facade');
+  assert.ok(!releaseImports.includes('../../../store/src/shell/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
   const known = new Set();
   for (const root of roots) {
@@ -137,7 +137,7 @@ function knownLiteralBoardImporters(closures, modules) {
       const file = pending.pop();
       if (seen.has(file)) continue;
       seen.add(file);
-      if (file === 'src/board.js') { known.add(root); break; }
+      if (file === 'packages/store/src/shell/board.js') { known.add(root); break; }
       if (!modules.has(file)) continue;
       if (!parsed.has(file)) parsed.set(file, importsIn([modules.get(file)])[0]);
       for (const edge of parsed.get(file)) {
@@ -147,7 +147,7 @@ function knownLiteralBoardImporters(closures, modules) {
   }
   for (const root of known) {
     const closure = closures.get(root);
-    if (closure.files !== null) assert.ok(closure.files.includes('src/board.js'), `${root} complete closure retains its independently proved literal board dependency`);
+    if (closure.files !== null) assert.ok(closure.files.includes('packages/store/src/shell/board.js'), `${root} complete closure retains its independently proved literal board dependency`);
   }
   return known;
 }
@@ -205,7 +205,7 @@ ${executionServicesSource(gate)} const result = await runGate(process.cwd(), {ga
 test('a board change selects its real importers in the actual committed repository [C7,V4]', { timeout: 120_000 }, // budget: complete actual committed import graph; correctness only, no benchmark.
 () => {
   // Keep every committed module, including the runner's arbitrary reporter declaration; no synthetic shortened graph.
-  const selection = selectAffectedTests(ROOT, { base: 'HEAD', commit: 'HEAD', changed: ['src/board.js'] });
+  const selection = selectAffectedTests(ROOT, { base: 'HEAD', commit: 'HEAD', changed: ['packages/store/src/shell/board.js'] });
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('test/board.test.js'), 'the board contract is an actual importer');
   const { closures, modules } = testClosures(ROOT, 'HEAD');
@@ -217,7 +217,7 @@ test('a board change selects its real importers in the actual committed reposito
     assert.ok(selection.reason.includes(file), `selection discloses unknown root ${file}`);
     assert.ok(selection.reason.includes(closure.reason), `selection discloses the reason for ${file}`);
   }
-  const expected = [...closures].filter(([file, closure]) => closure.files === null || closure.files.includes('src/board.js')
+  const expected = [...closures].filter(([file, closure]) => closure.files === null || closure.files.includes('packages/store/src/shell/board.js')
     || sourceTreeReader(modules.get(file)) || known.has(file)).map(([file]) => file).sort();
   assert.deepEqual(selection.files, expected, 'exact selection retains actual board importers, declared readers and disclosed conservative unknown roots');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
