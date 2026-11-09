@@ -113,7 +113,7 @@ for (const branch of ['master', 'trunk']) {
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);
-    assert.equal(item.item_check_baseline.result, 'red', `${branch} baseline actually ran instead of being unavailable`);
+    assert.equal(item.item_check_baseline.result, 'red', `${branch} baseline actually ran instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
     assert.notEqual(item.item_check_baseline.reason, 'no main');
   });
 }
@@ -171,7 +171,7 @@ function mergeCandidate(branch = 'trunk') {
   const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(web, 'claim', String(id)).code, 0);
+  { const claimed = box.run(web, 'claim', String(id)); assert.equal(claimed.code, 0, `${claimed.out}${claimed.err}`); }
   writeFileSync(join(web, 'web/result.txt'), 'builder result\n');
   box.git(web, 'add', 'web/result.txt');
   box.git(web, 'commit', '-q', '-m', 'feat(web): build merge candidate [G1]');
