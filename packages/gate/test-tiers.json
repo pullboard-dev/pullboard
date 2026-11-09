@@ -42803,7 +42803,7 @@
       ]
     },
     {
-      "file": "test/run-tests-reporter.test.js",
+      "file": "packages/runners/tests/run-tests-reporter.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51927,7 +51927,7 @@
       ]
     },
     {
-      "file": "test/test-action-cache.test.js",
+      "file": "packages/runners/tests/test-action-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
