@@ -6092,16 +6092,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/next-step-no-wait.test.js": {
-      "cells": [
-        "app:cli",
-        "config"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/core/next-step-defaults.js)",
-        "imports past config front door (packages/config/src/core/json-output.js)"
-      ]
-    },
     "test/next-steps.test.js": {
       "cells": [
         "app:cli",
