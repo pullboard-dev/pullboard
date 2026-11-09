@@ -1,11 +1,13 @@
 /** A merge or a withdrawal closes the usage of the seat that held the item, even with no submit or release [N2]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkpointAfterMove } from '../index.js';
 import * as store from '../../store/index.js';
+import { FIXTURE_MODEL } from '../../../test/testkit-fixture.js';
 import { cellBoard } from '../../../test/cell-fixture.js';
 import { cellClaim } from '../../../test/cell-fixture.js';
 import { cellItem } from '../../../test/cell-fixture.js';
@@ -28,6 +30,8 @@ function fixture(t) {
   const directory = join(environment.CODEX_HOME, 'sessions');
   mkdirSync(directory, { recursive: true });
   const file = join(directory, 'rollout-synthetic-usage-at-merge.jsonl');
+  // One named model keeps every token and the wall time on a single record.
+  writeFileSync(file, JSON.stringify({ type: 'turn_context', payload: { model: FIXTURE_MODEL } }) + '\n');
   /** Append one cumulative native counter row stamped at the fixture clock plus an offset. */
   const counter = (input, output, offset = 0) => appendFileSync(file, JSON.stringify({ timestamp: new Date(at + offset).toISOString(), type: 'event_msg',
     payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output } } } }) + '\n');
@@ -68,6 +72,7 @@ test('a forced merge of a claimed item with no submit writes its cost row and us
   const shared = run.row(id);
   assert.ok(shared, 'the merge published the claim holder usage');
   assert.equal(shared.agent, run.seat.id);
+  assert.equal(shared.records.length, 1);
   assert.equal(shared.records[0].inputTokens, 27);
   assert.equal(shared.records[0].outputTokens, 5);
   assert.equal(shared.records[0].wallMs, 10 * MINUTE);
