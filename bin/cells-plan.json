@@ -2022,7 +2022,10 @@
     "commits->kernel",
     "rigor->store",
     "(root)->store",
+    "spec->kernel",
+    "gate->spec",
     "(root)->doctrine",
+    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine"
   ]
