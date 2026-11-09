@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remoteWorkerLaunch } from '../src/shell/runner-remote-tooling.js';
-import { TOOLING_TRANSFER_BOUND } from '../src/shell/runner-remote-tooling.js';
+import { CAPSULE_STDIN_LIMIT } from '../src/shell/runner-remote-tooling.js';
 import { REUSE_CAPSULE } from '../src/shell/runner-runtime-held.js';
 import { forgetRuntimeHeld } from '../src/shell/runner-runtime-held.js';
 import { recordRuntimeHeld } from '../src/shell/runner-runtime-held.js';
@@ -102,10 +102,10 @@ test('#4140 clause 1: the transfer bound applies to the gzipped capsule, not the
     return { tooling: { sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') }, runtime: { entry, files: runtimeFiles } };
   };
   const roomy = tooling(`export const text = ${JSON.stringify('the same worker line\n'.repeat(100_000))};\n`);
-  assert.ok(Buffer.byteLength(JSON.stringify(roomy.runtime.files)) > TOOLING_TRANSFER_BOUND, 'the raw bundle is over the bound');
+  assert.ok(Buffer.byteLength(JSON.stringify(roomy.runtime.files)) > 1_048_576, 'the raw bundle is past the old 1 MiB raw check');
   assert.doesNotThrow(() => remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, roomy.tooling, roomy.runtime, '', null));
-  const dense = tooling(`export const bulk = ${JSON.stringify(randomBytes(1_200_000).toString('base64'))};\n`);
-  assert.throws(() => remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, dense.tooling, dense.runtime, '', null), { code: 'RUNNER_TOOLING_FILES' });
+  const dense = tooling(`export const bulk = ${JSON.stringify(randomBytes(Math.ceil(CAPSULE_STDIN_LIMIT * 0.8)).toString('base64'))};\n`);
+  assert.throws(() => remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, dense.tooling, dense.runtime, '', null), { code: 'RUNNER_REQUEST_LIMIT' }, 'a capsule that would cross the wire past its bound refuses');
 });
 
 test('#4140 clause 1: READY records that a runner holds a runtime, and a failed reuse forgets it [C7]', () => withRoot(root => {

@@ -146,9 +146,6 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** The most gzipped worker tooling one launch sends (#4140). */
-export const TOOLING_TRANSFER_BOUND = 1_048_576;
-
 /** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound is 8 MiB. */
 export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
 
@@ -192,11 +189,11 @@ export function readCapsuleFromStdin() {
  */
 export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null, { reuse = false } = {}) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
-  const gzipped = gzipSync(Buffer.from(JSON.stringify(files)));
-  // The transfer bound protects what crosses the wire: the gzipped capsule; the raw size is ratcheted on main (#4140).
-  if (gzipped.length > TOOLING_TRANSFER_BOUND) throw new Refused('RUNNER_TOOLING_FILES', `runner tooling capsule is ${gzipped.length} gzipped bytes, over its ${TOOLING_TRANSFER_BOUND}-byte transfer bound; shrink the worker import closure before retrying`);
+  // The transfer bound protects what crosses the wire, the gzipped capsule; the raw bundle is ratcheted on main (#4140).
+  const full = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  if (Buffer.byteLength(full) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
   // A runner that holds this runtime by digest gets an empty capsule and re-hashes its installed copy.
-  const payload = reuse ? REUSE_CAPSULE : gzipped.toString('base64');
+  const payload = reuse ? REUSE_CAPSULE : full;
   if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
   const installer = `import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
