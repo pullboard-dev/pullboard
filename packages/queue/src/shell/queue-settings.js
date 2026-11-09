@@ -3,7 +3,7 @@ import {
   existsSync,
   readFileSync,
 } from 'node:fs';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { LINE_SETTING_DEFINITIONS } from '../core/line-setting-definitions.js';
 import { validateKnownLineSetting } from '../core/line-setting-definitions.js';
 import { gateQueueSettings } from '../core/queue-settings.js';
