@@ -263,6 +263,16 @@ export async function parallelLanding(state, initialItems) {
     const culprit = remaining[green + 1];
     const greenBase = green >= 0 && results[green].gate.isGreen && completeGate(results[green].gate)
       || parallelGreenBase(state, gate);
+    if (!greenBase && green === -1 && !gate.knownMainProof && gate.failures?.length) {
+      // The first item ran alone on main's tip, and its gate already set main's own reds apart: the rest are its own, so
+      // it returns alone and the others land. Why: #3768's red rerun held the whole trunk as a test defect (9 Nov) [C7].
+      await bisect(state, [culprit], gate.failures);
+      // A red that could not be compared with main holds as before; otherwise the item is out of this batch either way.
+      if (state.flaky) return;
+      remaining = withoutParallelBlocker(state, remaining, culprit);
+      await save(state, { parallelRemaining: remaining });
+      continue;
+    }
     if (!greenBase) { await fileTestDefects(state, gate); state.flaky = true; return; }
     // A red A+B with green A can still be an interaction: B alone must reproduce those failures.
     // This is a distinct composition, not a retry of A+B or any other already tested tree.

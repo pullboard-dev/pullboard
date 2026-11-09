@@ -88,13 +88,14 @@ function landingObservation(root, ioOptions = {}) {
  * What a backed-off landing watches: each verified, unlanded item with its commit, and the trunk blob of every test file
  * that holds the trunk (a landing test defect whose repair item is still open, claimed or submitted, or a flaky batch on
  * the trunk branch).
- * Why: an accept, a green gate that verifies an item, a commit correcting the held test, or withdrawing or landing the
- * defect's repair item is exactly what can change a held or empty landing's outcome, so each one ends the back-off at
- * once: a defect that stops holding drops its file from the marks, which the wake reads as a held-file change [C7,#3761].
+ * Why: an accept, a green gate that verifies an item, a commit correcting the held test, a person's landing waiver, or
+ * withdrawing or landing the defect's repair item is exactly what can change a held or empty landing's outcome, so each
+ * one ends the back-off at once: a defect that stops holding drops its file from the marks, which the wake reads as a
+ * held-file change [C7,#3761].
  *
  * @param {string} root - The repository's main checkout.
  * @param {{ schemaDiagnostics?: Set<string> }} [ioOptions]
- * @returns {{ verified: string[], held: Record<string, string | null> } | null} null when the checkout is off its trunk branch
+ * @returns {{ verified: string[], held: Record<string, string | null>, waivers: number } | null} null when the checkout is off its trunk branch
  */
 export function landingWakeMarks(root, ioOptions = {}) {
   invalidateGitFacts();
@@ -110,7 +111,9 @@ export function landingWakeMarks(root, ioOptions = {}) {
       ...landingBatches(board).filter(batch => batch.state === 'flaky' && batch.branch === trunk.branch).flatMap(batch => (batch.flakes ?? []).map(flake => flake.test)),
     ]);
     const held = Object.fromEntries([...files].sort().map(file => [file, testBlob(root, trunk.commit, file)]));
-    return { verified, held };
+    // The newest person landing waiver: a new one can release a held trunk, so it wakes a backed-off lander (9 Nov) [C7].
+    const waivers = board.db.prepare("SELECT COALESCE(MAX(event_id), 0) AS id FROM event WHERE event_kind = 'landing_waiver'").get().id;
+    return { verified, held, waivers };
   });
 }
 
@@ -253,5 +256,8 @@ await resumeAutomaticLanding(root, token, dueAt, async (wakeRoot, wake, adopted)
   if (adopted) process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(adopted);
   return runLandingWake(wakeRoot, wake);
 }, { marks: landingWakeMarks });
+// The wake is done: a batch its stop abandoned must not keep running runner jobs and writing to a closed board. Two
+// such orphans from 07:28 still ran at 08:40 on 9 Nov, and one logged "could not be recorded: ERR_INVALID_STATE" [C7].
+process.exit(process.exitCode ?? 0);
 
 }

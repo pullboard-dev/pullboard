@@ -553,7 +553,9 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     // A landing rerun on a runner lease fans its files out like a submit proof; the receipt and records stay the gate's [C7].
     const run = landing && lease.runner && !releaseRequest && auditBatchId === undefined && landingShardable(config.gate, shard)
       ? await fullGateRunWith(root, config, trustStamp, options, plan => landingShardExecution(root, shard, slotOptions, { say: shard.say, settings: loadMachineSettings })(plan))
-      : fullGateRun(root, config, trustStamp, options);
+      // A landing awaits its run: a synchronous runner call blocked the lander's event loop, its landing lease heartbeat
+      // stopped, and a 1-file rerun of 333 s lost the lease and ended in LAND_LEASE_LOST (9 Nov) [C7].
+      : landing ? await fullGateRunAsync(root, config, trustStamp, options) : fullGateRun(root, config, trustStamp, options);
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
@@ -581,7 +583,8 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
   const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
   const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`;
   const started = performance.now();
-  const run = detailed ? runProfiledShell(root, command, { gateLease, waitMs, stages: true, pinnedSource })
+  // Always awaited: a landing's failure diagnostics run this, and a blocking run stopped the landing lease's heartbeat [C7].
+  const run = detailed ? await runProfiledShellAsync(root, command, { gateLease, waitMs, stages: true, pinnedSource })
     : await runProfiledShellAsync(root, command, { gateLease, waitMs, pinnedSource });
   const compareMs = performance.now() - started;
   const after = pinnedSource ?? timingSourceForReceipt(root);

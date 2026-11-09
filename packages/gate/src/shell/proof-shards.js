@@ -16,6 +16,24 @@ import { DatabaseSync } from 'node:sqlite';
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
 export const SHARD_ADMIT_MS = 30_000;
 
+/**
+ * The least time a shard's dispatch has from connecting until its worker says READY: the same budget a late admission
+ * gets. Why: the lane's 30 s admission window became its startup budget, so at load a shard whose transfer took 31 s
+ * (p50, 9 Nov) missed READY on a healthy runner, was killed and rerun after a 30 s backoff; every TRANSPORT_LOST retry
+ * in the hour followed such a miss [C7].
+ */
+export const SHARD_STARTUP_MS = 90_000;
+
+/**
+ * A shard lane's startup budget: its lease's own, or SHARD_STARTUP_MS when that is shorter.
+ *
+ * @param {number|undefined} leaseStartupMs
+ * @returns {number}
+ */
+export function shardStartupMs(leaseStartupMs) {
+  return Math.max(Number.isSafeInteger(leaseStartupMs) ? leaseStartupMs : 0, SHARD_STARTUP_MS);
+}
+
 /** How long a recorded shard pass stays on disk; a rerun after an infrastructure end comes within minutes. */
 export const SHARD_PASS_TTL_MS = 24 * 60 * 60_000;
 
