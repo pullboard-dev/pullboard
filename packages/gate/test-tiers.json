@@ -8037,7 +8037,7 @@
       ]
     },
     {
-      "file": "test/attach-submit-eligibility.test.js",
+      "file": "packages/kernel/tests/attach-submit-eligibility.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8961,7 +8961,7 @@
       ]
     },
     {
-      "file": "test/board-in-memory.test.js",
+      "file": "packages/kernel/tests/board-in-memory.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -22782,7 +22782,7 @@
       ]
     },
     {
-      "file": "test/handoff-urgent-first.test.js",
+      "file": "packages/kernel/tests/handoff-urgent-first.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -24467,7 +24467,7 @@
       ]
     },
     {
-      "file": "test/item-list-retained-claim.test.js",
+      "file": "packages/kernel/tests/item-list-retained-claim.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26410,7 +26410,7 @@
       ]
     },
     {
-      "file": "test/landing-adaptive-batch.test.js",
+      "file": "packages/store/tests/landing-adaptive-batch.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26851,7 +26851,7 @@
       ]
     },
     {
-      "file": "test/landing-bisect-base-red.test.js",
+      "file": "packages/store/tests/landing-bisect-base-red.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -26908,7 +26908,7 @@
       ]
     },
     {
-      "file": "test/landing-bisects-unaccounted.test.js",
+      "file": "packages/store/tests/landing-bisects-unaccounted.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30180,7 +30180,7 @@
       ]
     },
     {
-      "file": "test/merge-read-ports.test.js",
+      "file": "packages/kernel/tests/merge-read-ports.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -32245,7 +32245,7 @@
       ]
     },
     {
-      "file": "test/open-decisions-projection.test.js",
+      "file": "packages/kernel/tests/open-decisions-projection.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33182,7 +33182,7 @@
       ]
     },
     {
-      "file": "test/person-request.test.js",
+      "file": "packages/kernel/tests/person-request.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -45841,7 +45841,7 @@
       ]
     },
     {
-      "file": "test/seat-family-indexed.test.js",
+      "file": "packages/kernel/tests/seat-family-indexed.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -46071,7 +46071,7 @@
       ]
     },
     {
-      "file": "test/selector-gap-verdict.test.js",
+      "file": "packages/kernel/tests/selector-gap-verdict.test.js",
       "tier": "T3",
       "packages": [
         ".",

@@ -1,10 +1,13 @@
 /** A red landing gate bisects its named unwaived failures; waived failures never block a batch [C7,#2900]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { bisectableFailures, unwaivedFailures } from '../packages/landing/src/shell/landing-step-failures.js';
-import { bisect } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import * as store from '../index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import {
+  bisectableFailures,
+  unwaivedFailures,
+} from '../../landing/index.js';
+import { bisect } from '../../landing/index.js';
 
 const PORTS = { quarantineWaivers: () => [] };
 

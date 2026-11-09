@@ -1,16 +1,16 @@
-import { asSubmitted } from '../packages/verify/index.js';
-import { refuseUnreviewable } from '../packages/verify/index.js';
+import { asSubmitted } from '../../verify/index.js';
+import { refuseUnreviewable } from '../../verify/index.js';
 /** Real native attachment previews and submit moves share strict ownership authority [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { heartbeatSeat } from '../packages/store/index.js';
-import { refuseLiveAttach } from '../packages/items/index.js';
-import { reviewEligibility } from '../packages/verify/index.js';
-import { submitPreflight } from '../packages/items/index.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard } from '../packages/store/index.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { heartbeatSeat } from '../../store/index.js';
+import { refuseLiveAttach } from '../../items/index.js';
+import { reviewEligibility } from '../../verify/index.js';
+import { submitPreflight } from '../../items/index.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { exportBoard } from '../../store/index.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1,4 @@\n+a\n+b\n+c\n+d\n';

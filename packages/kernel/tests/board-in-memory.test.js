@@ -2,9 +2,12 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { fixtureBoard } from './board-fixture.js';
+import * as store from '../../store/index.js';
+import {
+  applyEngineMove,
+  prepareEngineMove,
+} from '../../state/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 const AT = '2026-10-27T00:00:00.000Z';
 const clock = { now: () => new Date(AT) };

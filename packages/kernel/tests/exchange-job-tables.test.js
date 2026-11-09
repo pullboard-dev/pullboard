@@ -1,8 +1,11 @@
 /** Board exports without the additive job tables still import; every other table still matches exactly [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureBoard } from './board-fixture.js';
-import { exportBoard, importBoard } from '../packages/store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import {
+  exportBoard,
+  importBoard,
+} from '../../store/index.js';
 
 /** Export a board as a fresh copy that drops the job tables and their counter, like an export made before them. */
 function exportWithoutJobTables(board) {

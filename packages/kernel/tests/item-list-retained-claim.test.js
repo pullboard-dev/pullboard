@@ -2,12 +2,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { logEvent } from '../packages/store/index.js';
-import { withListFields } from '../packages/items/index.js';
-import { projectItemState } from '../packages/api/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
+import * as store from '../../store/index.js';
+import { logEvent } from '../../store/index.js';
+import { withListFields } from '../../items/index.js';
+import { projectItemState } from '../../api/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 const COMMIT = 'a'.repeat(40);
 
