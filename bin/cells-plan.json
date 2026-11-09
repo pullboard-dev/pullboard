@@ -3496,6 +3496,7 @@
     "apps/cli->items",
     "apps/cli->landing",
     "apps/cli->apps/runner",
+    "apps/cli->apps/lib",
     "apps/cli->pin",
     "api->git",
     "api->store",
