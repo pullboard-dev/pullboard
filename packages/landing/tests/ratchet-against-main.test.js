@@ -2,21 +2,38 @@
 /** Cell-lint and shim ratchets count main and the candidate at check time; no committed baseline must match source [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fixture as planFixture, git, acceptedCutItems } from './cells-plan-fixture.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
-import { cellLintReport, cellLintBaseline, writeCellLintBaseline, CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
-import { withMainCheckout } from '../packages/landing/index.js';
-import { computePlan, writePlan } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
-import { cellsMove } from '../bin/cells-move-tool.js';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { fixture as planFixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
+import { acceptedCutItems } from '../../../test/cells-plan-fixture.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { withImportParseCache } from '../../gate/index.js';
+import { foreignNodeOptions } from '../../gate/index.js';
+import { cellLintReport } from '../../codemap/index.js';
+import { cellLintBaseline } from '../../codemap/index.js';
+import { writeCellLintBaseline } from '../../codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../../codemap/index.js';
+import { withMainCheckout } from '../index.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { cellsMove } from '../../../bin/cells-move-tool.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const parsers = { importsIn, commonJsIn };
-const LINTS = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
+const LINTS = fileURLToPath(new URL('../../../bin/cell-lints.js', import.meta.url));
 
 /**
  * Build a real repo whose main records a cell-lint baseline, then lands a cells move that adds a shim

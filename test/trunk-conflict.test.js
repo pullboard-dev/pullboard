@@ -1,4 +1,4 @@
-/** @pullboard-test-loads packages/verify/src/core/next-review.js packages/landing/src/shell/computed-conflict-receipt.js src/board.js */
+/** @pullboard-test-loads packages/verify/src/core/next-review.js packages/landing/src/shell/computed-conflict-receipt.js packages/store/src/shell/board.js */
 /** Real Git and CLI coverage: a trunk conflict waits while another seat holds the head's review [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';

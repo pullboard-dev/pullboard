@@ -11,20 +11,20 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { inventoryCache } from '../bin/cells-inventory-cache.js';
-import { inventoryCacheFile } from '../bin/cells-inventory-cache.js';
-import { cellInventory } from '../packages/codemap/index.js';
-import { updateCellInventory } from '../packages/codemap/index.js';
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { withImportParseCache } from '../packages/gate/index.js';
-import { foreignNodeOptions } from '../packages/gate/index.js';
-import { withMainCheckout } from '../packages/landing/index.js';
-import { warmAcceptedCells } from '../packages/gate/index.js';
-import { withFileLock } from '../packages/outbox/index.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
-import { fixture } from './cells-plan-fixture.js';
-import { git } from './cells-plan-fixture.js';
+import { inventoryCache } from '../../../bin/cells-inventory-cache.js';
+import { inventoryCacheFile } from '../../../bin/cells-inventory-cache.js';
+import { cellInventory } from '../../codemap/index.js';
+import { updateCellInventory } from '../../codemap/index.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { withImportParseCache } from '../../gate/index.js';
+import { foreignNodeOptions } from '../../gate/index.js';
+import { withMainCheckout } from '../index.js';
+import { warmAcceptedCells } from '../../gate/index.js';
+import { withFileLock } from '../../outbox/index.js';
+import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
 
 /** Order unknown rows canonically; an incremental update appends where a census walks files in order. */
 function canonical(inventory) {
@@ -143,7 +143,7 @@ async function cellsStep(job, main, source) {
 }
 
 test('on this repository, a later item that adds a file runs the cells step in under 60 s from a warm base [C7]', { timeout: 590_000 }, async t => {
-  const repository = fileURLToPath(new URL('..', import.meta.url));
+  const repository = fileURLToPath(new URL('../../..', import.meta.url));
   const job = freshJob(t, repository), main = git(job, 'rev-parse', 'HEAD').trim();
   const first = await cellsStep(job, main, addFileCandidate(job, main, `cells-probe-${randomUUID()}.test.js`));
   t.diagnostic(`first job: ${first.seconds.toFixed(1)} s, inventory ${first.modes.join(', ')}`);

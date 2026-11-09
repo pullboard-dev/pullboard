@@ -397,7 +397,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     put(root, 'test/imports.test.js', "import { seal } from '../packages/kernel/src/core/seal.js';\nconst note = \"readFileSync(new URL('../src/a.js', import.meta.url))\";\n");
     put(root, 'test/module-url.test.js', [
       "import { readFileSync } from 'node:fs';",
-      "const board = new URL('../src/board.js', import.meta.url).href;",
+      "const board = new URL('../packages/store/index.js', import.meta.url).href;",
       "const cli = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;",
       "const api = await import(new URL('../src/api.js', import.meta.url));",
       "export const config = readFileSync('pullboard.json', 'utf8');",

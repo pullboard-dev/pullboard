@@ -8,7 +8,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
@@ -69,7 +69,7 @@ function withdrawFixture(t) {
   git('commit', '-q', '-m', 'chore: initialize fixture');
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   /** Supply the stable criterion snapshot used by these synthetic board transitions. */
   const freeze = () => ({ text: 'Tracked work', digest: 'digest:tracked' });
@@ -114,7 +114,7 @@ function fixture(t) {
   const clock = { now: () => new Date(instant) };
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   /** Advance the board clock without editing its stored records. */
   const at = value => { instant = value; };
@@ -161,7 +161,7 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   const foreignBoard = openBoard(join(foreignRepo, '.git', 'pullboard', 'board.sqlite'));
   let foreignItem;
   try {
-    store.ensureCoordinator(foreignBoard, foreignRepo);
+    store.board_ensureCoordinator(foreignBoard, foreignRepo);
     for (let index = 1; index < dropped; index++) {
       store.addItem(foreignBoard, { by: 'coordinator', lane: 'web', title: `Foreign filler ${index}` });
     }

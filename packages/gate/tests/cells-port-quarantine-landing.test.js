@@ -3,11 +3,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { cellInventory, mappedPath, readPathMap } from '../packages/codemap/index.js';
-import { commonJsIn, importsIn } from '../packages/gate/index.js';
-import { readPlan } from '../bin/cells-plan.js';
+import { cellInventory } from '../../codemap/index.js';
+import { mappedPath } from '../../codemap/index.js';
+import { readPathMap } from '../../codemap/index.js';
+import { commonJsIn } from '../index.js';
+import { importsIn } from '../index.js';
+import { readPlan } from '../../../bin/cells-plan.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 test('the actual landing import graph has no edge into native quarantine [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);
