@@ -988,7 +988,6 @@
     "test/runner-hosted-claim.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-hosted-submit.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-idle-dead-holder.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-idle-recovery.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-invalid-spec.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-load-aware-dispatch.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-overhead.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -999,7 +998,6 @@
     "test/runner-requeue-unpins.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-scan-cache.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-self-heal.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-self-recovery.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-signed-result.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-slot-quarantine.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-source-reuse.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1009,7 +1007,6 @@
     "test/runner-transport-lost.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-warm-source.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-worker-restart-fail-closed.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-worker-restart.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-browser-policy.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-cache-compatibility.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-capsule.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1190,7 +1187,7 @@
     "test/worktree-start.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/zombie-gate-jobs.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder"
   },
-  "rootTests": 918,
+  "rootTests": 915,
   "sealed": [
     "activity",
     "api",
