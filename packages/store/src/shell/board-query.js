@@ -27,7 +27,7 @@ import {
   itemShoutReader,
   UNREAD_SHOUT_SQL,
 } from "../core/board-shout-audience.js";
-import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
+import { shoutItemId } from "../../../kernel/index.js";
 import { workerInboxQuery } from "../core/board-worker-inbox.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from "../../../verify/index.js";
