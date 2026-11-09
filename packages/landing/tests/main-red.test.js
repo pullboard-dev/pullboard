@@ -200,7 +200,7 @@ function inheritedMessage(result, { row, item, testFile = 'test/inherited.test.j
   assert.match(result.err, new RegExp(testFile.replaceAll('.', '\\.'), 'u'));
   if (row && item) {
     assert.match(result.err, new RegExp(`approved row ${row} .*open rework #${item} owns it`, 'u'));
-    assert.ok(result.err.trimEnd().endsWith(`next: land #${item} first, then submit again`));
+    assert.ok(result.err.trimEnd().endsWith(`next: land #${item} first, then submit again`), JSON.stringify(result.err.slice(-600)));
     assert.equal((result.err.match(/^next: /gmu) ?? []).length, 1, 'the specific recovery is printed once');
   } else {
     assert.doesNotMatch(result.err, /approved row|open rework #\d+/u);
