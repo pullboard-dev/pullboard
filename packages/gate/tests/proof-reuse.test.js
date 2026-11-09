@@ -1,9 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** Submit, review and companion composition retain original completed per-file proof [C7,V4]. */
 import assert from 'node:assert/strict';
-import { completedTestResult } from '../packages/gate/index.js';
+import { completedTestResult } from '../index.js';
 import { test } from 'node:test';
-import { fleetTestResultReuse } from './test-result-fleet-fixture.js';
+import { fleetTestResultReuse } from '../../../test/test-result-fleet-fixture.js';
 
 test('same-tree review reuses submit receipts and a companion reruns only its changed closure [C7,V4]', { timeout: 180_000 }, async t => {
   await fleetTestResultReuse(t, { composition: true });

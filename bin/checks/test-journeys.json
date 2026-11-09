@@ -6883,15 +6883,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/proof-reuse.test.js": {
-      "cells": [
-        "gate",
-        "runners"
-      ],
-      "reasons": [
-        "spawns a child process (test/fixture-child.js)"
-      ]
-    },
     "test/proof-stats-agents.test.js": {
       "cells": [
         "api",

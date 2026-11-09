@@ -39,7 +39,8 @@
     "test/check-accept.test.js": "drives the real CLI (init, add, claim, submit, verify accept) in a fresh repo and checks the guard-revert refusal, its exit code and output end to end",
     "test/coordinator-resume.test.js": "drives the real CLI (resume, diagnostics) against stale coordinator checkouts and checks its output, exit codes and board rows end to end",
     "test/handoff-warm-checkout.test.js": "drives the real hand-off worker entry with the e2e helpers on a real checkout and checks the warm-checkout reuse and its board rows end to end",
-    "test/submit-handoff-worker.test.js": "drives the real submit hand-off worker and CLI with the e2e helpers and checks the gate it records, its refusals and exit codes end to end"
+    "test/submit-handoff-worker.test.js": "drives the real submit hand-off worker and CLI with the e2e helpers and checks the gate it records, its refusals and exit codes end to end",
+    "test/submit-infra-cli.test.js": "drives the real CLI in process (worktree, add, claim, submit, show) in private repositories and checks the infra note a submit drafts, keeps or leaves out, and what show prints, end to end"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -174,7 +175,6 @@
     "apps/cli/tests/submit-cells-runner-produces.test.js": "imports test/remote-analysis-refusal-fixture.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/cli/tests/submit-no-plan.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/cli/tests/worktree-maintenance-scheduler.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/config/tests/submit-infra.test.js": "imports test/cli-in-process-fixture.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/submit-registry-guards.test.js": "imports test/e2e-helpers.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/config/tests/submit-size.test.js": "imports test/e2e-helpers.js, outside its own cell config; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-landing.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -807,7 +807,6 @@
     "test/project-git-timeout.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/project-meta.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/proof-provenance.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/proof-reuse.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/proof-stats-agents.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/prove-once.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/publish-pause.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
