@@ -22377,7 +22377,7 @@
       ]
     },
     {
-      "file": "test/flow-report-cache.test.js",
+      "file": "apps/lib/tests/flow-report-cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42581,7 +42581,7 @@
       ]
     },
     {
-      "file": "test/run-tests-git-env.test.js",
+      "file": "apps/lib/tests/run-tests-git-env.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43084,7 +43084,7 @@
       ]
     },
     {
-      "file": "test/runner-cache-prune.test.js",
+      "file": "apps/lib/tests/runner-cache-prune.test.js",
       "tier": "T3",
       "packages": [
         ".",
