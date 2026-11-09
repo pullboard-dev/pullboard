@@ -347,7 +347,7 @@ function mentions(text, path) {
 }
 
 /** Find, rewrite and delete every shim; leave the ones a rule keeps, with why. */
-export function cutShims(root, { write = true, frozen = [] } = {}) {
+export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}) {
   const repo = loadRepo(root);
   const pkg = JSON.parse(repo.files.get('package.json'));
   const lanes = JSON.parse(repo.files.get('pullboard.json')).lanes ?? {};
@@ -386,8 +386,10 @@ export function cutShims(root, { write = true, frozen = [] } = {}) {
       edits.set(file, [...edits.get(file) ?? [], { ...row, shim: target, text: plan.text, span: plan.span, also: plan.also }]);
     }
   }
+  // A file read by hand and found to name shim paths only as data (a policy list, a logical audit identity, an import-map key).
+  const named = new Set(reviewed);
   for (const [file, source] of repo.files) {
-    if (PLAN_FILE.test(file) || HISTORY.has(file)) continue;
+    if (PLAN_FILE.test(file) || HISTORY.has(file) || named.has(file)) continue;
     const handled = new Set((statementsOf.get(file) ?? []).map(row => row.literal.start));
     const info = repo.lexOf(file);
     let text = source;
@@ -465,7 +467,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const at = process.argv.indexOf('--frozen');
   // --frozen <file> lists one path per line, or a folder ending in /, that this run must not write.
   const frozen = at > 0 ? readFileSync(process.argv[at + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
-  const result = cutShims(process.cwd(), { write: !dry, frozen });
+  const seen = process.argv.indexOf('--reviewed');
+  // --reviewed <file> lists, one per line, files whose path mentions were checked by hand and load nothing.
+  const reviewed = seen > 0 ? readFileSync(process.argv[seen + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
+  const result = cutShims(process.cwd(), { write: !dry, frozen, reviewed });
   for (const shim of result.cut) console.log(`cut ${shim}`);
   for (const [shim, reasons] of result.kept) console.log(`kept ${shim}: ${[...new Set(reasons)].join('; ')}`);
   console.log(`${result.found} shims found, ${result.cut.length} cut, ${result.kept.length} kept; ${result.rewritten.length} imports rewritten in ${result.files.length} files`);

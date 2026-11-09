@@ -38,7 +38,6 @@
   ["src/spec-gate-move.js","packages/spec/src/shell/spec-gate-move.js","rule"]
  ],
  "reexports": [
-  "src/row-decisions.js",
   "src/spec.js"
  ],
  "imports": [

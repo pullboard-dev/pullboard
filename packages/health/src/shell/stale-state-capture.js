@@ -6,8 +6,8 @@ import { dependencyWaiters } from '../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { staleInstant } from '../../../../src/board-stale-state-policy.js';
-import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
+import { staleInstant } from '../../../store/index.js';
+import { staleStateLimits } from '../../../store/index.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
 import { staleStateSnapshot } from './stale-state-snapshot.js';
 import { observeStaleWork } from './stale-work-observation.js';
