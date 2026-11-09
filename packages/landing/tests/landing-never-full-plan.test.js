@@ -1,9 +1,11 @@
 /** A landing reruns its items' submit proof, never the full plan, and a batch of many lands on its items' receipts [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { landingReceiptReuse } from '../packages/landing/index.js';
-import { landingProgress, LANDING_GATE_CEILING_MS } from '../packages/landing/src/shell/landing-in-process.js';
-import { submitProved, submittedSelections } from '../packages/landing/src/shell/landing-step-gate.js';
+import { landingReceiptReuse } from '../index.js';
+import { landingProgress } from '../src/shell/landing-in-process.js';
+import { LANDING_GATE_CEILING_MS } from '../src/shell/landing-in-process.js';
+import { submitProved } from '../src/shell/landing-step-gate.js';
+import { submittedSelections } from '../src/shell/landing-step-gate.js';
 
 /** #3489's submit on 9 Nov: red only in the relay cases main fails the same way, recorded with gateGreen false. */
 function knownMainSubmit(commit) {

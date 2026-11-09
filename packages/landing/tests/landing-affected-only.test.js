@@ -1,12 +1,17 @@
 /** A landing gate executes its merged batch's selected test files, not the full project gate [C7,S10]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { batchGatePlan } from '../packages/landing/src/shell/landing-step-gate.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { batchGatePlan } from '../src/shell/landing-step-gate.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
