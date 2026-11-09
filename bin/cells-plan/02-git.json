@@ -25,7 +25,7 @@
   ["test/flakes-fixture.js","packages/git/tests/flakes-fixture.js","rule"],
   ["test/flakes-fixture.test.js","packages/git/tests/flakes-fixture.test.js","rule"]
  ],
- "reexports": ["src/git-adapter.js","src/git.js"],
+ "reexports": ["src/committed-file-reader.js","src/git-adapter.js","src/git.js"],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"config","imports":1,"before":false},
