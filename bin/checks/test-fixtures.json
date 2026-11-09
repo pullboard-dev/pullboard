@@ -3183,7 +3183,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "test/runner-exclusive-drain.test.js": {
+  "packages/resources/tests/runner-exclusive-drain.test.js": {
     "hand-policy": 1
   },
   "packages/items/tests/runner-fetches-trunk.test.js": {

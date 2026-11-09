@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { temporaryDirectory } from './board-fixture.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { DatabaseSync } from 'node:sqlite';
-import { healLeakedRunner } from '../packages/resources/src/shell/runner-leak-heal.js';
-import { stopScript } from '../packages/runners/src/shell/runner-leak-stop.js';
+import { healLeakedRunner } from '../src/shell/runner-leak-heal.js';
+import { stopScript } from '../../runners/src/shell/runner-leak-stop.js';
 
 const HOST = 'coreyolson@192.168.1.51';
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'TRANSPORT_UNVERIFIED' };
