@@ -729,7 +729,7 @@
     "tempdir": 7,
     "repo-read": 2
   },
-  "test/cell-lints.test.js": {
+  "packages/runners/tests/cell-lints.test.js": {
     "tempdir": 2
   },
   "test/cells-checks-advisory.test.js": {
@@ -1706,9 +1706,6 @@
     "raw-board": 1,
     "model": 1
   },
-  "packages/kernel/tests/handoff-dispatcher-slot-reuse.test.js": {
-    "tempdir": 1
-  },
   "test/handoff-drops-orphan.test.js": {
     "tempdir": 1,
     "model": 1,
@@ -1728,10 +1725,6 @@
   "test/handoff-tools-shared-snapshot.test.js": {
     "raw-board": 1,
     "tempdir": 2
-  },
-  "packages/kernel/tests/handoff-urgent-first.test.js": {
-    "tempdir": 1,
-    "raw-board": 2
   },
   "packages/runners/tests/handoff-worker-cap-runners-only.test.js": {
     "tempdir": 1,
@@ -1833,9 +1826,6 @@
   "test/item-folder-seat-once.test.js": {
     "tempdir": 3,
     "raw-board": 4
-  },
-  "packages/kernel/tests/item-list-retained-claim.test.js": {
-    "raw-board": 5
   },
   "apps/lib/tests/item-notes-engine.test.js": {
     "raw-board": 3
@@ -1991,10 +1981,6 @@
   "test/landing-environment-fixture.js": {
     "raw-board": 1,
     "hand-policy": 1
-  },
-  "packages/kernel/tests/landing-history-plan.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2
   },
   "packages/landing/tests/landing-hung-file.test.js": {
     "tempdir": 1,
@@ -2258,9 +2244,6 @@
   "test/merge-only-verdict.test.js": {
     "raw-board": 18,
     "tempdir": 2
-  },
-  "packages/kernel/tests/merge-read-ports.test.js": {
-    "raw-board": 2
   },
   "test/merged-idempotent.test.js": {
     "raw-board": 1
@@ -2556,7 +2539,7 @@
     "tempdir": 2,
     "raw-board": 2
   },
-  "test/queue-preempt.test.js": {
+  "packages/sandbox/tests/queue-preempt.test.js": {
     "raw-board": 4
   },
   "packages/queue/tests/queue-settings-port.test.js": {
@@ -3168,7 +3151,7 @@
   "packages/runners/tests/runner-history-incremental.test.js": {
     "tempdir": 2
   },
-  "test/runner-idle-dead-holder.test.js": {
+  "packages/runners/tests/runner-idle-dead-holder.test.js": {
     "tempdir": 2
   },
   "test/runner-invalid-spec.test.js": {
@@ -3233,7 +3216,7 @@
     "tempdir": 2,
     "hand-policy": 2
   },
-  "test/runner-self-heal.test.js": {
+  "packages/runners/tests/runner-self-heal.test.js": {
     "tempdir": 1
   },
   "test/runner-slot-quarantine.test.js": {
@@ -3660,7 +3643,7 @@
   "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
-  "test/test-cache-receipts.test.js": {
+  "packages/runners/tests/test-cache-receipts.test.js": {
     "tempdir": 2
   },
   "test/test-command.test.js": {
@@ -3942,5 +3925,22 @@
   },
   "packages/store/tests/selector-gap-verdict.test.js": {
     "raw-board": 4
+  },
+  "packages/resources/tests/handoff-dispatcher-slot-reuse.test.js": {
+    "tempdir": 1
+  },
+  "packages/store/tests/handoff-urgent-first.test.js": {
+    "tempdir": 1,
+    "raw-board": 2
+  },
+  "packages/api/tests/item-list-retained-claim.test.js": {
+    "raw-board": 5
+  },
+  "packages/landing/tests/landing-history-plan.test.js": {
+    "tempdir": 2,
+    "hand-policy": 2
+  },
+  "packages/store/tests/merge-read-ports.test.js": {
+    "raw-board": 2
   }
 }

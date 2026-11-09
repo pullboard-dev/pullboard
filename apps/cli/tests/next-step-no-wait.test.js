@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { successfulNext } from '../../../packages/config/index.js';
 import { DEFAULT_NEXT_STEPS } from '../../../packages/state/index.js';
-import { refuseNextIdle } from '../src/shell/next-steps.js';
+import { refuseNextIdle } from '../index.js';
 
 test('the default next step of every command is next --take, never a --wait hint [C7,#2905]', () => {
   for (const command of ['next', 'show', 'submit', 'claim', 'status', 'list'])

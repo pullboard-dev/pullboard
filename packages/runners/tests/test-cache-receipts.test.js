@@ -1,14 +1,21 @@
 /** @pullboard-test-input source-tree */
 /** A run says per test file whether it ran or reused a cached green, its key, and which input missed [C7]. */
-import { copyPackageFiles } from '../packages/runners/index.js';
+import { copyPackageFiles } from '../index.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { cacheSummary, readCacheRows } from '../packages/gate/src/shell/test-cache-account.js';
-import { renderTestSummary } from '../packages/gate/src/shell/test-output-summary.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { cacheSummary } from '../../gate/src/shell/test-cache-account.js';
+import { readCacheRows } from '../../gate/src/shell/test-cache-account.js';
+import { renderTestSummary } from '../../gate/src/shell/test-output-summary.js';
 
 /** A fixture test that passes when its module says green. */
 function fixtureTest(module) {
@@ -25,7 +32,7 @@ function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-cache-receipts-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test', 'machine']) mkdirSync(join(root, folder));
-  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
   /** Escape one copied-tool path for an anchored ignore line. */
   const ignore = file => '/' + [...file].map(char => ('\\*?[]!# '.includes(char) ? '\\' + char : char)).join('');
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/', ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(ignore)].join('\n') + '\n');

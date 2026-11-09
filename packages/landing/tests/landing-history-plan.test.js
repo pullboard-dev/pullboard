@@ -6,12 +6,12 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { Refused } from '../index.js';
+import { Refused } from '../../kernel/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { placeLandingHistory } from '../../landing/index.js';
+import { placeLandingHistory } from '../index.js';
 
 test('a new src/move-history file is placed as a stay [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));

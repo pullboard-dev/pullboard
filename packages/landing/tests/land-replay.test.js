@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
-import { replayBatch } from '../../landing/index.js';
-import { replayLanding } from '../../landing/index.js';
+import { replayBatch } from '../index.js';
+import { replayLanding } from '../index.js';
 
 const sha = char => char.repeat(40);
 const gate = (isGreen, failures = []) => ({ commit: sha('a'), isGreen, submissions: [{ id: 7, commit: sha('b') }], failures, fileTimes: [] });
