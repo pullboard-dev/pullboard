@@ -22,7 +22,7 @@
     },
     "apps/cli/src/core/next-step-words.js": {
       "cells": 3,
-      "deep": 1
+      "deep": 0
     },
     "apps/cli/src/core/public-export-guard.js": {
       "cells": 1,
@@ -762,7 +762,7 @@
     },
     "apps/relay/src/shell/browser-page.js": {
       "cells": 4,
-      "deep": 1
+      "deep": 0
     },
     "apps/relay/src/shell/device-store.js": {
       "cells": 2,
@@ -1428,10 +1428,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/gate/src/shell/chrome-clone-check.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "packages/gate/src/shell/coordinator-release.js": {
       "cells": 4,
       "deep": 0
@@ -1941,12 +1937,12 @@
       "deep": 0
     },
     "packages/keys/src/shell/relay-key.js": {
-      "cells": 2,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/keys/src/shell/relay-pairing-client.js": {
-      "cells": 6,
-      "deep": 1
+      "cells": 5,
+      "deep": 0
     },
     "packages/keys/src/shell/relay-person-enrollment.js": {
       "cells": 3,
@@ -2209,8 +2205,8 @@
       "deep": 0
     },
     "packages/link/src/shell/relay-canary-probe.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/link/src/shell/relay-canary-watch.js": {
       "cells": 2,
@@ -2222,7 +2218,7 @@
     },
     "packages/link/src/shell/relay-excluded.js": {
       "cells": 2,
-      "deep": 2
+      "deep": 0
     },
     "packages/link/src/shell/relay-exclusion-state.js": {
       "cells": 2,
@@ -2293,8 +2289,8 @@
       "deep": 0
     },
     "packages/link/src/shell/relay.js": {
-      "cells": 8,
-      "deep": 5
+      "cells": 7,
+      "deep": 1
     },
     "packages/mcp/src/core/mcp.js": {
       "cells": 2,
@@ -2469,8 +2465,8 @@
       "deep": 0
     },
     "packages/outbox/src/shell/relay-outbox.js": {
-      "cells": 6,
-      "deep": 2
+      "cells": 5,
+      "deep": 1
     },
     "packages/outbox/src/shell/relay-sender-worker.js": {
       "cells": 1,
@@ -2490,7 +2486,7 @@
     },
     "packages/pages/src/core/sealed-pages.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/pages/src/shell/relay-page-cache.js": {
       "cells": 1,
@@ -4260,14 +4256,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/check-timing.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-presence.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/companion.js": {
       "cells": 1,
       "deep": 0
@@ -4488,10 +4476,6 @@
       "cells": 2,
       "deep": 0
     },
-    "src/module-imports.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "src/outside-store.js": {
       "cells": 1,
       "deep": 0
@@ -4554,7 +4538,7 @@
     },
     "src/runner-worker.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "src/runners.js": {
       "cells": 1,
@@ -4584,10 +4568,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/spec.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/submission-record.js": {
       "cells": 1,
       "deep": 0
@@ -4609,18 +4589,6 @@
       "deep": 0
     },
     "src/untouched-claim-observation.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view-state-summary.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-policy.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/view/test-roles.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4708,10 +4676,6 @@
     "<-apps/view": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-moves": {
-      "imports": [],
-      "deepImporters": 1
     },
     "<-state": {
       "imports": [],
@@ -5015,10 +4979,6 @@
     "<-spec": {
       "imports": [],
       "deepImporters": 2
-    },
-    "<-store": {
-      "imports": [],
-      "deepImporters": 3
     },
     "git": {
       "imports": [

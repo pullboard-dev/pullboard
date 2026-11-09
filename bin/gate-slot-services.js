@@ -24,7 +24,7 @@ export async function gateSlotServices() {
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? await import('../packages/landing/src/shell/release-queue.js') : null;
+  const release = gateQueueSettings().currentReleaseFirst ? await import('../packages/landing/index.js') : null;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
     captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,

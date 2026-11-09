@@ -1593,6 +1593,30 @@
         "packages/stats/tests/stats-time.test.js",
         "rule"
       ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/config.test.js",
+        "packages/config/tests/config.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/lanes.test.js",
+        "packages/config/tests/lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/registry.test.js",
+        "packages/config/tests/registry.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -1991,6 +2015,7 @@
     "runners->transport",
     "activity->store",
     "(root)->apps/cli",
+    "(root)->apps/view",
     "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
@@ -2064,6 +2089,7 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
+    "sandbox->items",
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",

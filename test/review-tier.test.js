@@ -79,7 +79,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/test-value.js', 'src/test-economics.js', 'packages/store/src/shell/board.js', 'src/board-query.js',
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
-    'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
+    'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
     'packages/spec/src/shell/spec.js',
     'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
     'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js', 'packages/gate/tests/resources.test.js', 'packages/gate/tests/gate-resource.test.js']) {

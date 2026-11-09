@@ -39,12 +39,14 @@ test('an explicit limit is used exactly as written, whatever the load [C7,V10]',
   assert.equal(fileWatchdogLimits('b.test.js', { PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: written.env }, { load: 400, cores: 14 }).wallMs, Number(written.env));
 });
 
-test('a file past its wall is a TIMEOUT naming its slowest running case, not a plain failure [C7,V10]', t => {
+// A case inside its own per-test budget keeps that budget past the file wall (f1a926606c, #2827), so the wall bounds a
+// file outside any case: a spin in file setup is a TIMEOUT that names setup, as test/run-tests-timeout.test.js asserts (2bf331e13e).
+test('a file past its wall is a TIMEOUT naming where it is stuck, not a plain failure [C7,V10]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wall-timeout-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   const file = join(root, 'slow.test.js');
-  writeFileSync(file, "import { test } from 'node:test';\ntest('the long case [C7]', () => { while (true) {} });\n");
+  writeFileSync(file, "import { test } from 'node:test';\nconst until = Date.now() + 30000;\nwhile (Date.now() < until) {}\ntest('the long case [C7]', () => {});\n");
   const result = runFixtureChild(process.execPath, [runner, file], {
     cwd: root, encoding: 'utf8', detached: true,
     env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_TEST_TIMEOUT_MS: '60000',
@@ -52,6 +54,6 @@ test('a file past its wall is a TIMEOUT naming its slowest running case, not a p
   });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
   assert.equal(result.status, 1, output);
-  assert.match(output, /TIMEOUT file .*slow\.test\.js" slowest running case "the long case \[C7\] \(running \d+ms\)": whole-file wall limit 1500ms/u);
+  assert.match(output, /TIMEOUT file .*slow\.test\.js" slowest running case "<file setup or cleanup>": whole-file wall limit 1500ms/u);
   assert.doesNotMatch(output, /HUNG file/u);
 });

@@ -4,7 +4,7 @@
  * modules (child processes, node:fs, browser launchers, ambient ports) through their imports [C7].
  *
  * It compiles source and never evaluates it. The policy and the reviewed roles live in the view lane
- * (src/view/test-policy.js, src/view/test-roles.js); this file only reads them.
+ * (the view test-policy and test-roles modules behind apps/view/index.js); this file only reads them.
  *
  * Gate behavior, so the check can join the normal gate without turning it red:
  * - the roots named in apps/view/view-pure-roots.json are enforced: any finding on one is a failure;
@@ -20,12 +20,12 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { commonJsIn } from '../../src/module-imports.js';
-import { importsIn } from '../../src/module-imports.js';
-import { VIEW_RENDERER_COVERAGE } from '../../src/view/test-policy.js';
-import { viewImportTarget } from '../../src/view/test-policy.js';
-import { viewTestProblems } from '../../src/view/test-policy.js';
-import { VIEW_TEST_ROLES } from '../../src/view/test-roles.js';
+import { commonJsIn } from '../../packages/gate/index.js';
+import { importsIn } from '../../packages/gate/index.js';
+import { VIEW_RENDERER_COVERAGE } from '../../apps/view/index.js';
+import { viewImportTarget } from '../../apps/view/index.js';
+import { viewTestProblems } from '../../apps/view/index.js';
+import { VIEW_TEST_ROLES } from '../../apps/view/index.js';
 import { lex } from './scan.js';
 import { report } from './scan.js';
 import { walk } from './scan.js';
@@ -147,7 +147,7 @@ export function viewPureGate(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RE
   const scanned = new Set(walk(root, VIEW_TEST_FILES));
   for (const file of declared.roots) {
     if (!scanned.has(file)) failures.push({ path: file, line: 1, text: 'enforced root is not a test/cockpit test file in this tree' });
-    else if (roles[file]?.kind !== 'logic') failures.push({ path: file, line: 1, text: 'enforced root has no logic role in src/view/test-roles.js' });
+    else if (roles[file]?.kind !== 'logic') failures.push({ path: file, line: 1, text: 'enforced root has no logic role in the view test roles' });
   }
   const held = new Set(declared.roots);
   for (const file of scanned) if (roles[file]?.kind === 'logic' && !held.has(file)) failures.push({ path: file, line: 1, text: 'declared logic root must be promoted into ' + ENFORCED_FILE });

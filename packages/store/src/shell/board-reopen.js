@@ -28,7 +28,7 @@ import { causeProblem } from "../core/board-rigor.js";
 import { conflictDetail } from "../../../merge/index.js";
 import { conflictProblem } from "../../../merge/index.js";
 import { returnedHeadNotice } from "../../../merge/index.js";
-import { conflictNote } from "../../../kernel/src/core/registry-guards.js";
+import { conflictNote } from "../../../kernel/index.js";
 import { landingBatches } from "../../../git/index.js";
 import { moveItem } from "./board.js";
 import { postRigorNotices } from "./board.js";
