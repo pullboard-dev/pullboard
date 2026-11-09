@@ -63,6 +63,12 @@ export function preferOtherRunners(runners, avoided) {
 
 /** How long an infrastructure stop keeps retrying on other runners, in total from its first failure (#3365). */
 export const INFRA_RETRY_WINDOW_MS = 30 * 60_000;
+/**
+ * The most infrastructure stops one gate takes: the stops the default schedule fits in the window (30, 60, 120, 240 s, then
+ * 5 min waits, the last cut to the window's end, ten runs). Why: a zero or tiny back-off (fixtures set 0) made the
+ * window the only bound, so a stuck pool retried for the whole 30 minutes of the clock instead of ending [C7].
+ */
+export const INFRA_RETRY_MAX_STOPS = 10;
 /** The wait before the first infrastructure retry; it doubles with each stop up to INFRA_BACKOFF_MAX_MS (#3365). */
 export const INFRA_BACKOFF_START_MS = 30_000;
 /** The longest wait between two infrastructure retries (#3365). */
@@ -452,7 +458,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         const windowLeftMs = retryPolicy.windowMs - (retryPolicy.now() - infrastructureStartedAt);
         const waitMs = boundedRetry ? Math.max(0, Math.min(infrastructureBackoffMs(infrastructureAttempts.length, retryPolicy), windowLeftMs)) : 0;
         failure.waitedSeconds = waitMs / 1000;
-        if (boundedRetry && windowLeftMs <= 0) {
+        const priorStops = infrastructureAttempts.filter(attempt => ['cleanup-timeout', 'runner-setup', 'transport-lost'].includes(attempt.kind)).length;
+        if (boundedRetry && (windowLeftMs <= 0 || priorStops + 1 >= INFRA_RETRY_MAX_STOPS)) {
           lease.infrastructureAttempts = [...infrastructureAttempts, failure];
           const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runners ${triedRunners.join(', ')} all stopped on infrastructure through the ${Math.round(retryPolicy.windowMs / 60_000)}-minute retry window; the last code was ${failure.code} on ${failure.runner}; inspect the retained runner diagnostics before retrying`);
           refused.infrastructureAttempts = [...infrastructureAttempts, failure];
