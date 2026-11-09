@@ -15,7 +15,7 @@ import { runSubmitGate } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { readMainAudit } from '../packages/gate/index.js';
 import { saveMainAudit } from '../packages/gate/index.js';
-import { landingLeaseState } from '../src/board-landing-lease.js';
+import { landingLeaseState } from '../packages/store/index.js';
 import { takeLandingResource } from '../packages/landing/index.js';
 
 const [root, token, ...extra] = process.argv.slice(2);
