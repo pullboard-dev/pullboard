@@ -66,7 +66,9 @@ function project(box) {
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   box.env.PULLBOARD_MODEL ||= 'Fixture builder';
-  assert.match(joinFixtureSeat(box, web, 'web').out, /joined as web-1/);
+  const joined = joinFixtureSeat(box, web, 'web');
+  assert.equal(joined.code, 0, joined.out + joined.err);
+  assert.match(joined.out, /web-1/);
   return { repo, web };
 }
 
