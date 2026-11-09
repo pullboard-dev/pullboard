@@ -1,17 +1,17 @@
 /** Every history prefix retains the legacy repeat and exact person-decline semantics [D1,N19,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { advanceRigorCounter } from '../packages/rigor/index.js';
-import { rigorCounterEligible } from '../packages/rigor/index.js';
-import { rigorCounterKeys } from '../packages/rigor/index.js';
-import { rigorCounterResult } from '../packages/rigor/index.js';
-import { sortRigorCounters } from '../packages/rigor/index.js';
-import { undraftedRigor } from '../packages/rigor/index.js';
-import { rigorSource } from '../packages/store/index.js';
-import { automaticRigorSource } from '../packages/store/index.js';
-import { HEALTH_SENTINEL_ENGINE } from '../packages/store/src/core/board-health-receipts.js';
-import { BOARD_SENTINEL_ENGINE } from '../packages/state/core.js';
-import { NATIVE_FLAKE_ENGINE } from '../packages/state/core.js';
+import { advanceRigorCounter } from '../index.js';
+import { rigorCounterEligible } from '../index.js';
+import { rigorCounterKeys } from '../index.js';
+import { rigorCounterResult } from '../index.js';
+import { sortRigorCounters } from '../index.js';
+import { undraftedRigor } from '../index.js';
+import { rigorSource } from '../../store/index.js';
+import { automaticRigorSource } from '../../store/index.js';
+import { HEALTH_SENTINEL_ENGINE } from '../../store/index.js';
+import { BOARD_SENTINEL_ENGINE } from '../../state/core.js';
+import { NATIVE_FLAKE_ENGINE } from '../../state/core.js';
 
 /** Produce a real typed row source; an ordinary prose note must never suppress a repeat. */
 function source(key) {

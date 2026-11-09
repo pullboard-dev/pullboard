@@ -1,14 +1,20 @@
 /** @pullboard-test-input source-tree */
 /** A foreign process must neither be signalled nor take a healthy runner out of service [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createDescendantTracker } from '../apps/runner/index.js';
-import { awaitNestedRun } from '../packages/gate/index.js';
-import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
-import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
+import { createDescendantTracker } from '../index.js';
+import { awaitNestedRun } from '../../../packages/gate/index.js';
+import { runFixtureChildAsync } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+import { shellQuote } from '../../../test/runner-ssh-fixture.js';
 
 /** A scripted census avoids sending signals to host processes when testing ownership boundaries. */
 function row(pid, ppid) {
@@ -69,10 +75,15 @@ fs.writeFileSync(${JSON.stringify(ready)},JSON.stringify({pid:process.pid,instan
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {appendFileSync,existsSync,readFileSync,watch,writeFileSync} from 'node:fs';
-import {dirname,join} from 'node:path';
+import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { watch } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {runOnRunnerAsync} from ${JSON.stringify(new URL('../packages/runners/index.js', import.meta.url).href)};
+import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../packages/runners/index.js', import.meta.url).href)};
 const runner={host:${JSON.stringify(HOST)},slots:1,browser:0};
 const ready=${JSON.stringify(ready)},release=${JSON.stringify(release)};
 // The private job is held on an observable filesystem handshake, never a guessed time margin.
