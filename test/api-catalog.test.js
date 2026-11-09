@@ -37,6 +37,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
 import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
 import { FIXTURE_MODEL, fixtureJoin } from './testkit-fixture.js';
+import { installSshStandIn } from './runner-ssh-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -404,6 +405,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
 
   await json(box, repo, 'add', ['coordinator', 'Done alias item', '--check', 'true']);
   await json(box, repo, 'claim', ['2']);
+  await commitItemChange(box, repo, 2);
   await json(box, repo, 'done', ['2', '--no-next']);
   await json(box, repo, 'add', ['coordinator', 'Withdraw item']);
   await json(box, repo, 'withdraw', ['3', 'obsolete']);
@@ -889,6 +891,13 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const lane = await json(source, source.repo, 'lane', ['add', 'catalog', '--owns', 'catalog/'], 'add');
   assert.deepEqual([lane.lane, lane.owns], ['catalog', ['catalog/']]);
   assert.deepEqual((await json(source, source.repo, 'lanes')).lanes.catalog, { owns: ['catalog/'] });
+  // Registration probes the host over SSH, so the catalog box answers with the private stand-in that runs the pinned worker.
+  const sshBin = join(source.dir, 'ssh-bin');
+  const remoteHome = join(source.dir, 'runner-home');
+  const remoteMachineHome = join(remoteHome, '.pullboard');
+  for (const folder of [sshBin, join(source.dir, 'runner-worker'), remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin: sshBin, worker: join(source.dir, 'runner-worker'), home: remoteHome, machineHome: remoteMachineHome, requests: join(source.dir, 'ssh-requests.jsonl') });
+  source.env.PATH = `${sshBin}:${source.env.PATH}`;
   const runner = await json(source, source.repo, 'runner', ['add', 'fixture-runner', '--slots', '2', '--browser', '1']);
   assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
