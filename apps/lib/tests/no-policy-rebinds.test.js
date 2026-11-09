@@ -13,10 +13,10 @@ import { test } from 'node:test';
 import {
   closeBoard,
   openBoard,
-} from '../apps/lib/index.js';
-import { repositoryOfBoardFile } from '../packages/store/index.js';
-import { sealClauseInspection } from '../packages/store/index.js';
-import { runFixtureGit } from './fixture-child.js';
+} from '../index.js';
+import { repositoryOfBoardFile } from '../../../packages/store/index.js';
+import { sealClauseInspection } from '../../../packages/store/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 test('an absent binding is refreshed from the board file and the submit seals once, with no NO_POLICY [C7]', t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-rebind-')));
