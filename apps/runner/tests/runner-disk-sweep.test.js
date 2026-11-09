@@ -22,7 +22,7 @@ const OLD = Date.now() - 3 * 60 * 60 * 1000;
 
 /** Write a file of a given size and age. */
 function fill(path, megabytes, when = OLD) {
-  mkdirSync(join(path, '../../../packages/resources'), { recursive: true });
+  mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, Buffer.alloc(megabytes * MB, 1));
   utimesSync(path, when / 1000, when / 1000);
 }

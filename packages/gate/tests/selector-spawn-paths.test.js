@@ -11,7 +11,7 @@ function graph(t) {
   t.after(() => rmSync(box.root, { recursive: true, force: true }));
   const { put } = box;
   put('package.json', '{"type":"module"}\n');
-  put('bin/pullboard.js', "import '../../../src/cli.js';\n");
+  put('bin/pullboard.js', "import '../src/cli.js';\n");
   put('src/cli.js', "import './cockpit.js';\n");
   put('src/cockpit.js', 'export const version = 1;\n');
   // A product module that only names the entry path as text, as seven package modules do.
@@ -25,7 +25,7 @@ function graph(t) {
 test('clause 1: a product module that only names bin/pullboard.js no longer puts the CLI into the closure of a test that imports it [C7]', (t) => {
   const box = graph(t);
   box.put('test/names-only.test.js', "import { ENTRY } from '../src/names-cli.js';\nvoid ENTRY;\n");
-  box.put('test/unrelated.test.js', "import '../../../src/cockpit.js';\n");
+  box.put('test/unrelated.test.js', "import '../src/cockpit.js';\n");
   const base = box.commit();
   box.put('src/cockpit.js', 'export const version = 2;\n');
   const selected = selectAffectedTests(box.root, { base, commit: box.commit() });
@@ -37,7 +37,7 @@ test('clause 1: a product module that only names bin/pullboard.js no longer puts
 test('clause 1: a test that launches the CLI from the repo root still has the CLI in its closure [C7]', (t) => {
   const box = graph(t);
   box.put('test/from-root.test.js', "import { run } from '../src/names-cli.js';\nconst ROOT = process.cwd();\nrun(ROOT);\n");
-  box.put('test/direct-cli.test.js', "const BIN = '../../../bin/pullboard.js';\nvoid BIN;\n");
+  box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\nvoid BIN;\n");
   const base = box.commit();
   box.put('src/cockpit.js', 'export const version = 2;\n');
   const selected = selectAffectedTests(box.root, { base, commit: box.commit() });
