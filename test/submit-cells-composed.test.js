@@ -1,7 +1,9 @@
 import { acceptedCutItems } from './cells-plan-fixture.js';
 /** Immutable submit census composes later accepted placement authority [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { realpathSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture, git } from './cells-plan-fixture.js';
 import { computePlan, readPlan, writePlan, shardFile } from '../bin/cells-plan.js';
@@ -12,7 +14,7 @@ import { withImportParseCache } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { warmAcceptedCells } from '../packages/gate/index.js';
-import { privateFixtureFiles } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { withFileLock } from '../packages/outbox/index.js';
 
 /** The submit services with the accepted inventory its background producer has already published for main. */
@@ -51,7 +53,19 @@ async function diverged(t, change) {
   git(box.root, 'checkout', '--detach', base);
   change(box);
   const candidate = commit(box, 'candidate based on earlier main');
-  return { ...box, main, candidate, services: servicesFor(artifact) };
+  return { ...box, main, candidate, machine, services: servicesFor(artifact) };
+}
+
+/**
+ * Read a composed commit the way the submit check wrote it: its objects live in the machine cache beside the repository's
+ * own, never in the repository (#3533), so the reader names that directory as the object store and the repository as its alternate.
+ */
+function composed(box, ...args) {
+  const alternate = realpathSync(git(box.root, 'rev-parse', '--path-format=absolute', '--git-path', 'objects').trim());
+  const directory = join(box.machine, 'cells-cache', 'objects', createHash('sha256').update(alternate).digest('hex'));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  return runFixtureGit(args, { cwd: box.root, encoding: 'utf8', env: { ...env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_OBJECT_DIRECTORY: directory, GIT_ALTERNATE_OBJECT_DIRECTORIES: alternate } });
 }
 
 /** Record caller authority and mutable Git state before immutable inspection. */
@@ -68,9 +82,9 @@ test('an older candidate preserves a later accepted source and row in its immuta
   assert.equal(result.acceptedMain, box.main);
   assert.equal(result.source, box.candidate);
   assert.notEqual(result.commit, box.candidate, 'the older raw source is not mistaken for its composition');
-  assert.equal(git(box.root, 'rev-parse', `${result.commit}:src/later.js`),
+  assert.equal(composed(box, 'rev-parse', `${result.commit}:src/later.js`),
     git(box.root, 'rev-parse', `${box.main}:src/later.js`), 'the exact accepted source blob survives composition');
-  assert.equal(JSON.parse(git(box.root, 'show', `${result.commit}:${shardFile(readPlan(box.root).cells.find(cell => cell.name === 'stats'))}`)).paths
+  assert.equal(JSON.parse(composed(box, 'show', `${result.commit}:${shardFile(readPlan(box.root).cells.find(cell => cell.name === 'stats'))}`)).paths
     .filter(row => row[0] === 'src/later.js').length, 1);
   assert.deepEqual(state(box), before, 'the census never changes caller HEAD, index or refs');
 });
