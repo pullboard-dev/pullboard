@@ -7,7 +7,9 @@
  * in a detached child (bin/merged-followup.js) that logs to the machine's merged-checks.log; a forced merge runs no
  * checks at all.
  */
+import { join } from 'node:path';
 import { tryGit } from '../../../git/index.js';
+import { machineHome } from '../../../resources/index.js';
 import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { smokeCommit } from './landing-cli-smoke.js';
 import { landingPlanCheck } from './landing-plan-check.js';
@@ -57,4 +59,9 @@ export async function runMergedFollowup(root, commit, { forced = false, say }) {
   const parent = tryGit(root, ['rev-parse', '--verify', '--quiet', `${commit}^`]);
   if (parent.status === 0) await step('module resolution', () => requireLandingModuleResolution(root, parent.stdout.trim(), commit));
   return { red };
+}
+
+/** The log a follow-up writes: merged-checks.log in the machine's pullboard home. */
+export function mergedChecksLog() {
+  return join(machineHome(), 'merged-checks.log');
 }

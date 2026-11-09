@@ -1040,6 +1040,11 @@
       "path": "bin/board-command-budget.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "gate"
+    },
+    {
+      "path": "bin/merged-followup.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "landing"
     }
   ],
   "retired": [
