@@ -91,7 +91,7 @@ export function fixture(t, { reviewers = false, family, policy } = {}) {
     as: name => { current = seats[name]; },
     /** File an ordinary runnable item in the actor's lane, or another configured lane. */
     add: (title, options = {}) => cellItem(board, { lane: 'web', title, criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
-      brief: `Files: ${options.lane ?? 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
+      brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options }).item_id,
     /** Publish synthetic board state at the repo's head as the builder's submission, with no gate receipt. */
     submit: id => {
       claim(id);

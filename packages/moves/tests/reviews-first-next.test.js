@@ -1,11 +1,10 @@
-import { addMilestone } from '../packages/store/index.js';
 /** @pullboard-test-input source-tree */
 /** Native Next reserves aged first reviews, never inventing reviewer eligibility [B26,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixture } from './next-take-fixture.js';
-import { cli } from './next-take-fixture.js';
+import * as store from '../../store/index.js';
+import { fixture } from './next-fixture.js';
+import { next } from './next-fixture.js';
 
 /** Change only the private board's recorded opt-in control. */
 function setting(box, key, value) {
@@ -14,7 +13,7 @@ function setting(box, key, value) {
 }
 
 test('native next reserves the oldest eligible first review before any new build, including explicit build intent [B26,V4]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const newer = box.add('Created first but submitted later');
   const old = box.add('Created later but oldest waiting submission'); box.submit(old);
   box.advance(60_000);
@@ -24,44 +23,42 @@ test('native next reserves the oldest eligible first review before any new build
   box.advance(16 * 60_000);
   const nativeOffer = store.reviewOffer(box.board, { agentId: box.seats.actor.id, lane: box.seats.actor.lane, policy: 'any', mandatoryOnly: true });
   assert.equal(nativeOffer?.item.item_id, old, JSON.stringify(nativeOffer));
-  const selected = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(selected.code, 0, selected.out + selected.err);
-  assert.equal(selected.document.review, true, selected.out + selected.err);
-  assert.equal(selected.document.item.item_id, old);
+  const selected = await next(box);
+  assert.equal(selected.review, true, JSON.stringify(selected));
+  assert.equal(selected.item.item_id, old);
   assert.equal(store.getItem(box.board, old).item_review_by, box.seats.actor.id, 'this is a native reservation, not an unreserved offer');
   assert.equal(store.getItem(box.board, build).item_status, 'open');
-  const again = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(again.code, 0, again.out + again.err);
-  assert.equal(again.document.item.item_id, old, 'ongoing review stays with its caller');
-  const explicit = await cli(box, box.seats.outside.path, ['next', '--build']);
-  assert.equal(explicit.code, 0, explicit.out + explicit.err);
-  assert.equal(explicit.document.item.item_id, newer);
+  const again = await next(box);
+  assert.equal(again.item.item_id, old, 'ongoing review stays with its caller');
+  box.as('outside');
+  const explicit = await next(box, { build: true });
+  assert.equal(explicit.item.item_id, newer);
   assert.equal(store.getItem(box.board, newer).item_review_by, box.seats.outside.id);
 });
 
 test('a self-ineligible seat builds normally while an eligible seat cannot escape to an out-of-focus build [B26,V4]', async t => {
-  const box = await fixture(t);
+  const box = fixture(t, { reviewers: true });
   const review = box.add('Current release first review'); box.submit(review);
   const build = box.add('Later release build', { brief: 'Files: web/later.js\nTest: ordinary ineligible-seat fallback.' });
-  addMilestone(box.board, { agentId: 'coordinator', reason: 'Private current release', name: 'Current', items: [review] });
-  addMilestone(box.board, { agentId: 'coordinator', reason: 'Private later release', name: 'Later', items: [build] });
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Private current release', name: 'Current', items: [review] });
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Private later release', name: 'Later', items: [build] });
   setting(box, 'focusMilestone', { name: 'Current', overflow: true });
   setting(box, 'reviewsFirst', true);
   box.advance(16 * 60_000);
   const planned = store.nextFor(box.board, { agentId: box.seats.builder.id, lane: box.seats.builder.lane, policy: 'any', familyPolicy: 'off' });
   assert.equal(planned.item?.item_id, build, 'ordinary eligibility must retain the self-ineligible build fallback: ' + JSON.stringify(planned));
-  const builder = await cli(box, box.seats.builder.path, ['next']);
-  assert.equal(builder.code, 0, builder.out + builder.err);
-  assert.equal(builder.document.item.item_id, build, 'native self-review refusal is not waived by the dispatch policy');
-  const reviewer = await cli(box, box.seats.actor.path, ['next']);
-  assert.equal(reviewer.code, 0, reviewer.out + reviewer.err);
-  assert.equal(reviewer.document.item.item_id, review);
-  assert.equal(reviewer.document.review, true);
+  box.as('builder');
+  const builder = await next(box);
+  assert.equal(builder.item.item_id, build, 'native self-review refusal is not waived by the dispatch policy');
+  box.as('actor');
+  const reviewer = await next(box);
+  assert.equal(reviewer.item.item_id, review);
+  assert.equal(reviewer.review, true);
   assert.equal(store.getItem(box.board, review).item_review_by, box.seats.actor.id);
 });
 
-test('the fifteen-minute boundary, prior reservation and opt-out do not create mandatory first reviews [B26,V4]', async t => {
-  const box = await fixture(t);
+test('the fifteen-minute boundary, prior reservation and opt-out do not create mandatory first reviews [B26,V4]', t => {
+  const box = fixture(t, { reviewers: true });
   const review = box.add('Boundary review'); box.submit(review);
   const who = { agentId: box.seats.actor.id, lane: box.seats.actor.lane, mandatoryOnly: true, policy: 'any' };
   setting(box, 'reviewsFirst', true);
