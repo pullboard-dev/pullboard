@@ -411,6 +411,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     queuedAt = Date.parse(job.at);
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
     // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
+    process.stderr.write('DIAG started ' + JSON.stringify(started) + '\n');
     if (!started.started && started.job?.state !== 'running') return;
     if (started.started) recordGateSpan({ phase: 'queued', start: queuedAt, end: Date.parse(started.job?.startedAt) || Date.now() });
     ctx.submitHandoffOutput = join(directory, 'output');
@@ -431,6 +432,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
       const serving = () => withBoard(ctx, board => store.handoffServes(board, request.item, request.job));
       const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null }, serving });
       // A gate whose item moved on records nothing more: its drive job already says why it ended.
+      process.stderr.write('DIAG last ' + JSON.stringify({code:last.code}) + '\n');
       if (last.code === 'GATE_STALE') return { stale: true };
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
