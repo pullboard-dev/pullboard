@@ -1,5 +1,6 @@
 /** Classify tracked test inputs by their first owned production dependencies, and move a cell's tests home [C7,CD64]. */
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
@@ -80,7 +81,8 @@ export function placementReport(rows, cellNames = []) {
 }
 
 /** Classify every tracked test file and docs check in a checkout and render the placement report. */
-export function placeTests(tracked, inventory, plan) {
+export function placeTests(tracked, inventory, plan, batches = null) {
+  if (batches) return testBatches(tracked, inventory, plan, batches);
   return placementReport(classifyTestFiles(tracked, inventory, plan), plan.cells.map(cell => cell.name));
 }
 
@@ -202,13 +204,24 @@ function repoint(source, from, to, moved, exists, lex) {
 }
 
 /**
+ * The home of a cross-cell test: the last of its cells in plan order, the lowest cell that uses everything it tests
+ * (RFC 0006 R52). Returns null for a row that is not a journey [C7,CD64].
+ */
+export function componentHome(row, plan) {
+  if (row.kind !== 'journey') return null;
+  const order = new Map(plan.cells.map((cell, index) => [cell.name, index]));
+  return [...row.cells].sort((a, b) => (order.get(a) ?? -1) - (order.get(b) ?? -1)).at(-1) ?? null;
+}
+
+/**
  * Plan moving one cell's classified tests to its home, repointing import specifiers only [C7,CD64]. With no paths it takes every
  * file the classifier gives that cell. It refuses, naming each case, an unknown cell, an unsafe path, a path that is not this cell's
  * test, a taken home, a file that reads its own location, an unresolvable relative import, and an importer it cannot repoint.
  * A path already at its home is reported and skipped, so a second run is a no-op. A refusal comes back as `refused: { code, message }`
- * for the caller to raise; `lex` is the kernel lexer the caller hands in.
+ * for the caller to raise; `lex` is the kernel lexer the caller hands in. With `components`, a cross-cell test whose
+ * componentHome is this cell moves here too.
  */
-export function planTestMove({ tracked, inventory, plan, cell: name, paths = [], lex }) {
+export function planTestMove({ tracked, inventory, plan, cell: name, paths = [], lex, components = false }) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) return { refused: { code: 'CELLS_TESTS_UNKNOWN', message: `unknown cell ${JSON.stringify(name ?? '')}; name a cell from bin/cells-plan.json: node bin/cells-plan.js --move-tests <cell> [<path>...]` } };
   const unsafe = paths.filter(file => !safePath(file));
@@ -222,7 +235,7 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [],
     const row = rows.get(file);
     if (!row && !listed.has(file) && listed.has(testHome(cell, file))) already.push(file);
     else if (!row) refused.push(`unknown path ${file} (not a tracked test file or docs check)`);
-    else if (row.kind !== 'cell' || row.cell !== cell.name) refused.push(`unknown path ${file} (${home(row)}, not cell ${cell.name})`);
+    else if (!(row.kind === 'cell' && row.cell === cell.name) && !(components && componentHome(row, plan) === cell.name)) refused.push(`unknown path ${file} (${home(row)}, not cell ${cell.name})`);
     else if (listed.has(testHome(cell, file))) refused.push(`${file} (its home ${testHome(cell, file)} is taken)`);
     else moved.set(file, testHome(cell, file));
   }
@@ -279,4 +292,128 @@ export function testMoveReport(planned) {
     ...planned.already.map(file => `already home: ${file}`)];
   if (!planned.moves.length) lines.push(`nothing to move for ${planned.cell}`);
   return lines;
+}
+
+const TEST = /\.(?:test|spec)\.[cm]?js$/u;
+// A cell file over this many lines crosses the cell lint's hard maximum, so a longer root test is split before it moves.
+const HARD_MAX_LINES = 1500;
+
+/**
+ * Whether a root test launches the CLI: a module it reaches through test/ helpers is the CLI, or names bin/pullboard.js.
+ * Why: a several-cell test that launches the CLI is a journey, and journeys stay in test/ for the audit tier.
+ */
+function launchesCli(file, inventory) {
+  const seen = new Set([file]), queue = [file];
+  for (let at = 0; at < queue.length; at++) {
+    const current = queue[at];
+    if (current.startsWith('apps/cli/') || current === 'bin/pullboard.js') return true;
+    if (inventory.files.get(current)?.toString('utf8').includes('bin/pullboard.js')) return true;
+    if (!current.startsWith('test/')) continue;
+    for (const edge of inventory.edges.get(current) ?? []) if (!seen.has(edge.target)) { seen.add(edge.target); queue.push(edge.target); }
+  }
+  return false;
+}
+
+/** Each root test/ file's move: a home cell and tier, the journey list, or a stay with its reason. */
+function batchMoves(tracked, inventory, plan, lex) {
+  const rows = classifyTestFiles(tracked, inventory, plan).filter(row => row.file.startsWith('test/'));
+  const homes = new Map(), journeys = [], stays = [], helpers = [];
+  for (const row of rows) {
+    if (row.kind === 'cell') homes.set(row.file, { cell: row.cell, tier: 'cell' });
+    else if (row.kind === 'journey' && TEST.test(row.file) && launchesCli(row.file, inventory)) journeys.push(row.file);
+    else if (row.kind === 'journey') homes.set(row.file, { cell: componentHome(row, plan), tier: 'component' });
+    else stays.push({ file: row.file, reason: row.reason });
+  }
+  const state = { tracked, inventory, plan, lex, components: true };
+  for (const [file, home] of [...homes]) {
+    if (!TEST.test(file)) { homes.delete(file); helpers.push({ file, ...home }); continue; }
+    const lines = inventory.files.get(file)?.toString('utf8').split('\n').length ?? 0;
+    const alone = lines > HARD_MAX_LINES ? null : planTestMove({ ...state, cell: home.cell, paths: [file] });
+    if (alone && !alone.refused) continue;
+    homes.delete(file);
+    stays.push({ file, reason: alone ? alone.refused.message.replace(/^refusing to move tests for [^:]+: /u, '').replace(/; nothing moved$/u, '')
+      : `${lines} lines, over the ${HARD_MAX_LINES}-line cell file maximum; split it first` });
+  }
+  const importers = new Map();
+  for (const [file, edges] of inventory.edges) for (const edge of edges) {
+    if (!importers.has(edge.target)) importers.set(edge.target, []);
+    importers.get(edge.target).push(file);
+  }
+  // A helper moves only with every one of its importers; the loop repeats because a moved helper can unlock another.
+  const group = new Map();
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const helper of helpers.splice(0)) {
+      const users = importers.get(helper.file) ?? [];
+      if (!users.length || !users.every(user => homes.get(user)?.cell === helper.cell)) { helpers.push(helper); continue; }
+      const alone = planTestMove({ ...state, cell: helper.cell, paths: [helper.file] });
+      if (alone.refused) { stays.push({ file: helper.file, reason: alone.refused.message }); continue; }
+      homes.set(helper.file, { cell: helper.cell, tier: 'helper' });
+      group.set(helper.file, users);
+      grew = true;
+    }
+  }
+  for (const helper of helpers) stays.push({ file: helper.file, reason: 'helper with an importer that does not move to its cell' });
+  return { rows, homes, journeys, stays, group };
+}
+
+/** Pack one cell's files into batches of at most `max`, never splitting a helper from its importers. */
+function packBatches(files, group, max) {
+  const parent = new Map(files.map(file => [file, file]));
+  const find = file => { while (parent.get(file) !== file) file = parent.get(file); return file; };
+  for (const [helper, users] of group) for (const user of users) if (parent.has(helper) && parent.has(user)) parent.set(find(helper), find(user));
+  const units = new Map();
+  for (const file of files) { const key = find(file); if (!units.has(key)) units.set(key, []); units.get(key).push(file); }
+  const batches = [];
+  for (const unit of [...units.values()].sort((a, b) => b.length - a.length)) {
+    const open = batches.find(batch => batch.length + unit.length <= max);
+    if (open) open.push(...unit); else batches.push([...unit]);
+  }
+  return batches.map(batch => batch.sort(byCodeUnit));
+}
+
+/** Split a moved file's one-line named imports into one statement per binding, as the import-style check requires. */
+function splitImports(root, file) {
+  const path = join(root, file), source = readFileSync(path, 'utf8');
+  const out = source.replace(/^(\s*)import\s*\{([^}\n]*,[^}\n]*)\}\s*from\s*(['"][^'"\n]+['"])\s*;?[ \t]*$/gmu,
+    (_line, indent, names, from) => names.split(',').map(name => name.trim()).filter(Boolean).map(name => `${indent}import { ${name} } from ${from};`).join('\n'));
+  if (out !== source) writeFileSync(path, out);
+  return out !== source;
+}
+
+/**
+ * The --place-tests --batches report [C7,CD64]: ordered, cell-sized move batches for the root test/ files, one cell at a
+ * time in plan order, at most --max files each, printed as JSON. Cell tests go to their cell, component tests (several
+ * cells, no CLI) to componentHome, journeys (several cells and the CLI) stay listed, and every other file stays with its
+ * reason. With --dry-run --plan <file> it applies that plan's batches in order to this checkout, which must be a copy:
+ * each batch is re-planned on the tree the previous one left, through the caller's `reread` and `git`.
+ */
+function testBatches(tracked, inventory, plan, { args, root, lex, git, reread }) {
+  const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
+  if (args.includes('--dry-run')) {
+    const batches = JSON.parse(readFileSync(value('--plan', 'cells-test-batches.json'), 'utf8')).batches;
+    const results = [];
+    for (const batch of batches) {
+      const listed = git(['ls-files', '-z']).stdout.split('\0').filter(Boolean);
+      const planned = planTestMove({ tracked: listed, inventory: reread(), plan, cell: batch.cell, paths: batch.files, lex, components: true });
+      if (planned.refused) { results.push({ batch: batch.batch, cell: batch.cell, planned: batch.count, moved: 0, refused: planned.refused.message }); continue; }
+      applyTestMove(root, planned, step => { const run = git(step); if (run.status !== 0) throw new Error(`git ${step[0]}: ${run.stderr}`); });
+      const split = planned.moves.filter(([, to]) => splitImports(root, to)).map(([, to]) => to);
+      if (split.length) git(['add', '--', ...split]);
+      results.push({ batch: batch.batch, cell: batch.cell, planned: batch.count, moved: planned.moves.length, rewritten: planned.writes.length, importSplits: split.length });
+    }
+    return [JSON.stringify({ dryRun: results }, null, 2)];
+  }
+  const max = Number(value('--max', '80'));
+  const { rows, homes, journeys, stays, group } = batchMoves(tracked, inventory, plan, lex);
+  const batches = [];
+  for (const cell of plan.cells) {
+    const files = [...homes].filter(([, home]) => home.cell === cell.name).map(([file]) => file);
+    for (const chunk of packBatches(files, group, max)) {
+      const tiers = Object.fromEntries(['cell', 'component', 'helper'].map(tier => [tier, chunk.filter(file => homes.get(file).tier === tier).length]));
+      batches.push({ batch: batches.length + 1, cell: cell.name, count: chunk.length, tiers, files: chunk });
+    }
+  }
+  const counts = { rootTestFiles: rows.length, moving: batches.reduce((sum, batch) => sum + batch.count, 0), journeys: journeys.length, stays: stays.length, batches: batches.length };
+  return [JSON.stringify({ version: 1, max, counts, batches, journeys: journeys.sort(byCodeUnit), stays: stays.sort((a, b) => byCodeUnit(a.file, b.file)) }, null, 2)];
 }

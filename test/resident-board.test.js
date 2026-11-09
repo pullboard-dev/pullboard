@@ -144,6 +144,10 @@ before(() => {
     const place = residentSocket(repo, bin);
     try { return Number(readFileSync(place.pid, 'utf8').trim()); } catch { return null; }
   };
+  /** Every pool slot's resident pid that has a pid file. */
+  const poolPids = () => [0, 1, 2, 3].flatMap((slot) => {
+    try { return [Number(readFileSync(residentSocket(repo, bin, slot).pid, 'utf8').trim())]; } catch { return []; }
+  });
   /** Whether a process is alive. */
   const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
   /**
@@ -176,14 +180,14 @@ before(() => {
   const joined = runIn(worktree, ['join', 'core', '--model', 'claude-opus-5-5']);
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   seedBoardScale(join(repo, '.git', 'pullboard', 'board.sqlite'));
-  fx = { dir, code, repo, worktree, env, runIn, cpuSecondsIn, residentPid, alive, awaitResident,
+  fx = { dir, code, repo, worktree, env, runIn, cpuSecondsIn, residentPid, poolPids, alive, awaitResident,
     board: join(repo, '.git', 'pullboard', 'board.sqlite'), traceFile: env.PULLBOARD_RESIDENT_TRACE };
 });
 
 after(() => {
   if (!fx) return;
-  const pid = fx.residentPid();
-  if (pid && fx.alive(pid)) process.kill(pid, 'SIGKILL');
+  // A busy first process sends commands to the next pool slot, so every slot's process is stopped.
+  for (const pid of fx.poolPids()) if (fx.alive(pid)) process.kill(pid, 'SIGKILL');
   rmSync(fx.dir, { recursive: true, force: true });
 });
 
@@ -447,4 +451,20 @@ test('clause 2: a show queued behind it falls back to its own direct board read 
   assert.ok(queued.loaded.length > 100, `the queued show read the board in-process (${queued.loaded.length} modules)`);
   assert.deepEqual(JSON.parse(queued.stdout), JSON.parse(alone.stdout));
   assert.equal(stillRunning(), true, 'the slow shout was still running throughout');
+}));
+
+test('clause 1: while one resident process runs a long command, the next pool process answers warm from a thin client [C7]', () => whileResidentBlocked(({ busy, alone, stillRunning }) => {
+  writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now() - 1_000}\n`);
+  // The first show finds the next slot empty, starts its process and reads the board itself; later shows go there warm.
+  const deadline = performance.now() + 20_000;
+  let warm;
+  while (performance.now() < deadline) {
+    warm = fx.runIn(fx.repo, ['show', '2', '--json'], { modules: true });
+    assert.equal(warm.status, 0, warm.stderr);
+    if (warm.loaded.length < 20) break;
+  }
+  assert.ok(warm.loaded.length < 20, `a show was served by another pool process (last client loaded ${warm.loaded.length} modules)`);
+  assert.deepEqual(JSON.parse(warm.stdout), JSON.parse(alone.stdout));
+  assert.equal(stillRunning(), true, 'the slow shout was still running throughout');
+  assert.ok(fx.poolPids().length >= 2, 'a second pool process is running');
 }));

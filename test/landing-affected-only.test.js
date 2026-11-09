@@ -4,16 +4,18 @@ import { after, test } from 'node:test';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { batchGatePlan } from '../packages/landing/src/shell/landing-step-gate.js';
 
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
 function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false, moved = false } = {}) {
-  const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   const packageFile = join(box.repo, 'package.json');
   const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
   writeFileSync(packageFile, JSON.stringify({ ...packageData, type: 'module' }));

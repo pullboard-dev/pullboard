@@ -445,7 +445,11 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     try {
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
-      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null } });
+      // The driver asks every 30 s whether this hand-off still serves its item; once it does not, the gate ends (#4072).
+      const serving = () => withBoard(ctx, board => store.handoffServes(board, request.item, request.job));
+      const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null }, serving });
+      // A gate whose item moved on records nothing more: its drive job already says why it ended.
+      if (last.code === 'GATE_STALE') return { stale: true };
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
       stalled = last.job.steps.some(step => step.name === 'gate.stalled');

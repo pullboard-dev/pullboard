@@ -6,13 +6,15 @@ import { test } from 'node:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 
 const SOURCE = join(import.meta.dirname, '../../..');
 const RUNNER = 'only-runner';
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /**
  * Drive the real gate slot, SQLite queue and runner recovery tables with one configured runner (or none), where
@@ -20,7 +22,7 @@ after(e2e.cleanup);
  * deadline and quarantined six idle runners; only the controller's clock was slow, so the probe ports answer here.
  */
 function deadline({ runners = 1, gateSlots = 0, drops = 1, answers = true } = {}) {
-  const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   const root = box.repo;
   const env = box.env;
   const url = cell => JSON.stringify(pathToFileURL(join(SOURCE, 'packages', cell, 'index.js')).href);
@@ -79,7 +81,7 @@ process.stdout.write(JSON.stringify({ result, failure, attempts, probes, waits: 
  * Why: the budget used to copy the queue wait setting, so a 30 s lane window became a 30 s startup budget (#3832).
  */
 function lateBudget({ lane = false, waitMs = 100 } = {}) {
-  const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const box = cellProject(owner, { gate: 'true' });
   const url = path => JSON.stringify(pathToFileURL(join(SOURCE, path)).href);
   const script = `import { withGateSlot } from ${url('packages/gate/index.js')};
 import { shardSlotOptions } from ${url('packages/gate/src/shell/proof-shards.js')};

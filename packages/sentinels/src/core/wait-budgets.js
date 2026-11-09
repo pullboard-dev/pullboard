@@ -106,15 +106,59 @@ export function waitKey(row) {
   return `${row.surface}:${row.key ?? row.holder}`.replace(/\s+/gu, ' ').slice(0, 200);
 }
 
+/** The code behind each surface: where a Sonnet starts reading when the holder's own source is not known. */
+const SURFACE_FILE = Object.freeze({
+  pool: 'packages/resources/src/shell/resources.js',
+  'checkout-lease': 'packages/seats/src/shell/agent-session.js',
+  'checkout-writer': 'packages/seats/src/shell/agent-session.js',
+  'runner-unavailable': 'packages/resources/src/shell/resource-recovery.js',
+  'handoff-queue': 'packages/resources/src/shell/handoff-worker-cap.js',
+  'board-write': 'packages/store/src/shell/board-write-lock.js',
+  'resource-write': 'packages/resources/src/shell/resource-write-queue.js',
+  gate: 'bin/gate-drive-worker.js',
+  'landing-run': 'bin/automatic-landing.js',
+  'runner-job': 'src/runner-worker.js',
+  orphan: 'packages/resources/src/shell/handoff-dispatcher-recovery.js',
+  'heartbeat-loop': 'apps/cli/src/shell/commands/heartbeat.js',
+  'heartbeat-claim': 'apps/cli/src/shell/commands/heartbeat.js',
+});
+
 /**
- * The item a Sonnet fixes the cause from: who held, who waited, how long, and where the evidence lies. At most three
- * numbered clauses, each with its evidence tag.
+ * The repository source files a holder's command line names: `bin/pullboard.js <command>` is that command's module,
+ * and any other repository script is itself, wherever its copy ran from.
+ */
+function holderSourceFiles(command) {
+  const files = [];
+  const text = String(command ?? '');
+  const cli = /\bbin\/pullboard\.js\s+([a-z][a-z-]*)/u.exec(text);
+  if (cli) files.push(`apps/cli/src/shell/commands/${cli[1]}.js`);
+  for (const match of text.matchAll(/(?:^|[\s/])((?:bin|apps|packages|src)\/[\w./-]+\.m?js)(?=\s|$)/gu)) {
+    if (match[1] !== 'bin/pullboard.js' && !match[1].includes('/tests/')) files.push(match[1]);
+  }
+  return [...new Set(files)];
+}
+
+/** Quote one shell word with single quotes. */
+function shellWord(text) {
+  return `'${String(text).replace(/'/gu, `'\\''`)}'`;
+}
+
+/** The add fields of a drafted wait item, the same for the CLI's ordered move and a direct board write. */
+export function waitItemFields(draft, by) {
+  return { by, lane: 'core', title: draft.title, criterion: draft.criterion, brief: draft.brief, route: draft.route, check: draft.check, specIds: ['C7'] };
+}
+
+/**
+ * The item a Sonnet fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
+ * mid, so it carries what add requires of a cold build: a Files: section, a Test: line, and a check, which is the
+ * wait audit itself for this one key, red while the wait is over budget. At most three numbered clauses.
  */
 export function waitItemDraft(row) {
   const key = waitKey(row);
   const waiters = row.waiters.length
     ? row.waiters.slice(0, 12).map(waiter => `- ${waiter.label}${waiter.pid ? ` (pid ${waiter.pid})` : ''}: waited ${sayAge(waiter.ageMs)}`).join('\n')
     : '- none recorded';
+  const files = [...new Set([...holderSourceFiles(row.context), SURFACE_FILE[row.surface]].filter(Boolean))];
   const title = `waits: ${row.surface} ${row.holder} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
   const brief = [
     `The wait audit (\`pullboard waits\`) found ${row.surface} over its ${row.budgetName} budget of ${sayAge(row.budgetMs)}.`,
@@ -127,9 +171,15 @@ export function waitItemDraft(row) {
     waiters,
     '',
     'Find why this holder holds this long, and fix that cause; never raise the budget or kill on a timer instead.',
+    '',
+    'Files:',
+    ...files.map(file => `- ${file}`),
+    '',
+    `Test: a node:test that reproduces this ${row.surface} hold and asserts it ends within ${sayAge(row.budgetMs)}.`,
+    '',
     `Wait key: ${key}`,
   ].filter(line => line !== null).join('\n');
   const criterion = `1. The cause that kept ${row.surface} ${row.holder} held past ${sayAge(row.budgetMs)} is fixed, so that wait now ends within its ${row.budgetName} budget. [test]`
     + ` 2. A node:test reproduces the hold from the evidence and proves it ends within budget. [test]`;
-  return { key, title, brief, criterion };
+  return { key, title, brief, criterion, files, route: 'mid', check: `node bin/pullboard.js waits check ${shellWord(key)}` };
 }
