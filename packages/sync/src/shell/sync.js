@@ -37,7 +37,7 @@ import {
 import {
   GIT_BOARD_REF,
   validateGitBoardCommit,
-} from "../../../commits/src/core/board-format.js";
+} from "../../../commits/index.js";
 
 const PREFIX = 'local:git-sync:';
 const CACHE = 'refs/pullboard/cache';
