@@ -298,3 +298,15 @@ test('clause 3: a diff that touches no refusal code does not add machine.test.js
   assert.ok(!plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
   assert.ok(plan.journeys.includes('test/machine.test.js'), 'it stays a landing journey');
 });
+
+test('clause 3: a change confined to a sealed cell selects only that cell\'s own units, and the plan names the sealed cells [C7]', t => {
+  const box = fixture(t), entry = build(box, 'alpha', 2);
+  mkdirSync(join(entry.root, 'bin/checks'), { recursive: true });
+  writeFileSync(join(entry.root, 'bin/checks/test-cells.json'), JSON.stringify({ version: 1, sealed: ['alpha', 'beta'] }) + '\n');
+  const head = commit(box, entry.root, 'chore: record the sealed test cells [G1]');
+  const plan = selectTestTiers(entry.root, { base: box.base, commit: head });
+  assert.deepEqual(plan.sealedCells, ['alpha', 'beta'], 'the plan reads the committed sealed-cell listing');
+  assert.deepEqual(plan.units, ['test/alpha.test.js'], 'beta is sealed and unchanged, so none of its tests are selected');
+  assert.deepEqual(plan.packages, ['.', 'packages/alpha'], 'only the changed cell and the root importer of its front door');
+  assert.deepEqual(plan.journeys, ['test/journey.test.js'], 'the cross-cell journey is deferred to the landing batch');
+});
