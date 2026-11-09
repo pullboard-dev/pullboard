@@ -2,12 +2,16 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { composeItemPatches, itemPatchSetDigest } from '../packages/items/index.js';
-import { contributionSignoffProblem } from '../packages/commits/index.js';
+import { composeItemPatches } from '../index.js';
+import { itemPatchSetDigest } from '../index.js';
+import { contributionSignoffProblem } from '../../commits/index.js';
 
 /** Run fixture-only Git, without repository hooks or inherited Git routing. */
 function command(root, ...args) {
