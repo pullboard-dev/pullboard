@@ -58,7 +58,7 @@ function fixture(t, { historical = false } = {}) {
 
 test('ruled judgment areas and named guard tests are Strict while broad product families are Standard [V4,B26]', () => {
   for (const path of ['src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/shell/ci-flakes.js', 'src/test-result-store.js',
-    'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
+    'packages/gate/src/shell/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
     'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
     'src/moves/reserveReview.js', 'src/commands/submit.js', 'apps/cli/src/shell/commands/verify.js',
@@ -76,7 +76,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
     'packages/sandbox/src/shell/trusted-policy.js', 'packages/sandbox/src/shell/source-advance-origin.js',
     'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'apps/cli/src/core/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
-    'src/test-value.js', 'src/test-economics.js', 'src/board.js', 'src/board-query.js',
+    'src/test-value.js', 'src/test-economics.js', 'packages/store/src/shell/board.js', 'src/board-query.js',
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
     'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
@@ -184,7 +184,7 @@ test('docs-only submission remains Standard with optional same-vendor review [V4
 
 test('ordinary board, review, person and test-family work permits Standard same-vendor review [V4,B26]', t => {
   const f = fixture(t), id = f.add();
-  const item = f.submit(id, ['src/board.js', 'src/board-query.js', 'src/review-queue-line.js',
+  const item = f.submit(id, ['packages/store/src/shell/board.js', 'src/board-query.js', 'src/review-queue-line.js',
     'src/person-signing-words.js', 'src/test-value.js', 'test/board.test.js', 'test/review-queue.test.js']);
   assert.equal(reviewEligibility(f.board, item).tier, 'standard');
   assert.equal(f.reserve(id, 'core-2').item_review_by, 'core-2');
@@ -556,7 +556,7 @@ test('landing move preserves Strict on every protected provider [V4,B26,C7]', ()
 test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
   for (const name of ['relay-checkpoint-worker', 'relay-sender-main']) {
     assert.equal(gateJudgmentPath(`src/${name}.js`), true);
-    assert.equal(gateJudgmentPath(`apps/lib/src/shell/${name}.js`), true);
+    assert.equal(gateJudgmentPath(`${name === 'relay-sender-main' ? 'apps/cli' : 'apps/lib'}/src/shell/${name}.js`), true);
   }
   assert.equal(gateJudgmentPath('apps/lib/src/shell/cli-hook-work.js'), false);
 });

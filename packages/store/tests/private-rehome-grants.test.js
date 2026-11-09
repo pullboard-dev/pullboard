@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js packages/state/src/shell/engine.js src/exchange.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js */
 /** Destination imports obey the same creation grants as ordinary additions [E15,E21,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

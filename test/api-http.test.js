@@ -26,6 +26,7 @@ import { receivePersonRequest } from '../packages/link/index.js';
 import { apiHttpFixture as fixture } from './api-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
 import { shellWord } from './api-fixture.js';
+import { registerFixtureRunner } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 import { commitWork, checkOutSubmitted, withoutClaimHealth, FIXTURE_BRIEF, DETAIL_BRIEF } from './api-fixture.js';
@@ -587,6 +588,7 @@ test('[A2, N26] an unchanged board state is reused and a move rebuilds it', cach
 
 test("[A2, N26] the board state sends summaries and an item's detail comes from its own path", async (t) => {
   const box = await httpBox(t);
+  registerFixtureRunner(t, box);
   const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
   const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */

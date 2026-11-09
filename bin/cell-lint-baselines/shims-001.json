@@ -17,7 +17,6 @@
     "src/runner-policy.js": 1,
     "src/train-mechanical-merge.js": 1,
     "temporary:src/json.js->src/next-step-words.js": 1,
-    "temporary:src/runner-policy.js->src/trusted-policy-read.js": 1,
-    "temporary:src/templates.js->src/doctrine.js": 1
+    "temporary:src/runner-policy.js->src/trusted-policy-read.js": 1
   }
 }
