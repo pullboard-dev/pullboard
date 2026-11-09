@@ -680,7 +680,7 @@
       "cells": 2,
       "deep": 0
     },
-    "apps/lib/src/shell/relay-sender-main.js": {
+    "apps/cli/src/shell/relay-sender-main.js": {
       "cells": 2,
       "deep": 0
     },
@@ -4293,14 +4293,6 @@
       "deep": 0
     },
     "src/check-timing.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-context.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/cli-main.js": {
       "cells": 1,
       "deep": 0
     },
