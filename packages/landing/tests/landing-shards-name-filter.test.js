@@ -2,14 +2,19 @@
 /** A name-filtered landing gate shards like any other landing gate, and a red in any shard still fails it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { runFixtureChild } from './fixture-child.js';
+import { copyPackageFiles } from '../../runners/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 /** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6. */
@@ -67,14 +72,14 @@ test('clause 1: duplicate paths run once, and every selector option reaches ever
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
   const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
   assert.equal(cases, 4, 'each target runs once despite duplicate paths, and the skip pattern drops c and e in their shards');
-  const { landingShardOptions } = await import('../packages/gate/index.js');
+  const { landingShardOptions } = await import('../../gate/index.js');
   assert.deepEqual(landingShardOptions(['--test-name-pattern', 'x', 'test/a.test.js', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap', '--', 'test/b.test.js'],
     arg => ['--test-name-pattern', '--test-timeout'].includes(arg)),
   ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap'], 'every option as written; only files drop');
 });
 
 test('clause 1: equivalent spellings of one test file plan onto one shard once [C7]', async () => {
-  const { planLandingShards } = await import('../packages/landing/index.js');
+  const { planLandingShards } = await import('../index.js');
   const root = '/repo';
   const spellings = ['test/a.test.js', './test/a.test.js', 'test/../test/a.test.js', 'test//a.test.js', 'test/./a.test.js', '/repo/test/a.test.js', 'test/b.test.js', 'test/x/../b.test.js'];
   const plan = planLandingShards(spellings, 6, { 'test/a.test.js': 900 }, root);
@@ -84,7 +89,7 @@ test('clause 1: equivalent spellings of one test file plan onto one shard once [
 });
 
 test('clause 1: the fan-out expands globs and folds spellings into one file list [C7]', async t => {
-  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
+  const { landingFanOutFiles, optionTakesValue } = await import('../../gate/index.js');
   const box = project(t);
   assert.deepEqual(landingFanOutFiles(['test/a.test.js', './test/a.test.js', 'test/b.test.js'], ['--test-name-pattern', 'x'], box.repo, optionTakesValue),
     ['test/a.test.js', 'test/b.test.js'], 'each file once');
@@ -99,7 +104,7 @@ test('clause 1: the fan-out expands globs and folds spellings into one file list
 });
 
 test('clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
-  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
+  const { landingFanOutFiles, optionTakesValue } = await import('../../gate/index.js');
   const box = project(t);
   for (const args of [['--test-shard=1/2'], ['--test-shard', '2/2'], ['--test-shard'], ['--test-name-pattern', 'x', '--test-shard'], ['--shard=1/2']]) {
     assert.throws(() => landingFanOutFiles(['test/a.test.js'], args, box.repo, optionTakesValue), error => error.code === 'USAGE', JSON.stringify(args));
@@ -157,7 +162,7 @@ test('clause 1: files after -- stay files in every shard, under the caller spell
   assert.match(run.stdout, /# landing shards: 3 /u, 'three files, three shards');
   assert.equal([...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0), 3,
     'the dash-named file ran as a test file, not an option');
-  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
+  const { landingFanOutFiles, optionTakesValue } = await import('../../gate/index.js');
   assert.deepEqual(landingFanOutFiles(['./test/a.test.js', 'test/a.test.js', '-case.test.js', `${box.repo}/test/b.test.js`], [], box.repo, optionTakesValue),
     ['./test/a.test.js', '-case.test.js', 'test/b.test.js'], 'the first spelling is kept; only an absolute one becomes repository-relative');
 });

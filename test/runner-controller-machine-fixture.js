@@ -16,7 +16,7 @@ export function runnerControllerCallees(file, body, source) {
     && entrySource.includes("import { controllerDeadline } from '../packages/resources/index.js'")
     && entrySource.includes("import { probeRunnerJob } from '../src/runners.js'")
     && entrySource.includes('if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob })')) {
-    return ['runners.js#serveRunnerController'];
+    return ['../packages/runners/src/shell/runners.js#serveRunnerController'];
   }
   return [];
 }
@@ -45,10 +45,10 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
   }
   const otherExecutable = editedSource('../packages/runners/src/shell/runner-dispatch.js', /const child = spawn\(process\.execPath, \[installation\?\.entry \?\? fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\), '--pullboard-runner-controller'\]/,
     "const child = spawn('unrelated-worker', [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller']");
-  assert.equal(codeWalk(otherExecutable).refusalsOf('runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
+  assert.equal(codeWalk(otherExecutable).refusalsOf('../packages/runners/src/shell/runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
     'a different executable does not inherit the private controller edge');
   const otherEntry = editedSource('../packages/runners/src/shell/runner-dispatch.js', /new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)/g,
     "new URL('../../../../bin/unrelated-controller.js', import.meta.url)");
-  assert.equal(codeWalk(otherEntry).refusalsOf('runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
+  assert.equal(codeWalk(otherEntry).refusalsOf('../packages/runners/src/shell/runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
     'an arbitrary module path does not inherit native controller policy authority');
 }
