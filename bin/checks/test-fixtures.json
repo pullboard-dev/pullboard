@@ -66,9 +66,6 @@
     "repo-read": 2,
     "hex64": 1
   },
-  "packages/api/tests/shout-item-cli.test.js": {
-    "raw-board": 4
-  },
   "packages/blueprints/tests/blueprint-fixture.js": {
     "repo-read": 2,
     "tempdir": 2,
@@ -3442,6 +3439,9 @@
   "test/ship-command.test.js": {
     "raw-board": 1
   },
+  "test/shout-item-cli.test.js": {
+    "raw-board": 4
+  },
   "test/shout-report-refusal.test.js": {
     "raw-board": 5
   },
@@ -3565,9 +3565,6 @@
   "test/submit-cells-incremental.test.js": {
     "tempdir": 2
   },
-  "test/submit-cells-receipt-line.test.js": {
-    "repo-read": 1
-  },
   "apps/cli/tests/submit-cells-remote.test.js": {
     "tempdir": 6
   },
@@ -3618,6 +3615,9 @@
   },
   "test/submit-invariants.test.js": {
     "raw-board": 9
+  },
+  "packages/gate/tests/submit-cells-receipt-line.test.js": {
+    "repo-read": 1
   },
   "packages/gate/tests/submit-main-moved-unrelated.test.js": {
     "tempdir": 2

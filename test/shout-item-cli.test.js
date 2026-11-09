@@ -9,12 +9,12 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { moveArgs } from '../../person/index.js';
-import { derivedFamily } from '../../items/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/index.js';
+import { moveArgs } from '../packages/person/index.js';
+import { derivedFamily } from '../packages/items/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
