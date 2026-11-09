@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -88,6 +89,9 @@ async function fixture(t, state) {
     assert.equal(exactStart(pid), '', 'the recorded fixture process really exited');
   }
   writeFileSync(join(queue, 'dispatcher.json'), JSON.stringify({ pid, started: exactStart(pid) || 'exited fixture process' }));
+  // The fixture's own claim handed recovery to a background job before any launch was queued; clear that turn so the
+  // command under test starts from a machine where no job ran in the last wake spacing [C7].
+  rmSync(join(queue, 'recovery-woken'), { force: true });
   return { box, id, marker, queue, priorPid: pid };
 }
 
