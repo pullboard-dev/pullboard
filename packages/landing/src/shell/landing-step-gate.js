@@ -12,6 +12,7 @@ import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { landingSpan } from '../../../resources/index.js';
 import { reusableSubmitFiles } from './landing-receipt-reuse.js';
 import { gateVerdictOf } from './main-red-receipt.js';
 import { toolingFor } from '../../../pin/index.js';
@@ -253,7 +254,7 @@ async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
   // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
-  await smokeCandidate(state.batch.root, { record: true });
+  await landingSpan('smoke', () => smokeCandidate(state.batch.root, { record: true }));
   state.smoked.add(tree);
 }
 
