@@ -229,7 +229,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
   const box = helpers.project('true');
   const added = fixtureAdd(box.run, box.repo, 'web', 'A quoted public rejection', '--criterion', CRITERION,
-    '--specs', 'G1', '--check', 'test -f web/page.html', '--route', 'light',
+    '--specs', 'G1', '--check', 'test -f web/page.html', '--route', 'strong',
     '--brief', 'Files: web/page.html\nTest: assert the rendered title and footer.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
