@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads apps/cli/src/shell/cli.js src/board.js src/board-hot.js src/board-migrate.js apps/cli/src/shell/cli-context.js apps/cli/src/shell/commands/status.js apps/cli/src/shell/commands/show.js apps/cli/src/shell/commands/list.js apps/cli/src/shell/commands/version.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js src/board.js packages/store/src/shell/board-hot.js src/board-migrate.js apps/cli/src/shell/cli-context.js apps/cli/src/shell/commands/status.js apps/cli/src/shell/commands/show.js apps/cli/src/shell/commands/list.js apps/cli/src/shell/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
@@ -105,7 +105,7 @@ function seed(file) {
   } finally { db.close(); }
 }
 
-/** #1044's hot-path indexes (src/board-hot.js), which reach an existing board with schema version 3. */
+/** #1044's hot-path indexes (packages/store/src/shell/board-hot.js), which reach an existing board with schema version 3. */
 const HOT_INDEXES = ['shout_answers', 'shout_open_decision', 'shout_open_request', 'shout_evidence_item', 'shout_from_at', 'event_by_at', 'event_kind_id'];
 
 const READS = [['version'], ['show', '1'], ['status'], ['list']];

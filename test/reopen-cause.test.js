@@ -10,10 +10,10 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { eventCauses } from '../src/board-rigor.js';
-import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
+import { eventCauses } from '../packages/store/index.js';
+import { REOPEN_CAUSE_ENGINE } from '../packages/state/core.js';
 import {
   exportBoard,
   importBoard,

@@ -23,7 +23,7 @@ import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/core.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
 import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
@@ -648,7 +648,7 @@ test('[A5,H16] grammar and executable engine versions match the format guide', (
   assert.equal(versionOf('row grammar'), SPEC_GRAMMAR_VERSION);
   assert.equal(versionOf('board schema'), SCHEMA_VERSION);
   assert.equal(versionOf('event log'), EVENT_LOG_VERSION);
-  const sourceDirectory = fileURLToPath(new URL('../src/', import.meta.url));
+  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/core/engines/', import.meta.url));
   const leaves = readEngineLeaves(sourceDirectory);
   assertEngineGuideVersion(versionOf('move engine'), leaves, ENGINE_VERSION);
   assert.match(versions, /Bump when a move's meaning changes/);
@@ -681,7 +681,7 @@ test("[A5,H16] a branch with one unassigned engine leaf matches the guide's land
   const versions = block('<!-- format-versions:start -->', '<!-- format-versions:end -->');
   const guideEngine = Number(/^\| `move engine` \| `(\d+)` \|/mu.exec(versions)?.[1]);
   assert.ok(Number.isSafeInteger(guideEngine), 'the guide declares its landed move engine number');
-  const sourceDirectory = fileURLToPath(new URL('../src/', import.meta.url));
+  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/core/engines/', import.meta.url));
   const landed = Math.max(0, ...readEngineLeaves(sourceDirectory).flatMap(({ number }) => number === null ? [] : [number]));
   const onePending = engineLeafFixture(t, landed, ['pending']);
 
@@ -884,4 +884,11 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
     assert.deepEqual([...actual[kind].actors].sort(), expected.actor.split(', or ').sort());
     assert.deepEqual([...actual[kind].fields].sort(), expected.fields);
   }
+});
+
+/** @pullboard-world-pin: clause 2 reads docs/formats.md itself to prove it states the job tables export rule. */
+test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows [A5,A10]', () => {
+  const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+  assert.match(guide, /The `job` and `job_step` tables are part of a board export only while they hold rows/);
+  assert.match(guide, /an import treats a missing `job` or `job_step` table as empty/);
 });

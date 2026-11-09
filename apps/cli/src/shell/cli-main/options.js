@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 
 const OPTIONS = {
   criterion: { type: 'string' },
+  claims: { type: 'boolean' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
@@ -57,6 +58,7 @@ const OPTIONS = {
   text: { type: 'string' },
   gate: { type: 'string' },
   'gate-receipt': { type: 'string' },
+  forced: { type: 'string' },
   receipt: { type: 'boolean' },
   aim: { type: 'boolean' },
   doctrine: { type: 'boolean' },

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
@@ -184,7 +184,7 @@ test('finite output ends with one next move while raw export and refusal wire re
     const json = JSON.parse(output([name, '--json', '--fields', 'value'], io => io.result({ value: 1, hidden: true })).text);
     assert.deepEqual(json, { version: 1, value: 1 }, '--fields retains exactly its selected keys');
   }
-  assert.equal(output(['status'], io => io.say('result')).text, 'result\nnext: pullboard next --wait 1\n');
+  assert.equal(output(['status'], io => io.say('result')).text, 'result\nnext: pullboard next\n');
   assert.equal(output(['resume'], io => { io.say('resume'); io.say('next: native action'); io.say('flow: original alert'); }).text,
     'resume\nnext: native action\nflow: original alert\nnext: native action\n', 'the original next/flow body remains byte-for-byte before the new footer');
   assert.equal(output(['status'], io => { io.say('next: same'); io.say('next: same'); }).text, 'next: same\n',
@@ -207,7 +207,8 @@ test('finite output ends with one next move while raw export and refusal wire re
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));
   assert.equal(output(['--version'], io => io.say('0.9.3')).text, '0.9.3\n', 'installed hook version handshake stays byte-compatible');
-  assert.match(output(['mcp', '--help'], io => io.say('protocol help')).text, /next: pullboard status\n$/u);
+  // One command's help ends at its example with no next line (041dbbaccc, json-output.js helpSubject).
+  assert.doesNotMatch(output(['mcp', '--help'], io => io.say('protocol help')).text, /^next:/mu);
   const long = output(['show'], io => io.say('next: ' + 'x'.repeat(2000))).text.trimEnd();
   assert.ok(Buffer.byteLength(long) <= 1024, 'the whole footer includes its prefix within the line cap');
   const refused = JSON.parse(output(['show', '--json'], io => io.refusal({ code: 'NO_ITEM', message: 'missing', next: 'pullboard list' }), 1).text);

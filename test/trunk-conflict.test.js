@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { computedReturnArgs } from '../packages/landing/index.js';
 import { trunkMerge } from '../packages/merge/index.js';
@@ -30,13 +30,15 @@ function reservedConflictFixture() {
   writeFileSync(join(box.web, 'web/list.html'), '<ul>from the branch</ul>\n');
   box.git(box.web, 'add', 'web/list.html');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): show the list [G1]');
-  json(box.run(box.web, 'submit', String(id), '--json'));
+  // Submit returns before its gate by default; --wait ends at the gate so the head is submitted for review.
+  json(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
+  // An unrouted item is strong, so its reviewers join on the strong route.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review-one');
-  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong', '--json'));
   const other = join(box.dir, 'api-2');
   box.git(box.repo, 'worktree', 'add', '-q', other, '-b', 'api/review-two');
-  json(fixtureJoin(box.run, other, 'api', '--json'));
+  json(fixtureJoin(box.run, other, 'api', '--route', 'strong', '--json'));
   return { box, json, id, reviewer, other };
 }
 

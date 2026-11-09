@@ -1,6 +1,6 @@
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
-import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
-import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js";
+import { AGENT_GRANT_ENGINE } from "../../../state/core.js";
+import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";

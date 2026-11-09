@@ -1,6 +1,6 @@
 /**
  * What a person sees while a gate waits for the machine queue [C7]: one line per new place in the
- * queue, one line per memory state and one line when a runner drops out. src/gate-wait.js and src/cli.js re-export it.
+ * queue, one line per memory state and one line when a runner drops out. packages/gate/index.js re-exports it.
  */
 
 /** Build de-duplicated queue messages for a gate waiting on machine capacity or memory; tests read it through src/cli.js. */

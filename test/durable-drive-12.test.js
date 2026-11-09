@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { cleanupFixtureChildren, privateFixtureFiles, runFixtureGit, startFixtureChild } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob, takeJob, writeStep, LEASE_MS } from '../packages/jobs/index.js';
 import { treeOf, writeToolingPin } from '../packages/pin/index.js';
 import { createTransport, shellWord } from '../packages/transport/index.js';

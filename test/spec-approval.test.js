@@ -8,11 +8,11 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { configFromSource } from '../packages/config/index.js';
-import { gitReadSignature } from '../src/git.js';
-import * as store from '../src/board.js';
+import { gitReadSignature } from '../packages/git/index.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec/index.js';
-import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
+import { SPEC_APPROVAL_ENGINE } from '../packages/state/core.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
@@ -628,4 +628,18 @@ test('attribution signatures bypass namespaced refs and external blame configura
   assert.notEqual(signature(), beforeMailmap, 'mailmap contents belong to the attribution signature');
   box.git(box.repo, 'config', 'blame.ignoreRevsFile', join(box.dir, 'external-ignore-list'));
   assert.equal(signature(), null, 'external revision lists are unsupported rather than cached incompletely');
+});
+
+test('show reads the origins of only the rows its item cites, the same origins status gives them [C7,S1]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const needs = document(box, box.repo, 'status').needs.filter(need => need.kind === 'agent-approved');
+  assert.ok(needs.some(need => need.id === 'G1') && needs.some(need => need.id !== 'G1'), JSON.stringify(needs.map(need => need.id)));
+  const id = document(box, box.repo, 'add', 'web', 'Cites one unconfirmed row', '--specs', 'G1', '--criterion', 'A real fixture.').item.item_id;
+  const shown = document(box, box.repo, 'show', String(id));
+  assert.deepEqual(shown.agentApproved.map(row => row.id), ['G1'], 'only the cited row is in the item view');
+  const status = needs.find(need => need.id === 'G1');
+  assert.equal(shown.agentApproved[0].commit, status.commit, 'the cited row keeps the Git origin the whole view gives it');
+  assert.equal(shown.agentApproved[0].agent, status.agent);
 });

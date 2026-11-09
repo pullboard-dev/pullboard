@@ -1,5 +1,5 @@
 import { ENGINE_VERSION } from '../../../state/index.js';
-import { REVIEW_FAMILY_SEAT_ENGINE } from '../../../../src/review-family-seat-engine.js';
+import { REVIEW_FAMILY_SEAT_ENGINE } from '../../../state/core.js';
 /** Retain an item's frozen family authority when selecting and reserving its reviewer [V1,H16]. */
 export function frozenFamilyPolicy(item, fallback) {
   try {

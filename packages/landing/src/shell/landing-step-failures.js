@@ -151,11 +151,34 @@ export function waiverLine(failure) {
   return `waived: ${failure.name} (${failure.file}) by person waiver ${waiver.id} for ${waiver.kind ?? store.landingWaiverKind(waiver.test)} ${waiver.test}: ${waiver.reason}; expires ${waiver.until}`;
 }
 
+/**
+ * The waived proof of a gate left incomplete only by waived files: every failure is in a file a live waiver covers,
+ * and every planned file the run did not complete is one of them. Null otherwise, or when the run kept no collection
+ * report naming its planned and completed files.
+ * Why: test/submit-auto-merge.test.js failed at file level (its failure named by its path, the file not completed),
+ * so the run read as incomplete and its live file waiver was never read: #3768 held the trunk three times on 9 Nov [C7].
+ *
+ * @param {any} state
+ * @param {any} gate
+ * @returns {{ tree: string, failures: object[], logPath: string } | null}
+ */
+export function waivedFileProof(state, gate) {
+  const report = gate.collectionReport;
+  if (gate.timedOut || !Array.isArray(report?.plannedFiles) || !Array.isArray(report?.completedFiles)) return null;
+  const failures = waivedFailures(state.board, gate.failures, state.landingPorts);
+  if (!failures) return null;
+  const waivedFiles = new Set(failures.map(entry => entry.file));
+  const completed = new Set(report.completedFiles);
+  const missing = report.plannedFiles.filter(file => !completed.has(file));
+  if (missing.some(file => !waivedFiles.has(file) && !nativeLandingWaiverFor(state.board, { file, name: file }, state.landingPorts))) return null;
+  return { tree: gate.tree, failures: failures.map(entry => ({ ...entry, waiver: entry.waiver.id })), logPath: gate.logPath };
+}
+
 /** Record every failure's exact live waiver rather than changing which tests the gate runs. */
 export function waivedProof(state, gate) {
   if (gate.requiresGreen) return null;
   if (gate.knownMainProof && completeGate(gate, { allowCancelled: true })) return gate.knownMainProof;
-  if (!completeGate(gate)) return null;
+  if (!completeGate(gate)) return waivedFileProof(state, gate);
   if (gate.knownMainProof) return gate.knownMainProof; // Red only in cases red on main: nothing to waive (#2586).
   if (gate.knownMain && !gate.accounted?.length) return null; // Own cases left unaccounted cannot become a waived proof.
   const failures = waivedFailures(state.board, gate.accounted, state.landingPorts);

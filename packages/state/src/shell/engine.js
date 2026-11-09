@@ -1,4 +1,4 @@
-import { EXIT_RULES_ENGINE } from '../../../../src/exit-rules-engine.js';
+import { EXIT_RULES_ENGINE } from '../core/engines/exit-rules-engine.js';
 import { registrationProblem } from '../core/engine-move-register.js';
 import { recordReviewPolicyActivation } from '../../index.js';
 import { agentGrantMinimum } from '../core/agent-grant.js';
@@ -9,7 +9,7 @@ import { requireHandoffActive } from '../../index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { recordedRefusal } from '../core/recorded-refusal.js';
-import { PEOPLE_ENGINE } from '../../../../src/people-engine.js';
+import { PEOPLE_ENGINE } from '../core/engines/people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from '../../../kernel/index.js';

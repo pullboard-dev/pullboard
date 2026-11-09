@@ -1,6 +1,10 @@
 /** Exercise optional native renewal metadata without manufacturing production proof authority [A5,V4,H16]. */
-import { openBoard, closeBoard } from '../apps/lib/index.js';
-import { ensureCoordinator, register, addItem, claim, events } from '../src/board.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
+import { board_ensureCoordinator as ensureCoordinator } from '../packages/store/index.js';
+import { register } from '../packages/store/index.js';
+import { addItem } from '../packages/store/index.js';
+import { claim } from '../packages/store/index.js';
+import { events } from '../packages/store/index.js';
 
 /** Return the actual optional-field union alongside the existing ordinary renew fixture rows. */
 export function pipelineEventContract() {

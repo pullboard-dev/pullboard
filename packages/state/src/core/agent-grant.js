@@ -1,11 +1,11 @@
 /** Derive authority from existing seats and claims; no mutable saved grant supplies permission [E21]. */
-import { AGENT_GRANT_ENGINE } from '../../../../src/agent-grant-engine.js';
-import { REVIEW_GRANT_ENGINE } from '../../../../src/review-grant-engine.js';
-import { BAR_SIGN_GRANT_ENGINE } from '../../../../src/bar-sign-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from './engines/agent-grant-engine.js';
+import { REVIEW_GRANT_ENGINE } from './engines/review-grant-engine.js';
+import { BAR_SIGN_GRANT_ENGINE } from './engines/bar-sign-grant-engine.js';
 import { Refused } from '../../../kernel/core.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';
-import { QUEUED_START_GRANT_ENGINE } from '../../../../src/queued-start-grant-engine.js';
+import { QUEUED_START_GRANT_ENGINE } from './engines/queued-start-grant-engine.js';
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt', 'completeSubmitHandoff']);

@@ -33,12 +33,8 @@ function selected(ctx, board, values, services) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
-  /** Advice applies to new builds and main-red routing, never held work or independent reviews. */
-  const withCover = found => {
-    if (!found.item || found.review || found.held) return found;
-    const pause = services.reviewFamilyBuildPause?.(ctx.info, board, ctx.config, me);
-    return pause ? { item: null, review: false, held: false, idleReason: 'review-family', reasons: [...(found.reasons ?? []), pause] } : found;
-  };
+  /** Builds never wait on review cover; the backlog is shouted to the coordinator when the build is claimed [#3792]. */
+  const withCover = found => found;
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
   const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
     && !store.pendingSubmitHandoff(board, item));
@@ -136,6 +132,7 @@ export async function nextTake(ctx, values = {}, services) {
         agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
         freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
+      if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
       // A peer taking the selected item is a normal queue race; a held-seat refusal stays actionable.

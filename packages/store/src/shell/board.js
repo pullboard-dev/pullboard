@@ -56,7 +56,7 @@ import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../state/core.js";
 import { factReference } from "../../../spec/index.js";
 import { landingFlakes } from "../core/board-landing-exceptions.js";
 import { landingWaiverCovers } from "../core/board-landing-exceptions.js";

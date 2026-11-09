@@ -115,7 +115,7 @@ function committedToolingMatches(root, commit, files) {
 
 /** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
 export function trustedTooling() {
-  const installation = committedRunnerController(TOOL_ROOT);
+  const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
   const { entry, files } = installation ? runnerPackage(root) : loadedToolingFiles();
@@ -145,7 +145,7 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound stays 1 MiB. */
+/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound is 8 MiB. */
 export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
 
 /**

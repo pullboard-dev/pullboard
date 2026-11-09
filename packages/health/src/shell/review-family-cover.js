@@ -70,15 +70,48 @@ export function reviewFamilyCover(info, board, config) {
   return { missingFamilies, waiting };
 }
 
-/** Pause only new builds; existing claims and all independent review paths remain available. */
-export function reviewFamilyBuildPause(info, board, config, seat) {
+/**
+ * The stuck review backlog of one seat's family, or null: at least three renderable green reviews wait, one for five minutes
+ * with no eligible live or wakeable reviewer from another family [#3792].
+ */
+export function reviewFamilyBacklog(info, board, config, seat) {
   if (config.verify?.family === 'off') return null;
   const family = canonicalFamily(board, seatFamily(board, seat.agent_id ?? seat.id));
   if (!family) return null;
   const { waiting } = reviewFamilyCover(info, board, config);
   const own = waiting.filter(row => row.family === family && !row.conflicted);
   if (own.length < REVIEW_COVER_BACKLOG || !own.some(row => !row.covered && row.ageMs >= REVIEW_COVER_WAIT_MS)) return null;
-  return `${family} has ${own.length} waiting green reviews and no eligible live or wakeable reviewer from another family; ${REVIEW_COVER_PAUSE_TAIL}`;
+  return { family, own };
+}
+
+/** The explanation of a backlog; kept as the old pause wording so it reads the same wherever it is shown. */
+export function reviewFamilyBuildPause(info, board, config, seat) {
+  const backlog = reviewFamilyBacklog(info, board, config, seat);
+  return backlog && `${backlog.family} has ${backlog.own.length} waiting green reviews and no eligible live or wakeable reviewer from another family; ${REVIEW_COVER_PAUSE_TAIL}`;
+}
+
+/**
+ * Raise one Stuck shout to the coordinator and the person naming how many green items wait for review and the missing
+ * reviewer family. Builds never wait on review cover: this shout is how the backlog reaches whoever wakes or adds reviewers.
+ * It repeats only when the waiting count grows past the newest earlier shout for the same family, so one family's count never hides another's [#3792].
+ */
+export async function shoutReviewCoverStuck(ctx, board, ordered, seat) {
+  const backlog = reviewFamilyBacklog(ctx.info, board, ctx.config, seat);
+  if (!backlog) return false;
+  const count = backlog.own.length;
+  const missing = [...new Set(backlog.own.flatMap(row => row.neededFamilies))].join(', ') || 'another family';
+  const last = board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE ? ORDER BY shout_id DESC LIMIT 1").get(`Stuck: review cover. ${backlog.family} has %`);
+  const before = Number(/ has (\d+) green items/u.exec(last?.shout_text ?? '')?.[1] ?? 0);
+  if (count <= before) return false;
+  const text = `Stuck: review cover. ${backlog.family} has ${count} green items waiting for review and no live or wakeable ${missing} reviewer. Wake or add one; builds continue.`;
+  try {
+    for (const to of ['coordinator', 'person']) await ordered(ctx, board, 'shout', [{ from: 'sentinel', to, lanes: [], text }]);
+  } catch (error) {
+    // A refused shout must never stop the build line it only reports on.
+    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
+    return false;
+  }
+  return true;
 }
 
 /** The fact that marks one conflicted submission as already shouted; a new head is a new episode. */

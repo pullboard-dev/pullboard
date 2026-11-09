@@ -14,7 +14,7 @@ import {
 } from '../../../../src/git.js';
 /** Keep deferred landing execution, native refusals and durable diagnostics under one admitted lease [C7]. */
 import {
-  runProfiledShell,
+  runProfiledShellAsync,
   withLandingGateSlot,
   refuseSandboxBlocked,
 } from '../../../gate/index.js';
@@ -60,7 +60,8 @@ export async function runDeferredAffectedTests(root, config, files, { directory,
   const run = await withLandingGateSlot(root, lease => {
     lease.quarantines = quarantines;
     if (quarantines.length) lease.proof = proofContext;
-    return runProfiledShell(root,
+    // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
+    return runProfiledShellAsync(root,
     `${config.affectedTests} ${files.map(quote).join(' ')}`, { waitMs: lease.waitMs, gateLease: lease,
       stages: true, landing: true, persistLog: true, artifactDirectory: directory, artifactPrefix: 'deferred', timeoutMs: config.landing?.timeoutMs });
   },

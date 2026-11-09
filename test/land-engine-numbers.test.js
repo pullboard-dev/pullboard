@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { amendLandingEngines } from '../packages/landing/index.js';
-import { computePlan, placePath, readPlan, writePlan } from '../bin/cells-plan.js';
+import { computePlan, readPlan, writePlan } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -23,8 +23,8 @@ function fixture(t, { deleteMoves = false } = {}) {
     writeFileSync(join(root, file), text);
   }
   put('package.json', '{"type":"module"}\n');
-  put('src/base-engine.js', 'export const BASE_ENGINE = 80;\n');
-  put('src/engine-next.js', 'export const unassignedEngine = () => 81;\n');
+  put('packages/state/src/core/engines/base-engine.js', 'export const BASE_ENGINE = 80;\n');
+  put('packages/state/src/core/engines/engine-next.js', 'export const unassignedEngine = () => 81;\n');
   put('src/moves/example.js', 'export default { operation: "fixture", engine: 80 };\n');
   // The moves cell holds the body; the item may delete the src/moves shim folder, as #1704 does.
   put('packages/moves/src/core/moves/example.js', 'export default { operation: "fixture", engine: 80 };\n');
@@ -32,7 +32,7 @@ function fixture(t, { deleteMoves = false } = {}) {
   // The fixture launcher delegates unchanged arguments to the actual canonical CLI, with this repository as cwd.
   put('bin/cells-plan.js', `import { spawnSync } from 'node:child_process';\nconst result = spawnSync(process.execPath, [${JSON.stringify(BIN)}, ...process.argv.slice(2)], { stdio: 'inherit' });\nprocess.exitCode = result.status ?? 1;\n`);
   put('bin/cells-plan/seed.json', JSON.stringify({ source: 'synthetic landing input', sha256: 'none',
-    order: ['state', 'app:cli'], cells: { state: ['src/base-engine.js', 'src/engine-next.js',
+    order: ['state', 'app:cli'], cells: { state: [
       'src/moves/example.js', 'packages/moves/src/core/moves/example.js', 'src/move-history/legacy.json'], 'app:cli': ['bin/cells-plan.js'] }, tests: {} }));
   for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'Landing fixture'], ['config', 'user.email', 'landing@example.invalid'], ['add', '-A'], ['commit', '-q', '-m', 'fixture base']])
     git(root, ...args);
@@ -40,9 +40,9 @@ function fixture(t, { deleteMoves = false } = {}) {
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture plan');
   git(root, 'checkout', '-q', '-b', 'fixture-item');
-  put('src/feature-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const FEATURE_ENGINE = unassignedEngine();\n");
-  git(root, 'add', 'src/feature-engine.js');
-  placePath(root, 'src/feature-engine.js', { cell: 'state' });
+  // An engine leaf lives in the state cell's engines folder, outside the plan's scope, so it needs no placement row.
+  put('packages/state/src/core/engines/feature-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const FEATURE_ENGINE = unassignedEngine();\n");
+  git(root, 'add', 'packages/state/src/core/engines/feature-engine.js');
   if (deleteMoves) git(root, 'rm', '-rq', 'src/moves');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture item');

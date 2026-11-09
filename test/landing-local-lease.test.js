@@ -5,14 +5,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from '../packages/store/index.js';
-import { assertLandingLease } from '../src/board-landing-lease.js';
-import { LANDING_LOCAL_PREFIX, localLandingEntry } from '../src/board-landing-local-lease.js';
+import { assertLandingLease } from '../packages/store/index.js';
+import { LANDING_LOCAL_PREFIX, localLandingEntry } from '../packages/store/index.js';
 import { takeLandingResource } from '../packages/landing/index.js';
-import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
+import { LANDING_LEASE_ENGINE } from '../packages/state/core.js';
 
 /** Give each test two physical boards and a private receipt clock, never a live coordinator credential. */
 function fixture(t) {

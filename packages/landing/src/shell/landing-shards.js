@@ -1,3 +1,4 @@
+import { RERUNNABLE_RUNNER_REFUSALS } from '../../../store/index.js';
 import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
@@ -406,7 +407,7 @@ export function landingSource(root) {
 }
 
 /** Runner refusals that mean the host could not run the shard right now, so a local rerun is sound. */
-const RERUN_REFUSALS = new Set(['RUNNER_SETUP_REFUSED', 'RESOURCE_LEASE_LOST', 'RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED']);
+const RERUN_REFUSALS = new Set(RERUNNABLE_RUNNER_REFUSALS);
 
 /**
  * How a sharded landing answers a runner that gave no test result. A lost host or transport, or a

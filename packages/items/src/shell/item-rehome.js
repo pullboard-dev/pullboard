@@ -3,7 +3,7 @@ import { saveCheckTiming } from "../core/check-timing.js";
 import { createHash } from 'node:crypto';
 import { IN_STATE } from "../../../state/index.js";
 import { MOVES } from "../../../state/index.js";
-import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
+import { REFERENCE_ENGINE } from "../../../state/core.js";
 import { handledReferences } from "../../../spec/index.js";
 import { validateReferences } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/index.js";

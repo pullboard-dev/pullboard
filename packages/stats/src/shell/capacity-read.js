@@ -1,6 +1,7 @@
 /** Read the same derived snapshot for the CLI, briefing and view, without warming it [R1,R2]. */
 import { CAPACITY_VERSION } from '../core/capacity-counter.js';
 import { planCapacity } from '../core/capacity-model.js';
+import { machineBudgetState } from './cost.js';
 
 const STALE_MS = 30 * 60_000;
 
@@ -9,8 +10,22 @@ export function capacityAtRead(snapshot, now = Date.now()) {
   return { ...snapshot, stale: snapshot.stale === true || !snapshot.asOf || now > Date.parse(snapshot.asOf) + STALE_MS };
 }
 
+/**
+ * Attach the board's spend against the machine budget, so every capacity report renders the same budget line [N2].
+ * With no budget set, or settings that cannot be read, the report carries no budget and renders no budget line.
+ */
+function withBudget(planner, board, now) {
+  const budget = machineBudgetState(board, now);
+  return budget ? { ...planner, budget } : planner;
+}
+
 /** Distinguish an unavailable migration from a measured empty board; never scan raw history here. */
 export function readCapacity(board, now = Date.now(), reads = board.nativePorts) {
+  return withBudget(readPlannedCapacity(board, now, reads), board, now);
+}
+
+/** The capacity snapshot itself, current or marked unavailable. */
+function readPlannedCapacity(board, now, reads) {
   const ordinary = reads.currentProofCounters(board);
   const summary = reads.proofCounter(board, 'capacity-summary');
   const cached = reads.proofCounter(board, 'capacity-snapshot');

@@ -8,7 +8,7 @@ import { register } from '../packages/store/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { requireAgentGrant } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { QUEUED_START_GRANT_ENGINE } from '../src/queued-start-grant-engine.js';
+import { QUEUED_START_GRANT_ENGINE } from '../packages/state/core.js';
 import { boardFixture } from './next-order-fixture.js';
 import { FREEZE } from './next-order-fixture.js';
 

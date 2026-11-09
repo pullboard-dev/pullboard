@@ -1,5 +1,5 @@
 /** Owner waiting is a source-bound routing result, never a submission or approval [B3,L1,V4]. */
-import { OWNERSHIP_WAIT_ENGINE } from '../../../../../src/ownership-wait-engine.js';
+import { OWNERSHIP_WAIT_ENGINE } from '../../../../state/core.js';
 
 /** Old engines cannot interpret the new routing receipt. */
 function minimumEngine() { return OWNERSHIP_WAIT_ENGINE; }

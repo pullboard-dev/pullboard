@@ -8,9 +8,9 @@ import { counterProofStats as readStatsCounter } from '../packages/verify/index.
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone } from '../src/board-milestones.js';
+import { addMilestone } from '../packages/store/index.js';
 import { atomic } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
