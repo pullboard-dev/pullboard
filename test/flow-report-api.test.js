@@ -10,7 +10,7 @@ import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { logEvent } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';

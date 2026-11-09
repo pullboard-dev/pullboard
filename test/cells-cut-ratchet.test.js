@@ -1,4 +1,4 @@
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { fixtureBoard } from './board-fixture.js';
