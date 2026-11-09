@@ -68,7 +68,7 @@ function plannedProject(t, { companionLanes = false } = {}) {
 function enforcePlacementTrial(box) {
   const probe = join(box.dir, 'placement-probe');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
-  success(box, probe, 'join', 'probe', '--model', 'Fixture');
+  success(box, probe, 'join', 'probe', '--model', 'Fixture', '--route', 'strong');
   const id = success(box, box.repo, 'add', 'probe', 'Cells move 1/1: probe the placement trial', '--specs', 'G1',
     '--criterion', 'the probe source is planned', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
   success(box, probe, 'claim', String(id));
@@ -154,7 +154,7 @@ test('native view submit validates its core companion placement on the composed 
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-    success(box, path, 'join', lane, '--model', 'Fixture');
+    success(box, path, 'join', lane, '--model', 'Fixture', '--route', 'strong');
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
