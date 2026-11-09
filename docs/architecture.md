@@ -490,8 +490,8 @@ Branches run in this order. P runs once per command; B is plain `next`, `--build
 | B6 | builder | a mandatory review (plain next) and no own claim | next to verify: #N; reserved for you until ... | reserves a review | `submitted` | guarded | `reserveWithin` in `packages/store/src/shell/board-reserve-review.js` |
 | B7 | builder | this seat's own claim | you hold #N | parks it on unmet deps; opens the item folder; never renews the lease | `claimed` | stale (gap SM6) | `nextOnce` in `apps/cli/src/shell/cli/next.js` |
 | B8 | builder | a review worth offering beside a build | review offered: #N; build available: ... | none (advisory) | `submitted`, `open` | advisory | `sayReviewOffer` in `apps/cli/src/shell/next-say.js` |
-| B9 | builder | nothing picked, another lane's pick, or a route mismatch | idle reason | next-idle event | nothing | n/a | `otherLaneWork` in `apps/cli/src/shell/cli/next.js` |
-| B10 | builder | a light item with no diagnosis and a light seat active | diagnose #N | none (advisory) | `open` | advisory | `nextPick` in `apps/cli/src/shell/cli/next.js` |
+| B9 | builder | nothing picked, another lane's pick, or a route mismatch | idle reason | next-idle event | nothing | n/a | `otherLaneWork` in `packages/moves/src/shell/next-selection.js` |
+| B10 | builder | a light item with no diagnosis and a light seat active | diagnose #N | none (advisory) | `open` | advisory | `nextPick` in `packages/moves/src/shell/next-selection.js` |
 | B11 | builder --wait | the pick is still open | available #N; claim it when ready | does not claim | `open` | advisory | `nextOnce` in `apps/cli/src/shell/cli/next.js` |
 | B12 | builder | a live item folder for the pick | skipped #N | omits it and retries | nothing | n/a | `liveFolderRefusal` in `apps/cli/src/shell/item-folder.js` |
 | B13 | builder | the pick | claimed #N with criterion, check, brief and any returned red | claims in one write transaction | `open`, lapsed claim | guarded | `claimOrdered` in `apps/cli/src/shell/cli/claim.js` |
