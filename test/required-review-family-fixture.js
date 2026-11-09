@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 
 /** Exercise the real add/edit parser, shared eligibility and exact-seat dispatch without fabricating stored rows. */

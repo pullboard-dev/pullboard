@@ -5,6 +5,7 @@ import {
   policyAt,
 } from './trusted-policy-read.js';
 import { contains } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { itemPatchDigest } from '../../../items/index.js';
 import { agentById } from '../../../store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
@@ -35,14 +36,20 @@ export function submitHandoffRoot(commonDir, job) {
   return join(commonDir, 'pullboard', 'submit-handoffs', job.id, 'source');
 }
 
+/** Whether this worker's checkout is the private source its native queue identity names. */
+function atHandoffRoot(ctx, job) {
+  const expected = submitHandoffRoot(ctx.info.commonDir, job);
+  return realpathSync(ctx.info.root) === realpathSync(expected);
+}
+
 /** Install finite worker authority only after checking the exact native queued source on this board. */
 export function bindSubmitHandoffOrigin(ctx, board, itemId, jobId) {
   const job = submitHandoff(board, itemId);
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(itemId);
   if (!job || job.id !== jobId || !['queued', 'running'].includes(job.state) || item?.item_owner !== job.agentId
     || item.item_status !== 'claimed' || item.item_frozen_digest !== job.digest
-    || realpathSync(ctx.info.root) !== realpathSync(submitHandoffRoot(ctx.info.commonDir, job))
-    || repoInfo(ctx.info.root).commonDir !== ctx.info.commonDir || !isClean(ctx.info.root)
+    || !atHandoffRoot(ctx, job)
+    || !sameCommonDir(repoInfo(ctx.info.root).commonDir, ctx.info.commonDir) || !isClean(ctx.info.root)
     || headCommit(ctx.info.root) !== job.commit || headTree(ctx.info.root) !== job.tree) {
     throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the worker needs the exact native queued candidate on its own board');
   }
@@ -147,7 +154,7 @@ export function submitHandoffHookActor(ctx, board) {
   const merge = mergeHead.status === 0 ? mergeHead.stdout.trim() : candidates.length === 1 ? candidates[0] : null;
   const source = headCommit(ctx.info.root);
   const expected = git(ctx.info.root, ['merge-tree', '--write-tree', source, main]).split('\n')[0];
-  if (realpathSync(ctx.info.root) !== realpathSync(submitHandoffRoot(ctx.info.commonDir, job))
+  if (!atHandoffRoot(ctx, job)
     || source !== job.executionCommit || headTree(ctx.info.root) !== job.executionTree || merge !== main
     || !contains(ctx.info.root, job.main, main) || git(ctx.info.root, ['write-tree']) !== expected
     || git(ctx.info.root, ['diff', '--name-only']).trim() || untracked(ctx.info.root).length) {

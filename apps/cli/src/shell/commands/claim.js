@@ -10,6 +10,7 @@ import {
   sayQueuedReds,
 } from '../../../../../packages/store/index.js';
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
+import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
 import { requireNoCoordinatorPath } from './add.js';
@@ -34,7 +35,7 @@ export async function run(io, { first }) {
   sayQueuedReds(io, board, () => me);
   cleanItemFolders(ctx, board, me, { spare: true });
   const filed = getItem(board, id);
-  if (filed) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
+  if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
     check: filed.item_check, brief: filed.item_brief });
   let result;
   for (;;) {

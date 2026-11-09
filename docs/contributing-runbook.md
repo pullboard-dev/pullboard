@@ -8,7 +8,7 @@ This is the internal runbook. Contributors read CONTRIBUTING.md; this file is fo
 3. If you need more from the reporter, label it `clarify`. After 14 days with no activity it gets `clarify-inactive` and closes; any activity restarts the clock, and it reopens when its author replies.
 
 ## When a pull request arrives
-1. **Reply when capacity allows; there is no fixed response time.** Thank them, and ask for a sign-off if any commit lacks one (point at CONTRIBUTING, "How to sign off").
+1. **Reply when capacity allows; there is no fixed response time.** Thank them.
 2. **Read the diff before running anything.** Look for:
    - changes outside the stated purpose;
    - new dependencies (refuse them);
@@ -21,7 +21,7 @@ This is the internal runbook. Contributors read CONTRIBUTING.md; this file is fo
    - the browser tests when the change touches the view or relay;
    - outside code never runs on a machine holding credentials.
 5. **Sensitive paths need the owner's approval** on top of the verifier's accept.
-6. **Confirm the [CLA](../CLA.md) before merge:** the contributor accepts it by posting "I have read CLA.md and I agree to it." as a comment on their pull request, the first time they contribute. **Then land through the merge train.** Never use GitHub's merge button. The contributor stays the commit author; if we changed their commit, they're credited with `Co-authored-by`. Keep their `Signed-off-by` line.
+6. **Confirm the [CLA](../CLA.md) before merge:** the contributor accepts it by posting "I have read CLA.md and I agree to it." as a comment on their pull request, the first time they contribute. **Then land through the merge train.** Never use GitHub's merge button. The contributor stays the commit author; if we changed their commit, they're credited with `Co-authored-by`.
 7. **Close the loop.** The PR shows as merged, or we close it with a link to the landed commit. Thank them, and link the receipt.
 8. **If it fails,** comment with the verifier's note in plain words ("fails on Node 22.13: ..."). When they update, the item is verified again at the new commit.
 9. **Declining:** close with a clear, kind reason. Merging is always the project's call.
@@ -31,7 +31,7 @@ This is the internal runbook. Contributors read CONTRIBUTING.md; this file is fo
 - GitHub and npm accounts use 2FA. Releases are published only by the owner's release process.
 - `main` is protected: only the coordinator's landing updates it.
 - CODEOWNERS requests the owner's review on sensitive paths.
-- Inbound contributions are MIT, with the DCO sign-off and a lightweight CLA agreed with one pull request comment (decided 22 Oct). Make no public promise about future licensing.
+- Inbound contributions are MIT, with a lightweight CLA agreed with one pull request comment (decided 22 Oct; the DCO dropped 8 Nov). Make no public promise about future licensing.
 
 ## Changelog acknowledgements
 
@@ -46,7 +46,6 @@ When an item with a handled reference ships, its changelog line carries the ackn
 The docs check validates every changelog line containing `GitHub #` or `PR #`, including the linked number and whether it names an issue or pull request. Syntax validation does not look up GitHub authors; confirm the handle against the referenced author when granting the acknowledgement.
 
 ## Automation to build (so this runs without anyone remembering it)
-- **Sign-off check** in the commit-msg hook and CI for outside commits, with a message naming the fix.
 - **`pullboard intake <PR>`** (the first real use of the PR bridge):
   - fetches the PR's exact commit;
   - files the item with the PR and author recorded;
@@ -56,5 +55,5 @@ The docs check validates every changelog line containing `GitHub #` or `PR #`, i
 
   Any project using Pullboard then gets the same safe contribution flow.
 - **A sandboxed verify mode** for items marked outside.
-- **PR template** with a sign-off checkbox and a linked-issue field.
+- **PR template** with a linked-issue field.
 - **A reply reminder:** keep unanswered issues and pull requests visible without promising a response time.

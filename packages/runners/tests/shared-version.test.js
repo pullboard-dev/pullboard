@@ -117,7 +117,7 @@ test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', 
   const result = box.probe(`
     import { closeBoard } from './src/board.js';
     import { openBoard } from './apps/lib/index.js';
-    import { addMilestone, roadmap } from './src/board-milestones.js';
+    import { addMilestone, roadmap } from './packages/store/index.js';
     import * as store from './src/board.js';
     import { registerProject } from './packages/seats/index.js';
     import { listApiProjects } from './packages/seats/index.js';

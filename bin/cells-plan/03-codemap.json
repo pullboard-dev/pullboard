@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/codemap",
  "frontDoor": "packages/codemap/index.js",
+ "pureFrontDoor": "packages/codemap/core.js",
  "paths": [
   ["src/cell-binding-uses.js","packages/codemap/src/shell/cell-binding-uses.js","rule"],
   ["src/cell-lint-baseline-plan.js","packages/codemap/src/shell/cell-lint-baseline-plan.js","rule"],

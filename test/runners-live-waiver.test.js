@@ -1,6 +1,6 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import {
   HOST,
   after,

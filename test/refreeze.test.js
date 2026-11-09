@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { UNCHANGED_REFREEZE_ENGINE } from '../packages/state/core.js';
 import { runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';

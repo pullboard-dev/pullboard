@@ -91,7 +91,7 @@ function project() {
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const web = join(box.dir, 'web-agent');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/session');
-  const joined = box.run(web, ['join', 'web', '--family', 'Fixture-Builder'], { agent: false });
+  const joined = box.run(web, ['join', 'web', '--family', 'Fixture-Builder', '--route', 'strong'], { agent: false });
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
   return { ...box, repo, web, boardFile: resolve(repo, box.git(repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'board.sqlite') };
 }
@@ -396,14 +396,14 @@ test('a verdict from the agent session that built the item is refused under any 
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
   const reviewAs = (session, args) => box.run(review, args, { session, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--json']).status, 0);
+  assert.equal(reviewAs(builder, ['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json']).status, 0);
   const before = boardSnapshot(box.boardFile);
   const own = reviewAs(builder, ['verify', '1', 'accept', '--note', 'checked the page', '--json']);
   assert.notEqual(own.status, 0, 'the building session cannot accept its own item from another seat');
   const error = JSON.parse(own.stdout).error;
   assert.equal(error.code, 'SELF_SESSION_VERIFY');
   assert.match(error.message, /this agent session built or submitted #1/u);
-  assert.match(error.next, /another agent session/u);
+  assert.match(error.next, /start the review in a separate process or session: run pullboard next --verify from a different agent session/u);
   assert.deepEqual(boardSnapshot(box.boardFile), before, 'the refused verdict records nothing');
   assertNoRawSession(box, box.web, [builder], 'CODEX_THREAD_ID');
   const ledger = readFileSync(resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'item-sessions.jsonl'), 'utf8');

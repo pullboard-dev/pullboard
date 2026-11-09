@@ -46,7 +46,7 @@ import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
 import * as store from '../../../store/index.js';
-import { roadmap } from '../../../../src/board-milestones.js';
+import { roadmap } from '../../../store/index.js';
 import {
   COORDINATOR,
   loadConfig,

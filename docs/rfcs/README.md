@@ -14,3 +14,4 @@ An RFC is one file here, numbered next: what changes, why, what it costs, and wh
 | [0006](0006-cells.md) | Cells, the structure of a codebase many agents build at once | accepted |
 | [0007](0007-sealed-cells-and-proof-that-travels.md) | Sealed cells and proof that travels | accepted |
 | [0008](0008-durable-jobs-and-runner-protocol.md) | Durable jobs and the runner protocol | proposed |
+| [0009](0009-contribution-records.md) | Contribution records | proposed |

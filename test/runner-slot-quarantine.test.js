@@ -110,7 +110,11 @@ test('a gate whose slot release meets a held pool lock records its release once 
   const child = spawn(process.execPath, ['-e', script, pool], { stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => child.once('exit', resolve));
   await new Promise(resolve => child.stdout.once('data', resolve));
-  assert.throws(() => new DatabaseSync(pool, { readOnly: true }).prepare('SELECT 1 FROM holder').get(), /locked/u, 'the fixture really holds the lock');
+  // The pool runs in WAL, where readers never wait on a writer, so the held lock shows as a refused write.
+  assert.throws(() => {
+    const probe = new DatabaseSync(pool);
+    try { probe.exec('PRAGMA busy_timeout = 0; BEGIN IMMEDIATE'); } finally { probe.close(); }
+  }, /locked/u, 'the fixture really holds the lock');
   const reader = openPoolReadOnly(pool);
   try {
     lease.release();

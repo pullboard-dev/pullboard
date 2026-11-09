@@ -8,7 +8,7 @@ import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { withBoard } from '../apps/cli/index.js';
@@ -130,7 +130,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   const board = openBoard(file);
   try {
     assert.equal(store.events(board).filter(event => event.event_kind === 'join').length, 1);
-    store.ensureCoordinator(board, '/previous/coordinator-location');
+    store.board_ensureCoordinator(board, '/previous/coordinator-location');
   } finally { store.closeBoard(board); }
   const moved = cli();
   assert.equal(moved.status, 0, moved.failure ?? moved.stderr);
