@@ -61,3 +61,6 @@ export * from "./src/shell/post-land-suite.js";
 export * from "./src/shell/landing-plan-check.js";
 export { requireLandingCompanions, requireLandingModuleResolution } from './src/shell/landing-composition-guards.js';
 export { finishLanding, LANDING_FINISH_STEPS } from './src/shell/landing-finish.js';
+export { landWhy, landWhyLines, landingLine } from './src/core/land-why.js';
+export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, runnerSourceHold } from './src/core/runner-source-hold.js';
+export { landingReceiptReuse } from './src/shell/landing-receipt-reuse.js';

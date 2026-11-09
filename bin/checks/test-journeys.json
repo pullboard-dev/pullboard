@@ -801,15 +801,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/claim-watchdog.test.js": {
-      "cells": [
-        "health",
-        "seats"
-      ],
-      "reasons": [
-        "imports past health front door (packages/health/src/shell/claim-sweep.js)"
-      ]
-    },
     "test/clause-tick-from-test-run.test.js": {
       "cells": [
         "app:cli",
@@ -941,7 +932,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "imports past state front door (src/engine.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -961,7 +951,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "imports past state front door (src/engine.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -983,7 +972,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:view front door (apps/view/src/core/view/activity-model.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1043,7 +1031,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1062,7 +1049,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1085,7 +1071,6 @@
         "imports past app:cli front door (apps/cli/src/shell/cli/view-state.js)",
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1197,7 +1182,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1232,7 +1216,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1254,7 +1237,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1282,7 +1264,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1324,7 +1305,6 @@
         "imports past app:view front door (apps/view/src/core/view/dashboard-render.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "imports past stats front door (packages/stats/src/core/stats-flow.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1492,7 +1472,6 @@
         "drives a browser (test/cockpit/fixture.test.js)",
         "imports past app:cli front door (apps/cli/src/shell/cli/view-state.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1510,7 +1489,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1529,7 +1507,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1558,7 +1535,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1576,7 +1552,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1594,7 +1569,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1649,7 +1623,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1668,7 +1641,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1758,7 +1730,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1776,7 +1747,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1795,7 +1765,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1814,7 +1783,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -1977,7 +1945,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2071,7 +2038,6 @@
         "imports past landing front door (src/landing-shards.js)",
         "imports past runners front door (src/runners.js)",
         "imports past state front door (src/engine.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2112,7 +2078,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2644,7 +2609,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2669,7 +2633,6 @@
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "imports past app:view front door (src/view-state-summary.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2758,7 +2721,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2797,7 +2759,6 @@
         "drives a browser (test/e2e-helpers.js)",
         "imports past app:cli front door (apps/cli/src/shell/cli/view-state.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
       ]
@@ -2824,7 +2785,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -2907,7 +2867,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "imports past store front door (src/board.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
       ]
@@ -4361,6 +4320,23 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
+    "test/hook-commit-msg-no-queue.test.js": {
+      "cells": [
+        "app:lib",
+        "kernel",
+        "outbox",
+        "person",
+        "resources",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (test/e2e-helpers.js)",
+        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
+        "runs the CLI (test/e2e-helpers.js)",
+        "spawns a child process (test/e2e-helpers.js)"
+      ]
+    },
     "test/hook-no-slot.test.js": {
       "cells": [
         "app:lib",
@@ -5008,16 +4984,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/land-why.test.js": {
-      "cells": [
-        "app:lib",
-        "landing",
-        "store"
-      ],
-      "reasons": [
-        "imports past landing front door (packages/landing/src/core/land-why.js)"
-      ]
-    },
     "test/landing-affected-no-runner.test.js": {
       "cells": [
         "app:lib",
@@ -5312,17 +5278,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/landing-lease.test.js": {
-      "cells": [
-        "app:lib",
-        "link",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past link front door (packages/link/src/core/landing-relay.js)"
-      ]
-    },
     "test/landing-main-red-keeps-verdicts.test.js": {
       "cells": [
         "app:lib",
@@ -5449,18 +5404,6 @@
         "imports past landing front door (packages/landing/src/core/automatic-landing-retry.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/landing-runner-source-hold.test.js": {
-      "cells": [
-        "app:lib",
-        "items",
-        "landing",
-        "store"
-      ],
-      "reasons": [
-        "imports past items front door (packages/items/src/core/item-holds.js)",
-        "imports past landing front door (packages/landing/src/core/runner-source-hold.js)"
       ]
     },
     "test/landing-runner-source-resume.test.js": {
@@ -6004,6 +5947,22 @@
         "imports past app:lib front door (apps/lib/src/core/native-board.js)",
         "runs the CLI (test/next-take-fixture.js)",
         "spawns a child process (test/fixture-child.js)"
+      ]
+    },
+    "test/next-build-past-family-review.test.js": {
+      "cells": [
+        "app:lib",
+        "kernel",
+        "outbox",
+        "person",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (test/e2e-helpers.js)",
+        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
+        "runs the CLI (test/e2e-helpers.js)",
+        "spawns a child process (test/e2e-helpers.js)"
       ]
     },
     "test/next-constant-in-claims.test.js": {
@@ -7502,16 +7461,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/receipt-reuse-review-land.test.js": {
-      "cells": [
-        "landing",
-        "verify"
-      ],
-      "reasons": [
-        "imports past landing front door (packages/landing/src/shell/landing-receipt-reuse.js)",
-        "imports past verify front door (packages/verify/src/shell/submit-proof-reuse.js)"
       ]
     },
     "test/reclaim-live-seat.test.js": {
@@ -9213,21 +9162,6 @@
         "spawns a child process (test/fixture-child.js)"
       ]
     },
-    "test/rework-same-family.test.js": {
-      "cells": [
-        "app:lib",
-        "config",
-        "kernel",
-        "outbox",
-        "person",
-        "seats",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "component; moves in a later batch"
-      ]
-    },
     "test/rigor-broadcasts.test.js": {
       "cells": [
         "app:lib",
@@ -9279,18 +9213,6 @@
         "installs git hooks (test/rigor-quality.test.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/roadmap-queue-order.test.js": {
-      "cells": [
-        "app:lib",
-        "items",
-        "roadmap",
-        "store",
-        "verify"
-      ],
-      "reasons": [
-        "component; moves in a later batch"
       ]
     },
     "test/route-calibration.test.js": {
@@ -9359,17 +9281,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/row-decisions-replay.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "state",
-        "store"
-      ],
-      "reasons": [
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)"
       ]
     },
     "test/rule-proof-counts.test.js": {
@@ -9604,15 +9515,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/runner-disk-sweep.test.js": {
-      "cells": [
-        "app:runner",
-        "resources"
-      ],
-      "reasons": [
-        "imports past app:runner front door (apps/runner/src/shell/runner-custody.js)"
       ]
     },
     "test/runner-exclusive-drain.test.js": {
@@ -10198,15 +10100,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
-    "test/runner-worker-capacity-sync.test.js": {
-      "cells": [
-        "app:runner",
-        "resources"
-      ],
-      "reasons": [
-        "imports past app:runner front door (apps/runner/src/shell/runner-worker-environment.js)"
       ]
     },
     "test/runner-worker-restart-fail-closed.test.js": {
@@ -10837,6 +10730,21 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
+    "test/submit-doctrine-on-runner.test.js": {
+      "cells": [
+        "app:cli",
+        "app:lib",
+        "kernel",
+        "outbox",
+        "person",
+        "store"
+      ],
+      "reasons": [
+        "imports past app:cli front door (apps/cli/src/shell/submit-remote-gate.js)",
+        "installs git hooks (test/submit-doctrine-on-runner.test.js)",
+        "spawns a child process (test/fixture-child.js)"
+      ]
+    },
     "test/submit-gate-parallel-files.test.js": {
       "cells": [
         "gate",
@@ -11218,18 +11126,6 @@
       "reasons": [
         "imports past gate front door (packages/gate/src/shell/test-action-key-memo.js)",
         "spawns a child process (test/test-action-key-memo-prune.test.js)"
-      ]
-    },
-    "test/test-action-parts-prune.test.js": {
-      "cells": [
-        "app:lib",
-        "gate",
-        "kernel",
-        "outbox",
-        "person"
-      ],
-      "reasons": [
-        "imports past gate front door (packages/gate/src/shell/test-action-parts-prune.js)"
       ]
     },
     "test/test-cache-receipts.test.js": {
@@ -11725,6 +11621,22 @@
         "person",
         "resources",
         "runners",
+        "store",
+        "sync"
+      ],
+      "reasons": [
+        "drives a browser (test/e2e-helpers.js)",
+        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
+        "runs the CLI (test/e2e-helpers.js)",
+        "spawns a child process (test/e2e-helpers.js)"
+      ]
+    },
+    "test/verify-compare-no-local-checkout.test.js": {
+      "cells": [
+        "app:lib",
+        "kernel",
+        "outbox",
+        "person",
         "store",
         "sync"
       ],

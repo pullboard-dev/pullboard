@@ -1,14 +1,28 @@
 /** A batch refused RUNNER_SOURCE retries three times then waits, and a held verified item joins no batch [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, REPEATED_LANDING_HOLD } from '../packages/landing/src/core/runner-source-hold.js';
-import { applyItemHold, applyItemHoldRelease } from '../packages/items/src/core/item-holds.js';
-import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import {
+  RUNNER_SOURCE_RETRIES,
+  runnerSourceHold,
+  repeatedBlockedCause,
+  repeatedLandingHold,
+  repeatedLandingHoldCleared,
+  repeatedLandingNotice,
+  REPEATED_LANDING_HOLD,
+} from '../../landing/index.js';
+import {
+  applyItemHold,
+  applyItemHoldRelease,
+} from '../index.js';
+import { candidates } from '../../landing/index.js';
 
 const ITEM = { item_id: 2601, item_commit: 'a'.repeat(40) };
 const BASE = 'b'.repeat(40);
