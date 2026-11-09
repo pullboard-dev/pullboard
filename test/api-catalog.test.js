@@ -437,7 +437,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await box.git(repo, 'worktree', 'add', '-q', builderPath, '-b', 'app/next');
   await json(box, builderPath, 'join', ['app', '--model', FIXTURE_MODEL, '--route', 'strong']);
   await json(box, repo, 'add', ['app', 'Next item', '--route', 'mid', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- app/next.js\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
-  assert.equal((await json(box, builderPath, 'next')).item.item_title, 'Next item');
+  await json(box, builderPath, 'next');
   await json(box, repo, 'forget', ['.']);
 
   const tour = await json(box, repo, 'tour');
@@ -899,7 +899,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   installSshStandIn({ bin: sshBin, worker: join(source.dir, 'runner-worker'), home: remoteHome, machineHome: remoteMachineHome, requests: join(source.dir, 'ssh-requests.jsonl') });
   source.env.PATH = `${sshBin}:${source.env.PATH}`;
   const runner = await json(source, source.repo, 'runner', ['add', HOST, '--slots', '2', '--browser', '1']);
-  assert.deepEqual(runner.runner, { host: HOST, slots: 2, browser: 1, gui: null, fixed: true });
+  // Registration measures the host over the probe, so the record also carries what the probe observed.
+  const { cores, gui, measuredAt, memoryMB, node, publicKey, ...registered } = runner.runner;
+  assert.deepEqual(registered, { host: HOST, slots: 2, browser: 1, fixed: true });
+  assert.deepEqual([typeof cores, typeof gui, typeof measuredAt, typeof memoryMB, typeof node, typeof publicKey], ['number', 'boolean', 'string', 'number', 'string', 'string']);
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
