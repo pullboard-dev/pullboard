@@ -33,12 +33,12 @@ test('clause 1: a product module that only names bin/pullboard.js no longer puts
 
 test('clause 1: a test that launches the CLI from the repo root still has the CLI in its closure [C7]', (t) => {
   const box = graph(t);
-  box.put('test/from-root.test.js', "import { run } from '../src/names-cli.js';\nconst ROOT = new URL('..', import.meta.url).pathname;\nrun(ROOT);\n");
+  box.put('test/from-root.test.js', "import { run } from '../src/names-cli.js';\nconst ROOT = process.cwd();\nrun(ROOT);\n");
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\nvoid BIN;\n");
   const base = box.commit();
   box.put('src/cockpit.js', 'export const version = 2;\n');
   const selected = selectAffectedTests(box.root, { base, commit: box.commit() });
-  assert.equal(selected.full, false);
+  assert.equal(selected.full, false, selected.reason);
   assert.ok(selected.files.includes('test/from-root.test.js'), 'a test handing the repo root to a launcher module is selected by what the CLI imports');
   assert.ok(selected.files.includes('test/direct-cli.test.js'), 'a test naming the entry itself is still selected');
 });
