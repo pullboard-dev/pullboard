@@ -908,6 +908,9 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
   assert.ok(Array.isArray((await json(source, source.repo, 'seats')).seats));
   assert.equal(typeof (await json(source, source.repo, 'stats', ['time'], 'time')).time, 'object');
+  assert.equal(typeof (await json(source, source.repo, 'stats', ['disk'], 'disk')).disk, 'object', 'stats disk reports disk use per store');
+  const trace = await json(source, source.repo, 'trace', [String(catalog.item_id)]);
+  assert.deepEqual([trace.subject, trace.since, Array.isArray(trace.entries)], [String(catalog.item_id), null, true], 'trace reads one item timeline');
   assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
 
   const handoffPath = join(source.dir, 'catalog-handoff');
