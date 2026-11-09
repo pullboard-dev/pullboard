@@ -1,7 +1,7 @@
 /** A board scale test measures writer load and command latency at 1,000 simulated seats [C7,#3008]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpus, loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
@@ -12,6 +12,8 @@ import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 const COMMIT = 'a'.repeat(40);
 const LANES = ['core', 'coordinator'];
 const SEATS = 1000;
+/** Measurement rounds a loaded host may use before the bars judge the last one. */
+const ROUNDS = 3;
 /** Today's per-seat rates, per hour, from the board's own write log (audit round 11: about 130 writes per seat per hour). */
 const RATES = { heartbeat: 60, next: 120, shout: 100, claim: 10, submit: 10, verdict: 10 };
 /** The scale bars: the writer's busy share and the p99 of `next`. */
@@ -76,24 +78,34 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   // A copy-sized board: a few hundred open items besides the ones the seats move.
   const filler = Array.from({ length: 300 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
   assert.equal(filler.length, 300);
-  const moved = Array.from({ length: 30 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `moved ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
+  // Three sets of items the seats move, one per measurement round (see the remeasure note below).
+  const movedSets = Array.from({ length: ROUNDS }, (_, round) => Array.from({ length: 30 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `moved ${round}.${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' })));
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' });
 
-  const timings = { heartbeat: [], next: [], shout: [], claim: [], submit: [], verdict: [] };
-  for (let n = 0; n < 300; n++) {
-    const seat = builders[n % builders.length];
-    timings.heartbeat.push(timed(() => store.heartbeatSeat(board, seat)));
-    timings.next.push(timed(() => store.nextFor(board, { agentId: seat, lane: 'core' })));
-    timings.shout.push(timed(() => store.shout(board, { from: seat, to: 'core', lanes: LANES, text: `seat ${n}` })));
+  /** One full measurement: the three read-and-shout loops, then 30 items moved from claim to verified. */
+  const measureRound = moved => {
+    const timings = { heartbeat: [], next: [], shout: [], claim: [], submit: [], verdict: [] };
+    for (let n = 0; n < 300; n++) {
+      const seat = builders[n % builders.length];
+      timings.heartbeat.push(timed(() => store.heartbeatSeat(board, seat)));
+      timings.next.push(timed(() => store.nextFor(board, { agentId: seat, lane: 'core' })));
+      timings.shout.push(timed(() => store.shout(board, { from: seat, to: 'core', lanes: LANES, text: `seat ${n}` })));
+    }
+    moved.forEach((id, n) => {
+      timings.claim.push(timed(() => store.claim(board, id, { agentId: builders[n], lane: 'core', leaseMs: 7_200_000, freeze })));
+      timings.submit.push(timed(() => submitFixture(board, id, { agentId: builders[n], commit: COMMIT, tree: COMMIT })));
+      timings.verdict.push(timed(() => store.verify(board, id, { agentId: reviewers[n], head: COMMIT, digest: 'digest:bar', policy: 'any', note: 'proof', decision: 'ACCEPT' })));
+    });
+    for (const id of moved) assert.equal(store.getItem(board, id).item_status, 'verified');
+    return scaleReport(timings);
+  };
+  // The scale bars are unchanged. A round that misses them while the host's one-minute load exceeds half its cores measured
+  // the machine, not the board, so it is measured again on fresh items, at most twice more; a real slowdown misses every round [C7,#3008].
+  let report;
+  for (const moved of movedSets) {
+    report = measureRound(moved);
+    if (scaleProblems(report).length === 0 || loadavg()[0] <= cpus().length / 2) break;
   }
-  moved.forEach((id, n) => {
-    timings.claim.push(timed(() => store.claim(board, id, { agentId: builders[n], lane: 'core', leaseMs: 7_200_000, freeze })));
-    timings.submit.push(timed(() => submitFixture(board, id, { agentId: builders[n], commit: COMMIT, tree: COMMIT })));
-    timings.verdict.push(timed(() => store.verify(board, id, { agentId: reviewers[n], head: COMMIT, digest: 'digest:bar', policy: 'any', note: 'proof', decision: 'ACCEPT' })));
-  });
-  for (const id of moved) assert.equal(store.getItem(board, id).item_status, 'verified');
-
-  const report = scaleReport(timings);
   for (const name of Object.keys(RATES)) {
     assert.ok(Number.isFinite(report.commands[name].p50) && Number.isFinite(report.commands[name].p99), `${name} has p50 and p99`);
   }
