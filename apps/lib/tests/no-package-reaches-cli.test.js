@@ -3,17 +3,26 @@
 /** No package module reaches the CLI front door: doctrine-fast loads only its fast checks and a ratchet holds the line [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FAST_CHECK_SCRIPTS, fastCheckScript } from '../packages/doctrine/index.js';
-import { codeMapGraph, packageCliReach } from '../packages/gate/index.js';
-import { privateFixtureFiles, runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { temporaryRepository } from './board-submit-fixture.js';
+import { FAST_CHECK_SCRIPTS } from '../../../packages/doctrine/index.js';
+import { fastCheckScript } from '../../../packages/doctrine/index.js';
+import { codeMapGraph } from '../../../packages/gate/index.js';
+import { packageCliReach } from '../../../packages/gate/index.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const FAST = 'packages/doctrine/src/shell/doctrine-fast.js';
-const LINTS = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
+const LINTS = fileURLToPath(new URL('../../../bin/cell-lints.js', import.meta.url));
 
 /** The forward closure of one module in a selection graph. */
 function closureOf(graph, start) {

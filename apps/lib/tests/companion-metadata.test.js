@@ -1,19 +1,21 @@
 /** New companion metadata uses the item format while historical commits remain readable [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { after } from 'node:test';
+import { test } from 'node:test';
 import {
   buildCommitMessage,
   commitMessageProblems,
   parseCommitMessage,
-} from '../packages/commits/index.js';
-import { landingMessage } from '../packages/landing/index.js';
-import { commitMsgProblems } from '../packages/commits/index.js';
-import { defaults } from '../packages/config/index.js';
-import { parseSpec } from '../packages/spec/index.js';
-import { itemsTouching } from '../packages/commits/index.js';
-import { cellSandbox } from './cell-fixture.js';
+} from '../../../packages/commits/index.js';
+import { landingMessage } from '../../../packages/landing/index.js';
+import { commitMsgProblems } from '../../../packages/commits/index.js';
+import { defaults } from '../../../packages/config/index.js';
+import { parseSpec } from '../../../packages/spec/index.js';
+import { itemsTouching } from '../../../packages/commits/index.js';
+import { cellSandbox } from '../../../test/cell-fixture.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
