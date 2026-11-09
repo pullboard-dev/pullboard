@@ -51,4 +51,3 @@ export { itemPatchPaths } from './src/core/item-patch-paths.js';
 export { itemFiles } from './src/core/item-files.js';
 export { itemSummary, withListFields } from './src/core/item-list.js';
 export { conflictCause, reopenConflictEvidence } from './src/core/reopen-cause.js';
-export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';

@@ -1,8 +1,8 @@
 /** Read-only projection of older native snapshots; new uploads carry the actual API state [H5]. */
 import { Refused } from '../../../../packages/kernel/index.js';
 import { MACHINE } from '../../../../packages/state/index.js';
-import { lifecycleEvent } from '../../../../packages/items/core.js';
-import { recordedWithdrawalFrom } from '../../../../packages/items/core.js';
+import { lifecycleEvent } from '../../../../packages/items/src/core/lifecycle-move.js';
+import { recordedWithdrawalFrom } from '../../../../packages/items/src/core/lifecycle-move.js';
 
 /** Validate an authenticated snapshot and preserve its importable native tables. */
 export function snapshotState(document, boardId) {
