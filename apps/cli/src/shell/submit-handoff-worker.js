@@ -411,7 +411,6 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     queuedAt = Date.parse(job.at);
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
     // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
-    process.stderr.write('DIAG started t=' + Date.now() + '\n');
     if (!started.started && started.job?.state !== 'running') return;
     if (started.started) recordGateSpan({ phase: 'queued', start: queuedAt, end: Date.parse(started.job?.startedAt) || Date.now() });
     ctx.submitHandoffOutput = join(directory, 'output');
@@ -429,7 +428,8 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
       // The drive loop gets rows, never the board: each of its writes is a row the recorder applies.
       // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
       // The driver asks every 30 s whether this hand-off still serves its item; once it does not, the gate ends (#4072).
-      const serving = () => withBoard(ctx, board => { const ok = store.handoffServes(board, request.item, request.job); process.stderr.write('DIAG serving ' + ok + ' t=' + Date.now() + ' ' + new Error().stack.split('\n').slice(2,5).join('|') + '\n'); return ok; });
+      // A gate that has just submitted its item is finishing, not stale: handoffGateCurrent accepts the item submitted at the hand-off's head (#4614).
+      const serving = () => withBoard(ctx, board => store.handoffGateCurrent(board, request.item, request.job));
       const last = await drainLoop(rowSink(recorder.view(drive), recorder.record), drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult, ran: { toolsCommit: request.toolsCommit ?? null }, serving });
       // A gate whose item moved on records nothing more: its drive job already says why it ended.
       if (last.code === 'GATE_STALE') return { stale: true };
