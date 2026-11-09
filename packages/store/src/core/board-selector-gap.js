@@ -7,6 +7,7 @@ import { verdictReviewProblem } from '../../../verify/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
+import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../state/core.js';
 
 /** Accept only normalized repository-relative paths from complete native test outcomes. */
 function projectFile(file) {
@@ -51,8 +52,11 @@ export function selectorGapCandidate(board, { agentId, itemId, receiptId, review
  * or the repair's addItem refuses CLAUSE_EVIDENCE_REQUIRED; older engines replay their original untagged text.
  */
 function selectorRepairCriterion(board, commit, names) {
-  const tag = (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_EVIDENCE_ENGINE ? kind => ` [${kind}]` : () => '';
-  return `At submitted source ${commit}, ${names} failed in review but was outside the gate's recorded selection. 1. Include the uncovered test in the computed gate selection.${tag('test')} 2. Prove the selection runs and reports that test at the submitted source.${tag('test')} 3. The full suite passes as run by the submit gate.${tag('command')}`;
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const tag = engine >= CLAUSE_EVIDENCE_ENGINE ? kind => ` [${kind}]` : () => '';
+  // Since the per-item full-suite engine a bar cannot name the full suite: it belongs to the main audit (S10).
+  const suite = engine >= PER_ITEM_FULL_SUITE_ENGINE ? '' : ` 3. The full suite passes as run by the submit gate.${tag('command')}`;
+  return `At submitted source ${commit}, ${names} failed in review but was outside the gate's recorded selection. 1. Include the uncovered test in the computed gate selection.${tag('test')} 2. Prove the selection runs and reports that test at the submitted source.${tag('test')}${suite}`;
 }
 
 /** Record an uncovered failing case and file one selector repair without changing the submitted item. */

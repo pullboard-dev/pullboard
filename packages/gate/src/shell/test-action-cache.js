@@ -240,10 +240,15 @@ function treeIndex(blobs) {
  * environment and the run's options; the blobs are git object ids, so the key is a pure function of committed bytes.
  *
  * @param {string} root
- * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv, files?: string[] }} [context]
+ * Why `maintain`: the store's upkeep (the parts prune and the memo age sweep) reads every key memo and result record,
+ * 184,000 files and 733 MB on the coordinator on 9 Nov; run inside a runner dispatch's request it held that dispatch for
+ * minutes and loaded the disk under every other dispatch. A dispatch passes false; other callers keep the upkeep.
+ *
+ * @param {string} root
+ * @param {{ commit?: string, options?: string[], env?: NodeJS.ProcessEnv, files?: string[], maintain?: boolean }} [context]
  * @returns {Promise<Map<string, { key: string | null, reason: string }>>}
  */
-export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env, files } = {}) {
+export async function testActionKeys(root, { commit = 'HEAD', options = [], env = process.env, files, maintain = true } = {}) {
   const gitEnv = Object.fromEntries(Object.entries(env).filter(([name]) => !name.startsWith('GIT_')));
   const shared = {
     version: VERSION,
@@ -257,7 +262,8 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   shared.policy = digest(analyzer);
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
   const store = testResultStore(root, gitEnv);
-  maintainPartsStore(store, env);
+  // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
+  if (maintain) maintainPartsStore(store, env);
   return memoizedActionKeys(store, identity, files, async () => {
   const { testClosures } = await import('./affected-tests.js');
   const { closures, modules, blobs, reach } = testClosures(root, commit);
@@ -282,7 +288,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
     keys.set(test, { inputKey, context, key: digest({ inputKey, context }), reason: '' });
   }
   return keys;
-  });
+  }, { prune: maintain });
 }
 
 /** The store folder for this repository, shared by every worktree through the common git dir. */

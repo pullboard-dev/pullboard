@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { events } from '../packages/store/index.js';
 import { gateSpanFolder, readGateSpans, recordSubmitHandoff } from '../packages/jobs/index.js';
 import { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from '../packages/resources/index.js';
+import { closeLandingSpans, openLandingSpans, readLandingSpans } from '../packages/resources/index.js';
 import { RunnerDropped } from '../packages/gate/index.js';
 import { gateHealthReport } from '../packages/gate/index.js';
 import { gateHealthWindowMs } from '../apps/cli/src/shell/commands/gate-health.js';
@@ -74,6 +75,37 @@ test('[C7] a gate worker records one typed span per phase in the daily span file
   ]);
   writeFileSync(join(folder, '2026-11-08.jsonl'), readFileSync(join(folder, '2026-11-08.jsonl'), 'utf8') + '{"torn":\n');
   assert.equal(readGateSpans(folder, { since: NOW - 3_600_000, now: NOW }).length, 5, 'a torn line is skipped');
+});
+
+test('[C7] a dispatch records its tooling export, controller start and source preparation before transfer, so no time from its start to its connect goes unattributed', t => {
+  const folder = gateSpanFolder(spanRoot(t));
+  openGateSpans({ folder, job: 'job-2', item: 8 });
+  recordRunnerDispatch({ startedAt: NOW - 60_000, endedAt: NOW, host: 'runner-a', kind: 'submit',
+    phases: { spawn: NOW - 58_000, prepare: NOW - 55_000, prepared: NOW - 45_000, start: NOW - 44_000, connect: NOW - 44_000, 'source-sent': NOW - 40_000, ready: NOW - 30_000 } });
+  closeGateSpans();
+  const spans = readGateSpans(folder, { since: NOW - 3_600_000, now: NOW });
+  assert.deepEqual(spans.map(span => [span.phase, span.ms]), [
+    ['dispatch-tooling', 2_000], ['dispatch-controller', 3_000], ['dispatch-prepare', 10_000], ['dispatch-connect', 1_000],
+    ['transfer', 4_000], ['ready', 10_000], ['tests', 30_000],
+  ]);
+  const covered = spans.reduce((sum, span) => sum + span.ms, 0);
+  assert.equal(covered, 60_000, 'the spans cover the dispatch from its start to its end with no gap');
+});
+
+test('[C7] a landing runner run with no gate open records its dispatch steps, transfer, READY and tests into its landing run', t => {
+  const commonDir = spanRoot(t);
+  t.after(closeLandingSpans);
+  const run = openLandingSpans({ commonDir });
+  recordRunnerDispatch({ startedAt: NOW - 60_000, endedAt: NOW, host: 'runner-a', kind: 'land',
+    phases: { spawn: NOW - 58_000, prepare: NOW - 55_000, prepared: NOW - 45_000, start: NOW - 44_000, connect: NOW - 44_000, 'source-sent': NOW - 40_000, ready: NOW - 30_000 } });
+  closeLandingSpans();
+  const spans = readLandingSpans(commonDir, { since: NOW - 3_600_000, now: NOW });
+  assert.deepEqual(spans.map(span => [span.job, span.phase, span.ms, span.host, span.runKind]), [
+    [run, 'dispatch-tooling', 2_000, 'runner-a', 'land'], [run, 'dispatch-controller', 3_000, 'runner-a', 'land'],
+    [run, 'dispatch-prepare', 10_000, 'runner-a', 'land'], [run, 'dispatch-connect', 1_000, 'runner-a', 'land'],
+    [run, 'transfer', 4_000, 'runner-a', 'land'], [run, 'ready', 10_000, 'runner-a', 'land'], [run, 'tests', 30_000, 'runner-a', 'land'],
+  ]);
+  assert.deepEqual(readGateSpans(gateSpanFolder(commonDir), { since: NOW - 3_600_000, now: NOW }), [], 'no gate span is written for a landing run');
 });
 
 test('[C7] infrastructure failures map to the typed causes', () => {

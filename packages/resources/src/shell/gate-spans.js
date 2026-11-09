@@ -4,6 +4,7 @@
  * The jobs cell keeps the span files.
  */
 import { appendGateSpan } from '../../../jobs/index.js';
+import { recordLandingSpan } from './landing-spans.js';
 
 /** The typed failure causes a span may carry: readiness-miss, transport-lost, runner-dropped, deadline, infra-retry. */
 
@@ -60,7 +61,40 @@ export function gateSpanCause(error) {
 }
 
 /**
- * The spans of one runner dispatch from its recorded phase marks: `transfer` from connecting until the source is sent,
+ * The dispatch steps before the controller connects, each named by the mark that ends it: the committed tooling export
+ * and controller spawn (`spawn`), the fresh controller's start until it prepares the request (`prepare`), and the
+ * request's source and history scans (`prepared`). Why: 1,396 s over 21 gates sat between a slot's admission and its
+ * transfer with no span, so no one could say which step ate it (9 Nov) [C7].
+ */
+const DISPATCH_STEPS = [['dispatch-tooling', 'spawn'], ['dispatch-controller', 'prepare'], ['dispatch-prepare', 'prepared']];
+
+/**
+ * The spans from a dispatch's start until it connects, one per recorded step mark in order and the rest until the
+ * connect as `dispatch-connect`; none when the dispatch recorded no step marks.
+ *
+ * @param {number} startedAt
+ * @param {Record<string, number>} phases
+ * @param {{ host?: string|null, kind?: string|null }} where
+ * @returns {object[]}
+ */
+function dispatchStepSpans(startedAt, phases, { host, kind }) {
+  const connect = phases.connect;
+  if (!Number.isFinite(connect) || !DISPATCH_STEPS.some(([, mark]) => Number.isFinite(phases[mark]))) return [];
+  const spans = [];
+  let cursor = startedAt;
+  for (const [phase, mark] of DISPATCH_STEPS) {
+    const end = phases[mark];
+    if (!Number.isFinite(end) || end < cursor || end > connect) continue;
+    spans.push({ phase, start: cursor, end, host, kind });
+    cursor = end;
+  }
+  if (connect > cursor) spans.push({ phase: 'dispatch-connect', start: cursor, end: connect, host, kind });
+  return spans;
+}
+
+/**
+ * The spans of one runner dispatch from its recorded phase marks: the steps before connecting (dispatchStepSpans),
+ * `transfer` from connecting until the source is sent,
  * `ready` from then until the worker said READY, and `tests` (or `remote-analysis` for analysis work) until it ended.
  * A failed dispatch is one span for the phase it was in, carrying its typed cause.
  *
@@ -78,6 +112,7 @@ function runnerDispatchSpans({ startedAt, endedAt, host = null, kind = null, pha
   if (!Number.isFinite(ready)) return [{ phase: work, start: startedAt, end: endedAt, host, kind }];
   const sent = Math.min(ready, [phases['source-sent'], phases.pack, phases.inventory].find(Number.isFinite) ?? ready);
   return [
+    ...dispatchStepSpans(startedAt, phases, { host, kind }),
     { phase: 'transfer', start: phases.connect ?? startedAt, end: sent, host, kind },
     { phase: 'ready', start: sent, end: ready, host, kind },
     { phase: work, start: ready, end: endedAt, host, kind },
@@ -85,11 +120,16 @@ function runnerDispatchSpans({ startedAt, endedAt, host = null, kind = null, pha
 }
 
 /**
- * Record every span of one runner dispatch for the open gate.
+ * Record every span of one runner dispatch for the open gate, or, with no gate open, for the open landing run.
  *
  * @param {Parameters<typeof runnerDispatchSpans>[0]} run
  */
 export function recordRunnerDispatch(run) {
-  if (!sink) return;
-  for (const span of runnerDispatchSpans(run)) recordGateSpan(span);
+  if (sink) {
+    for (const span of runnerDispatchSpans(run)) recordGateSpan(span);
+    return;
+  }
+  // A landing's runner runs record the same dispatch steps into its landing run, so a slow landing rerun names the
+  // step that ate its time (a 1-file rerun took 333 s with no span, 9 Nov) [C7].
+  for (const { kind, ...span } of runnerDispatchSpans(run)) recordLandingSpan({ ...span, runKind: kind });
 }

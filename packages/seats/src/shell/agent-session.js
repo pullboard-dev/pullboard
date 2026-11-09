@@ -1,11 +1,15 @@
 /** A checkout belongs to one local agent session; bindings never enter the shared board [B3,B7]. */
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -28,10 +32,128 @@ export const CHECKOUT_SESSION_TOKEN_ENV = 'PULLBOARD_CHECKOUT_SESSION_TOKEN';
 /** How long a hook waits for a checkout another command holds before it names the holder and stops (#906). */
 export const HOOK_CHECKOUT_WAIT_MS = 30_000;
 
+/** The folder of live writer records in one checkout, beside its session binding. */
+export function checkoutWritersDirectory(info) {
+  return join(info.gitDir, 'pullboard-checkout-writers');
+}
+
+/** The file a takeover writes before it waits, so writers arriving after it queue behind it. */
+function takeoverIntentFile(info) {
+  return join(info.gitDir, 'pullboard-checkout-takeover');
+}
+
+/** Remove a takeover's intent once it ends. */
+function removeTakeoverIntent(info) {
+  try { unlinkSync(takeoverIntentFile(info)); } catch { /* No intent left: nothing to remove. */ }
+}
+
+/** Whether a parent command's inherited token names a writer record still present in this checkout. */
+function liveWriterToken(info, token) {
+  return typeof token === 'string' && /^[a-f0-9-]{36}$/u.test(token) && existsSync(join(checkoutWritersDirectory(info), token + '.json'));
+}
+
+/** Record this process as an active writer of the checkout; the record is the token its children inherit. */
+function writeWriterRecord(info) {
+  const directory = checkoutWritersDirectory(info);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const token = randomUUID();
+  const file = join(directory, token + '.json');
+  writeFileSync(file, JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
+  return { token, file };
+}
+
+/** Remove a writer record; a record already gone needs nothing. */
+function removeWriterRecord(record) {
+  try { unlinkSync(record.file); } catch { /* Gone already: a takeover reclaimed it, or the folder was removed. */ }
+}
+
+/** When a process started, in epoch ms, or null when the OS cannot say (gone, or no ps). */
+function processStartedAt(pid) {
+  return new Promise((done) => {
+    execFile('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 2_000, env: { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' } },
+      (error, stdout) => {
+        const at = error ? NaN : Date.parse(String(stdout).trim());
+        done(Number.isFinite(at) ? at : null);
+      });
+  });
+}
+
+/**
+ * The writer records in a checkout that belong to running processes; records of dead processes, or of a pid reused by
+ * a process that started after the record was written, are removed. Why: a crashed command leaves its record behind,
+ * and a takeover must never wait on a writer that no longer exists.
+ */
+export async function liveCheckoutWriters(info) {
+  const directory = checkoutWritersDirectory(info);
+  let names;
+  try { names = readdirSync(directory).filter((name) => /^[a-f0-9-]{36}\.json$/u.test(name)); } catch { return []; }
+  const live = [];
+  for (const name of names) {
+    const file = join(directory, name);
+    let record = null;
+    try { record = JSON.parse(readFileSync(file, 'utf8')); } catch { /* A record being written or removed reads as nothing. */ }
+    if (!Number.isSafeInteger(record?.pid) || !Number.isFinite(record?.at)) continue;
+    let alive = true;
+    try { process.kill(record.pid, 0); } catch (error) { alive = error.code === 'EPERM'; }
+    const startedAt = alive ? await processStartedAt(record.pid) : null;
+    // ps reports whole seconds, so a process that started within a second after the record is still its writer.
+    if (!alive || startedAt !== null && startedAt > record.at + 1_000) { try { unlinkSync(file); } catch { /* Gone already. */ } continue; }
+    live.push({ ...record, file });
+  }
+  return live;
+}
+
+/**
+ * Enter a write without the checkout's lease when this checkout is already bound to this very session and no takeover
+ * is waiting, or return null for the leased path. Why: holding the lease for a whole command made every write in one
+ * checkout queue behind the slowest; on 9 Nov the coordinator's hold, add and edit waited over ten minutes behind a
+ * `merged` that ran tests (#C7). The record is written before the binding is read, and a takeover writes its intent
+ * before it reads the records, so a takeover either sees this writer or this writer sees the takeover.
+ */
+function enterBoundSession(info, file, agent, digest) {
+  let record;
+  try { record = writeWriterRecord(info); } catch { return null; }
+  try {
+    const current = readBinding(file, false);
+    if (current?.agent === agent && current.digest === digest && !existsSync(takeoverIntentFile(info))) return record;
+  } catch { /* An unreadable binding refuses on the leased path, with its own next step. */ }
+  removeWriterRecord(record);
+  return null;
+}
+
+/** Hand back a write turn whose children act under its writer record, and which removes that record when it ends. */
+function writerTurn(record, persist) {
+  const previous = process.env[CHECKOUT_SESSION_TOKEN_ENV];
+  process.env[CHECKOUT_SESSION_TOKEN_ENV] = record.token;
+  let ended = false;
+  const release = () => {
+    if (ended) return;
+    ended = true;
+    if (process.env[CHECKOUT_SESSION_TOKEN_ENV] === record.token) {
+      if (previous === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
+      else process.env[CHECKOUT_SESSION_TOKEN_ENV] = previous;
+    }
+    removeWriterRecord(record);
+  };
+  return { release, updateAgent: persist };
+}
+
+/** Wait until no live writer record remains in this checkout; a takeover holds the lease and its intent meanwhile. */
+function drainCheckoutWriters(info) {
+  return new Promise((done, fail) => {
+    /** Look once, and again after a short pause while another writer still runs. */
+    const look = () => liveCheckoutWriters(info).then((writers) => {
+      if (writers.length) setTimeout(look, 50);
+      else done();
+    }, fail);
+    look();
+  });
+}
+
 /** Take the checkout's lease, act under the one a parent command passed down, or stop after waitLimitMs naming the holder. */
 async function checkoutLease(info, name, agent, waitLimitMs) {
   const inherited = process.env[CHECKOUT_SESSION_TOKEN_ENV];
-  if (inherited && holdsLease({ name, scope: 'repo', root: info.root, token: inherited })) return { token: inherited, release() {} };
+  if (inherited && (liveWriterToken(info, inherited) || holdsLease({ name, scope: 'repo', root: info.root, token: inherited }))) return { token: inherited, inherited: true, release() {} };
   const startedAt = Date.now();
   const onWait = waitLimitMs ? (state) => {
     if (Date.now() - startedAt < waitLimitMs) return;
@@ -72,26 +194,48 @@ export function localSessionMatches(info, { agent, digest }) {
   return current !== null && current.agent === agent && current.digest === digest;
 }
 
-/** Serialize local binding changes, record an explicit takeover, and replace complete JSON atomically. */
+/**
+ * Serialize local binding changes, record an explicit takeover, and replace complete JSON atomically. A write in a
+ * checkout already bound to its own session holds no lease across the command: it leaves a writer record instead, so
+ * same-session writes run side by side while a takeover still waits for every one of them [B3,B7,C7].
+ */
 export async function bindLocalSession(info, { agent, digest, takeover = false, recordTakeover, keepLease = false, waitLimitMs = 0 }) {
   const file = checkoutSessionFile(info);
-  const name = 'checkout-session:' + createHash('sha256').update(info.gitDir).digest('hex');
-  const lease = await checkoutLease(info, name, agent, waitLimitMs);
-  let retained = false;
   /** Atomically replace the complete local record, keeping identifiers out of durable state. */
   function persist(identity) {
     const pending = file + '.' + process.pid + '.tmp';
     writeFileSync(pending, JSON.stringify({ version: 1, agent: identity, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
     renameSync(pending, file);
   }
+  if (keepLease && !takeover) {
+    const record = enterBoundSession(info, file, agent, digest);
+    if (record) return writerTurn(record, persist);
+  }
+  const name = 'checkout-session:' + createHash('sha256').update(info.gitDir).digest('hex');
+  const lease = await checkoutLease(info, name, agent, waitLimitMs);
+  let retained = false;
+  let intent = false;
   try {
+    // A takeover keeps the lease for as long as its intent exists, so an intent found by another lease holder is stale.
+    if (!takeover && !lease.inherited) removeTakeoverIntent(info);
     const previous = readBinding(file, takeover);
     if (!takeover && previous && previous.digest !== digest) {
       throw new Refused('NOT_YOUR_CHECKOUT', `this checkout belongs to ${previous.agent} in another agent session`,
         'create a separate checkout with git worktree add --detach .claude/worktrees/<new-name> HEAD, using an unused folder; then cd there and run pullboard join <lane> --model "<model name>". If you are the same agent in a new session, run pullboard takeover instead');
     }
+    // A takeover by another session waits for that session's writes in flight; new ones queue on the lease behind it.
+    if (takeover && !(previous?.digest === digest && previous?.agent === agent)) {
+      writeFileSync(takeoverIntentFile(info), JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { mode: 0o600 });
+      intent = true;
+      await drainCheckoutWriters(info);
+    }
     if (takeover) await recordTakeover();
     if (!previous || takeover || previous.agent !== agent) persist(agent);
+    if (keepLease && !takeover && !lease.inherited) {
+      // The binding is settled: the lease is let go now, and this command writes under its own record.
+      const record = writeWriterRecord(info);
+      return writerTurn(record, persist);
+    }
     if (keepLease) {
       retained = true;
       // Processes this command starts while it holds the checkout inherit the lease; the previous value returns with it.
@@ -102,11 +246,17 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
           if (previous === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
           else process.env[CHECKOUT_SESSION_TOKEN_ENV] = previous;
         }
+        if (intent) removeTakeoverIntent(info);
         lease.release();
       };
       return { release, updateAgent: persist };
     }
-  } finally { if (!retained) lease.release(); }
+  } finally {
+    if (!retained) {
+      if (intent) removeTakeoverIntent(info);
+      lease.release();
+    }
+  }
 }
 
 /**

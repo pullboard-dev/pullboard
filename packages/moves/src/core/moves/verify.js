@@ -1,18 +1,16 @@
 import { REVIEW_REQUEST_ENGINE } from '../../../../state/core.js';
-import {
-  frozenBar,
-  namedClause,
-  wording,
-} from '../../../../verify/src/core/frozen-clause.js';
+import { frozenBar } from '../../../../verify/index.js';
+import { namedClause } from '../../../../verify/index.js';
+import { wording } from '../../../../verify/index.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../state/core.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/core.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
 import { checkTimingEngine } from "../../../../items/core.js";
 import { REJECT_CLAUSE_ENGINE } from "../../../../state/core.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/core.js";
-import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
+import { itemReviewPolicyEngine } from "../../../../verify/index.js";
 import { ITEM_PATCH_ENGINE } from "../../../../state/core.js";
-import { requiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
+import { requiredReviewFamilyEngine } from "../../../../verify/index.js";
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/core.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */

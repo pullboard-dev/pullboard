@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob } from '../packages/jobs/index.js';
 import { runGateStages } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';

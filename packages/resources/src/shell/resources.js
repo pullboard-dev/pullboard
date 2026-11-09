@@ -101,9 +101,11 @@ const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
 let openWrites = 0; // transactions open in this thread: a nested write never probes inside its outer turn
 const queueFiles = new WeakMap(); // Each open queue database's file: every write joins that file's ordered write queue [C7,#3084].
-const SLOT_DB_BUSY_MS = 10_000;
+const SLOT_DB_BUSY_MS = 2_000; // the longest one SQLite lock wait; a turn itself takes milliseconds [C7]
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
-export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
+export const SLOT_DB_LOCK_DEADLINE_MS = 5_000; // was 300 s: a runner controller sat 5 min on one write (9 Nov) [C7]
+/** The longest one attempt waits for its queue turn; a step retries with backoff until the deadline. */
+const SLOT_DB_ATTEMPT_MS = 2_000;
 /** Overrides that deadline in milliseconds; tests use it to reach the deadline quickly. */
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
@@ -210,7 +212,7 @@ function openQueue(file) {
   try {
     db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
     if (db.prepare('PRAGMA user_version').get().user_version === resourceSchemaVersion()) return db; // current schema: an open takes no write turn
-    leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
+    leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotAttemptMs() });
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
@@ -255,6 +257,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
       if (table === 'waiter' && !columns.includes('polled')) db.exec('ALTER TABLE waiter ADD COLUMN polled INTEGER NOT NULL DEFAULT 0');
+      if (table === 'waiter' && !columns.includes('follow_up_aware')) db.exec('ALTER TABLE waiter ADD COLUMN follow_up_aware INTEGER NOT NULL DEFAULT 0');
     }
     pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
@@ -303,6 +306,8 @@ function slotLockDeadlineMs() {
   const value = Number(process.env[SLOT_DB_LOCK_ENV]);
   return Number.isSafeInteger(value) && value > 0 ? value : SLOT_DB_LOCK_DEADLINE_MS;
 }
+/** How long one synchronous attempt may wait for its queue turn: a blocked thread also freezes the process's timers. */
+function slotAttemptMs() { return Math.min(SLOT_DB_ATTEMPT_MS, slotLockDeadlineMs()); }
 
 /** Recognize SQLite's busy or locked failure, which a later attempt can pass. */
 function slotDatabaseLocked(error) {
@@ -310,13 +315,13 @@ function slotDatabaseLocked(error) {
   return error?.code === 'SLOT_DB_LOCKED' || code === 5 || code === 6 || /database is locked/iu.test(error?.message ?? '');
 }
 
-/** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine, so it gets 10 s. */
+/** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine; it gets 2 s, and names whoever it found by then. */
 async function slotDatabaseOpeners(file) {
   const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
   if (!lsof) return [];
   // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
   const output = await new Promise(resolve => {
-    execFile(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 10_000 }, (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
+    execFile(lsof, ['-n', '-P', '-F', 'pc', '--', file], { encoding: 'utf8', timeout: 2_000 }, (error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
   });
   const openers = [];
   for (const line of output.split('\n')) {
@@ -344,7 +349,7 @@ async function retryLockedSlotDatabase(file, work) {
         throw stopped;
       }
       await pause(Math.min(backoff, deadline - elapsed));
-      backoff = Math.min(backoff * 2, 2_000);
+      backoff = Math.min(backoff * 2, 500);
     }
   }
 }
@@ -384,8 +389,18 @@ function custodyProcessMatches(pid, started) {
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action, sweep = true) {
   if (sweep && !openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
-  const leave = enterResourceQueue(queueFiles.get(db), { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
-  try { return transact(db, action, sweep); } finally { leave(); }
+  const started = Date.now();
+  for (let backoff = 50; ; backoff = Math.min(backoff * 2, 400)) {
+    // Each attempt waits at most about 2 s; a busy machine gets retries with backoff until the deadline, never minutes.
+    let leave;
+    try { leave = enterResourceQueue(queueFiles.get(db), { apply: queuedWrites(db), deadlineMs: slotAttemptMs() }); }
+    catch (error) {
+      if (error?.code !== 'SLOT_DB_LOCKED' || Date.now() - started + backoff >= slotLockDeadlineMs()) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
+      continue;
+    }
+    try { return transact(db, action, sweep); } finally { leave(); }
+  }
 }
 /** Apply queued writes that need no answer; a release, deleting its holder, is the only one. */
 function queuedWrites(db) {
@@ -459,7 +474,7 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled, follow_up_aware AS followUpAware FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
@@ -485,7 +500,7 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   const ageMs = order.reviewsFirst ? order.ageMs : Infinity;
   const line = orderedWaiters(queued, now, order)
     .filter(entry => name !== 'browser' || entry.browser === 1)
-    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, ...entry }) => {
+    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, followUpAware, ...entry }) => {
       const current = queueClass(entry, now, ageMs);
       return { ...project(entry), queueClass: current.name, ...(current.effective < current.base ? { agedFrom: current.declared } : {}) };
     });
@@ -1060,7 +1075,7 @@ export async function takeResource(options) {
         // Remote eligibility is metadata on this same ticket; the kind and flags decide the
         // admission class, and the ticket keeps arrival order within it.
         const inserted = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(queueOrder(scope)), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-        db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
+        db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
         initialTicket = Number(inserted.lastInsertRowid);
       }
     }));
@@ -1091,13 +1106,13 @@ export async function takeResource(options) {
         if (!waiter) {
           if (resume && initialTicket && name !== 'gate') {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-            db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
+            db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
             return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
           }
           // A removed gate ticket has lost its priority, including any saved release-order ticket.
           queuedAt = new Date().toISOString();
           const rejoined = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, name === 'gate' ? null : resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
-          db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
+          db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(requiredExecutor, token);
           initialTicket = Number(rejoined.lastInsertRowid);
           return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
         }
@@ -1287,7 +1302,7 @@ export async function takeResource(options) {
               db.prepare('DELETE FROM holder WHERE token = ?').run(token);
               db.prepare('INSERT INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 .run(requeueTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote && (!local || runnerOnly)), marker, 1, boardKey, releaseRank, requeueOpportunity, Number(shortEligible), Number(gui), Number(timing), 1);
-              db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
+              db.prepare('UPDATE waiter SET required_executor = ?, follow_up_aware = 1 WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
             });
           } catch (error) {
             transferred = false;

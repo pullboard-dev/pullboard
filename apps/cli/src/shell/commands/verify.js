@@ -69,6 +69,7 @@ import { loadSpec } from '../../../../../packages/spec/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
+  itemSpecIds,
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
@@ -475,7 +476,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       }
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
-    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
+    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     if (decision === 'ACCEPT' && check?.blockingVerdict) {

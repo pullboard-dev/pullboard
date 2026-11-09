@@ -40,6 +40,9 @@ test('clause 2: the asynchronously cached identity equals the synchronous read f
     await refreshIdentitiesAsync([child.pid]);
     assert.deepEqual(processIdentity(child.pid), freshIdentity(child.pid), 'a live child');
   } finally { child.kill(); await once(child, 'exit'); }
-  await refreshIdentitiesAsync([child.pid, process.pid]);
-  assert.deepEqual(processIdentity(child.pid), freshIdentity(child.pid), 'a process that has exited');
+  // A process that exited before any read: the live child's read above stays current for the 3 s cache window, so a PID never cached is the exited case.
+  const gone = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' });
+  await once(gone, 'exit');
+  await refreshIdentitiesAsync([gone.pid, process.pid]);
+  assert.deepEqual(processIdentity(gone.pid), freshIdentity(gone.pid), 'a process that has exited');
 });

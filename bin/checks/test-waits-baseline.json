@@ -73,7 +73,7 @@
   "test/board-busy.test.js": {
     "sleep": 1
   },
-  "test/cell-parser.test.js": {
+  "packages/gate/tests/cell-parser.test.js": {
     "sleep": 1
   },
   "test/check-baseline.test.js": {

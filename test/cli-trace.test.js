@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { appendTrace, itemOf, redactArgs } from '../apps/cli/src/shell/cli-trace.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { itemFolderPath } from '../apps/cli/src/shell/item-folder-identity.js';
 import { whileSeatAlive } from '../packages/gate/src/shell/seat-keepalive.js';

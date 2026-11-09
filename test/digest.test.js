@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone } from '../packages/store/index.js';
 import { DIGEST_MAX_BYTES } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';

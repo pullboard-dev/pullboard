@@ -33,6 +33,7 @@ import {
   withGateSlot,
 } from '../../../gate/index.js';
 import { runMainComparison } from '../../../gate/index.js';
+import { whileGateRuns } from '../../../gate/index.js';
 import { runProfiledShellAsync } from '../../../gate/index.js';
 import {
   readGateReceipt,
@@ -53,7 +54,7 @@ import {
   takeResource,
   requiredExecutorOf,
 } from '../../../resources/index.js';
-import { sameEnvironment } from '../../../sandbox/index.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   matchingMainFailures,
@@ -381,7 +382,15 @@ function storeOutcome(cache, keys, path, outcome) {
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, onStart, runnerAdmission = gateRunnerAdmission(), execution, recordedRuns = [], contentCache = true } = {}) {
+export function compareMainFailures(...args) {
+  // A red gate's comparison with main can run for many minutes (test/land.test.js: 1300-1900 s on a runner); inside a
+  // driven gate it reports progress the whole time, so the drive's stall watch never restarts a gate that is still
+  // comparing (#3451's gate stalled 20 min after its red). Outside a driven gate this reports nothing.
+  return whileGateRuns(() => compareMainFailuresNow(...args));
+}
+
+/** The comparison itself: compareMainFailures without its progress beat. */
+async function compareMainFailuresNow(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, onStart, runnerAdmission = gateRunnerAdmission(), execution, recordedRuns = [], contentCache = true } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);

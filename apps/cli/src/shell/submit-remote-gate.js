@@ -23,6 +23,7 @@ import { gitPath } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { privateCheckEnvelope } from '../../../runner/index.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
+import * as fixtureMemos from './fixture-memo-share.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
@@ -88,10 +89,9 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
-const tools = dirname(fileURLToPath(import.meta.url));
-const root = process.argv[2];
-const input = JSON.parse(readFileSync(0, 'utf8'));
-const result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+const input = JSON.parse(readFileSync(0, 'utf8')), result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const memos = await import('./apps/cli/src/shell/fixture-memo-share.js').then(module => module.runnerFixtureMemos(cellsCache, process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT ?? null)).catch(() => null); // One fixture memo for every runner (#3981).
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
 const refusal = error => ({ code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}),
@@ -181,6 +181,7 @@ try {
   });
   await staticRun;
   if (input.perPart) result.outcomes = outcomes;
+  if (memos) result.fixtureMemo = memos.collect();
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
@@ -327,7 +328,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const saved = resultFile ? readAnalysisResult(resultFile, request, cutKey) : null;
   if (saved) return { ...saved.value, directory: saved.directory, sha256: saved.sha256, runner: saved.runner, reused: true };
   // A missing accepted inventory is produced on the runner, never on this machine (#2535).
-  const { inventory, produce } = !request.parts || request.parts.includes('cells') ? await runnerCellsInventory(root, main, source) : { inventory: null, produce: [] };
+  const { inventory, produce } = !request.parts || request.parts.includes('cells') ? await runnerCellsInventory(root, main, source).then(found => ({ ...found, inventory: fixtureMemos.withFixtureMemos(found.inventory, lease.runner?.host ?? null) })) : { inventory: null, produce: [] };
   const cutRows = readCutItems();
   const doctrine = request.doctrine ?? null;
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
@@ -343,7 +344,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (step.value.refusal) throwTrustedRefusal(step.value.refusal);
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
-  const { value, directory, sha256 } = step;
+  fixtureMemos.keepRunnerFixtureMemo(step.value, undefined, lease.runner?.host ?? null); const { value, directory, sha256 } = step;
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');

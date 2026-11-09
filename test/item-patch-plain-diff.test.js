@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { normalizeItemPatch } from '../packages/items/index.js';
 import { composeItemPatches } from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';

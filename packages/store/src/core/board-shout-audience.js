@@ -31,15 +31,17 @@ export function shoutMatchesAudience(db, to, audience) {
 
 /**
  * The unread selection splits direct, coordination and item targets into indexed branches. Why: combining these
- * audiences in one OR made SQLite scan every shout in a 40,000-message backlog; the item branch still evaluates the
- * active item set once per query. Positional bindings work on the supported minimum Node SQLite API as well as newer releases.
+ * audiences in one OR made SQLite scan every shout in a 40,000-message backlog. The item branch looks up only the item
+ * each unread item shout names: building every item's role set first scanned 3,900 items and their events, 1.4 s of
+ * every inbox and status on 9 Nov [C7]. Positional bindings work on the supported minimum Node SQLite API as well as newer releases.
  */
 export const UNREAD_SHOUT_SQL = `FROM (
   SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to IN ('all', ?, ?)
   UNION ALL
   SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to = '${COORDINATION_SHOUT}' AND ? IN ('coordinator', 'person')
   UNION ALL
-  SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to IN (SELECT 'item:' || item_id FROM item WHERE
+  SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to >= 'item:' AND shout_to < 'item;' AND EXISTS
+    (SELECT 1 FROM item WHERE item_id = CAST(substr(shout_to, 6) AS INTEGER) AND shout_to = 'item:' || item_id AND
     (? = 'coordinator' OR COALESCE(item_owner, item_built_by) = ? OR COALESCE(item_review_by, item_verified_by) = ? OR EXISTS
       (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event_kind IN ('handoff-open','handoff-take') AND event_by=?)))
 ) AS unread`;

@@ -56,7 +56,7 @@ export function roadmapSummary(milestone, context = {}) {
     const text = escape(item?.label || '#'+id)+(item?.title?' '+escape(item.title):'');
     return item?.address ? '<a class="ref" href="'+escape(item.address)+'" data-go="item:'+escape(item.id)+'"'+(item.board?' data-board="'+escape(item.board)+'"':'')+'>'+text+'</a>' : '<span>'+text+'</span>';
   }).join(', ') : '';
-  const top = '<div class="release-header-top"><h2 class="release-name" data-release-name="">'+escape(milestone.name)+'</h2>'+count+forecast+'</div>';
+  const top = '<div class="release-header-top"><h2 class="release-name" data-release-name="">'+(typeof context.nameHtml === 'string' ? context.nameHtml : escape(milestone.name))+'</h2>'+count+forecast+'</div>';
   const detail = '<div class="roadmap-summary"><div class="roadmap-summary-row"><div class="roadmap-summary-track">'+bar+'</div>'+legend+'</div>'+meta+(needs?'<div class="roadmap-summary-needs"><b>Needs you:</b> '+needs+'</div>':'')+'</div>';
   return { count, top, detail, header: '<div class="release-header">'+top+detail+'</div>' };
 }
@@ -65,7 +65,7 @@ export function roadmapSummary(milestone, context = {}) {
  * The header for each milestone read, made once and reused across its header, body and companion panel [N26]. Why here:
  * the page embeds this source, so it keeps src/cockpit.js inside its line cap; the page hands in what it reads by.
  *
- * @param {{targetLabels: Map, addresses: Map, root: string, held?: string|null}} page - Prepared display observations.
+ * @param {{targetLabels: Map, addresses: Map, headings?: Map, root: string, held?: string|null}} page - Prepared display observations.
  * @returns {(read: {milestone: object, rows: object[]}|null) => object|null}
  */
 export function roadmapHeaders(page) {
@@ -78,7 +78,7 @@ export function roadmapHeaders(page) {
         return [id, row ? { label, title: row.title, id: row.open?.id, address: row.open ? page.addresses.get(row) : null,
           board: row.open?.root !== page.root ? row.open?.root : null } : null];
       }));
-      made.set(read, roadmapSummary(read.milestone, { targetLabel: page.targetLabels.get(read), held: page.held, needs,
+      made.set(read, roadmapSummary(read.milestone, { targetLabel: page.targetLabels.get(read), nameHtml: page.headings?.get(read), held: page.held, needs,
         now: page.now, locale: page.locale, timeZone: page.timeZone }));
     }
     return made.get(read);

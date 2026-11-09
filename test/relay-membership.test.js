@@ -81,7 +81,7 @@ test('an approver signed member list survives sealed native replay and revokes b
         if (options.method === 'PUT') { deliveries.push(options.body); return {}; }
         return { requests: [{ id: 'race-bob', login: 'bob', statement, signature }] };
       },
-    }, { err() {} });
+    }, { err() {}, openBoard });
     assert.equal(cleared, true, 'a real native clear commits while this handover awaits its proof');
     assert.equal(deliveries.length, 1);
     const delivered = deliveries[0];

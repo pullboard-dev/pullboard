@@ -16,6 +16,24 @@ import { DatabaseSync } from 'node:sqlite';
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
 export const SHARD_ADMIT_MS = 30_000;
 
+/**
+ * The least time a shard's dispatch has from connecting until its worker says READY: the same budget a late admission
+ * gets. Why: the lane's 30 s admission window became its startup budget, so at load a shard whose transfer took 31 s
+ * (p50, 9 Nov) missed READY on a healthy runner, was killed and rerun after a 30 s backoff; every TRANSPORT_LOST retry
+ * in the hour followed such a miss [C7].
+ */
+export const SHARD_STARTUP_MS = 90_000;
+
+/**
+ * A shard lane's startup budget: its lease's own, or SHARD_STARTUP_MS when that is shorter.
+ *
+ * @param {number|undefined} leaseStartupMs
+ * @returns {number}
+ */
+export function shardStartupMs(leaseStartupMs) {
+  return Math.max(Number.isSafeInteger(leaseStartupMs) ? leaseStartupMs : 0, SHARD_STARTUP_MS);
+}
+
 /** How long a recorded shard pass stays on disk; a rerun after an infrastructure end comes within minutes. */
 export const SHARD_PASS_TTL_MS = 24 * 60 * 60_000;
 
@@ -278,13 +296,14 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
  *   runFirst: (files: string[]) => Promise<object>,
  *   takeSlot?: ((lane: (run: (files: string[]) => Promise<object>) => Promise<void>, queue: { closed: () => boolean }) => Promise<unknown>) | null,
  *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number|null }} options - `freeSlots` is how many slot requests open at once; with no
+ *   retryMs?: number, batchFiles?: number|null, gateLaneFree?: Promise<unknown>|null }} options - `freeSlots` is how many slot requests open at once; with no
  *   `batchFiles` the files split one shard per lane, so each lane pays one dispatch; `takeSlot` takes one runner slot, calls `lane` with that
- *   slot's run and releases the slot when `lane` settles.
+ *   slot's run and releases the slot when `lane` settles; `gateLaneFree` settles when the gate's own lease may run a
+ *   batch (it may still run the item check), while slot requests open at once.
  * @returns {Promise<{ files: string[], run: object }[] | null>} Each batch's files and run in queue order, then reused.
  */
 export async function runProofShards(files, { freeSlots = 0, times = {}, root = null, runFirst, takeSlot = null, passes = null,
-  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null }) {
+  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = null, gateLaneFree = null }) {
   const reused = reusablePasses(passes, files, timingRunId);
   const covered = new Set(reused.flatMap(shard => shard.files));
   const owed = files.filter(file => !covered.has(file));
@@ -333,6 +352,8 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
    */
   const gateLane = async () => {
     let rest = false;
+    // The gate's own lease may still run the item check; its lane joins once that is done, while slot lanes start now.
+    if (gateLaneFree) await gateLaneFree;
     while (!closed()) {
       if (!queue.length || rest || gateDropped && slots > 0) { rest = false; await changed; continue; }
       const dropped = await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), Boolean(takeSlot));
@@ -417,21 +438,41 @@ export async function runProofShards(files, { freeSlots = 0, times = {}, root = 
  *   remoteOptions?: { source?: { tree?: string }, metadata: { timingRunId?: string } }, localOptions?: object }} execution - The proof's profiled execution.
  * @param {{ files: string[], filesCommand: (files: string[]) => string, takeSlot?: Parameters<typeof runProofShards>[1]['takeSlot'],
  *   freeSlots?: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void,
- *   retryMs?: number, batchFiles?: number }} options
+ *   retryMs?: number, batchFiles?: number, gateLaneFree?: Promise<unknown>|null }} options - `gateLaneFree` holds runs on the gate's own lease.
  * @returns {Promise<object>} The one run the proof receipt records.
  */
 export async function proveBatches(root, execution, { files, filesCommand, takeSlot = null, freeSlots = 0, times = {}, say, retryMs, batchFiles,
-  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])) }) {
+  passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])), gateLaneFree = null }) {
   const onRunner = Boolean(execution.gateLease?.runner);
   const runners = execution.gateLease?.executionServices?.runners;
   const runFirst = onRunner
     ? batch => runners.runOnRunnerAsync(root, filesCommand(batch), execution.remoteOptions)
     : batch => runShellAsync(root, filesCommand(batch), execution.localOptions);
   const shards = await runProofShards(files, { freeSlots, times, root, runFirst, takeSlot: onRunner ? takeSlot : null, passes,
-    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles });
+    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles, gateLaneFree });
+  if (!shards && gateLaneFree) await gateLaneFree;
   if (!shards) return onRunner ? runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions) : runFirst(files);
   // The one local lane's single run is today's command over every file; it is the run, not a merge of one.
   return shards.length === 1 && shards[0].files.length === files.length ? shards[0].run : mergeShardRuns(shards);
+}
+
+/**
+ * The files a red shard failed on, in the proof's own file order: those the shard's output names, or every file of a red
+ * shard whose output names none, so a red run never reads without a file and a green shard names nothing.
+ * Why: the receipt merge keeps one output and one exit, and the person fixing a red needs the file, not the shard [C7].
+ *
+ * @param {{ files: string[], run: object }[]} shards
+ * @returns {string[]} The failing files, each once, in the order the shards list their files.
+ */
+export function failingShardFiles(shards) {
+  const failing = new Set();
+  for (const { files, run } of shards) {
+    if (run.isGreen === true) continue;
+    const output = String(run.output ?? '');
+    const named = files.filter(file => output.includes(file.replace(/^\.\//u, '')));
+    for (const file of named.length ? named : files) failing.add(file);
+  }
+  return [...failing];
 }
 
 /**
@@ -455,6 +496,7 @@ export function mergeShardRuns(shards) {
     output: runs.map(run => String(run.output ?? '')).join('\n'), testRuntimes: joined('testRuntimes'),
     executionSourceUnchanged: sameSource && runs.every(run => run.executionSourceUnchanged !== false),
     ...(runs.some(run => run.timedOut) ? { timedOut: true } : {}),
+    failingFiles: failingShardFiles(shards),
     shards: shards.map(({ files, run }) => ({ files: [...files], exitCode: Number.isSafeInteger(run.exitCode) ? run.exitCode : null,
       runner: typeof run.executionRunner === 'string' && run.executionRunner ? run.executionRunner : null,
       durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? (run.seconds ?? 0) * 1000)) })) };

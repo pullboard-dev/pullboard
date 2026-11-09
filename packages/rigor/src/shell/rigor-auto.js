@@ -78,10 +78,16 @@ function proposalSuppressed(board, history, draft, cause) {
 /** Draft the existing threshold's ordinary advice inside its triggering board transaction, never proving it. */
 export function recordAutomaticRigorDrafts(board, trigger, shout) {
   if (['shout', 'shout_news'].includes(trigger.event_kind)) return recordCoordinatorInstructionDrafts(board, trigger);
-  const history = events(board);
   const detail = JSON.parse(trigger.event_detail);
   const keys = new Set(eventCauses(trigger));
   if (trigger.event_kind === 'fact' && trigger.event_by === PERSON && detail.neverAgain) keys.add(detail.cause);
+  // A move that names no cause and no conflicting file can draft nothing. Why return before reading history: the
+  // whole event log is read inside the move's write transaction, and on a 380,000-event board a plain hold kept the
+  // write lock for seconds doing it [C7].
+  const conflictFiles = trigger.event_kind === 'reopen' ? detail.conflict?.files
+    : trigger.event_kind === 'hold_item' ? conflictNoteFiles(detail.reason) : null;
+  if (!keys.size && !conflictFiles?.length) return;
+  const history = events(board);
   const causes = rigorReport(history, { person: PERSON }).causes.filter(cause => keys.has(cause.key));
   const conflicts = conflictReport(history, { now: board.clock.now() }).hotFiles
     .filter(file => trigger.event_kind === 'reopen' && detail.conflict?.files?.includes(file.file)

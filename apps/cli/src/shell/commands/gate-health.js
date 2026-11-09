@@ -6,6 +6,8 @@ import {
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { gateHealthLines } from '../../../../../packages/gate/index.js';
 import { gateHealthReport } from '../../../../../packages/gate/index.js';
+import { landingHealthLines } from '../../../../../packages/landing/index.js';
+import { landingHealthReport } from '../../../../../packages/landing/index.js';
 
 /**
  * Milliseconds in a window such as 30m, 2h or 1d.
@@ -20,17 +22,21 @@ export function gateHealthWindowMs(value) {
   return ms;
 }
 
-/** Print the gate count, total percentiles, time per phase, failure causes and slowest gates, recording no move. */
+/**
+ * Print the gate count, total percentiles, time per phase, failure causes and slowest gates, then the landings'
+ * accept-to-merged times and time per landing step, recording no move.
+ */
 export function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || Object.keys(values).some(key => !['json', 'since'].includes(key))) {
-    throw new Refused('USAGE', 'pullboard gate-health [--since 2h] [--json] reports where gate time went');
+    throw new Refused('USAGE', 'pullboard gate-health [--since 2h] [--json] reports where gate and landing time went');
   }
   const window = typeof values.since === 'string' ? values.since : '2h';
   const span = gateHealthWindowMs(window);
   const ctx = context(io);
   const now = ctx.clock.now().getTime();
-  const report = withBoardRead(ctx, board => gateHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }));
-  io.result?.({ report });
-  for (const line of gateHealthLines(report, window)) io.say(line);
+  const { report, landing } = withBoardRead(ctx, board => ({ report: gateHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }),
+    landing: landingHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }) }));
+  io.result?.({ report, landing });
+  for (const line of [...gateHealthLines(report, window), ...landingHealthLines(landing)]) io.say(line);
   return 0;
 }

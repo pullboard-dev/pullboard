@@ -1,6 +1,6 @@
 {
   "name": "heartbeat",
-  "help": "  pullboard heartbeat                 record this seat's local session activity; no board move\n",
+  "help": "  pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate\n",
   "required": {
     "seat": "string|null",
     "presence": "string",

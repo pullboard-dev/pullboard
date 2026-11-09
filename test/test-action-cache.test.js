@@ -13,6 +13,7 @@ import { readTestOutcomes } from '../packages/gate/index.js';
 import { requireTestTierAccount } from '../packages/gate/index.js';
 import { suiteProven } from '../packages/gate/index.js';
 import { testActionKeys } from '../packages/gate/index.js';
+import { prepareTestResultExchange } from '../packages/gate/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../src', import.meta.url));
@@ -337,4 +338,22 @@ test('copied tooling ignores preserve the refusal to reuse with an unrelated unt
   assert.equal(cleanAgain.status, 0, cleanAgain.output);
   assert.deepEqual(cleanAgain.ran, [], 'removing only the unrelated file restores clean reuse');
   assert.match(cleanAgain.output, /^# reused /mu);
+});
+
+test('a runner dispatch request reads its keys without the store upkeep, which other key reads still run [C7]', async t => {
+  // 9 Nov: the upkeep read 184,000 key memo files (733 MB) inside one dispatch's request, minutes at load.
+  const fixture = makeFixture(t);
+  const previous = { home: process.env.PULLBOARD_MACHINE_HOME, store: process.env.PULLBOARD_TEST_RESULT_STORE };
+  process.env.PULLBOARD_MACHINE_HOME = join(fixture.root, 'machine');
+  delete process.env.PULLBOARD_TEST_RESULT_STORE;
+  t.after(() => {
+    if (previous.home === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous.home;
+    if (previous.store !== undefined) process.env.PULLBOARD_TEST_RESULT_STORE = previous.store;
+  });
+  const exchange = await prepareTestResultExchange(fixture.root, 'node bin/run-tests.js ./test/a.test.js', 'HEAD');
+  assert.ok(exchange?.inputKeys.length >= 1, 'the dispatch still names its input keys');
+  assert.equal(existsSync(join(fixture.store, 'parts-prune')), false, 'the dispatch ran no parts prune');
+  assert.equal(existsSync(join(fixture.root, 'machine', 'key-memo-prune')), false, 'the dispatch ran no memo age sweep');
+  await testActionKeys(fixture.root, { files: ['test/a.test.js'] });
+  assert.equal(existsSync(join(fixture.store, 'parts-prune')), true, 'an ordinary key read keeps the upkeep');
 });

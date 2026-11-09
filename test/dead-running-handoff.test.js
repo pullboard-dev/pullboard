@@ -29,10 +29,13 @@ import { recordGateDriveSpawn } from '../packages/drive/index.js';
 import { drivenHandoffGate } from '../apps/lib/src/shell/submit-handoff-worker.js';
 import { deadWorker } from '../apps/cli/src/shell/handoff-worker-alive.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
+import * as store from '../packages/store/index.js';
+import { randomUUID } from 'node:crypto';
 import { gateSettled } from './submit-handoff-fixture.js';
 import { removeSandboxes } from './submit-handoff-fixture.js';
 
@@ -99,7 +102,7 @@ function fixture(t) {
   return { ...box, helpers, id, started };
 }
 
-test('a running handoff with a dead worker pid is recovered and a new submit queues [C7,V4]', async t => {
+test('#3995 clause 1: killing the submit worker mid-tests relaunches the same gate, which finishes from its last recorded section with no SUBMIT_HANDOFF_DEAD [C7,V4]', async t => {
   const box = fixture(t);
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
@@ -111,18 +114,16 @@ test('a running handoff with a dead worker pid is recovered and a new submit que
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
-
-  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'pass\n', 'feat(web): next candidate [G1]').status, 0);
-  const next = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
-  assert.doesNotMatch(next.out + next.err, /SUBMIT_HANDOFF_PENDING/u, 'a dead running job never refuses the next submit');
-  assert.equal(document(next).queued, true);
+  // Let the relaunched gate pass its held section, then ask for the same head again: recovery relaunches the job.
+  writeFileSync(join(box.dir, 'release'), 'release\n');
+  const again = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
+  assert.doesNotMatch(again.out + again.err, /SUBMIT_HANDOFF_DEAD/u, 'a dead running worker never ends the gate');
+  await box.helpers.waitFor(() => driverRecord(box.boardFile, first.id)?.relaunches === 1, 'the same job was relaunched', 120000); // budget: relaunch ceiling, no timing assertion.
+  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the relaunched gate finished', 120000); // budget: real gate ceiling, no timing assertion.
   const after = state(box, box.id);
-  assert.notEqual(after.job.id, first.id, 'the next submit queued its own job');
-  const retired = JSON.parse(readFileSync(join(directory, 'refusal.json'), 'utf8'));
-  assert.equal(retired.error.code, 'SUBMIT_HANDOFF_DEAD');
-  assert.match(retired.error.message, /running submit worker is dead/u);
-  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the new gate finished', 120000); // budget: real gate ceiling, no timing assertion.
-  assert.equal(state(box, box.id).item.item_status, 'submitted');
+  assert.equal(after.job.id, first.id, 'the gate finished on its original job');
+  assert.equal(existsSync(join(directory, 'refusal.json')), false, 'no refusal was written for the dead worker');
+  assert.equal(after.item.item_status, 'submitted');
 });
 
 /** The lease renewal interval the blocked-driver tests run with; production renews every 5 s. */
@@ -225,4 +226,32 @@ test('clause 3: a worker whose event loop is blocked for 3 minutes finishes with
   assert.deepEqual(collected.result, { code: 0, commit }, 'the gate recorded its own green result');
   assert.equal(job.steps.find(step => step.name === 'verdict').payload.verdict, 'green');
   assert.doesNotMatch(JSON.stringify(job.steps), /SUBMIT_HANDOFF_DEAD/u);
+});
+
+test('#4073 clause 1: a running hand-off resumes only while its item is claimed by its seat at its digest; otherwise SUBMIT_HANDOFF_CHANGED [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Running hand-off resume', '--specs', 'G1', '--criterion', 'A running hand-off resumes only for its claim.', '--check', 'true', '--wait', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
+  box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const board = fixtureOpenBoard(box);
+  try {
+    const item = getItem(board, id);
+    const commit = box.git(box.web, 'rev-parse', 'HEAD');
+    const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
+    const queued = store.queueSubmitHandoff(board, id, { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit, tree, executionCommit: commit, executionTree: tree, digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 });
+    assert.equal(store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id }).started, true);
+    // A driver admitted after a dead one resumes the running record while the item still waits on it.
+    const resumed = store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id });
+    assert.equal(resumed.started, false);
+    assert.equal(resumed.job.state, 'running');
+    // The claim moves on: the item is released while its gate runs; the next driver must not resume the old gate.
+    board.db.prepare("UPDATE item SET item_status = 'open', item_owner = NULL WHERE item_id = ?").run(id); // fixture-subject: the item left its claim
+    assert.throws(() => store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id }),
+      error => error.code === 'SUBMIT_HANDOFF_CHANGED' && /running claim or frozen bar changed/u.test(error.message));
+  } finally { board.db.close(); }
 });

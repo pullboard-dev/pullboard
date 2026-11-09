@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { itemCost, recordSharedUsage, recordUsage } from '../packages/stats/index.js';
 import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
