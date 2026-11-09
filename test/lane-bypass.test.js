@@ -5,7 +5,7 @@ import {
   runFixtureChild as spawnSync,
   runFixtureChild,
   runFixtureGit,
-} from '../../../test/fixture-child.js';
+} from './fixture-child.js';
 import {
   chmodSync,
   existsSync,
@@ -29,11 +29,11 @@ import {
 } from 'node:test';
 import {
   submissionPaths,
-} from '../src/shell/trusted-policy.js';
-import { fixtureAdd } from '../../../test/testkit-fixture.js';
-import { fixtureJoin } from '../../../test/testkit-fixture.js';
+} from '../packages/sandbox/src/shell/trusted-policy.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SANDBOXES = [];
 const SPEC = '# Lane bypass fixture\n\n## Goals\n- G1 [approved, must] The web lane owns its page. | gate: true\n- G2 [approved, must] The API lane owns its route. | gate: true\n';
 

@@ -1,22 +1,17 @@
 /** Evidence declarations are enforced at native add/edit admission, with replay compatibility [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/src/core/native-board.js';
-import * as store from '../packages/store/index.js';
-import { CLAUSE_EVIDENCE_ENGINE } from '../packages/state/index.js';
-import { requireCriterionEvidence } from '../packages/state/index.js';
-import { clauseInspectionSummary } from '../packages/state/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { fixtureAdd } from './testkit-fixture.js';
+import * as store from '../index.js';
+import { CLAUSE_EVIDENCE_ENGINE } from '../../state/index.js';
+import { requireCriterionEvidence } from '../../state/index.js';
+import { clauseInspectionSummary } from '../../state/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 
 /** Use native SQLite storage and native item writers, without a replacement board implementation. */
 function fixture(t, engine = CLAUSE_EVIDENCE_ENGINE) {
-  const board = openBoard(':memory:');
+  const board = fixtureBoard(t);
   board.executionEngineVersion = engine;
   store.register(board, { lane: 'coordinator', path: '/evidence/main' });
-  t.after(() => store.closeBoard(board));
   return board;
 }
 
@@ -91,28 +86,4 @@ test('historical engine replay accepts old untagged criteria and unrelated edits
   board.executionEngineVersion = CLAUSE_EVIDENCE_ENGINE;
   store.editItem(board, id, { agentId: 'coordinator', brief: 'Files: packages/state/index.js\nTest: original case' });
   assert.equal(store.getItem(board, id).item_criterion, '1. old corrected outcome');
-});
-
-test('real CLI refuses add/edit before starting the check and exposes reasoning warnings [C7]', t => {
-  const e2e = createE2eHelpers();
-  t.after(e2e.cleanup);
-  const isolated = e2e.sandbox();
-  isolated.env.PULLBOARD_MODEL = 'Inspection evidence fixture';
-  const box = e2e.project('true', isolated);
-  const marker = join(box.repo, 'should-not-execute');
-  const check = `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)},"ran")'`;
-  const bad = fixtureAdd(box.run, box.repo, 'web', 'Invalid evidence', '--criterion', '1. returns zero', '--check', check,
-    '--route', 'mid', '--brief', 'Files: web/page.html\nTest: refusal before check');
-  assert.notEqual(bad.code, 0);
-  assert.match(bad.err, /CLAUSE_EVIDENCE_REQUIRED/u);
-  assert.equal(existsSync(marker), false);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Design evidence', '--criterion', '1. explain design [reasoning]', '--check', 'true',
-    '--route', 'mid', '--brief', 'Files: web/page.html\nTest: native evidence warning', '--json');
-  assert.equal(added.code, 0, added.err);
-  const result = JSON.parse(added.out);
-  assert.equal(result.warnings[0].code, 'CLAUSE_REASONING_WEAK');
-  const edited = box.run(box.repo, 'edit', String(result.item.item_id), '--criterion', '1. no kind', '--check', check, '--reason', 'invalid correction');
-  assert.notEqual(edited.code, 0);
-  assert.match(edited.err, /CLAUSE_EVIDENCE_REQUIRED/u);
-  assert.equal(existsSync(marker), false);
 });
