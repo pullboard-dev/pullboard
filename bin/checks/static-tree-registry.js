@@ -16,6 +16,7 @@ import { boardWriteIoProblems } from './board-write-io.js';
 import { relayBoundaryProblems } from './relay-boundary.js';
 import { fixtureProblems } from './test-fixtures.js';
 import { cellsEdgeProblems } from './cells-edges.js';
+import { testCellsProblems } from './test-cells.js';
 import { STATIC_CHECKS } from '../../packages/gate/index.js';
 
 /**
@@ -50,6 +51,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     return relayBoundaryProblems([...sources, ...relay]).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'test-cells', run: root => testCellsProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: (root, sources) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   { name: 'engine-folder', run: root => engineFolderProblems(root).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'view-pure', run: root => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`) },
