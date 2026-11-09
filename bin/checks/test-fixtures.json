@@ -665,7 +665,7 @@
   "test/board-link.test.js": {
     "tempdir": 1
   },
-  "packages/verify/tests/board-lock-hold.test.js": {
+  "apps/lib/tests/board-lock-hold.test.js": {
     "tempdir": 1,
     "raw-board": 7
   },
@@ -811,7 +811,7 @@
     "hand-policy": 1,
     "raw-board": 1
   },
-  "packages/verify/tests/check-proves-nothing.test.js": {
+  "apps/lib/tests/check-proves-nothing.test.js": {
     "raw-board": 1
   },
   "test/check-receipts.test.js": {

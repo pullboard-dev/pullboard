@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../store/index.js';
-import { checkpointBoard } from '../../store/index.js';
-import { exportBoard } from '../../store/index.js';
-import { importBoard } from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { refreshCapacityOutsideWrite } from '../index.js';
+import * as store from '../../../packages/store/index.js';
+import { checkpointBoard } from '../../../packages/store/index.js';
+import { exportBoard } from '../../../packages/store/index.js';
+import { importBoard } from '../../../packages/store/index.js';
+import { openBoard } from '../index.js';
+import { refreshCapacityOutsideWrite } from '../../../packages/verify/index.js';
 
 /** A real file board in a private directory, with some history so its proof counters are warm. */
 function fileBoard(t) {
