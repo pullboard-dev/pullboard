@@ -1,13 +1,20 @@
 /** Native releases and their daily work-free report retain the recorded reasons [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
-import { addItem, claim, closeBoard, events, register, release, releaseReasonProblem } from '../packages/store/index.js';
-import { healthReport } from '../packages/health/index.js';
-import { proofStats, workFreeReleases } from '../packages/stats/index.js';
-import { counterProofStats } from '../packages/verify/index.js';
-import { TAKEN_OVER_RELEASE_ENGINE } from '../packages/state/core.js';
-import { release as releaseMove } from '../packages/moves/index.js';
+import { openBoard } from '../index.js';
+import { addItem } from '../../../packages/store/index.js';
+import { claim } from '../../../packages/store/index.js';
+import { closeBoard } from '../../../packages/store/index.js';
+import { events } from '../../../packages/store/index.js';
+import { register } from '../../../packages/store/index.js';
+import { release } from '../../../packages/store/index.js';
+import { releaseReasonProblem } from '../../../packages/store/index.js';
+import { healthReport } from '../../../packages/health/index.js';
+import { proofStats } from '../../../packages/stats/index.js';
+import { workFreeReleases } from '../../../packages/stats/index.js';
+import { counterProofStats } from '../../../packages/verify/index.js';
+import { TAKEN_OVER_RELEASE_ENGINE } from '../../../packages/state/core.js';
+import { release as releaseMove } from '../../../packages/moves/index.js';
 
 test('each release reason is recorded and health and stats count work-free claims per day and seat [C7]', t => {
   const now = new Date('2026-11-02T12:00:00.000Z');
