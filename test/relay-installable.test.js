@@ -92,7 +92,11 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
       await chrome.waitFor('navigator.serviceWorker.controller !== null', undefined, 'the served worker controls the hosted page');
       assert.equal(await chrome.evaluate('navigator.serviceWorker.controller.scriptURL'), box.origin + '/service-worker.js');
       await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
-      await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+      try { await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')'); }
+      catch (error) {
+        const seen = await chrome.evaluate("JSON.stringify({ href: location.href.replace(/key=[^&]*/u, 'key=_'), notice: document.querySelector('#relay-notice')?.textContent, chain: document.querySelector('#chain')?.innerHTML.slice(0, 600), tab: localStorage.getItem('pb.tab'), panes: Array.from(document.querySelectorAll('[data-pane]'), pane => pane.dataset.pane + ':' + pane.hidden), body: document.body.innerText.slice(0, 600) })");
+        throw new Error(error.message + ' DIAG ' + seen, { cause: error });
+      }
       assert.equal(await chrome.evaluate('window.pairingPersistenceCalls'), 1,
         'successful pairing asks the browser to retain its storage');
       const warning = await chrome.evaluate("document.querySelector('#pairing-storage-notice')?.textContent");
