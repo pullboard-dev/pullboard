@@ -2003,6 +2003,8 @@
     "sandbox->state",
     "commits->kernel",
     "rigor->store",
-    "(root)->store"
+    "(root)->store",
+    "spec->kernel",
+    "gate->spec"
   ]
 }
