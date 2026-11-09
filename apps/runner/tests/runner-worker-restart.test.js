@@ -6,10 +6,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { cellProject } from './cell-fixture.js';
-import { runFixtureChild } from './fixture-child.js';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 /** Hold a hung pinned worker, fail the first health probe, then run recovery with the real restart probe on a private host. */
 function observe(t, busy, reason = 'worker-unresponsive') {
@@ -21,7 +21,7 @@ function observe(t, busy, reason = 'worker-unresponsive') {
   for (const directory of [bin, worker, hung, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   writeFileSync(join(hung, 'runner-worker.js'), 'setInterval(() => {}, 60000);\n');
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: 1 });
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
+  const url = name => pathToFileURL(join(import.meta.dirname, '../../../src', name)).href;
   const script = `
     import assert from 'node:assert/strict';
     import { DatabaseSync } from 'node:sqlite';
