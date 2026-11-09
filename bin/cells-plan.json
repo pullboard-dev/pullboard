@@ -1525,6 +1525,14 @@
         "apps/cli/src/core/next-step-defaults.js",
         "seed"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/landing-stage-composition.test.js",
+        "packages/gate/tests/landing-stage-composition.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
