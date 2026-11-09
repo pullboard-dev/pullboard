@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/verify",
  "frontDoor": "packages/verify/index.js",
+ "lightFrontDoor": "packages/verify/core.js",
  "paths": [
   ["src/review-default.js","packages/verify/src/shell/review-default.js","rule"],
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
