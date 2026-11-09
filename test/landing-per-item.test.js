@@ -23,6 +23,13 @@ function perItemProject() {
   return box;
 }
 
+/** Put a passing copy of the red item's file on main, so the landing's base-main comparison can run it [C7,#3065]. */
+function establishBaseFile(box, number) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  try { assert.equal(e2e.commitFile(box, box.repo, `web/land-${number}.test.js`, '// PASS\n', 'test(web): establish passing base case [G1]').status, 0); }
+  finally { delete box.env.LAND_SUPPRESS_RED; }
+}
+
 /** Add, join and claim one item whose check is the fixture's own single-file runner. */
 function item(box, number) {
   const file = `web/land-${number}.test.js`;
@@ -82,6 +89,7 @@ test('per-item landing lands one verified item per run in accept order, hooks of
 test('a red item goes back to open alone with its evidence and the next run lands the next item [C7,#2901]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
 () => {
   const box = perItemProject();
+  establishBaseFile(box, 1);
   const red = item(box, 1), green = item(box, 2);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); submitItem(box, green); } finally { delete box.env.LAND_SUPPRESS_RED; }
@@ -107,6 +115,7 @@ test('a red item goes back to open alone with its evidence and the next run land
 test('two land runs on an unchanged board never record the same stop twice [C7,#2901]', { timeout: 300_000 }, // budget: one real submit, accept and three landings; hang ceiling only.
 () => {
   const box = perItemProject();
+  establishBaseFile(box, 1);
   const red = item(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); } finally { delete box.env.LAND_SUPPRESS_RED; }
