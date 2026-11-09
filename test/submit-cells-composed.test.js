@@ -74,7 +74,7 @@ function state(box) {
     : name === 'index' ? git(box.root, 'write-tree') : git(box.root, 'for-each-ref', '--format=%(refname) %(objectname)'));
 }
 
-test('an older candidate preserves a later accepted source and row in its immutable census [C7,D3,CD64]', async t => {
+test('clause 1: an older candidate preserves a later accepted source and row in its immutable census [C7,D3,CD64]', async t => {
   const box = await diverged(t, box => box.put('bin/tool.js', "import '../src/cli.js'; // independent candidate\n"));
   const before = state(box);
   const result = await requireSubmitCells(box.root, box.main, box.candidate, item, box.services);
@@ -89,7 +89,7 @@ test('an older candidate preserves a later accepted source and row in its immuta
   assert.deepEqual(state(box), before, 'the census never changes caller HEAD, index or refs');
 });
 
-test('composing later main never forgives a candidate deletion of accepted ownership [C7,D3,CD64]', async t => {
+test('clause 1: composing later main never forgives a candidate deletion of accepted ownership [C7,D3,CD64]', async t => {
   const box = await diverged(t, box => {
     const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
     const row = kernel.paths.shift();
@@ -102,7 +102,7 @@ test('composing later main never forgives a candidate deletion of accepted owner
   assert.deepEqual(state(box), before);
 });
 
-test('a conflicting candidate cannot substitute a guessed cells composition [C7,D3,CD64]', async t => {
+test('clause 1: a conflicting candidate cannot substitute a guessed cells composition [C7,D3,CD64]', async t => {
   const box = await diverged(t, box => box.put('src/later.js', 'export const later = false;\n'));
   const before = state(box);
   await assert.rejects(requireSubmitCells(box.root, box.main, box.candidate, item, box.services),
