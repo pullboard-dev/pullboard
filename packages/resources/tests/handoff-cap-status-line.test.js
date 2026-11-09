@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
-import { currentCapacity, liveCapacity } from '../bin/handoff-worker-dispatcher.js';
-import { handoffCapLine, handoffWorkerCapacityDetail } from '../packages/resources/index.js';
-import { DISPATCH_WORKER_BOUND } from '../packages/resources/src/shell/handoff-worker-cap.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { currentCapacity } from '../../../bin/handoff-worker-dispatcher.js';
+import { liveCapacity } from '../../../bin/handoff-worker-dispatcher.js';
+import { handoffCapLine } from '../index.js';
+import { handoffWorkerCapacityDetail } from '../index.js';
+import { DISPATCH_WORKER_BOUND } from '../src/shell/handoff-worker-cap.js';
 
 /** Run work with the machine home pointed at a fresh folder and an inherited cap of 1. */
 function withMachine(work) {
