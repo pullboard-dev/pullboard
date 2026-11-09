@@ -1,9 +1,9 @@
 /** next and claim agree on held: a lapsed claim whose own gate is in flight is never listed open [C7,#3121]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmitHandoff } from '../../jobs/index.js';
-import * as store from '../index.js';
-import { fixtureBoard } from '../../../test/board-fixture.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
+import * as store from '../packages/store/index.js';
+import { fixtureBoard } from './board-fixture.js';
 
 const freeze = () => ({ text: '{}', digest: 'lapsed-gated-claim-fixture' });
 

@@ -2,16 +2,13 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { applyRelayMove } from '../../state/index.js';
-import { prepareEngineMove } from '../../state/index.js';
-import { exportBoard } from '../index.js';
-import { importBoard } from '../index.js';
-import { SPEC_DRAFT_REFREEZE_ENGINE } from '../../state/core.js';
-import { rowDecisions } from '../../spec/index.js';
-import { prepareSpecRefreezes } from '../../spec/index.js';
-import { specRefreezeSkips } from '../../spec/index.js';
-import { fixtureBoard } from '../../../test/board-fixture.js';
+import * as store from '../packages/store/index.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
+import { SPEC_DRAFT_REFREEZE_ENGINE } from '../packages/state/core.js';
+import { rowDecisions } from '../packages/spec/index.js';
+import { prepareSpecRefreezes, specRefreezeSkips } from '../packages/spec/index.js';
+import { fixtureBoard } from './board-fixture.js';
 
 /** Native fixture bars model stored claim state; they are not executed checks or reviewer assurance. */
 function frozen(item, text = 'The corrected promise.') {

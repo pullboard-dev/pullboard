@@ -1843,7 +1843,7 @@
   "packages/kernel/tests/item-list-retained-claim.test.js": {
     "raw-board": 5
   },
-  "packages/moves/tests/item-notes-engine.test.js": {
+  "test/item-notes-engine.test.js": {
     "raw-board": 3
   },
   "test/item-patch-cli.test.js": {
@@ -2329,7 +2329,7 @@
     "hand-policy": 1,
     "model": 1
   },
-  "packages/store/tests/next-lapsed-gated-claim.test.js": {
+  "test/next-lapsed-gated-claim.test.js": {
     "raw-board": 2
   },
   "test/next-light-reserve.test.js": {
@@ -2568,7 +2568,7 @@
     "model": 1,
     "hand-policy": 2
   },
-  "packages/store/tests/queue-fairness.test.js": {
+  "test/queue-fairness.test.js": {
     "raw-board": 3
   },
   "test/queue-order.test.js": {
@@ -3472,7 +3472,7 @@
     "model": 2,
     "tempdir": 1
   },
-  "packages/store/tests/spec-draft-refreeze.test.js": {
+  "test/spec-draft-refreeze.test.js": {
     "raw-board": 4
   },
   "test/spec-refreeze-fixture.js": {
@@ -3933,9 +3933,6 @@
     "raw-board": 6,
     "hand-policy": 1
   },
-  "test/next-answer-first.test.js": {
-    "raw-board": 1
-  },
   "test/stats-build-time-fixture.js": {
     "tempdir": 2,
     "hand-policy": 1,
@@ -3945,5 +3942,8 @@
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 6
+  },
+  "test/next-answer-first.test.js": {
+    "raw-board": 1
   }
 }
