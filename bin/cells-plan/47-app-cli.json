@@ -276,14 +276,14 @@
   ["src/cli-main/run-command.js","apps/cli/src/shell/cli-main/run-command.js","rule"],
   ["src/cli-main/run-main.js","apps/cli/src/shell/cli-main/run-main.js","rule"],
   ["src/cli-trace.js","apps/cli/src/shell/cli-trace.js","rule"],
-  ["src/submit-remote-gate.js","apps/cli/src/shell/submit-remote-gate.js","rule"]
+  ["src/submit-remote-gate.js","apps/cli/src/shell/submit-remote-gate.js","rule"],
+  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
   "src/cli-main.js",
   "src/cli-presence.js",
   "src/cli-read-context.js",
-  "src/cli.js",
   "src/cockpit.js",
   "src/commands/index.js",
   "src/help.js",

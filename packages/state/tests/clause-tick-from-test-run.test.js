@@ -4,7 +4,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { checkRunTickNotes, clauseInspectionProblem, testRunTickNotes } from '../packages/state/index.js';
+import { checkRunTickNotes } from '../index.js';
+import { clauseInspectionProblem } from '../index.js';
+import { testRunTickNotes } from '../index.js';
 
 const FILE = 'test/example.test.js';
 const item = {
@@ -36,7 +38,7 @@ test('clause 1: a run of a file outside the check ticks nothing [C7]', () => {
 });
 
 test('clause 1: pullboard test records the ticks only after a green run [C7]', () => {
-  const source = readFileSync(new URL('../apps/cli/src/shell/commands/test.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../apps/cli/src/shell/commands/test.js', import.meta.url), 'utf8');
   assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
 });
 
@@ -50,6 +52,6 @@ test('clause 1: a green run of a shell-command check ticks its clauses [C7]', ()
 });
 
 test('clause 1: pullboard check records the ticks only after a green run [C7]', () => {
-  const source = readFileSync(new URL('../apps/cli/src/shell/commands/check.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../apps/cli/src/shell/commands/check.js', import.meta.url), 'utf8');
   assert.match(source, /run\.isGreen\) await recordCheckTicks/u);
 });

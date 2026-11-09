@@ -85,7 +85,7 @@ import {
   relayPerson,
   requestPerson,
 } from '../../../../packages/link/index.js';
-import { projectState } from '../../../../src/serve.js';
+import { projectState } from '../../../view/index.js';
 import {
   projectFit,
   pendingFit,

@@ -198,17 +198,26 @@ function readItem(box, id) {
 }
 
 /**
- * Shape a current export for an archived client, which predates the additive job tables.
+ * Shape a current export for an archived client, which predates the job tables.
  *
  * Why: 7d16c88b1f added job and job_step on open, and old exchange.js refuses any table it does not know.
- * The fixture boards hold no jobs, so dropping the empty tables hands the old client the same board.
+ * fc85f1c3cb then moved each item's submit hand-off record from board_meta (`submit_handoff:<item>`) onto its gate job,
+ * so the fixture boards now hold jobs. The old client reads the record from board_meta, so every item's newest
+ * record-carrying step on a gate job goes back there and the job tables are dropped: the archived client gets the board it knew.
  * @param {any} snapshot
  * @returns {any}
  */
 function legacySnapshot(snapshot) {
   const { job = [], job_step: jobStep = [], ...tables } = snapshot.tables;
-  assert.deepEqual([job.length, jobStep.length], [0, 0], 'the replayed fixture board holds no jobs');
-  return { ...snapshot, tables };
+  const records = new Map();
+  for (const step of [...jobStep].sort((a, b) => b.job_step_id - a.job_step_id)) {
+    const owner = job.find((row) => row.job_id === step.job_step_job);
+    if (owner?.job_kind !== 'gate') continue;
+    const record = JSON.parse(step.job_step_payload).record;
+    if (record !== undefined && !records.has(owner.job_item)) records.set(owner.job_item, record);
+  }
+  const handoffs = [...records].map(([item, record]) => ({ meta_key: `submit_handoff:${item}`, meta_value: JSON.stringify(record) }));
+  return { ...snapshot, tables: { ...tables, board_meta: [...(tables.board_meta ?? []), ...handoffs] } };
 }
 
 /**
@@ -978,10 +987,13 @@ test('clause 3: retained main controls builder first refusal during detached rev
   // #2460 (12ee9b638c, d80a319692) restored the first-refusal window after #2779: the claim opens only once it has passed.
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   t.mock.timers.tick(29 * 60_000);
+  // #3447: a builder silent for two minutes is gone and its window ends at once, so the live builder beats before each claim.
+  store.heartbeatSeat(board, 'web-1');
   const insideWindow = await command(other, 'claim', '1', '--json');
   assert.equal(insideWindow.code, 1, insideWindow.out);
   assert.equal(JSON.parse(insideWindow.out).error.code, 'REOPEN_HELD_FOR_BUILDER', 'still inside the 30-minute window');
   t.mock.timers.tick(2 * 60_000);
+  store.heartbeatSeat(board, 'web-1');
   const claimed = await command(other, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
 });

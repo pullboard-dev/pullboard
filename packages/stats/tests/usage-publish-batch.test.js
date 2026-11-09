@@ -48,9 +48,9 @@ function fixture(t, count = 48) {
 test('a real claim publishes all 48 pending revisions in one transaction and retries without duplicates [N2,C7]', t => {
   const { box, helpers, board, agent, ids } = fixture(t);
   t.after(() => store.closeBoard(board));
-  const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
+  const cli = pathToFileURL(join(helpers.BIN, '../../apps/cli/index.js')).href;
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
-  const code = `import {context,withBoard,whoAmI,claimOrdered,freezer,ordered} from ${JSON.stringify(cli)};
+  const code = `import {context,withBoard,whoAmI,cli\$claimOrdered as claimOrdered,cli\$freezer as freezer,cli\$ordered as ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
@@ -106,9 +106,9 @@ test('usage batches retain authentication, atomic rollback, per-record deduplica
 test('1001 pending revisions progress across bounded commands and never duplicate or disappear [N2,C7,H16]', t => {
   const {box,helpers,board,agent,ids}=fixture(t,USAGE_BATCH_LIMIT+1);
   t.after(()=>store.closeBoard(board));
-  const cli=pathToFileURL(join(helpers.BIN,'../../src/cli.js')).href;
+  const cli=pathToFileURL(join(helpers.BIN,'../../apps/cli/index.js')).href;
   const checkpoint=pathToFileURL(join(helpers.BIN,'../../packages/stats/src/shell/cost-checkpoint.js')).href;
-  const code=`import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
+  const code=`import {context,withBoard,whoAmI,cli\$ordered as ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     const operations=[],io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
