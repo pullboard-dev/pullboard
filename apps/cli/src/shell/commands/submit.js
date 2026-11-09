@@ -668,8 +668,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try {
       // The gate records its verdict over the red cases from main's fresh receipts at the base: main's own reds record
       // green, and a missing receipt runs its main-test job and finishes the verdict when it returns, never a bounce [C7,#3534].
+      const verdictStart = Date.now();
       try { criterionVerdict = await mainOwnedGate(ctx, { root, item: id, candidate: commit, base: mainFailureBase, claimBase: claimHead, cases: criterionCases, output: gate.output, runnerAdmission, onMeasuredReceipt }); }
       catch { criterionVerdict = null; /* A verdict that cannot be recorded leaves the judgement to main's keyed receipts below. */ }
+      recordGateSpan({ phase: 'main-verdict', start: verdictStart, outcome: 'done' });
       if (criterionVerdict?.verdict === 'red') throw new Error(`the frozen check is red in the candidate's own case(s): ${criterionVerdict.own.map(row => `${row.file} (${row.name})`).join('; ')}`);
       // Main-red status is main's keyed receipt; a missing one queues a main-test job and refuses, never refreshes [C7,#3424].
       const lookup = withBoard(ctx, board => criterionMainReceipts({ root, db: board.db, main: mainFailureBase, cases: criterionCases }));
@@ -749,9 +751,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
+      const compareStart = Date.now();
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
         recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
+      recordGateSpan({ phase: 'main-compare', start: compareStart, outcome: 'done' });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
