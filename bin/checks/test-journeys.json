@@ -426,22 +426,6 @@
         "component test helper; moves with its importers"
       ]
     },
-    "test/brief-quoted-check-path.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
-      ]
-    },
     "test/browser-admission-runners.test.js": {
       "cells": [
         "api",
@@ -10540,22 +10524,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/submit-compare.test.js)",
         "spawns a child process (test/fixture-child.js)"
-      ]
-    },
-    "test/submit-derived-family.test.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (test/e2e-helpers.js)",
-        "imports past kernel front door (packages/kernel/src/core/discovery.js)",
-        "runs the CLI (test/e2e-helpers.js)",
-        "spawns a child process (test/e2e-helpers.js)"
       ]
     },
     "test/submit-doctrine-on-runner.test.js": {
