@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/landing",
  "frontDoor": "packages/landing/index.js",
+ "pureFrontDoor": "packages/landing/core.js",
  "paths": [
   ["src/computed-conflict-receipt.js","packages/landing/src/shell/computed-conflict-receipt.js","seed"],
   ["src/computed-conflict-return.js","packages/landing/src/shell/computed-conflict-return.js","seed"],
