@@ -5,7 +5,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 /** Install real CLI controls while reusing the frozen suite's isolated Git and SQLite setup. */

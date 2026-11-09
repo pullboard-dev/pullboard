@@ -1,7 +1,7 @@
 // pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js src/api.js src/cli.js apps/cli/index.js */
 import { viewApiPorts } from '../../apps/view/index.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';

@@ -794,8 +794,13 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   async function catchUp(label, observedAt = Date.now()) {
     t.mock.timers.enable({ apis: ['Date'], now: observedAt });
     try {
-      const answer = await box.call(box.path + '/state?since=' + held.sequence);
-      const fresh = await box.call(box.path + '/state');
+      // A submit's handoff worker may append its own events between the two reads; compare only a pair read at one sequence.
+      let answer = await box.call(box.path + '/state?since=' + held.sequence);
+      let fresh = await box.call(box.path + '/state');
+      for (let attempt = 0; attempt < 200 && answer.document.sequence !== fresh.document.state?.sequence; attempt += 1) {
+        answer = await box.call(box.path + '/state?since=' + held.sequence);
+        fresh = await box.call(box.path + '/state');
+      }
       assert.equal(answer.status, 200, label);
       assert.ok(answer.document.delta, `${label}: ${JSON.stringify(answer.document.reset)}`);
       assert.equal(answer.document.since, held.sequence, label);

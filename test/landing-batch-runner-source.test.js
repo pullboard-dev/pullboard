@@ -23,7 +23,7 @@ test('a real landing runner receives the clean committed engine amendment [C7]',
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.gate = 'node runner-source.cjs';
   config.practice = 'DOCTRINE.md';
-  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/'])];
+  config.lanes.web.owns = [...new Set([...config.lanes.web.owns, 'src/', 'docs/', 'packages/state/src/core/engines/'])];
   delete config.affectedTests;
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   writeFileSync(join(box.repo, 'runner-source.cjs'), [
@@ -36,7 +36,8 @@ test('a real landing runner receives the clean committed engine amendment [C7]',
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, 'src/base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
+  mkdirSync(join(box.repo, 'packages/state/src/core/engines'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/state/src/core/engines/base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
   writeFileSync(join(box.repo, 'docs/formats.md'), '| Format | Version |\n| --- | --- |\n| `move engine` | `80` | the fixture |\n');
   writeFileSync(join(box.repo, 'web/markers.txt'), 'TODO first\nTODO second\n');
   writeFileSync(join(box.repo, 'DOCTRINE.md'), '# Doctrine\n\n## Q · Quality\n- Q1 [approved, must] The quality count only falls. | gate: grep -n TODO web/markers.txt | count: 2\n');
@@ -46,7 +47,8 @@ test('a real landing runner receives the clean committed engine amendment [C7]',
 
   const entry = itemWorktree(box, 1, 'web/markers.txt');
   writeFileSync(join(entry.path, entry.file), 'TODO second\n');
-  writeFileSync(join(entry.path, 'src/alpha-engine.js'), unlandedEngine('alpha'));
+  mkdirSync(join(entry.path, 'packages/state/src/core/engines'), { recursive: true });
+  writeFileSync(join(entry.path, 'packages/state/src/core/engines/alpha-engine.js'), unlandedEngine('alpha'));
   submitItem(box, entry);
   acceptItem(box, entry);
 
@@ -69,7 +71,7 @@ test('a real landing runner receives the clean committed engine amendment [C7]',
   const merged = JSON.parse(box.run(box.repo, 'show', String(entry.item), '--json').out);
   assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', merged.item_merged_commit).split(' ').length, 3,
     'the engine numbering amendment remains inside the landed item merge');
-  assert.match(box.git(box.repo, 'show', `${merged.item_merged_commit}:src/alpha-engine.js`), /ALPHA_ENGINE = \d+;/u);
+  assert.match(box.git(box.repo, 'show', `${merged.item_merged_commit}:packages/state/src/core/engines/alpha-engine.js`), /ALPHA_ENGINE = \d+;/u);
 
   const gateLog = readFileSync(landed.batch.logPath, 'utf8');
   const source = /^BATCH_SOURCE ([a-f0-9]+) ([a-f0-9]+) (clean|dirty)$/mu.exec(gateLog);

@@ -29,7 +29,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/index.js';
 import { runnerRecoveryStatus } from '../../../resources/index.js';
-import { missedJobFindings } from '../../../../src/board-recurring-jobs.js';
+import { missedJobFindings } from '../../../store/index.js';
 import {
   COORDINATOR,
   durationMs,

@@ -1,5 +1,5 @@
 /** Normalize implicit strict tiers once, in the native write transaction [#1949]. */
-import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
+import { REVIEW_DEFAULT_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { gateJudgmentItem } from './review-tier.js';
 import { itemReviewPolicy } from '../core/review-policy.js';

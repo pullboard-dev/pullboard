@@ -21,7 +21,6 @@
   "src/health-receipts.js",
   "src/recurring-jobs.js",
   "src/release-claim.js",
-  "src/stale-state-engine.js",
   "src/stale-state-maintenance.js",
   "src/stale-state-policy.js",
   "src/stale-state-store.js"

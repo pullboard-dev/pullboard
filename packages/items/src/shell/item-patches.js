@@ -1,14 +1,14 @@
 /** Immutable coordinator patch inputs retain native author provenance and invalidate stale acceptance [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../src/item-patch-submit-engine.js";
-import { ITEM_PATCH_ENGINE } from "../../../../src/item-patch-engine.js";
-import { PATCH_REVIEW_CUSTODY_ENGINE } from "../../../../src/patch-review-custody-engine.js";
-import { PATCH_FOLLOW_ENGINE } from "../../../../src/patch-follow-engine.js";
+import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../state/core.js";
+import { ITEM_PATCH_ENGINE } from "../../../state/core.js";
+import { PATCH_REVIEW_CUSTODY_ENGINE } from "../../../state/core.js";
+import { PATCH_FOLLOW_ENGINE } from "../../../state/core.js";
 import { itemPatchSetDigest } from "./item-patch-state.js";
 import { Refused } from "../../../kernel/index.js";
-import { NO_ELIGIBLE_REVIEWER_ENGINE } from "../../../../src/no-eligible-reviewer-engine.js";
-import { ITEM_PATCH_AUTO_ENGINE } from "../../../../src/item-patch-auto-engine.js";
+import { NO_ELIGIBLE_REVIEWER_ENGINE } from "../../../state/core.js";
+import { ITEM_PATCH_AUTO_ENGINE } from "../../../state/core.js";
 import { outsideSource } from "../core/outside-source.js";
 import { itemPatchRecords as records } from "./item-patch-state.js";
 import { itemPatchDigest } from "./item-patch-state.js";

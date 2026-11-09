@@ -4,7 +4,7 @@ import { after, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';

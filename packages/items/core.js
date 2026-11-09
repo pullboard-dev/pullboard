@@ -1,8 +1,8 @@
-import { VENDOR_FAMILY_ENGINE } from '../../src/vendor-family-engine.js';
+import { VENDOR_FAMILY_ENGINE } from '../state/core.js';
 export { criterionSize } from './src/core/criterion-size.js';
 import { vendorFamilyAliases } from './src/core/vendor-families.js';
 import { ENGINE_VERSION } from '../../src/engine-metadata.js';
-import { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
+import { FAMILY_ALIAS_ENGINE } from '../state/core.js';
 
 /** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
 export function familyIndex(families) {

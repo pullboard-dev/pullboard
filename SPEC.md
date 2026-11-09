@@ -1,8 +1,21 @@
-# Pullboard local
+# Spec
 
-The local-first core of Pullboard: a work board, lanes, a spec and git hooks that live in the repo. No account, no network. This file is the spec, in the format `pullboard spec check` lints.
+Pullboard's local core: board, lanes, spec and git hooks, all in the repo.
 
-Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · wont = won't build, decided and kept · retired = no longer applies, kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
+New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
+
+- **This file:** the spec, linted by `pullboard spec check`.
+- **Ids:** permanent; never delete or renumber.
+- **Tiers:** must · aim.
+
+| Status | Means |
+|---|---|
+| approved | decided |
+| draft | proposed |
+| pending | open question |
+| fact | true today |
+| wont | declined, kept |
+| retired | no longer applies, kept |
 
 ## P · Principles
 - P1 [approved, must] Nothing ships until a second agent verifies it. | gate: test/board.test.js
@@ -241,7 +254,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H19 [approved, aim] Without the relay, a phone sees and acts on a board through the view on the local network, after scanning a pairing code. | gate: test/cockpit/lan.test.js
 - H21 [approved, aim] A linked board reads and moves locally whether or not the relay answers: every move returns at once and is sent when the relay is reachable, and a conflict found on sync is refused loudly naming the winner (revises H10 for #1013). | gate: test/relay-local-first.test.js
 - H22 [draft, aim] A linked board stays linked: the person signs in once per machine, and only relay off or a revoke unlinks it. | gate: review
-- H20 [draft, must] When a linked relay account has used more than 80% of its storage quota, the next status, sync and phone page warn once with bytes used, quota and an action before writes are refused at 100%. | gate: test/relay-storage-quota.test.js
+- H20 [draft, must] When a linked relay account has used more than 80% of its storage quota, the next status, sync and phone page warn once with bytes used, quota and an action before writes are refused at 100%. | gate: packages/state/tests/relay-storage-quota.test.js
 - H23 [draft, aim] The person never sees Pullboard's internals: no refusal code, command line, token, relay or sync term reaches a person-facing page, notification or Needs-you text; a check over every person-facing string fails when one does. | gate: review
 - H24 [draft, aim] Pullboard never makes anyone wait: local moves (status, shout, claim, show, add) answer in under a second, no relay, sync or network work sits in front of a local move, and long jobs return queued and report by event; a per-command speed budget runs in CI on a board this size and fails the gate when exceeded. Proof so far: #1013 (local moves 174-232 ms). | gate: review
 - H25 [draft, aim] Pullboard never blocks the person without a way through: every refusal that can reach the person says why in plain words and names the fastest way through, including a recorded 'ship anyway' with a reason where it applies; a test over every such refusal fails when one lacks either. Most of this is covered by #1022. | gate: review

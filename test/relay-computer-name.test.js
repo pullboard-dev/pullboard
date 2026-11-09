@@ -8,7 +8,7 @@ import { computerLabel } from '../packages/seats/index.js';
 import { computerName } from '../packages/seats/index.js';
 import { requireCoordinatorHold } from '../packages/seats/index.js';
 import { coordinatorHolder } from '../packages/seats/index.js';
-import { COMPUTER_NAME_ENGINE } from '../src/computer-name-engine.js';
+import { COMPUTER_NAME_ENGINE } from '../packages/state/core.js';
 import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { readFileSync } from 'node:fs';

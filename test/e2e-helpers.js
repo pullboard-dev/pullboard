@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';

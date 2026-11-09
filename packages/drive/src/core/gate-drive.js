@@ -56,6 +56,18 @@ export function gateDriverGone(record, now) {
   return record.owner !== null && record.leaseUntil < now;
 }
 
+/**
+ * Whether a gate's driver ended by its job row alone: it never started, or its drive job finished.
+ * Why apart from gateDriverGone: a lapsed lease alone proves only that renewals stopped, and a blocked event loop
+ * stops them while the driver lives (#3836); a reader that can see the process judges a lapse by the process.
+ *
+ * @param {ReturnType<typeof gateDriveRecord>} record
+ * @returns {boolean}
+ */
+export function gateDriverEnded(record) {
+  return Boolean(record && (record.unstarted || record.finished));
+}
+
 /** How long a live gate drive may go without a step before the sentinel calls it stuck: the drive cell's own stall bound. */
 export const GATE_DRIVE_STUCK_MS = 20 * 60_000;
 

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { ENGINE_REGISTRY } from '../../../src/engine-metadata.js';
 import { ENGINE_VERSION } from '../../../src/engine-metadata.js';
 import { MILESTONE_RANK_ENGINE } from '../../../src/engine-metadata.js';
-import { MILESTONE_RANK_ENGINE as LEAF_MILESTONE_RANK_ENGINE } from '../../../src/milestone-rank-engine.js';
+import { MILESTONE_RANK_ENGINE as LEAF_MILESTONE_RANK_ENGINE } from '../src/core/engines/milestone-rank-engine.js';
 import { MACHINE } from '../index.js';
 import { MACHINE as CORE_MACHINE } from '../core.js';
 import { engineAtLeast } from '../core.js';

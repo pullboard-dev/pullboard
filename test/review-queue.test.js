@@ -5,7 +5,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { nextReview } from '../packages/verify/index.js';
 import { mainRedReviewItems } from '../packages/landing/index.js';
 import { Refused } from '../packages/kernel/core.js';
-import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import {
   appliedSequence,
   applyEngineMove,

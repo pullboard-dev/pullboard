@@ -1,4 +1,4 @@
-import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
+import { AGENT_GRANT_ENGINE } from '../src/core/engines/agent-grant-engine.js';
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */

@@ -16,14 +16,14 @@ import {
 import { test } from 'node:test';
 import { bridgeProject, bridgeProvider, landBridgeItems, landBridgeRepair, mergeBridgeAs, runBridgeCLI } from './pr-bridge-fixture.js';
 import { onBoard } from './land-board-fixture.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
-import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
+import { PR_BRIDGE_ENGINE } from '../packages/state/core.js';
 import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../packages/github/index.js';
-import { withGitFacts } from '../src/git.js';
+import { withGitFacts } from '../packages/git/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read the real private gate invocations, retaining their exact Git heads. */

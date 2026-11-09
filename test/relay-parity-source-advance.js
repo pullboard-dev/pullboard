@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { git } from '../src/git.js';
+import { git } from '../packages/git/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { withSourceComposition } from '../packages/merge/index.js';

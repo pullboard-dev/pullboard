@@ -1,7 +1,7 @@
 /** Derive current material authority solely from replicated native source records [V4,H16]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
-import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../state/core.js';
+import { STRICT_COMPOSITION_ENGINE } from '../../../state/core.js';
 import { itemPatchAuthors } from '../../../items/index.js';
 import { itemPatches } from '../../../items/index.js';
 import { itemReviewPolicy } from '../core/review-policy.js';

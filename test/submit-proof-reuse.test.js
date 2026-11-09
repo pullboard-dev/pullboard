@@ -91,7 +91,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   const { openBoard } = await import('../apps/lib/index.js');
   const { boardReceiptStore, receiptBody } = await import('../packages/gate/index.js');
   const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
-  const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../src/submit-proof-reuse-engine.js');
+  const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../packages/state/core.js');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-proof-reuse-'));
   const board = openBoard(join(dir, 'board.sqlite')), replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); store.closeBoard(replica); rmSync(dir, { recursive: true, force: true }); });

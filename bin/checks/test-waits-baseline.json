@@ -85,7 +85,7 @@
   "test/chrome-fixture.js": {
     "sleep": 1
   },
-  "test/chrome-fixture.test.js": {
+  "packages/gate/tests/chrome-fixture.test.js": {
     "sleep": 2
   },
   "test/chrome-graceful-shutdown.js": {
@@ -193,7 +193,7 @@
   "test/landing-stop.test.js": {
     "sleep": 1
   },
-  "test/legacy-watchdog.test.js": {
+  "packages/gate/tests/legacy-watchdog.test.js": {
     "poll": 1
   },
   "test/main-audit-cases.js": {
@@ -212,7 +212,7 @@
     "poll": 1,
     "sleep": 1
   },
-  "test/main-red-cache-lock.test.js": {
+  "packages/gate/tests/main-red-cache-lock.test.js": {
     "poll": 1,
     "sleep": 1
   },
@@ -235,7 +235,7 @@
   "test/relay-browser-client.test.js": {
     "sleep": 2
   },
-  "test/relay-browser-stream.test.js": {
+  "apps/relay/tests/relay-browser-stream.test.js": {
     "sleep": 2
   },
   "test/relay-browser.test.js": {

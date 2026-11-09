@@ -35,6 +35,7 @@ import { runGate } from '../../../gate/index.js';
 import { readGateReceipt } from '../../../gate/index.js';
 import { receiptStore } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
+import { testClosures } from '../../../gate/index.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { literalShellWords } from '../../../kernel/index.js';
 import { mappedCheck } from '../../../codemap/index.js';
@@ -44,7 +45,7 @@ import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
-import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { smokeCandidate } from './landing-cli-smoke.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
@@ -248,10 +249,11 @@ export function landingRunObserver(state, config, commit) {
  * Why here: every automatic landing (inline, local trunk, parallel candidate, and their bisections) gates its final
  * tree through gateGroup before publication, so this one boundary covers them all with no skip list.
  */
-function smokeTree(state, tree) {
+async function smokeTree(state, tree) {
   state.smoked ??= new Set();
   if (state.smoked.has(tree)) return;
-  runLandingCliSmoke(state.batch.root, { record: true });
+  // With gate.runnersOnly on, the smoke queues for a runner like the gate itself (#3011).
+  await smokeCandidate(state.batch.root, { record: true });
   state.smoked.add(tree);
 }
 
@@ -277,12 +279,35 @@ function changedPathsBetween(root, from, to) {
   return result.status === 0 ? result.stdout.split('\0').filter(Boolean) : null;
 }
 
+/**
+ * The closure port of a tiered landing's receipt reuse: the plan's candidate test files (every test when the plan is the
+ * full gate) and whether a changed path reaches a test's import closure. Null for an untiered project or one with no
+ * focused runner. Why tiers only: an untiered project's gate may run tests by rules imports do not show (a gate that
+ * runs every file in a folder), so only exact-tree reuse holds there [C7].
+ *
+ * @param {any} state
+ * @param {string} commit - The composed candidate commit.
+ * @param {boolean} full - Whether the plan is the full configured gate.
+ * @param {string[]} files - The plan's selected files.
+ */
+function closurePort(state, commit, full, files) {
+  if (!state.config.affectedTests?.trim() || !hasTestTiers(state.batch.root, commit)) return null;
+  let closures = null;
+  // A graph that cannot be read (a nested module scope) knows no closure, so every candidate runs again.
+  const reach = () => { try { closures ??= testClosures(state.batch.root, commit).closures; } catch { closures = new Map(); } return closures; };
+  return {
+    candidates: () => (full ? auditOnlySplit(state.config, [...reach().keys()]).files : files),
+    // An incomplete closure (an import the graph cannot resolve) is never trusted: that file runs again.
+    closureChanged: (file, changed) => { const closure = reach().get(file); return !closure?.files || closure.files.some(path => changed.has(path)); },
+  };
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
-  smokeTree(state, tree);
+  await smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
-  const { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
+  let { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   let cached = recorded?.affectedGate === affectedGate ? recorded : null;
@@ -296,8 +321,13 @@ async function runGateGroup(state, label, options) {
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
   const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
-    generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate) });
-  if (reuse.reuse) {
+    generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate), closure: closurePort(state, commit, config[VALUE_GATE] !== true, files) });
+  if (reuse.reuse && reuse.rerun?.length) {
+    // The proof answers for the rest of the plan; only the files main's commits reach since the submit run again [C7].
+    state.say(`gate ${label}: reused #${reuse.item}'s submit receipt; rerunning ${reuse.rerun.length} file(s) whose import closure changed since the submit: ${reuse.rerun.join(', ')}`);
+    files = reuse.rerun;
+    config = { ...state.config, gate: `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`, [VALUE_GATE]: true };
+  } else if (reuse.reuse) {
     state.say(`gate ${label}: reused #${reuse.item}'s submit receipt for tree ${tree.slice(0, 12)}; no test run started`);
     // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
     if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
@@ -305,7 +335,7 @@ async function runGateGroup(state, label, options) {
     state.gates.set(tree, reused);
     return reused;
   }
-  if (reuse.code !== 'BATCH_OF_MANY' && reuse.code !== 'NO_RECEIPT') state.say(`gate ${label}: submit receipt not reused (${reuse.code}); running the gate`);
+  if (!reuse.reuse && reuse.code !== 'BATCH_OF_MANY' && reuse.code !== 'NO_RECEIPT') state.say(`gate ${label}: submit receipt not reused (${reuse.code}); running the gate`);
   const directory = join(dirname(state.batch.root), 'logs');
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
@@ -316,7 +346,7 @@ async function runGateGroup(state, label, options) {
   const quarantines = state.landingPorts.quarantineVerdictSnapshot(state.board);
   const item = store.getItem(state.board, state.batch.items[0].id);
   const proofContext = { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' };
-  state.say(`gate ${label}: ${subset ? `${files.length} files` : 'the full plan'} selected; running`);
+  state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })

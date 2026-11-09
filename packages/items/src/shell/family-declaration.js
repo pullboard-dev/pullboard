@@ -5,7 +5,7 @@
  * `seatFamily`, so no decision reads the stored column (which only records the latest join's value for display and for
  * replaying engines older than the declaration engine) [V4,B26,H16].
  */
-import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js";
+import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { createHash } from 'node:crypto';
 
 const ACTIVE = 'family_declare:active';

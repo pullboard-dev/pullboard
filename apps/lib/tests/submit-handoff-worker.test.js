@@ -204,7 +204,9 @@ test('clause 2: a real queued gate on a fixture board records its job steps and 
   const drive = jobView(board.db, gateDriveJobId(job));
   const collected = drive.steps.find(step => step.name === 'collected').payload;
   assert.ok(collected.order.length > 0, 'the gate ran its sections');
-  assert.deepEqual(drive.steps.map(step => step.name),
+  // The gate's test run reports progress while it runs (#3829): those steps sit among the sections and are proved here too.
+  assert.ok(drive.steps.some(step => step.name === 'gate.progress' && step.payload.running === true), 'the real test run wrote a running progress step');
+  assert.deepEqual(drive.steps.map(step => step.name).filter(name => name !== 'gate.progress'),
     ['admitted', 'captured', 'running', ...collected.order.map(() => 'section.done'), 'collected', 'verdict'],
     'the dispatcher\'s admission, then captured, running, one section step per section, collected and the verdict');
   // Section steps are written as each stage settles, so their sequence is settlement order; each names its place in the gate's order.

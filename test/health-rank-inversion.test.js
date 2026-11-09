@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../packages/sentinels/index.js';
 import { fixture, cli } from './next-take-fixture.js';

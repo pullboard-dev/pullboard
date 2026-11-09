@@ -29,7 +29,7 @@ import { exitedSession } from '../../../packages/store/index.js';
 import { requireExitActive } from '../../../packages/store/index.js';
 import { exitContinuationSummary } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
-import { EXIT_RULES_ENGINE } from '../../../src/exit-rules-engine.js';
+import { EXIT_RULES_ENGINE } from '../../../packages/state/core.js';
 import { prepareEngineMove } from '../../../packages/state/index.js';
 import { applyEngineMove } from '../../../packages/state/index.js';
 import { bindRefs } from '../../../packages/outbox/index.js';

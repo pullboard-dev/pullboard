@@ -1,5 +1,8 @@
 /** @pullboard-test-input source-tree */
-/** A gate drive that renews its lease with no step is ended, retried once, ended as infrastructure, and shouted Stuck [C7]. */
+/**
+ * A gate drive that renews its lease with no step is ended, retried once, ended as infrastructure, and shouted Stuck;
+ * one whose tests section reports progress is never ended [C7].
+ */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -7,10 +10,10 @@ import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd, withFixtureBoard } from './testkit-fixture.js';
 import { createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
-import { runGateStages } from '../packages/gate/index.js';
+import { progressingWait, runGateStages, whileGateRuns } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { INFRASTRUCTURE_CODES } from '../packages/store/index.js';
-import { drainLoop, gateDriveJobId, GATE_DRIVE_KIND, GATE_STALL_MS, GATE_STALL_RETRIES } from '../packages/drive/index.js';
+import { drainLoop, gateDriveJobId, GATE_DRIVE_KIND, GATE_STALL_MS, GATE_STALL_RETRIES, recordJobRow, rowSink } from '../packages/drive/index.js';
 import { bindSubmitHandoffPorts } from '../apps/lib/src/shell/submit-handoff-worker.js';
 import { drivenHandoffGate } from '../apps/lib/src/shell/submit-handoff-worker.js';
 import { handoffRefusedResult } from '../apps/lib/src/shell/submit-handoff-worker.js';
@@ -206,4 +209,99 @@ test('clause 3: the production sentinel loop shouts Stuck naming the item and jo
   assert.match(shouts[0].shout_text, new RegExp(`^Stuck: #${id} gate drive renews its lease with no step \\[GATE_DRIVE_STALLED\\]`, 'u'), 'the shout names the item');
   assert.ok(shouts[0].shout_text.includes(hung), 'the shout names the gate drive job');
   assert.ok(!shouts[0].shout_text.includes(fresh), 'a drive with a recent step is not stuck');
+});
+
+/**
+ * The drive's clock, moved by hand: `advance` skips simulated minutes, and `tick` resolves at the drive's next
+ * lease renewal, the moment its stall watch reads the clock, so a test waits on the watch itself, not on a timer.
+ */
+function driveClock() {
+  let skew = 0;
+  let waiters = [];
+  return {
+    now: () => Date.now() + skew,
+    advance: ms => { skew += ms; },
+    ticked: () => { const due = waiters; waiters = []; for (const resolve of due) resolve(); },
+    tick: () => new Promise(resolve => { waiters.push(resolve); }),
+  };
+}
+
+/**
+ * Drive one gate-drive job with the hand-off worker's own drive on the production stall bound, its clock moved by
+ * hand, on job rows a recorder writes to the real board; every ticket row is a stall-watch tick.
+ */
+async function driveClocked(db, { repo, commit, submit, clock }) {
+  const id = gateDriveJobId('7a1b2c3d-0000-4000-8000-000000003829');
+  createJob(db, { id, kind: GATE_DRIVE_KIND, item: 7, candidate: commit, base: commit });
+  const rows = rowSink(jobView(db, id), row => {
+    const answer = recordJobRow(db, row);
+    if (row.type === 'ticket') clock.ticked();
+    return answer;
+  });
+  const gate = drivenHandoffGate({}, { item: 7 }, { waitInventory: async () => null, submit });
+  const last = await drainLoop(rows, id, { owner: 'driver-progress', repo, gate, intervalMs: 5, stallMs: GATE_STALL_MS, stallCheckMs: CHECK_MS, stalled: handoffRefusedResult, now: clock.now });
+  return { last, job: jobView(db, id) };
+}
+
+/** The longest gap between two consecutive steps of a job, in milliseconds. */
+function longestGap(job) {
+  const times = job.steps.map(step => step.at).sort((a, b) => a - b);
+  return times.slice(1).reduce((gap, at, index) => Math.max(gap, at - times[index]), 0);
+}
+
+test('clause 1: a gate waiting for a runner, then running tests, for 25 minutes writes progress steps and is not stalled [C7]', { timeout: 30_000 }, async () => {
+  const { repo, commit } = candidateRepo();
+  await withBoard(async db => {
+    const clock = driveClock();
+    const calls = [];
+    const tests = async () => {
+      // Ten minutes in line for a runner: each wait poll goes through the gate's own runner-wait callback.
+      const onWait = progressingWait(() => {});
+      for (let minute = 0; minute < 10; minute += 1) { clock.advance(60_000); onWait({ position: 1 }); await clock.tick(); }
+      // Fifteen minutes running tests: the gate's own beat, its timer driven by the test's clock.
+      let beat = null;
+      await whileGateRuns(async () => {
+        for (let minute = 0; minute < 15; minute += 1) { clock.advance(60_000); beat(); await clock.tick(); }
+      }, { every: callback => { beat = callback; return 1; }, cancel: () => { beat = null; } });
+      return { name: 'tests' };
+    };
+    const submit = submitWith((attempt, name) => (name === 'tests' ? tests() : { name }), calls, commit);
+    const { last, job } = await driveClocked(db, { repo, commit, submit, clock });
+    assert.equal(last.phase, 'verdict');
+    assert.deepEqual(steps(job, 'gate.stalled'), [], 'the progressing gate was never ended as stalled');
+    assert.equal(calls.length, 1, 'the candidate ran once');
+    assert.equal(steps(job, 'verdict')[0].verdict, 'green');
+    const progress = steps(job, 'gate.progress');
+    assert.equal(progress.filter(row => row.waiting).length, 10, 'each minute in line wrote a progress step');
+    assert.ok(progress.filter(row => row.running).length >= 14, `the running tests wrote a progress step a minute: ${JSON.stringify(progress)}`);
+    const tested = job.steps.filter(step => step.name === 'gate.progress');
+    assert.ok(tested.at(-1).at - tested[0].at >= 24 * 60_000, 'the tests section ran for 25 simulated minutes');
+    assert.ok(longestGap(job) <= 2 * 60_000, `no two steps were more than 2 minutes apart: ${longestGap(job)} ms`);
+  });
+});
+
+test('clause 2: a gate whose tests section reports no progress for 20 minutes still stalls [C7]', { timeout: 30_000 }, async () => {
+  const { repo, commit } = candidateRepo();
+  await withBoard(async db => {
+    const clock = driveClock();
+    const calls = [];
+    const silent = async signal => {
+      for (let minute = 0; minute < 25; minute += 1) {
+        if (signal?.aborted) return never();
+        clock.advance(60_000);
+        await clock.tick();
+      }
+      throw new Error('the silent tests section outlived the 20-minute stall bound');
+    };
+    const submit = submitWith((attempt, name, signal) => (attempt === 1 && name === 'tests' ? silent(signal) : { name }), calls, commit);
+    const { last, job } = await driveClocked(db, { repo, commit, submit, clock });
+    assert.equal(last.phase, 'verdict');
+    const stalled = steps(job, 'gate.stalled');
+    assert.deepEqual(stalled.map(({ attempt, retry, lastStep }) => ({ attempt, retry, lastStep })), [{ attempt: 1, retry: true, lastStep: 'section.done' }],
+      'the silent run was ended by the stall watch and retried, as before');
+    assert.ok(stalled[0].idleMs >= GATE_STALL_MS, `ended after ${stalled[0].idleMs} ms with no step`);
+    assert.deepEqual(steps(job, 'gate.progress'), [], 'a section that reports nothing writes no progress step');
+    assert.equal(calls.length, 2);
+    assert.equal(steps(job, 'verdict')[0].verdict, 'green');
+  });
 });

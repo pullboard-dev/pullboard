@@ -1,5 +1,5 @@
 /** Close a trunk test defect whose recorded cases passed at a trunk commit [C7,V4,H16]. */
-import { LANDING_DEFECT_CLOSE_ENGINE } from '../../../../../src/landing-defect-close-engine.js';
+import { LANDING_DEFECT_CLOSE_ENGINE } from '../../../../state/core.js';
 
 /** The move exists only from its own engine onward, so an older replica never drops a closing [C7,H16]. */
 function minimumEngine() { return LANDING_DEFECT_CLOSE_ENGINE; }

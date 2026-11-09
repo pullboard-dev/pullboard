@@ -267,7 +267,7 @@ Coordinator
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason "why"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
-  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
+  pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3] [--forced "<why>"]  record verified work with its native batch receipt; --forced records hand-landed work as landed without a verify
   pullboard withdraw <id> <reason>      drop an item nobody should build
   pullboard refreeze <id>               adopt a corrected criterion or changed spec rows
   pullboard reopen <id> [--withdraw-verdict] --note "why" [--cause <key>]
@@ -322,6 +322,8 @@ Receipts
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
+  pullboard gate-health [--since 2h]    queued gates in the window: count, total p50/p90, time per phase,
+                                        top failure causes with hosts, and the 10 slowest with their dominant phase; --json
   pullboard log [id]                    every move, in order
   pullboard flakes                      recorded failures, their first and last sightings, counts and repair status
   pullboard flakes rerun on|off          coordinator: opt into one diagnostic pair per failed test; off by default

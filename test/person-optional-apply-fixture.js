@@ -1,5 +1,5 @@
 /** Exact signed-request provenance must replace optional SSH signing at native apply, never named identity [E22,H16]. */
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import assert from 'node:assert/strict';
 import {
   createHash,
@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { attestAuthority, setPersonSigning, verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { presenceAttestation } from '../packages/person/index.js';

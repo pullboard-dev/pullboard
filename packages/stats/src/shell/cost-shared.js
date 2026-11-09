@@ -1,5 +1,5 @@
 /** Ordered shared-session counters without raw native identifiers or invented item splits [N2]. */
-import { COST_ENGINE } from '../../../../src/cost-engine.js';
+import { COST_ENGINE } from '../../../state/core.js';
 import { sanitizedUsage } from './cost.js';
 import { sumUsage } from './cost-read.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
