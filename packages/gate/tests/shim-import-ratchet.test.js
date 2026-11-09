@@ -105,6 +105,7 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   // The bars name src/git.js, so the web lane owns src/ and claim's cross-ownership guard stays out of the way.
   const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'src/'] } } });
+  box.git(box.web, 'merge', '-q', 'main');
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
