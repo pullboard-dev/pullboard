@@ -57,6 +57,29 @@ function handoffProcessEnvironment(env = process.env) {
   return clean;
 }
 
+/**
+ * The variable a dispatcher sets on each gate worker it starts: the worker's stdin is a pipe the dispatcher holds, and
+ * its end means the dispatcher exited, so the worker stops at once (#3899). A worker started any other way has no
+ * lifeline and is unaffected.
+ */
+export const HANDOFF_WORKER_LIFELINE_ENV = 'PULLBOARD_WORKER_LIFELINE';
+
+/**
+ * Call `stop` once this worker's dispatcher exits: the pipe it holds on this process's stdin ends. A process started
+ * without the lifeline is left alone, so a worker run by hand or by a test never stops on its own stdin.
+ *
+ * @param {() => unknown} stop
+ * @param {{ env?: NodeJS.ProcessEnv, stdin?: NodeJS.ReadableStream }} [options]
+ * @returns {boolean} Whether a lifeline is watched.
+ */
+export function onDispatcherLifelineEnd(stop, { env = process.env, stdin = process.stdin } = {}) {
+  if (env[HANDOFF_WORKER_LIFELINE_ENV] !== '1') return false;
+  stdin.once('end', stop);
+  stdin.once('error', stop);
+  stdin.resume();
+  return true;
+}
+
 /** Keep the detached dispatcher functional without passing agent or command session state to it. */
 function handoffDispatcherEnvironment(source) {
   const env = {};
@@ -464,7 +487,8 @@ async function startWorker(launch, relaunches, startOf, admission = NO_ADMISSION
     log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
     const entry = driverEntry(launch.tools);
     const worker = spawn(process.execPath, [!existsSync(entry) && admission.entry ? admission.entry : entry, join(launch.directory, 'request.json'), owner],
-      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
+      // stdin is the worker's lifeline: the pipe closes when this dispatcher exits, however it exits (#3899).
+      { cwd: launch.commonDir, detached: true, stdio: ['pipe', log, log], env: { ...handoffProcessEnvironment(), [HANDOFF_WORKER_LIFELINE_ENV]: '1' } });
     await once(worker, 'spawn');
     try { admission.spawned(launch, { owner, pid: worker.pid, started: startOf(worker.pid) }); }
     catch (error) {
