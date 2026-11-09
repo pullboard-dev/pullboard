@@ -1945,12 +1945,12 @@
       "deep": 0
     },
     "packages/keys/src/shell/relay-key.js": {
-      "cells": 2,
-      "deep": 1
+      "cells": 1,
+      "deep": 0
     },
     "packages/keys/src/shell/relay-pairing-client.js": {
-      "cells": 6,
-      "deep": 1
+      "cells": 5,
+      "deep": 0
     },
     "packages/keys/src/shell/relay-person-enrollment.js": {
       "cells": 3,
@@ -2213,8 +2213,8 @@
       "deep": 0
     },
     "packages/link/src/shell/relay-canary-probe.js": {
-      "cells": 4,
-      "deep": 1
+      "cells": 3,
+      "deep": 0
     },
     "packages/link/src/shell/relay-canary-watch.js": {
       "cells": 2,
@@ -2226,7 +2226,7 @@
     },
     "packages/link/src/shell/relay-excluded.js": {
       "cells": 2,
-      "deep": 2
+      "deep": 0
     },
     "packages/link/src/shell/relay-exclusion-state.js": {
       "cells": 2,
@@ -2297,8 +2297,8 @@
       "deep": 0
     },
     "packages/link/src/shell/relay.js": {
-      "cells": 8,
-      "deep": 5
+      "cells": 7,
+      "deep": 1
     },
     "packages/mcp/src/core/mcp.js": {
       "cells": 2,
@@ -2473,8 +2473,8 @@
       "deep": 0
     },
     "packages/outbox/src/shell/relay-outbox.js": {
-      "cells": 6,
-      "deep": 2
+      "cells": 5,
+      "deep": 1
     },
     "packages/outbox/src/shell/relay-sender-worker.js": {
       "cells": 1,
@@ -2494,7 +2494,7 @@
     },
     "packages/pages/src/core/sealed-pages.js": {
       "cells": 1,
-      "deep": 1
+      "deep": 0
     },
     "packages/pages/src/shell/relay-page-cache.js": {
       "cells": 1,
@@ -4751,7 +4751,7 @@
     },
     "<-kernel": {
       "imports": [],
-      "deepImporters": 47
+      "deepImporters": 40
     },
     "apps/lib": {
       "imports": [
