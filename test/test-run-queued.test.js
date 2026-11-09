@@ -125,7 +125,13 @@ test('--wait still blocks for a non-seat caller and prints the result itself [C7
 
 test('an item check that runs pullboard test on a red file fails, never a queued pass [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for the check and its nested runner run.
   const box = runnerProject();
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--criterion', 'the red file fails its check', '--brief', 'Files: web/page.js. Change: none. Test case: red case.', '--check', `"${process.execPath}" "${BIN}" test test/red.test.js`);
+  // The check's file sits in the web lane, so the web seat may build the item whose check names it.
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web', 'red.test.js'), FAILS);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: a red file in the web lane');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Red check', '--specs', 'G1', '--criterion', 'the red file fails its check', '--brief', 'Files: web/page.js. Change: none. Test case: red case.', '--check', `"${process.execPath}" "${BIN}" test web/red.test.js`);
   assert.equal(added.code, 0, `add: ${added.out}${added.err}`);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);
