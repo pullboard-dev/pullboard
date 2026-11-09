@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: the fixture copies the real detached launcher bin/handoff-worker-detach.js so the dispatcher starts the way production starts it. */
 /** The handoff dispatcher survives a failed slot release at a worker exit, and never trusts a receipt over the lock [C7,#2996]. */
 import assert from 'node:assert/strict';
 import {
@@ -26,13 +27,13 @@ import {
 import { waitForCondition } from '../../../test/runner-fixture-state.js';
 
 /** A real worker records when it started and exits at once. */
-const WORKER = `const { appendFileSync } = require('node:fs');
-const { basename, dirname } = require('node:path');
+const WORKER = `import { appendFileSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 appendFileSync(process.env.HANDOFF_TEST_LOG, basename(dirname(process.argv[2])) + ' ' + Date.now() + '\\n');
 `;
 
 /** A stand-in dispatcher entry that records its own pid and exits. */
-const DISPATCHER = `const { appendFileSync } = require('node:fs');
+const DISPATCHER = `import { appendFileSync } from 'node:fs';
 appendFileSync(process.env.HANDOFF_TEST_LOG, 'dispatcher ' + process.pid + '\\n');
 `;
 
@@ -42,6 +43,9 @@ function fixture() {
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   mkdirSync(join(tools, 'bin'), { recursive: true });
+  // The captured tools are ES modules, and the dispatcher is started through the real detached launcher the production code runs.
+  writeFileSync(join(tools, 'package.json'), '{"type":"module"}\n');
+  writeFileSync(join(tools, 'bin', 'handoff-worker-detach.js'), readFileSync(new URL('../../../bin/handoff-worker-detach.js', import.meta.url), 'utf8'));
   writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), DISPATCHER);
   const log = join(dir, 'log');
