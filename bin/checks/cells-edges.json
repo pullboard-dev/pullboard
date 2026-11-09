@@ -4304,10 +4304,6 @@
       "cells": 1,
       "deep": 0
     },
-    "src/cockpit.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "src/committed-file-reader.js": {
       "cells": 1,
       "deep": 0
@@ -4629,10 +4625,6 @@
       "deep": 0
     },
     "src/sentinels.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/serve.js": {
       "cells": 1,
       "deep": 0
     },

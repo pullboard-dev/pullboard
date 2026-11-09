@@ -220,7 +220,6 @@
     "src/serve.js->src/board.js": 1,
     "src/serve.js->src/changelog.js": 1,
     "src/serve.js->src/cli.js": 2,
-    "src/serve.js->src/cockpit.js": 1,
     "src/serve.js->src/config.js": 1,
     "src/serve.js->src/doctrine.js": 1,
     "src/serve.js->src/git.js": 1,
