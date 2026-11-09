@@ -194,7 +194,7 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
 test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
   copyPackageSubset(fileURLToPath(new URL('../', import.meta.url)), box.root,
-    [{ path: 'src/browser-slot-guard.js' },
+    [{ path: 'packages/gate/src/shell/browser-slot-guard.js' },
       { path: 'packages/kernel/src/core/refused.js', as: 'src/refused.js' }]);
   const guardBody = 'packages/gate/src/shell/browser-slot-guard.js';
   box.put('test/browser-guard.test.js', `import '../${guardBody}';\n`);

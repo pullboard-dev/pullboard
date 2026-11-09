@@ -15,20 +15,12 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { conflictNote } from '../../../kernel/src/core/registry-guards.js';
 import { shownPaths } from '../../../kernel/src/core/registry-guards.js';
+import { carriesConflict } from '../core/conflict-carriage.js';
+
+export { carriesConflict };
 
 /** The label an item carries from a conflict reopen until its next verdict. */
 export const MAIN_MERGE_LABEL = 'needs main merge';
-
-/**
- * True when a sealed move carries this engine's meaning, a trunk conflict on a reopen.
- *
- * @param {string} operation
- * @param {any[]} args
- * @returns {boolean}
- */
-export function carriesConflict(operation, args) {
-  return operation === 'reopen' && args?.[1]?.conflict !== undefined && args?.[1]?.conflict !== null;
-}
 
 /**
  * The file paths `--conflict` names: one exact path per flag, in order, without repeats. Nothing is

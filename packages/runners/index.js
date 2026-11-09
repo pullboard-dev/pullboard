@@ -21,7 +21,7 @@ export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunn
 export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
-export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";
+export { runnerPackageReader, runnerPackage, workerBundleBytes } from "./src/shell/runner-package.js";
 export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-tooling-snapshot.js";
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
 export { packText, commitWork, runItems } from "./src/shell/run.js";

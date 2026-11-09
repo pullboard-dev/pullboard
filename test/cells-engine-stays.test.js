@@ -14,6 +14,8 @@ import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
@@ -59,6 +61,8 @@ function accepted(t, cellName = 'state') {
 
 /** Evaluate committed candidate metadata through the immutable controller, never a candidate evaluator. */
 async function inspect(box) {
+  // The accepted-main inventory is produced by a background job on a runner; the test produces its own (a test never waits on one).
+  await warmAcceptedCells(box.root, box.main, { withCheckout: withMainCheckout, withLock: withFileLock });
   writePlan(box.root, box.plan);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '--allow-empty', '-m', 'candidate explicit engine stays');

@@ -496,12 +496,6 @@
     "state-file": 5,
     "unref": 1
   },
-  "packages/verify/src/shell/file-watchdog-worker.js": {
-    "daemon-loop": 1
-  },
-  "packages/verify/src/shell/file-watchdog.js": {
-    "unref": 1
-  },
   "packages/verify/src/shell/review-packet.js": {
     "state-file": 3
   },

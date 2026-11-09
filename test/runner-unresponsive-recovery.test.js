@@ -7,16 +7,14 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellProject } from './cell-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 
 /** Fail the first actual worker probe, then execute the real pinned idle worker on a private host. */
 function observe(t, live) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const box = cellProject(t, { gate: 'true' });
   const bin = join(box.dir, 'probe-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
   const worker = join(box.dir, 'worker');

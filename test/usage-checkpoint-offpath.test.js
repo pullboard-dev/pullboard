@@ -16,7 +16,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { usageDueDirectory } from '../packages/stats/index.js';

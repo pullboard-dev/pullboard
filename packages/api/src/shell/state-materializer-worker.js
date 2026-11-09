@@ -146,7 +146,8 @@ parentPort.on('message', (message) => {
   if (Array.isArray(message.projects)) projects = message.projects;
   restoreSaved(message);
   try {
-    const record = snapshots.materialize(message.board, { held: message.held, full: message.full });
+    // The revision the request thread read before asking: the build saw at least that state, so a read finding it serves this record.
+    const record = { ...snapshots.materialize(message.board, { held: message.held, full: message.full }), revision: message.revision ?? null };
     parentPort.postMessage({ type: 'record', id: message.id, key: message.key, record });
     latest.set(message.key, { board: message.board, record });
     save(message.board, record);

@@ -21,7 +21,7 @@ function fixture(t, failing, slow = false) {
   put('package.json', '{"type":"module"}\n');
   put('bin/guarded-docs-refresh.js', readFileSync(new URL('../bin/guarded-docs-refresh.js', import.meta.url)));
   put('packages/merge/core.js', "export const GENERATED_DOC_PATHS = ['docs/formats.md'];\n");
-  put('packages/verify/index.js', "export const DEFAULT_FILE_WALL_MS = 300000;\n");
+  put('packages/drive/core.js', "export const DEFAULT_FILE_WALL_MS = 300000;\n");
   put('docs/formats.md', 'old\n');
   put('bin/update-docs.js', `import {writeFileSync} from 'node:fs'; if (process.argv.includes('--check')) { process.exitCode = ${failing === 'docs' ? 1 : 0}; } else { writeFileSync('docs/formats.md', 'generated\\n'); }\n`);
   put('docs/formats.test.js', `import { test } from 'node:test'; import assert from 'node:assert/strict'; test('named format guard', async () => { ${slow ? 'await new Promise(resolve => setTimeout(resolve, 121000));' : ''} assert.equal(${failing === 'formats' ? 'false' : 'true'}, true, 'format fixture failure'); });\n`);

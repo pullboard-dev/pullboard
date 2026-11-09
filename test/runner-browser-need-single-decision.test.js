@@ -3,7 +3,7 @@
 /** Replay the frozen-check plus cockpit-proof file shapes from #2576 and #2521 on a real worker [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../packages/gate/index.js';
@@ -20,8 +20,11 @@ const PROOF_FILE = 'test/cockpit/activity-codegen.test.js';
 /** Build small fixture bodies at the witnessed paths; this proves admission, not either historical item's behavior. */
 function regressionSources(box) {
   mkdirSync(join(box.repo, 'test/cockpit'), { recursive: true });
-  for (const file of CHECK_FILES) writeFileSync(join(box.repo, file),
-    "import { test } from 'node:test';\ntest('private frozen check runs [C7]', () => {});\n");
+  // A check file now lives in its cell's tests folder, which the copied package files no longer create.
+  for (const file of CHECK_FILES) {
+    mkdirSync(dirname(join(box.repo, file)), { recursive: true });
+    writeFileSync(join(box.repo, file), "import { test } from 'node:test';\ntest('private frozen check runs [C7]', () => {});\n");
+  }
   writeFileSync(join(box.repo, PROOF_FILE), "// pullboard: browser\nimport { test } from 'node:test';\n"
     + "import assert from 'node:assert/strict';\n"
     + "import { spawnSync } from 'node:child_process';\nconst chrome = 'google-chrome';\n"

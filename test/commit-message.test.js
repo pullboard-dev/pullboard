@@ -16,10 +16,12 @@ import { checkLandingMessages, itemCommitType, landingMessage } from '../package
 import { citedIds, parseSpec } from '../packages/spec/index.js';
 import { defaults } from '../packages/config/index.js';
 import { commitMsgProblems } from '../packages/commits/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { cellSandbox } from './cell-fixture.js';
 
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const cleanups = [];
+after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
+/** The module-level owner of each sandbox's cleanup, for helpers that run outside a test context. */
+const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Row ids A1..An, the shape a long cited set takes. */
 const rowsUpTo = (count, letter = 'A') => Array.from({ length: count }, (_, index) => `${letter}${index + 1}`);
@@ -126,7 +128,7 @@ test('a landing names the refrozen rows in spec order, and a batch checks every 
 });
 
 test('one header per item type: the type is the item\'s commits\' first of feat, fix, perf, refactor, revert, docs, test, build, ci, style, chore, with or without rows, else the lane rule [C7,B3,R3]', () => {
-  const box = e2e.sandbox();
+  const box = cellSandbox(owner);
   const repo = join(box.dir, 'types');
   box.git(box.dir, 'init', '-q', '-b', 'main', repo);
   /** Commit one file with a header, returning the new head. */

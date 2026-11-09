@@ -1113,7 +1113,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
-  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused,
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads now build on the request thread\n`) }) : null;
   /**
    * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
@@ -1316,7 +1316,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     watchRevision: (board) => {
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
-      return materializer?.alive ? materializer.watch(board, watched) : watched;
+      return watched;
     },
     delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {

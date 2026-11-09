@@ -54,7 +54,7 @@ import {
   takeResource,
   requiredExecutorOf,
 } from '../../../resources/index.js';
-import { sameEnvironment } from '../../../sandbox/index.js';
+import { sameEnvironment } from '../../../verify/core.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   matchingMainFailures,

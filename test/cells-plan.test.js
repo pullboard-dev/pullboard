@@ -360,7 +360,7 @@ function divergent(t, file, base, left, right) {
 
 const SHARD = (paths) => formatJson({ order: 8, name: 'state', paths }) + '\n';
 const ROW = (n) => [`src/m-${n}.js`, `packages/state/src/m-${n}.js`, 'rule'];
-const SHARD_FILE = 'bin/cells-plan/08-state.json';
+const SHARD_FILE = 'bin/cells-plan/14-state.json';
 
 test('two disjoint plan-row appends merge clean in both orders and keep the one-row-per-line layout [C7,D3]', t => {
   const base = [ROW(1), ROW(2)];

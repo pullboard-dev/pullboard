@@ -1779,7 +1779,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-no-nested-shards.test.js",
+      "file": "packages/landing/tests/landing-no-nested-shards.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1821,7 +1821,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/landing-stage-composition.test.js",
+      "file": "packages/landing/tests/landing-stage-composition.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1929,7 +1929,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/runner-closure.test.js",
+      "file": "packages/runners/tests/runner-closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2091,6 +2091,53 @@
         "process: apps/cli/src/core/next-step-words.js",
         "runner: apps/cli/src/shell/commands/test.js",
         "unresolved: apps/cli/src/shell/commands/index.js"
+      ]
+    },
+    {
+      "file": "packages/health/tests/claim-watchdog-sweep.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/health",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/landing",
+        "packages/link",
+        "packages/merge",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/receipt",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/runners",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
+        "cross-package: imports more than one package",
+        "process: bin/cells-data-reads.js",
+        "runner: bin/run-tests.js",
+        "unresolved: bin/run-tests.js"
       ]
     },
     {
@@ -7126,7 +7173,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/file-watchdog.test.js",
+      "file": "packages/drive/tests/file-watchdog.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -8406,7 +8453,7 @@
       ]
     },
     {
-      "file": "test/bar-coverage.test.js",
+      "file": "packages/gate/tests/bar-coverage.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9133,7 +9180,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/board-lock-hold.test.js",
+      "file": "apps/lib/tests/board-lock-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9971,7 +10018,7 @@
       ]
     },
     {
-      "file": "test/cell-parser.test.js",
+      "file": "packages/gate/tests/cell-parser.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11177,7 +11224,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/check-proves-nothing.test.js",
+      "file": "apps/lib/tests/check-proves-nothing.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11981,42 +12028,22 @@
       "tier": "T3",
       "packages": [
         ".",
-        "apps/cli",
-        "packages/activity",
-        "packages/codemap",
-        "packages/commits",
         "packages/config",
-        "packages/doctrine",
-        "packages/gate",
         "packages/git",
-        "packages/health",
-        "packages/items",
+        "packages/jobs",
         "packages/kernel",
-        "packages/keys",
-        "packages/landing",
-        "packages/link",
-        "packages/merge",
-        "packages/outbox",
-        "packages/pages",
-        "packages/person",
+        "packages/pin",
         "packages/queue",
         "packages/resources",
-        "packages/roadmap",
-        "packages/runners",
-        "packages/sandbox",
         "packages/seats",
-        "packages/spec",
         "packages/state",
-        "packages/stats",
-        "packages/store",
-        "packages/verify"
+        "packages/transport"
       ],
       "reasons": [
         "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/transport/src/shell/ssh.js",
         "cross-package: imports more than one package",
-        "process: apps/cli/src/shell/item-folder-identity.js",
-        "runner: bin/run-tests.js",
-        "unresolved: bin/run-tests.js"
+        "process: packages/config/src/core/json-output.js"
       ]
     },
     {
@@ -20856,7 +20883,7 @@
       ]
     },
     {
-      "file": "test/fixture-child-ignored.test.js",
+      "file": "packages/gate/tests/fixture-child-ignored.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -20865,7 +20892,7 @@
       ]
     },
     {
-      "file": "test/fixture-child.test.js",
+      "file": "packages/gate/tests/fixture-child.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -21708,7 +21735,7 @@
       ]
     },
     {
-      "file": "test/gate-admission-wait.test.js",
+      "file": "packages/gate/tests/gate-admission-wait.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -27604,7 +27631,7 @@
       ]
     },
     {
-      "file": "test/landing-local-lease.test.js",
+      "file": "apps/lib/tests/landing-local-lease.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27619,14 +27646,17 @@
         "packages/commits",
         "packages/config",
         "packages/doctrine",
+        "packages/drive",
         "packages/flakes",
         "packages/gate",
         "packages/git",
         "packages/github",
         "packages/health",
         "packages/items",
+        "packages/jobs",
         "packages/kernel",
         "packages/keys",
+        "packages/land",
         "packages/landing",
         "packages/link",
         "packages/mcp",
@@ -27635,7 +27665,9 @@
         "packages/outbox",
         "packages/pages",
         "packages/person",
+        "packages/pin",
         "packages/queue",
+        "packages/receipt",
         "packages/resources",
         "packages/rigor",
         "packages/roadmap",
@@ -27649,11 +27681,12 @@
         "packages/stats",
         "packages/store",
         "packages/sync",
+        "packages/transport",
         "packages/verify"
       ],
       "reasons": [
         "board: apps/cli/src/shell/cli-board-read.js",
-        "browser: apps/cli/src/shell/worker-scale.js",
+        "browser: apps/cli/src/shell/disk-use.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/core/next-step-words.js",
         "runner: apps/cli/src/shell/commands/test.js",
@@ -29478,7 +29511,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/main-audit-attribution.test.js",
+      "file": "apps/lib/tests/main-audit-attribution.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -29592,7 +29625,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/main-audit-plain-commit.test.js",
+      "file": "apps/lib/tests/main-audit-plain-commit.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -33813,7 +33846,7 @@
       ]
     },
     {
-      "file": "test/precommit-lane-merged-main.test.js",
+      "file": "packages/gate/tests/precommit-lane-merged-main.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -39647,7 +39680,7 @@
       ]
     },
     {
-      "file": "test/release.test.js",
+      "file": "packages/gate/tests/release.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42031,7 +42064,7 @@
       ]
     },
     {
-      "file": "test/run-tests-options.test.js",
+      "file": "packages/gate/tests/run-tests-options.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42307,7 +42340,7 @@
       ]
     },
     {
-      "file": "test/runner-background-cleanup.test.js",
+      "file": "packages/gate/tests/runner-background-cleanup.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -42913,7 +42946,7 @@
       ]
     },
     {
-      "file": "test/runner-fixture-state.test.js",
+      "file": "packages/gate/tests/runner-fixture-state.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -44550,7 +44583,7 @@
       ]
     },
     {
-      "file": "test/runners-check-failover.test.js",
+      "file": "packages/gate/tests/runners-check-failover.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
@@ -48720,7 +48753,7 @@
       ]
     },
     {
-      "file": "test/submit-main-moved-unrelated.test.js",
+      "file": "packages/gate/tests/submit-main-moved-unrelated.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51110,7 +51143,7 @@
       ]
     },
     {
-      "file": "test/test-isolation.test.js",
+      "file": "packages/gate/tests/test-isolation.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -51733,7 +51766,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/timing-outcomes-accounting.test.js",
+      "file": "packages/landing/tests/timing-outcomes-accounting.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53380,7 +53413,7 @@
       ]
     },
     {
-      "file": "packages/verify/tests/wall-limit-load-scaled.test.js",
+      "file": "packages/drive/tests/wall-limit-load-scaled.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -54071,6 +54104,111 @@
         "board: packages/config/src/shell/settings-inventory.js",
         "cross-package: imports more than one package",
         "process: apps/cli/src/shell/item-folder-identity.js",
+        "runner: bin/run-tests.js",
+        "unresolved: bin/run-tests.js"
+      ]
+    },
+    {
+      "file": "packages/moves/tests/next-reasons.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "packages/activity",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/gate",
+        "packages/git",
+        "packages/health",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/landing",
+        "packages/link",
+        "packages/merge",
+        "packages/moves",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/receipt",
+        "packages/resources",
+        "packages/roadmap",
+        "packages/runners",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: packages/config/src/shell/settings-inventory.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
+        "cross-package: imports more than one package",
+        "process: bin/cells-data-reads.js",
+        "runner: bin/run-tests.js",
+        "unresolved: bin/run-tests.js"
+      ]
+    },
+    {
+      "file": "packages/sandbox/tests/take-selects-once.test.js",
+      "tier": "T3",
+      "packages": [
+        ".",
+        "apps/lib",
+        "apps/view",
+        "packages/activity",
+        "packages/api",
+        "packages/blueprints",
+        "packages/codemap",
+        "packages/commits",
+        "packages/config",
+        "packages/doctrine",
+        "packages/flakes",
+        "packages/gate",
+        "packages/git",
+        "packages/github",
+        "packages/health",
+        "packages/items",
+        "packages/jobs",
+        "packages/kernel",
+        "packages/keys",
+        "packages/landing",
+        "packages/link",
+        "packages/merge",
+        "packages/moves",
+        "packages/outbox",
+        "packages/pages",
+        "packages/person",
+        "packages/pin",
+        "packages/queue",
+        "packages/receipt",
+        "packages/resources",
+        "packages/rigor",
+        "packages/roadmap",
+        "packages/runners",
+        "packages/sandbox",
+        "packages/seats",
+        "packages/sentinels",
+        "packages/spec",
+        "packages/state",
+        "packages/stats",
+        "packages/store",
+        "packages/sync",
+        "packages/transport",
+        "packages/verify"
+      ],
+      "reasons": [
+        "board: apps/lib/src/core/native-board.js",
+        "browser: packages/landing/src/shell/landing-cli-smoke.js",
+        "cross-package: imports more than one package",
+        "process: apps/view/src/core/view/activity-model.js",
         "runner: bin/run-tests.js",
         "unresolved: bin/run-tests.js"
       ]

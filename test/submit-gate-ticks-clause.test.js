@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { clauseInspectionProblem, clauseInspectionSummary } from '../packages/state/index.js';
 import { selectedGateFiles } from '../apps/cli/src/shell/cli/submit.js';
 
