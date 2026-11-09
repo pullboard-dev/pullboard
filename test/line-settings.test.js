@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { settingsInventory } from '../packages/config/index.js';
