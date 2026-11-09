@@ -68,7 +68,9 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   writeFileSync(join(box.repo, 'web/other.js'), "export const other='independent';\n");
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
+  // The lane builds the check it is claimed against, so it owns the test runner and test files that check names.
+  const lanes = { ...helpers.CONFIG.lanes, web: { ...helpers.CONFIG.lanes.web, owns: ['web/', 'bin/run-tests.js', 'test/'] } };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, lanes,
     gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff } }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
