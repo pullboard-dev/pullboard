@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The approved chart preserves move totals while keeping Activity a feed by default [N26]. */
 import assert from 'node:assert/strict';
@@ -5,7 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { MACHINE } from '../../packages/state/index.js';
 import { seedNativeOrdinary } from './lifecycle-ordinary-seed.js';

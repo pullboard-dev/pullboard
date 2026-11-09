@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Cockpit activity checks, using the shared real-board fixtures [N26]. */
@@ -13,7 +14,7 @@ import { activityHtml } from '../../apps/view/src/core/view/activity-render.js';
 import { IN_STATE, MACHINE, effectiveGuards } from '../../packages/state/index.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { openBoard } from '../../apps/lib/index.js';
-import { closeBoard, logEvent } from '../../src/board.js';
+import { closeBoard, logEvent } from '../../packages/store/index.js';
 import { machine, project, build, sendBack, fetchLive, startView, styleOf, element, storage, openPage, timelineRows, agentEntries, drawing, textBoxes, meet, accept, itemRow, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'verified').final);

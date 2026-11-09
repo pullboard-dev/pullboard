@@ -1,6 +1,6 @@
 /** The pre-commit lane guard recognizes accepted-main changes staged without MERGE_HEAD [L3,C7]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -113,4 +113,55 @@ test('a merge still refuses a builder edit beside the deleted-shim import repoin
   const commit = box.git(box.lane, 'commit', '-m', 'feat(core): edit a foreign file [L3]');
   assert.notEqual(commit.status, 0);
   assert.match(commit.stdout + commit.stderr, /outside the core lane: view\/file\.js/u);
+});
+
+/** A lane and main both change core/file.js, and main also adds more text than the scan limit allows. */
+function bigTrunkMerge(t) {
+  const box = fixture(t);
+  writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "lane";\n');
+  assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);
+  writeFileSync(join(box.main, 'core', 'file.js'), 'export const owned = "main";\n');
+  // Each commit stays under the scan limit on main; together they pass it.
+  for (const part of [1, 2, 3]) {
+    writeFileSync(join(box.main, 'view', `big-${part}.txt`), `part ${part}\n${'ordinary text\n'.repeat(250_000)}`);
+    assert.equal(box.git(box.main, 'add', '-A').status, 0);
+    const moved = box.git(box.main, 'commit', '-q', '-m', 'chore: trunk moves a lot [L3]');
+    assert.equal(moved.status, 0, moved.stderr + moved.stdout);
+  }
+  const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.notEqual(merge.status, 0, 'core/file.js conflicts');
+  return box;
+}
+
+test('clause 1: a merge of a trunk that moved past the scan limit scans only the small resolution [L3,C7]', t => {
+  const box = bigTrunkMerge(t);
+  writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = "both";\n');
+  assert.equal(box.git(box.lane, 'add', '-A').status, 0);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
+  assert.equal(commit.status, 0, commit.stderr + commit.stdout);
+});
+
+test('clause 1: a merge resolution that itself exceeds the scan limit is still refused [L3,C7]', t => {
+  const box = bigTrunkMerge(t);
+  writeFileSync(join(box.lane, 'core', 'file.js'), 'ordinary text\n'.repeat(700_000));
+  assert.equal(box.git(box.lane, 'add', '-A').status, 0);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stdout + commit.stderr, /DIFF_TOO_LARGE/u);
+});
+
+test('clause 1: a merge whose trunk added past the scan limit to a file the lane also changed passes [L3,C7]', t => {
+  const box = fixture(t);
+  const laneFile = join(box.lane, 'core', 'file.js');
+  writeFileSync(laneFile, '// lane\n' + readFileSync(laneFile, 'utf8'));
+  assert.equal(box.git(box.lane, 'commit', '-qam', 'feat(core): lane change [L3]').status, 0);
+  for (const part of [1, 2, 3]) {
+    const file = join(box.main, 'core', 'file.js');
+    writeFileSync(file, readFileSync(file, 'utf8') + `part ${part}\n${'ordinary text\n'.repeat(250_000)}`);
+    assert.equal(box.git(box.main, 'commit', '-qam', 'chore: trunk grows the file [L3]').status, 0);
+  }
+  const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.equal(merge.status, 0, merge.stderr + merge.stdout);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge main [L3]');
+  assert.equal(commit.status, 0, commit.stderr + commit.stdout);
 });

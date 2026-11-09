@@ -10,12 +10,12 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone, shipMilestone, roadmap } from '../src/board-milestones.js';
+import { addMilestone, shipMilestone, roadmap } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
-import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 

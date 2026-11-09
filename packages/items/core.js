@@ -1,8 +1,8 @@
-import { VENDOR_FAMILY_ENGINE } from '../../src/vendor-family-engine.js';
+import { VENDOR_FAMILY_ENGINE } from '../state/core.js';
 export { criterionSize } from './src/core/criterion-size.js';
 import { vendorFamilyAliases } from './src/core/vendor-families.js';
 import { ENGINE_VERSION } from '../../src/engine-metadata.js';
-import { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
+import { FAMILY_ALIAS_ENGINE } from '../state/core.js';
 
 /** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
 export function familyIndex(families) {
@@ -43,7 +43,7 @@ export function familyName(value, aliases = null) {
 export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/core/check-timing.js';
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/decision-origin.js';
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
-export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';
+export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads } from './src/shell/family-declaration.js';
 export { hasForeignDependencies, localDependencyIds } from './src/core/item-dependencies.js';
 export { itemPatchRecords, itemPatches } from './src/shell/item-patch-state.js';
 export { outsideSource } from './src/core/outside-source.js';

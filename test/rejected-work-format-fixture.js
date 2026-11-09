@@ -1,6 +1,6 @@
 /** Synthetic commits exercise the rejected-work event format, never gate execution [A5,B13]. */
 import assert from 'node:assert/strict';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 /** Record a real native inactive-return event with an aged fixture heartbeat and the complete observation fields. */
@@ -15,7 +15,7 @@ export function exerciseRejectedWorkFormat(board, { coordinator, reviewer }) {
       freeze: () => ({ text: 'format-return', digest: 'format-return' }) });
     const commit = '9'.repeat(40);
     submitFixture(board, id, { agentId: builder, commit, tree: '8'.repeat(40) });
-    store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'format-return',
+    store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', clause: 'format-return',
       note: 'The format example keeps the reviewer note.', head: commit, digest: 'format-return', policy: 'agents' });
     const rejection = store.events(board, { itemId: id }).findLast(event => event.event_kind === 'reject');
     const seat = store.listAgents(board).find(agent => agent.agent_id === builder);

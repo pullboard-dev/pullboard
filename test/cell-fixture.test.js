@@ -1,0 +1,54 @@
+/** @pullboard-world-pin: the lint clause reads the shipped cell fixture and its helpers to prove they never import the CLI. */
+/** The cell fixture builds a real project without the CLI, and a lint keeps it that way [C7]. */
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { cellBoard } from './cell-fixture.js';
+import { cellRepo } from './cell-fixture.js';
+import { CELL_CONFIG } from './cell-fixture.js';
+import { runFixtureGit } from './fixture-child.js';
+
+const FORBIDDEN = [
+  ['bin/pullboard.js', /\/bin\/pullboard\.js['"]/u],
+  ['apps/cli', /\/apps\/cli\/[^'"]*['"]/u],
+  ['the library front door apps/lib/index.js', /\/apps\/lib\/index\.js['"]/u],
+  ['test/e2e-helpers.js', /\/e2e-helpers\.js['"]/u],
+];
+
+/** The static import and re-export specifiers of one module, comments and strings left aside. */
+function specifiers(source) {
+  return [...source.matchAll(/^\s*(?:import|export)\b[^'"]*?\bfrom\s*(['"])([^'"]+)\1|^\s*import\s*(['"])([^'"]+)\3/gmu)].map(match => match[2] ?? match[4]);
+}
+
+test('clause 1: cellRepo commits pullboard.json and SPEC.md in a real Git repo with no hooks, and cellBoard opens the real schema [C7]', t => {
+  const repo = cellRepo(t);
+  assert.deepEqual(JSON.parse(readFileSync(join(repo.root, 'pullboard.json'), 'utf8')), CELL_CONFIG);
+  assert.equal(runFixtureGit(['ls-files'], { cwd: repo.root, encoding: 'utf8' }).trim().split('\n').sort().join(' '), 'SPEC.md pullboard.json');
+  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: repo.root, encoding: 'utf8' }).trim(), repo.commit);
+  assert.doesNotMatch(readFileSync(join(repo.root, '.git', 'config'), 'utf8'), /hooksPath/iu, 'no hooks path is configured');
+  const hooks = join(repo.root, '.git', 'hooks');
+  assert.deepEqual(existsSync(hooks) ? readdirSync(hooks).filter(name => !name.endsWith('.sample')) : [], [], 'no hook is installed');
+  const board = cellBoard(t, repo.boardFile);
+  const tables = board.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name);
+  for (const table of ['item', 'agent', 'event', 'board_meta']) assert.ok(tables.includes(table), table);
+  assert.ok(existsSync(repo.boardFile), 'the board is a real SQLite file in the repository');
+});
+
+test('clause 1: the cell fixture and its helpers import no CLI entry, no apps/cli module and not the library front door [C7]', () => {
+  const pending = ['cell-fixture.js'], seen = new Set();
+  while (pending.length) {
+    const name = pending.shift();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const source = readFileSync(new URL(name, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /import\s*\*\s*as\s+[\w$]+\s+from\s*['"][^'"]*\/index\.js['"]/u, `${name} takes a namespace of a front door`);
+    for (const specifier of specifiers(source)) {
+      for (const [label, pattern] of FORBIDDEN) assert.doesNotMatch(`'${specifier}'`, pattern, `${name} imports ${label}: ${specifier}`);
+      if (specifier.startsWith('./')) pending.push(specifier.slice(2));
+    }
+  }
+  assert.ok(seen.has('testkit-fixture.js') && seen.has('fixture-child.js'), [...seen].join(', '));
+});

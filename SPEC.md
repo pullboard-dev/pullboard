@@ -1,8 +1,21 @@
-# Pullboard local
+# Spec
 
-The local-first core of Pullboard: a work board, lanes, a spec and git hooks that live in the repo. No account, no network. This file is the spec, in the format `pullboard spec check` lints.
+Pullboard's local core: board, lanes, spec and git hooks, all in the repo.
 
-Statuses: approved = decided · draft = proposed · pending = open question · fact = true today · wont = won't build, decided and kept · retired = no longer applies, kept. Ids are permanent: never delete or renumber a row. Tiers: must · aim.
+New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
+
+- **This file:** the spec, linted by `pullboard spec check`.
+- **Ids:** permanent; never delete or renumber.
+- **Tiers:** must · aim.
+
+| Status | Means |
+|---|---|
+| approved | decided |
+| draft | proposed |
+| pending | open question |
+| fact | true today |
+| wont | declined, kept |
+| retired | no longer applies, kept |
 
 ## P · Principles
 - P1 [approved, must] Nothing ships until a second agent verifies it. | gate: test/board.test.js
@@ -79,6 +92,13 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
 - V18 [draft, must] Accept runs the repo's install step before the frozen check; a failed install or timeout reads unverified, never red. | gate: test/e2e.test.js | serves: V2
 - V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: packages/store/tests/verdict-check.test.js | serves: V8
+- V20 [draft, must] Gates check only the change: a gate runs the item's own tests and checks. Anything that measures the whole system (speed budgets, end-to-end runs, the full suite, stability) runs in a scheduled sentinel on main, never in a gate or a landing. | gate: test/gate.test.js | serves: P1
+- V21 [draft, must] A failing sentinel files an item carrying what it measured, its limit and the commits since it last passed, so the fix goes through the loop. | gate: test/e2e.test.js | serves: V20
+- V22 [draft, must] Every test file has a runtime budget that only ratchets down: the default is 120 s, a file over it gets a recorded budget at its measured runner time, and a new or changed file over budget fails its gate naming the split. | gate: review
+- V23 [draft, must] Test files run under tier budgets: a cell test (under packages/<cell>/tests) 30 s, a component test (in the last cell it spans, no CLI) 60 s, and a journey (root test/, listed with a reason in bin/checks/test-journeys.json) 120 s. | gate: review
+- V24 [draft, must] A conformance scanner classifies every test file into a tier; its finding count and the root test/ count only go down, and a new unlisted root test/ file is refused at commit. | gate: review
+- V25 [draft, must] A sealed cell's submit selects only its own tests plus the contract tests at changed front doors. | gate: review
+- V26 [draft, must] Only the person grants item size overrides: --force-size is refused for every agent and the coordinator, and every other oversized item is split to 30 minutes or less. | gate: review
 
 ## O · Options
 - O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: packages/state/tests/settings.test.js | serves: O5
@@ -241,7 +261,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H19 [approved, aim] Without the relay, a phone sees and acts on a board through the view on the local network, after scanning a pairing code. | gate: test/cockpit/lan.test.js
 - H21 [approved, aim] A linked board reads and moves locally whether or not the relay answers: every move returns at once and is sent when the relay is reachable, and a conflict found on sync is refused loudly naming the winner (revises H10 for #1013). | gate: test/relay-local-first.test.js
 - H22 [draft, aim] A linked board stays linked: the person signs in once per machine, and only relay off or a revoke unlinks it. | gate: review
-- H20 [draft, must] When a linked relay account has used more than 80% of its storage quota, the next status, sync and phone page warn once with bytes used, quota and an action before writes are refused at 100%. | gate: test/relay-storage-quota.test.js
+- H20 [draft, must] When a linked relay account has used more than 80% of its storage quota, the next status, sync and phone page warn once with bytes used, quota and an action before writes are refused at 100%. | gate: packages/state/tests/relay-storage-quota.test.js
 - H23 [draft, aim] The person never sees Pullboard's internals: no refusal code, command line, token, relay or sync term reaches a person-facing page, notification or Needs-you text; a check over every person-facing string fails when one does. | gate: review
 - H24 [draft, aim] Pullboard never makes anyone wait: local moves (status, shout, claim, show, add) answer in under a second, no relay, sync or network work sits in front of a local move, and long jobs return queued and report by event; a per-command speed budget runs in CI on a board this size and fails the gate when exceeded. Proof so far: #1013 (local moves 174-232 ms). | gate: review
 - H25 [draft, aim] Pullboard never blocks the person without a way through: every refusal that can reach the person says why in plain words and names the fastest way through, including a recorded 'ship anyway' with a reason where it applies; a test over every such refusal fails when one lacks either. Most of this is covered by #1022. | gate: review

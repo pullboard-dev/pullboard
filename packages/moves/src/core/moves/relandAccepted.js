@@ -1,5 +1,5 @@
 /** Return a landing-reopened item to verified on its own accept, without a new build or review [C7,V4,H16]. */
-import { ACCEPTED_RELAND_ENGINE } from '../../../../../src/accepted-reland-engine.js';
+import { ACCEPTED_RELAND_ENGINE } from '../../../../state/core.js';
 
 /** The move exists only from its own engine onward [C7,H16]. */
 function minimumEngine() { return ACCEPTED_RELAND_ENGINE; }

@@ -56,7 +56,7 @@ import {runnerExecutionServices} from './tooling/src/runners.js';
 import {landingExecutionServices} from './tooling/packages/landing/index.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './tooling/src/engine.js';
-import {QUARANTINE_VERDICT_ENGINE} from './tooling/src/quarantine-verdict-engine.js';
+import {QUARANTINE_VERDICT_ENGINE} from './tooling/packages/state/src/core/engines/quarantine-verdict-engine.js';
 import {quarantineVerdictSnapshot,flakeQuarantines,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './tooling/packages/flakes/index.js';
 import {receiptBlockingGreen,nativeProofBlockingGreen,blockingFailures} from './tooling/packages/verify/index.js';
 import {proofRunReceipt} from './tooling/packages/store/index.js';

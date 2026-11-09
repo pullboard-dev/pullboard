@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit items checks, using the shared real-board fixtures [N26]. */
 import './upgrade-geometry.test.js';
@@ -8,8 +9,8 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
-import { addItem, closeBoard, completeCheckBaseline } from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
+import { addItem, closeBoard, completeCheckBaseline } from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, earlier, press, travel, chooseFilter, pickProject } from './fixture.js';
 

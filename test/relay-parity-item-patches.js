@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { git } from '../src/git.js';
+import { git } from '../packages/git/index.js';
 import { itemPatchAuthors } from '../packages/items/index.js';
 
 /** Attach and remove immutable patch bytes on a real submitted unmerged item, publishing after each mutation. */

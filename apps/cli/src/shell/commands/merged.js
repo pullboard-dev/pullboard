@@ -5,8 +5,9 @@ import { warnMainMoved } from '../../../../../packages/merge/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
-import { runCommitCliSmoke } from '../../../../../packages/landing/index.js';
-import { requireLandingPlanCheck } from '../../../../../packages/landing/index.js';
+import { smokeCommit } from '../../../../../packages/landing/index.js';
+import { landingPlanCheck } from '../../../../../packages/landing/index.js';
+import { placeLandingNewFiles } from '../../../../../packages/landing/index.js';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { landMerged } from '../../../../../packages/land/index.js';
@@ -32,6 +33,44 @@ import {
   primaryCheckoutRoot,
   textArg,
 } from '../cli.js';
+
+/**
+ * The existing record when the item is already merged: the same commit is a no-op naming it, a different one is refused
+ * naming both. Why: a hand-landing loop retried after a lost reply and appended a second merged event for five items [C7].
+ * The check lives in the command, not the move, so replaying the older doubled events still reproduces them.
+ *
+ * @param {{ item_id: number, item_merged_commit?: string | null }} item
+ * @param {string} commit
+ * @returns {{ commit: string } | null}
+ */
+export function recordedMerge(item, commit) {
+  const recorded = item.item_merged_commit;
+  if (!recorded) return null;
+  if (recorded === commit) return { commit: recorded };
+  throw new Refused('MERGED_ALREADY', `item #${item.item_id} is already merged as ${recorded}; ${commit} is a different commit, so nothing was recorded`);
+}
+
+/**
+ * Place the files a hand landing added that the cells plan does not cover, as one chore commit on the checkout this command
+ * runs in, so the landing never leaves main's cells-plan check red (#3443). It acts only when the landing is that checkout's
+ * tip on a clean tree; anything else keeps today's refusal from the plan check that follows.
+ *
+ * @param {string} root The checkout `pullboard merged` runs in.
+ * @param {string} commit The landing commit being recorded.
+ * @param {{ say: (text: string) => void }} io
+ * @returns {void}
+ */
+function placeUncoveredOnTrunk(root, commit, io) {
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  const dirty = tryGit(root, ['status', '--porcelain']);
+  if (head.status !== 0 || head.stdout.trim() !== commit || dirty.status !== 0 || dirty.stdout.trim()) return;
+  const files = placeLandingNewFiles(root);
+  if (!files.length) return;
+  const added = tryGit(root, ['add', '--', ...files]);
+  const made = added.status === 0 ? tryGit(root, ['commit', '-q', '-m', 'chore(cells): place new files in the plan [C7]']) : added;
+  if (made.status === 0) io.say(`placed new files in the cells plan: ${tryGit(root, ['rev-parse', '--short=12', 'HEAD']).stdout.trim()}`);
+  else tryGit(root, ['reset', '-q', '--hard', commit]);
+}
 
 /** Refresh the derived map after the merged receipt has been recorded. */
 async function refreshMap(ctx, io, board, trunk) {
@@ -63,6 +102,14 @@ async function refreshMap(ctx, io, board, trunk) {
 async function requireMergedOnTrunk(ctx, io, board, values, id, commit) {
   const note = (textArg(io, values, 'note') ?? '').trim();
   const item = store.getItem(board, id);
+  if (values.forced !== undefined) {
+    // A forced landing skips the verify, never the trunk: its commit must be on the primary trunk.
+    const onTrunk = mainCheckout(ctx.info.root);
+    if (!(onTrunk?.commit && contains(ctx.info.root, commit, onTrunk.commit))) {
+      throw new Refused('NOT_MERGED', `commit ${commit} is not on trunk ${onTrunk?.branch ?? 'the unavailable primary trunk'}${onTrunk?.commit ? ` at ${onTrunk.commit}` : ''}; a forced merge records only a commit that is on main`);
+    }
+    return;
+  }
   if (item.item_status !== 'verified') return;
   requireLandingCompanions(ctx.info.root, board, [item], commit);
   const moduleBase = tryGit(ctx.info.root, ['rev-parse', '--verify', `${commit}^`]);
@@ -103,6 +150,13 @@ export async function run(io, { first, second, values }) {
   const commit = resolveCommit(ctx.info.root, second ?? '');
   if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
   const id = idArg(first);
+  const existing = recordedMerge(store.getItem(board, id), commit);
+  if (existing) {
+    io.result?.({ id, commit: existing.commit, already: true });
+    io.say(`#${first} is already merged as ${existing.commit.slice(0, 12)}; nothing recorded`);
+    return 0;
+  }
+  if (values.forced !== undefined && !String(values.forced).trim()) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
   const train = values['gate-receipt'] !== undefined || mainPolicy(ctx.info.root).config.landing?.requireReceipts === true;
   const ids = train && values.items !== undefined ? String(values.items).split(',').map(value => idArg(value.trim())) : [id];
   const parent = tryGit(ctx.info.root, ['rev-parse', '--verify', '--quiet', `${commit}^`]);
@@ -115,9 +169,10 @@ export async function run(io, { first, second, values }) {
   };
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
-    requireLandingPlanCheck(ctx.info.root, commit);
+    placeUncoveredOnTrunk(ctx.info.root, commit, io);
+    await landingPlanCheck(ctx.info.root, commit);
     // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
-    runCommitCliSmoke(ctx.info.root, commit);
+    await smokeCommit(ctx.info.root, commit);
     if (train) {
       if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the primary coordinator records a train envelope');
       if (!ids.includes(id)) throw new Refused('USAGE', '--items must include the first named item');
@@ -128,7 +183,7 @@ export async function run(io, { first, second, values }) {
     // The store's own refusals, checked before any step is written so a refused merge writes no tooling pin.
     store.coordinatorOnly(me.id, 'records merges');
     const item = store.getItem(board, id);
-    if (item.item_status !== 'verified' && item.item_merged_commit !== commit) {
+    if (values.forced === undefined && item.item_status !== 'verified' && item.item_merged_commit !== commit) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     return { train: false };
@@ -147,7 +202,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }) }]);
     return {};
   };
   let announced = false;

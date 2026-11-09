@@ -3,12 +3,10 @@ import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
-import {
-  latestStaleActivity,
-  staleInstant,
-  staleStateAge,
-  staleStateLimits,
-} from '../../../../src/board-stale-state-policy.js';
+import { latestStaleActivity } from '../../../store/index.js';
+import { staleInstant } from '../../../store/index.js';
+import { staleStateAge } from '../../../store/index.js';
+import { staleStateLimits } from '../../../store/index.js';
 
 /** Read recorded detail without letting incomplete legacy data establish expiry authority. */
 function detailOf(event) {
@@ -68,7 +66,7 @@ function activity(board, item, actor, anchor, kind, seats, workObservation, now,
 }
 
 /** Board events that renew or restate a claim; none of them is work on it. */
-const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
+export const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
 /** A claim shows as stalled after this much idle time, and is released at the second (#1225). */
 export const CLAIM_STALL_MS = 20 * 60_000;
 /** A holder who committed this recently is never returned by the progress rule (#2251). */

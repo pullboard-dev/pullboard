@@ -7,17 +7,17 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard, draftSpecRow, nativeBoardPorts } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { ACTIVITY_NEWS_ENGINE } from '../src/activity-news-engine.js';
-import { ITEM_SHOUT_ENGINE } from '../src/item-shout-engine.js';
-import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
+import { ACTIVITY_NEWS_ENGINE } from '../packages/state/core.js';
+import { ITEM_SHOUT_ENGINE } from '../packages/state/core.js';
+import { LANDING_LEASE_ENGINE } from '../packages/state/core.js';
 import { shout as shoutMove } from '../packages/moves/index.js';
-import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
+import { ACTIVITY_DELIVERY_ENGINE } from '../packages/state/core.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { prepareSpecRefreezes } from '../packages/spec/index.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -26,6 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { activityDeliveryLines } from '../packages/activity/index.js';
 import { activityMainFiles } from '../packages/activity/index.js';
 import { activityWorkingFiles } from '../packages/activity/index.js';
+import { batchMainFiles } from '../packages/activity/index.js';
 import { budgetInbox } from '../packages/activity/index.js';
 import { readActivityCursor } from '../packages/activity/index.js';
 import { readActivityDelivery } from '../packages/activity/index.js';
@@ -815,4 +816,33 @@ test('activity delivery uses its caller actor and evidence presentation ports [R
     'Two routine updates.', 'One group withheld.',
   ]);
   assert.deepEqual(document, before, 'presentation cannot rewrite canonical source groups');
+});
+
+test('clause 1: inbox on a board with 38 claimed items makes at most 3 Git processes [C7,#3252]', () => {
+  const box = e2e.project('true');
+  const heads = [box.git(box.web, 'rev-parse', 'HEAD')];
+  for (let n = 0; n < 38; n++) {
+    assert.equal(e2e.commitFile(box, box.web, `web/claimed-${n}.txt`, `claim ${n}\n`, `feat(web): claimed fixture ${n} [G1]`).status, 0);
+    heads.push(box.git(box.web, 'rev-parse', 'HEAD'));
+  }
+  const builds = heads.slice(0, 38).map(item_claim_head => ({ item_claim_head }));
+  const pairs = heads.slice(1).map((commit, n) => ({ commit, base: heads[n] }));
+  const trace = join(box.web, '..', 'git-trace2.json');
+  const before = process.env.GIT_TRACE2_EVENT;
+  process.env.GIT_TRACE2_EVENT = trace;
+  let observed, batch;
+  try {
+    observed = activityWorkingFiles(box.web, builds);
+    batch = batchMainFiles(box.web, pairs);
+  } finally {
+    if (before === undefined) delete process.env.GIT_TRACE2_EVENT; else process.env.GIT_TRACE2_EVENT = before;
+  }
+  const processes = readFileSync(trace, 'utf8').split('\n').filter(line => line.includes('"event":"version"')).length;
+  assert.ok(processes >= 1 && processes <= 3, `${processes} Git processes read 38 claim bases and 38 landings`);
+  assert.equal(observed.unknown, false);
+  assert.deepEqual(observed.files.filter(file => file.startsWith('web/claimed-')).toSorted(), Array.from({ length: 38 }, (_, n) => `web/claimed-${n}.txt`).toSorted());
+  for (const [n, pair] of pairs.entries()) {
+    assert.deepEqual(batch.get(`${pair.base} ${pair.commit}`), [`web/claimed-${n}.txt`], 'each landing keeps its own file list');
+    assert.deepEqual(activityMainFiles(box.web, pair.commit, { base: pair.base }).files, [`web/claimed-${n}.txt`], 'the single read agrees');
+  }
 });

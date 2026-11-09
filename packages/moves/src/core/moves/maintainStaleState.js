@@ -1,8 +1,8 @@
-import { STRANDED_DEPENDENCY_ENGINE } from '../../../../state/index.js';
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../../state/core.js';
 /** Coordinator maintenance is a versioned native operation, never a direct housekeeping write [B4,C7]. */
-import { LEASE_LAPSE_ENGINE } from "../../../../../src/lease-lapse-engine.js";
-import { STALE_STATE_ENGINE } from "../../../../../src/stale-state-engine.js";
-import { CLAIM_IDLE_ENGINE } from "../../../../../src/claim-idle-engine.js";
+import { LEASE_LAPSE_ENGINE } from "../../../../state/core.js";
+import { STALE_STATE_ENGINE } from "../../../../state/core.js";
+import { CLAIM_IDLE_ENGINE } from "../../../../state/core.js";
 
 /** An older engine cannot interpret captured inactivity as permission to release another holder. */
 function minimumEngine(args) {

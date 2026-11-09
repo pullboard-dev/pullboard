@@ -13,11 +13,13 @@ import { reportCleanupTimeout } from './runner-worker-cleanup.js';
 import { outputSink } from './runner-worker-command.js';
 import { runCommand } from './runner-worker-command.js';
 import { runPrivateCheck } from './runner-worker-command.js';
+import { runHandoffJob } from './runner-worker-handoff.js';
 import { acquireResourceApi } from './runner-worker-environment.js';
 import { loadResourceApi } from './runner-worker-environment.js';
 import { registeredCapacity } from './runner-worker-environment.js';
 import { scopedEnvironment } from './runner-worker-environment.js';
 import { assertTransportLive } from './runner-worker-process.js';
+import { retrySlotLocked } from './runner-worker-process.js';
 import { drainAllOwned } from './runner-worker-process.js';
 import { installSignalCustody } from './runner-worker-process.js';
 import { receipt } from './runner-worker-receipt.js';
@@ -125,16 +127,16 @@ export async function main(S) {
     mkdirSync(root, { mode: 0o700 }); mkdirSync(privateHome, { mode: 0o700 }); mkdirSync(temporary, { mode: 0o700 });
     writeFileSync(join(privateHome, 'npm-userconfig'), '', { mode: 0o600 });
     writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
-    const pinLease = await acquireResourceApi(api, {
+    const pinLease = await retrySlotLocked(S, () => acquireResourceApi(api, {
       name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
       repo: runnerRoot, agent: `pullboard-ssh-pin-${spec.id}`, kind: 'source-cache',
       onWait: () => assertTransportLive(S),
-    }, join(runnerRoot, 'cache', 'resource-pool'));
+    }, join(runnerRoot, 'cache', 'resource-pool')));
     try { pinSourceCacheJob(runDirectory, spec); } finally { pinLease.release(); }
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
     phases.mark('capacityWaitMs');
-    lease = await acquireResourceApi(api, {
+    lease = await retrySlotLocked(S, () => acquireResourceApi(api, {
       name: 'gate', capacity: gateCapacity, scope: 'machine', root: runnerRoot, runnerExecution: true,
       repo: runnerRoot, agent: `pullboard-ssh-${spec.id}`,
       landing: spec.landing === true, itemCheck: spec.itemCheck === true,
@@ -142,7 +144,7 @@ export async function main(S) {
       browserCapacityProvider: () => browserCapacity,
       item: spec.item ?? '', kind: spec.kind ?? 'remote-command',
       onWait: () => assertTransportLive(S),
-    }, machineHomePath);
+    }, machineHomePath));
     phases.mark('prepareMs');
     gui = guiSession();
     if (spec.guiRequired && gui !== true) throw new Refused('RUNNER_GUI_SESSION_REQUIRED', 'log in to a GUI session on this runner or keep GUI-marked files local');
@@ -181,7 +183,8 @@ export async function main(S) {
     if (!analysisArtifactPath) delete commandEnv.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT;
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');
-    final = { ...(spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
+    // A ticket runs its hand-off stages here, on the runner; any other job runs its one command.
+    final = { ...(spec.handoff ? await runHandoffJob(spec, root, runnerRoot) : spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
     if (spec.testResults) final.testResults = packTestResults(selectedTestResults(resultStore, spec.testResults.inputKeys));
     if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
   } catch (error) {

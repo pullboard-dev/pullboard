@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runRelaySender } from '../../../../src/relay-sender-worker.js';
+import { runRelaySender } from '../../../../packages/outbox/index.js';
 import { outboxWaiting } from '../../../../packages/outbox/index.js';
 import {
   flushOutbox,

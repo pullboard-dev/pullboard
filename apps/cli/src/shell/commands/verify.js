@@ -1,10 +1,15 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
-import { generateTestTiers } from '../../../../../packages/gate/index.js';
+import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { toolsSnapshot } from '../submit-handoff.js';
+import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
+import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
+import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -12,10 +17,10 @@ import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
-import { withMainCheckout } from '../../../../../packages/landing/index.js';
+import { committedNeedsGui } from '../../../../../packages/landing/index.js';
+import { mainRunnerSource } from '../../../../../packages/landing/index.js';
 import { runProfiledShellAsync } from '../../../../../packages/gate/index.js';
 import { testsNeedBrowser } from '../../../../../packages/gate/index.js';
-import { testsNeedGui } from '../../../../../packages/gate/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
@@ -352,9 +357,23 @@ export async function verifyHere(ctx, id, { second, values }) {
             expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
-        const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+        let reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+          tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
+        // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
+        // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
+        const sealedMain = reused.ids || !frozenCheck(item) || reReview || companionDigest || item.item_effective_head ? null : submittedPolicyCommit(store.events(board, { itemId: id }));
+        if (sealedMain) {
+          let moveNote = '';
+          try {
+            const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
+            if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
+          } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
+          const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
+            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
+          if (sealed?.ids) reused = sealed;
+          else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
+        }
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
@@ -568,21 +587,29 @@ export async function run(io, args) {
         selectTests: async (root, pair) => {
           const selected = selectAffectedTests(root, pair);
           const tiered = selectTestTiers(root, pair);
-          const units = tiered?.units ?? await withMainCheckout(root, pair.commit, checkout =>
-            generateTestTiers(checkout).files.filter(row => row.tier === 'T1').map(row => row.file));
+          // Tiers come from the commit's Git objects, so no clone or checkout is made on this machine [C7,V4].
+          const units = tiered?.units ?? generateTestTiersAt(root, pair.commit).files.filter(row => row.tier === 'T1').map(row => row.file);
           const allowed = new Set(units);
           return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
         },
-        runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
+        // The runner receives the commit id and reads its files from this repository's object store, so there is no
+        // checkout or worktree here; a slot that would run on this machine is refused, never served from a clone [C7,V4].
+        runTests: async (commit, files, { profileFile, artifactDirectory }) => {
+          const root = ctx.info.root;
+          const source = mainRunnerSource(root, commit, policy.commit);
+          if (!source) return { unavailable: 'the exact comparison commit could not be read from the object store' };
           const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
-          const browser = await testsNeedBrowser(checkout, files);
-          return withGateSlot(checkout, lease => {
+          const browser = await testsNeedBrowser(root, files, { commit });
+          return withGateSlot(root, lease => {
+            if (!lease.runner) throw new Refused('RUNNER_SOURCE', 'a review comparison runs on a runner from commit ids; no local checkout is made, so register a runner and retry');
             lease.testTiers = true;
-            return runProfiledShellAsync(checkout, command,
-              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+            return runProfiledShellAsync(root, command,
+              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true,
+                pinnedSource: { head: source.head, tree: source.tree } });
           }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
-            browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
-        }),
+            browser, gui: files.some(file => committedNeedsGui(root, commit, file)), shortEligible: true, item: String(id), kind: 'compare',
+            pinnedSource: { commit: source.head, tree: source.tree, trunk: source.trunk } });
+        },
       });
       compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
     } catch (error) {
@@ -619,6 +646,31 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
+export async function reviveStalledComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const thread = withBoardRead(ctx, board => store.itemThread(board, id));
+  const plan = comparisonRestartPlan({ commonDir: ctx.info.commonDir, item, thread });
+  if (plan.action === 'unavailable') {
+    await recordComparison(ctx, item, { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest, error: plan.error });
+  } else if (plan.action === 'restart') {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+  }
+}
+
+/**
+ * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The reviewer's checkout.
+ * @param {string} commit - The reviewed commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function toolingTree(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
 }

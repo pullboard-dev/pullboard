@@ -3,8 +3,10 @@ import { parseArgs } from 'node:util';
 
 const OPTIONS = {
   criterion: { type: 'string' },
+  claims: { type: 'boolean' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
+  'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },
   sensitive: { type: 'boolean' },
   'machine-verified': { type: 'string' },
@@ -37,6 +39,8 @@ const OPTIONS = {
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },
   infra: { type: 'string' },
+  precheck: { type: 'boolean' },
+  preflight: { type: 'boolean' },
   companion: { type: 'string' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
@@ -54,6 +58,7 @@ const OPTIONS = {
   text: { type: 'string' },
   gate: { type: 'string' },
   'gate-receipt': { type: 'string' },
+  forced: { type: 'string' },
   receipt: { type: 'boolean' },
   aim: { type: 'boolean' },
   doctrine: { type: 'boolean' },
@@ -87,6 +92,7 @@ const OPTIONS = {
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
   affected: { type: 'boolean' },
+  'compare-main': { type: 'boolean' },
   waive: { type: 'string' },
   until: { type: 'string' },
   take: { type: 'string' },
@@ -101,6 +107,7 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  prune: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
   update: { type: 'boolean' },
@@ -186,7 +193,28 @@ export function parseCommandArgs(argv) {
   };
   // Flow consumes a history file; show retains its existing boolean --history switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : options;
-  return parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
+  return parsed;
+}
+
+/**
+ * Refuse a single-value text flag given more than once, so add and edit never keep the last value and silently drop
+ * the earlier ones (#3743). A flag declared repeatable keeps every value and is left alone.
+ *
+ * @param {string[]} argv
+ * @param {Record<string, { type: string, multiple?: boolean }>} options
+ */
+function refuseRepeatedFlags(argv, options) {
+  const counts = new Map();
+  for (const token of argv) {
+    if (token === '--') break;
+    const name = /^--([^=]+)(?:=|$)/u.exec(token)?.[1];
+    if (name && options[name]?.type === 'string' && !options[name].multiple) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  for (const [name, count] of counts) {
+    if (count > 1) throw Object.assign(new Error(`--${name} was given ${count} times and only one value is kept (REPEATED_FLAG --${name}); give it once, with every clause numbered inside that one value`), { refusalCode: 'REPEATED_FLAG' });
+  }
 }
 
 /** Whether a parsed command line only prints version or help, which asks Git nothing. */

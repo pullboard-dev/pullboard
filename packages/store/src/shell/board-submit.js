@@ -1,6 +1,6 @@
 import { boardWriteSnapshot } from './board-write-preparation.js';
 import { builderFamilyProblem } from './builder-family-required.js';
-import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../src/builder-family-required-engine.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../state/core.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
@@ -9,15 +9,15 @@ import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { acceptMachineSubmission } from '../../../verify/index.js';
 import { machineVerificationEligible } from '../../../verify/index.js';
 import { receiptFields } from '../../../verify/index.js';
-import { MACHINE_VERDICT_ENGINE } from '../../../../src/machine-verdict-engine.js';
-import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
+import { MACHINE_VERDICT_ENGINE } from '../../../state/core.js';
+import { CLAUSE_INSPECTION_ENGINE } from '../../../state/core.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
 import { proofReceipts } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
-import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../src/known-main-running-file-engine.js";
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../state/core.js";
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../state/core.js";
 
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
@@ -37,7 +37,7 @@ import { listItems } from "./board-query.js";
 import { mergeOnlyBasis } from "../../../merge/index.js";
 import { mergeOnlyProblem } from "../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
-import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../src/merge-only-verdict-engine.js";
+import { MERGE_ONLY_VERDICT_ENGINE } from "../../../state/core.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { acceptedVerdict } from "../../../verify/index.js";
@@ -46,11 +46,11 @@ import { IN_STATE } from "../../../state/index.js";
 import { MOVES } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { retainedVerifierIdentityProblem } from "../../../items/index.js";
-import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../src/known-main-reworks-engine.js";
+import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../state/core.js";
 import { requireKnownMainReworks } from "../core/known-main-reworks.js";
 import { submissionProof } from "../../../state/src/core/submission-proof.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.js";
-import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
+import { FLOW_SIZE_ENGINE } from "../../../state/core.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
 import { sealClauseInspection } from './board-repository.js';
@@ -94,9 +94,13 @@ export function prepareSubmit(board, id, options) {
     options = sealClauseInspection(board, id, options);
     options = sealStrictRenames(board, id, options);
   }
-  requireBoardWriteSnapshot(board, snapshot, 'submit');
+  // The seal's own "policy re-frozen" fact is this preparation's write on this connection, not a stale board: only
+  // another connection's commit voids the seal, and the write checks from after it. Counting the fact as a change
+  // refused every submit after a landing-only policy change, so a queued gate retried it forever (#3516).
+  const sealed = boardWriteSnapshot(board);
+  if (sealed.version !== snapshot.version) requireBoardWriteSnapshot(board, snapshot, 'submit');
   const prepared = Object.freeze({ ...options });
-  PREPARED_SUBMITS.set(prepared, { board, id, snapshot });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed });
   return prepared;
 }
 
@@ -115,7 +119,7 @@ export function prepareSubmit(board, id, options) {
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
-  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
   const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
   const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
@@ -223,7 +227,7 @@ export function submit(board, id, options) {
       before: () => { if (carry) logEvent(board, agentId, 'merge-only-accept', id, { ...mergeOnly, by: basis.by }); },
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
-    recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
+    recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE

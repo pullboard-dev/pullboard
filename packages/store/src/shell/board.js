@@ -31,6 +31,7 @@ import { reviewReleasesSinceSubmit } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 import { events } from "./board-query.js";
+import { proofReceipts } from "./proof-receipts.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
@@ -49,12 +50,13 @@ import { STATES } from "../../../state/index.js";
 import { UNKNOWN_MOVE } from "../../../state/index.js";
 import { effectiveGuards } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { submitHandoff } from "./submit-handoff-read.js";
 import { itemAuthorProblem } from "../../../items/index.js";
 import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
-import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
+import { RIGOR_AUTO_ENGINE } from "../../../state/core.js";
 import { factReference } from "../../../spec/index.js";
 import { landingFlakes } from "../core/board-landing-exceptions.js";
 import { landingWaiverCovers } from "../core/board-landing-exceptions.js";
@@ -96,6 +98,7 @@ import { answerDecision } from "./board-answer-decision.js";
 import { appendFact } from "./board-append-fact.js";
 import { buildOrder } from "./board-build-order.js";
 import { nextFor } from "./board-next-for.js";
+import { gateAtHead } from "./board-next-for.js";
 import { holdLane } from "./board-hold-lane.js";
 import { releaseLane } from "./board-release-lane.js";
 import { holdItem } from "./board-hold-item.js";
@@ -152,7 +155,7 @@ export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item
 
 export { atomic, logEvent };
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
-export { landingTestDefects, recordLandingTestDefect } from "../core/board-landing-test-defects.js";
+export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../core/board-landing-test-defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../core/board-selector-gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../core/board-accepted-reland.js";
 export { landingLeaseMove, landingLeaseState } from "../core/board-landing-lease.js";
@@ -301,6 +304,30 @@ export { reviewQueueBreakdown } from "./board-query.js";
 export { reviewQueue } from "./board-query.js";
 
 /**
+ * The refusal for reviewing an item whose submitted head has a queued hand-off but no captured submit proof receipt,
+ * or null when the receipt exists or no hand-off was ever queued for it.
+ *
+ * Why: only a terminal green or submitted result with the receipt the production gate writes gives a reviewer proof;
+ * queued, running, incomplete (SUBMIT_HANDOFF_RESULT with no receipt, the #3722 case), red and infrastructure
+ * states leave nothing to review, and a reject there counts toward the send-back hold (#3737, #3744). Items with no
+ * hand-off at all (older boards, synthetic submits) stay reviewable.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @returns {Refused | null}
+ */
+export function gateReceiptProblem(board, item) {
+  if (item.item_status !== 'submitted' || !item.item_commit) return null;
+  const job = submitHandoff(board, item.item_id);
+  if (!job || (job.commit !== item.item_commit && job.submitted !== item.item_commit)) return null;
+  const captured = ['green', 'submitted'].includes(job.state) && proofReceipts(board, item.item_id).some(receipt => receipt.kind === 'submit'
+    && receipt.commit === job.executionCommit && receipt.tree === job.executionTree && receipt.seat === job.agentId
+    && receipt.frozenDigest === job.digest && receipt.sourceClean === true);
+  return captured ? null
+    : new Refused('GATE_PENDING', `the gate for #${item.item_id} has no captured proof receipt at ${String(item.item_commit).slice(0, 12)} (hand-off ${job.state}), so there is nothing to review; it becomes reviewable when its gate result and receipt exist: pullboard next --verify`);
+}
+
+/**
  * What a verifier must pass before it reviews an item, alike when it reserves the review and when
  * it gives its verdict: it did not build the item, its route covers the item's, the repo's verify
  * policy lets it, and no other agent holds the review (V15). A reservation that lapsed holds
@@ -331,6 +358,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
     },
+    gateReceipt: (found) => gateReceiptProblem(board, found),
   };
 }
 
@@ -450,6 +478,7 @@ export {
   appendFact,
   buildOrder,
   nextFor,
+  gateAtHead,
   holdLane,
   releaseLane,
   holdItem,

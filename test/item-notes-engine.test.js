@@ -2,10 +2,10 @@
 /** Typed notes preserve authority and historical replay on independent in-memory SQLite replicas [B29,B30,B31,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { ITEM_NOTES_ENGINE } from '../src/item-notes-engine.js';
+import { ITEM_NOTES_ENGINE } from '../packages/state/core.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { fixtureBoard } from './board-fixture.js';
 

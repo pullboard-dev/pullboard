@@ -9,7 +9,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
@@ -31,7 +31,7 @@ import {
   childOutcome,
   startExclusiveBoardWriter,
 } from './land-board-fixture.js';
-import { landingTimeoutFixture } from './landing-timeout-fixture.js';
+import { landingTimeoutFixture } from '../packages/store/tests/landing-timeout-fixture.js';
 import { startInterruptedLanding } from './land-board-fixture.js';
 import { settleRecordedSourceWake } from './land-board-fixture.js';
 import { recordManualMergedItems } from './land-board-fixture.js';
@@ -44,7 +44,7 @@ import {
   assertCollisionFreeLanding,
   assertSiblingConflictLanding,
   assertDeferredLandingPriority,
-} from './land-collision-fixture.js';
+} from '../packages/store/tests/land-collision-fixture.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 const e2e = createE2eHelpers();

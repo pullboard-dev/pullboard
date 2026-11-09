@@ -35,19 +35,45 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   if (primary?.branch) (await import('../../../../../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
 }
 
+/** Commands that write the board whatever their arguments. */
+const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
+  'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
+
+/**
+ * Whether a command line writes the board. Reads bind no write session and wake no dispatcher recovery, so a read
+ * such as whoami, show or status pays for neither [C7].
+ *
+ * @param {string[]} positionals - The command and its verb.
+ * @returns {boolean}
+ */
+export function writesBoard([command, first]) {
+  return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
+    || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first))
+    || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
+}
+
+/**
+ * Whether a command line wakes queued-handoff recovery: board writes do, reads and Git hooks never. Why: on 8 Nov a
+ * commit-msg hook, heartbeats and inbox reads each ran recovery and waited minutes behind the dispatcher launch [C7].
+ *
+ * @param {string[]} positionals - The command and its verb.
+ * @returns {boolean}
+ */
+export function wakesHandoffRecovery(positionals) {
+  return writesBoard(positionals) && !['hook', 'hooks'].includes(positionals[0]);
+}
+
 /**
  * Bind this checkout to the session behind a write before any sync or side effect. Reads, help and authenticated
  * person channels keep their identity and load nothing for it.
  */
 async function bindCheckoutSession(io, positionals, values) {
   if (values.help || values.version || io.personChannel === 'view' || io.personRequest) return;
-  const [command, first] = positionals;
+  const [command] = positionals;
   if (command === 'takeover' && (positionals.length !== 1 || Object.keys(values).some((key) => key !== 'json'))) {
     throw new Refused('USAGE', 'pullboard takeover takes no arguments; run pullboard takeover [--json]');
   }
-  const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
-    'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove', 'object'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writesBoard(positionals)) return;
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
@@ -213,7 +239,7 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
-      if (!parsed?.values['dry-run']) {
+      if (!parsed?.values['dry-run'] && wakesHandoffRecovery(parsed?.positionals ?? [])) {
         await (await import('./handoff-recovery.js')).recoverQueuedHandoffs(io, git);
       }
     }
@@ -265,9 +291,17 @@ async function runMain(argv, streams) {
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
         const worker = await import('../../../../../packages/landing/index.js');
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
         // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics: automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set() });
+        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
+        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
+        // One board read answers both: recovery and the bootstrap share the answer for the same record.
+        const answers = new Map();
+        const woken = async job => {
+          if (!answers.has(job.id)) answers.set(job.id, (await import('../../../../../bin/automatic-landing.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
+          return answers.get(job.id);
+        };
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url), { woken });
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }

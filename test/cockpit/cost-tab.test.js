@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
@@ -15,7 +16,7 @@ import { costTabHtml } from '../../apps/view/index.js';
 import { costTabModel } from '../../apps/view/index.js';
 import { counterDelta } from '../../apps/view/index.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { SPEC } from './fixture.js';
 import { machine } from './fixture.js';
 import { project } from './fixture.js';

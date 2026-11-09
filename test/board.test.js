@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
-import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
+import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../packages/store/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../packages/seats/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
@@ -23,11 +23,11 @@ import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
-import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
-import { ROUTE_CALIBRATION_ENGINE } from '../src/route-calibration-engine.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../packages/state/core.js';
+import { ROUTE_CALIBRATION_ENGINE } from '../packages/state/core.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
+import { REVIEW_INDEPENDENCE_ENGINE } from '../packages/state/core.js';
 import { verifyLegacyUnknownFamily, familyFreeze } from './review-family-fixture.js';
 
 const HOUR = 3_600_000;
@@ -1271,7 +1271,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   finally { if (savedWorktreeModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = savedWorktreeModel; }
   assert.equal(missingWorktreeModel.code, 1);
   assert.equal(JSON.parse(missingWorktreeModel.stdout).error.code, 'MODEL_REQUIRED', 'worktree without a flag or model environment refuses');
-  const made = await runMain(repo, ['worktree', 'web', '--family', 'Family Alpha', '--json']);
+  const made = await runMain(repo, ['worktree', 'web', '--family', 'Family Alpha', '--route', 'strong', '--json']);
   assert.equal(made.code, 0, made.stderr || made.stdout);
   const worktree = JSON.parse(made.stdout);
   assertJsonShape(worktree, 'worktree');
@@ -1362,7 +1362,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta', 'a refused declaration preserves the immutable family');
   assert.deepEqual(store.verdictsFor(persistent, id), [recorded], 'a refused declaration preserves the complete old verdict');
   assert.equal(store.verdictsFor(persistent, id)[0].verdict_verifier_family, 'Family Beta', 'a refused declaration leaves the old verdict family unchanged');
-  const sameFamily = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  const sameFamily = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--route', 'strong', '--json']);
   assert.equal(sameFamily.code, 0, sameFamily.stderr || sameFamily.stdout);
   assert.equal(JSON.parse(sameFamily.stdout).agent, 'review-1', 'the same family rejoins with the stable agent id');
   assert.equal(store.agentAt(persistent, reviewerRoot).agent_family, 'Family Beta');

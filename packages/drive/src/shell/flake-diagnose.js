@@ -130,7 +130,12 @@ export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases 
         }
       });
     } catch { /* The observation is already on the board through the observer; only the job record is missing. */ }
-  }, { main: observe.main, recordRun: observe.recordRun });
+  }, { main: observe.main, recordRun: observe.recordRun,
+    // Record the jobs alone, with no slot and no observer, so a verdict can return before a diagnostics slot is asked for [C7].
+    queue: async (run, context) => {
+      const tree = treeOf(repo, gate.candidate);
+      await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root)));
+    } });
 }
 
 /**

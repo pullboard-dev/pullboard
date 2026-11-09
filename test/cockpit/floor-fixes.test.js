@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-view-test journey
  * The agent floor's approved fixes in real Chrome: grouped number band, wider Now column, equal queue cards, more ways in [N26,N38]. */
@@ -9,7 +10,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { before } from 'node:test';
 import { test } from 'node:test';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { accept } from './fixture.js';
 import { boardId } from './fixture.js';
 import { build } from './fixture.js';

@@ -307,9 +307,10 @@ test('takeover waits for an active write and then refuses the old session [B3,B7
     while (!predicate() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 10));
     assert.ok(predicate(), label);
   }
-  /** Observe the takeover waiting on this checkout's resource rather than depending on a sleep. */
+  /** Observe the takeover waiting for the active write: it holds the checkout and has written its intent. */
   function queued() {
-    return listResources({ scope: 'repo', root: box.repo }).some((resource) => resource.name.startsWith('checkout-session:') && resource.line.length > 0);
+    return existsSync(resolve(box.web, box.git(box.web, 'rev-parse', '--git-dir'), 'pullboard-checkout-takeover'))
+      && listResources({ scope: 'repo', root: box.repo }).some((resource) => resource.name.startsWith('checkout-session:') && resource.holders.length > 0);
   }
   const submission = launch('active-write-273', 'submit', '1');
   let takeover;

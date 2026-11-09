@@ -2,7 +2,7 @@
 import { Refused } from "../../../kernel/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { RIGOR_AUTO_ENGINE } from "../../../state/index.js";
-import { VERIFIED_ITEM_HOLD_ENGINE } from "../../../../src/verified-item-hold-engine.js";
+import { VERIFIED_ITEM_HOLD_ENGINE } from "../../../state/core.js";
 
 /** Hold an open or already claimed item under the existing coordinator authority. */
 export function applyItemHold(board, id, { agentId, reason, until }, dependencies) {

@@ -9,7 +9,7 @@ import { openBoard, closeBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { temporaryDirectory } from './board-fixture.js';
 import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
-import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../src/builder-family-required-engine.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../packages/state/core.js';
 
 const FIXTURE_MODEL = 'Fixture';
 

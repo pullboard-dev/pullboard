@@ -4,11 +4,11 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { loadDoctrine } from '../src/doctrine.js';
+import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { readyItems } from '../src/queue-readiness.js';
@@ -90,7 +90,10 @@ test('the coordinator is told to split work when a route has more idle seats tha
 test('idle seats count once at their top route and lower work remains compatible [N2,B13]', t => {
   const box = fixture(t);
   const seats = [box.seat('light', 'light'), box.seat('mid'), box.seat('strong', 'strong')];
-  box.addFree('Light work', { route: 'light' });
+  // A light item is offered only once a capable seat has diagnosed it, as next's own eligibility requires [N2,B13].
+  const lightWork = box.addFree('Light work');
+  store.appendFact(box.board, lightWork, { agentId: seats[2], kind: 'diagnosis',
+    text: 'Files: src/fixture.js Change: repoint the fixture to the canonical handler Test case: the fixture returns the expected result from the canonical module' });
   box.clock.at += 31 * 60_000;
   box.present(seats);
   assert.deepEqual(box.shortages(), [], 'one light item is compatible with each one-seat top-route group');

@@ -1,20 +1,9 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
-import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { importStyleViolations } from './static-import-style.js';
-import { engineFolderProblems } from '../../../state/index.js';
-import { engineFolderViolations } from '../../../state/index.js';
-import { emptyCatchProblems } from '../../../../bin/checks/empty-catch.js';
-import { fileSizeProblems } from '../../../../bin/checks/file-size.js';
-import { testInputProblems } from '../../../../bin/checks/test-inputs.js';
-import { testWaitSites } from '../../../../bin/checks/test-waits.js';
-import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
-import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
-import { fixedWallMargins } from './wall-clock-budgets.js';
-import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
-import { loadBearingFailures } from '../core/load-bearing.js';
-import { loadBearingJudged } from '../core/load-bearing.js';
+import { runStaticRegistry } from './static-check-registry.js';
+import { STATIC_CHECKS } from './static-check-registry.js';
 import { gitSpawnSync } from '../../../git/index.js';
 
 /**
@@ -22,11 +11,14 @@ import { gitSpawnSync } from '../../../git/index.js';
  *
  * @param {string} root - Checkout root the files are read from.
  * @param {string[]} files - Root-relative changed or staged paths.
+ * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[] }} [options] - `only` runs
+ *   just the registered checks with these names; `also` adds checks the caller owns, run on the same context after the registry.
  * @returns {string[]} One `path:line: message` per failure; empty when clean.
  */
-export function changedStaticFailures(root, files, { staged = false } = {}) {
+export function changedStaticFailures(root, files, { staged = false, only = null, also = [] } = {}) {
   const cache = new Map();
   const accepted = new Map();
+  let indexed = null;
   /** Existing debt is read from accepted main, never the candidate working tree or a baseline file. */
   const previous = file => {
     if (!accepted.has(file)) {
@@ -43,11 +35,8 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
   /** Read each exact candidate source once, from the index for a commit hook. */
   const text = file => {
     if (!cache.has(file)) {
-      if (staged) {
-        const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-        if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
-        cache.set(file, result.stdout);
-      } else cache.set(file, readFileSync(join(root, file), 'utf8'));
+      if (staged) cache.set(file, (indexed ??= indexReader(root))(file));
+      else cache.set(file, readFileSync(join(root, file), 'utf8'));
     }
     return cache.get(file);
   };
@@ -55,66 +44,52 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
   const read = file => ({ file, source: text(file) });
   const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file)).map(read);
   let engineSources = sources;
-  if (staged && sources.some(row => row.source.includes('EXIT_RULES_ENGINE'))) {
-    const paths = gitSpawnSync(['ls-files', '-z', '--', 'src/exit-rules-engine.js', 'packages/state/core.js', 'packages/state/src/core'], { cwd: root, encoding: 'utf8' });
+  // A file forwarding an engine through a state front door is judged against those doors and the leaves they name.
+  if (staged && sources.some(row => /_ENGINE\b/u.test(row.source))) {
+    const paths = gitSpawnSync(['ls-files', '-z', '--', 'packages/state/index.js', 'packages/state/core.js', 'packages/state/src/core'], { cwd: root, encoding: 'utf8' });
     if (paths.status !== 0) throw new Error('cannot list staged state metadata');
     const extra = paths.stdout.split('\0').filter(file => file && !files.includes(file) && /\.[cm]?js$/u.test(file));
     engineSources = [...sources, ...extra.map(read)];
   }
-  const failures = [
-    ...relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file)).map(read)]).map(row => `${row.file}:${row.line}: ${row.text}`),
-    ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
-    // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-    ...(staged ? engineFolderViolations(engineSources) : engineFolderProblems(root)).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),
-  ];
-  for (const check of [emptyCatchProblems, fileSizeProblems, testInputProblems]) {
-    for (const file of files) {
-      const current = check(root, [file], text);
-      const baseline = check(root, [file], previous);
-      failures.push(...current.slice(baseline.length).map(row => `${row.path}:${row.line}: ${row.text}`));
-    }
-  }
-  failures.push(...loadBearingCheck(root, files, { staged, text, previous }));
-  const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
-  for (const file of files) {
-    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) {
-      const { source } = read(file);
-      failures.push(...fixedWallMargins(source, file));
-      failures.push(...testWaitGrowth(testWaitSites(source, file), waitBaseline).map(row => `${row.path}:${row.line}: ${row.text}`));
-    }
-  }
-  return failures;
+  const context = { root, files, staged, text, previous, read, sources, engineSources };
+  const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
+  return [...registry, ...also.flatMap(check => check.run(context))];
 }
 
 /**
- * The load-bearing process check over the changed files: new detached children, unrefs, daemon loops and state files
- * outside the drive, transport, jobs and pin cells, against the ceilings file, which may only fall against main's.
- * A checkout with no ceilings file (a project that is not this repository) has nothing to judge.
+ * A reader of the exact index bytes that spends two Git calls in all: a file whose working copy matches its index entry
+ * is read from disk, and only a file that differs, is flagged assume-unchanged or skip-worktree, or is not a regular file
+ * is read with `git show`. Why: the whole-tree checks (sync-spawn-in-leases) read hundreds of files, and one Git process
+ * per file made the commit hook take 25 s on a loaded machine; reading the index this way gives the same bytes [C7].
  *
- * @param {string} root
- * @param {string[]} files
- * @param {{ staged: boolean, text: (file: string) => string, previous: (file: string) => string }} readers
- * @returns {string[]}
+ * @param {string} root - Checkout root.
+ * @returns {(file: string) => string} Reads one root-relative path as staged; throws when the index has no such file.
  */
-function loadBearingCheck(root, files, { staged, text, previous }) {
-  const present = staged
-    ? gitSpawnSync(['cat-file', '-e', `:${LOAD_BEARING_CEILINGS}`], { cwd: root, stdio: 'ignore' }).status === 0
-    : existsSync(join(root, LOAD_BEARING_CEILINGS));
-  if (!present) return [];
-  const ceilings = JSON.parse(text(LOAD_BEARING_CEILINGS));
-  const changed = files.filter(loadBearingJudged).map(file => ({ file, source: text(file) }));
-  let accepted = null;
-  if (files.includes(LOAD_BEARING_CEILINGS)) {
-    const main = previous(LOAD_BEARING_CEILINGS);
-    if (main) accepted = JSON.parse(main);
-  }
-  return loadBearingFailures(changed, ceilings, accepted);
+function indexReader(root) {
+  const listed = gitSpawnSync(['ls-files', '-z', '-v'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const dirty = gitSpawnSync(['diff', '--no-ext-diff', '--no-renames', '--name-only', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (listed.status !== 0 || dirty.status !== 0) throw new Error('cannot list the index');
+  const differs = new Set(dirty.stdout.split('\0').filter(Boolean));
+  const plain = new Set(listed.stdout.split('\0').filter(row => row.startsWith('H ')).map(row => row.slice(2)).filter(file => !differs.has(file)));
+  return file => {
+    if (plain.has(file) && lstatSync(join(root, file), { throwIfNoEntry: false })?.isFile()) return readFileSync(join(root, file), 'utf8');
+    const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
+    return result.stdout;
+  };
 }
 
-/** Judge the actual index whenever the explicit staged checker is invoked. */
-export function stagedHookFailures(root) {
+/**
+ * Judge the actual index whenever the explicit staged checker is invoked.
+ *
+ * @param {string} root - Checkout root.
+ * @param {{ also?: { name: string, run: (context: object) => string[] }[] }} [options] - Extra staged checks, such as the
+ *   test fixture and test-name checks the repository hook adds from bin/checks/changed-static.js.
+ * @returns {string[]}
+ */
+export function stagedHookFailures(root, { also = [] } = {}) {
   const merging = gitSpawnSync(['rev-parse', '--verify', 'MERGE_HEAD'], { cwd: root, stdio: 'ignore' }).status === 0;
   const diff = gitSpawnSync(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])], { cwd: root, encoding: 'utf8' });
   if (diff.status !== 0) throw new Error('cannot enumerate staged files');
-  return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true });
+  return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true, also });
 }

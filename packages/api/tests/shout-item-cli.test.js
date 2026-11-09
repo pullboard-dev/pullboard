@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import { moveArgs } from '../../person/index.js';
 import { derivedFamily } from '../../items/index.js';
@@ -81,7 +81,7 @@ test('an unchanged inbox read never waits on the board write lock while another 
   }
   const neighbour = join(box.dir, 'api-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/neighbour', neighbour, 'main');
-  for (const [root, args] of [[neighbour, ['join', 'api']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
+  for (const [root, args] of [[neighbour, ['join', 'api', '--route', 'strong']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
     const done = box.run(root, ...args);
     assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
   }

@@ -15,7 +15,10 @@ export async function runCommand(argv, io) {
   try {
     parsed = parseCommandArgs(argv);
   } catch (error) {
-    const refusal = new Refused('USAGE', `${error.message}; run pullboard help`);
+    // A parse error that names its own refusal code (REPEATED_FLAG) keeps it; any other parse error is usage.
+    const refusal = new Refused(typeof error.refusalCode === 'string' ? error.refusalCode : 'USAGE', `${error.message}; run pullboard help`);
+    // The values never parsed, so the JSON switch is read from the arguments: the refusal code must survive in --json output.
+    io.jsonMode?.(argv.includes('--json'));
     await io.prepareRefusal();
     io.refusal?.(refusal);
     io.err(`pullboard: ${error.message}\nRun pullboard help --all for the full list.\nnext: ${io.refusalDocument(refusal).error.next}`);
@@ -31,8 +34,8 @@ export async function runCommand(argv, io) {
     ? (await import('../cli-help.js')).selectedHelp(command, first, second, rest, values) : null;
   if (help) return await (await COMMANDS.help()).run(io, args, help);
   try {
-    if (values.as === 'person' && !['answer', 'decisions', 'fact', 'hold', 'add', 'edit'].includes(command) && !(command === 'bar' && first === 'sign')) {
-      throw new Refused('USAGE', '--as person works with answer, decisions, fact --never-again, hold, add, edit, or bar sign');
+    if (values.as === 'person' && !['answer', 'decisions', 'fact', 'hold', 'add', 'edit', 'milestone'].includes(command) && !(command === 'bar' && first === 'sign')) {
+      throw new Refused('USAGE', '--as person works with answer, decisions, fact --never-again, hold, add, edit, milestone ship, or bar sign');
     }
     const load = COMMANDS[command];
     if (!load) return (await import('../cli-help.js')).unknownCommand(io, command);

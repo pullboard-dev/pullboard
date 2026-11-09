@@ -132,6 +132,7 @@ export {
   sanitizedUsage,
   recordUsage,
   costTotals,
+  budgetState,
   storedSeatUsage,
 } from './src/shell/cost.js';
 export {
@@ -141,6 +142,8 @@ export {
   pipelineLimit,
   pipelineStats,
   pipelineLines,
+  pipelinePerHour,
+  pipelinePerHourLines,
 } from './src/core/stats-pipeline.js';
 export {
   moveTranscripts,

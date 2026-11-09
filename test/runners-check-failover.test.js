@@ -11,7 +11,9 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 const SOURCE = join(import.meta.dirname, '..');
 
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
-function failover(t, { review = false, dropped = false, timedOut = false, exhausted = false, first = true } = {}) {
+// Since 4c5e2ac38d (#2512) the gate keeps one of two runners for timed checks by default; these failover cases
+// declare no kept runner, so the first configured runner takes the first attempt, as they assert [C7].
+function failover(t, { review = false, dropped = false, timedOut = false, leaked = false, exhausted = false, first = true, timingRunner = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-check-failover-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, 'repo');
@@ -26,7 +28,7 @@ function failover(t, { review = false, dropped = false, timedOut = false, exhaus
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: ['failed-runner', 'next-runner'].map(host => ({ host, slots: 1, browser: 1 })),
-    gate: { runnersFirst: first, runnersOnly: false, runnerWaitMs: 100, memoryFloorMB: 0 } }));
+    gate: { runnersFirst: first, runnersOnly: false, runnerWaitMs: 100, memoryFloorMB: 0, timingRunner } }));
   writeFileSync(join(root, 'source.txt'), 'committed source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   runFixtureGit(['add', 'source.txt'], { cwd: root, env });
@@ -52,6 +54,7 @@ try { result = await withGateSlot(process.cwd(), async lease => {
   if (${JSON.stringify(exhausted)} || host === 'failed-runner') {
     if (${JSON.stringify(timedOut)}) return { isGreen: false, timedOut: true };
     if (${JSON.stringify(dropped)}) throw new RunnerDropped(host, { reason: 'admission-deadline' });
+    if (${JSON.stringify(leaked)}) throw Object.assign(new Refused('RUNNER_CLEANUP_TIMEOUT', 'a test left a server running'), { diagnostic: { phase: 'ready', reason: 'cleanup-unverified' } });
     throw new Refused('RUNNER_CLEANUP_TIMEOUT', 'the timed-out runner did not prove cleanup');
   }
   return host;
@@ -89,14 +92,24 @@ test('a dropped submit runner retries remotely and records that runner [C7]', t 
   assert.equal(run.holders.length, 0);
 });
 
-test('a timed-out remote check result retries on another runner [C7]', t => {
+test('a timed-out remote check result is the check\'s red, returned once and never retried on another runner [C7]', t => {
+  // #3301 (9 Nov): a hanging shard ran three times, 13 minutes each, on two runners before its gate ended.
   const run = failover(t, { timedOut: true });
   assert.equal(run.failure, undefined);
-  assert.equal(run.result, 'next-runner');
-  assert.deepEqual(run.attempts, ['failed-runner', 'next-runner']);
+  assert.deepEqual(run.result, { isGreen: false, timedOut: true });
+  assert.deepEqual(run.attempts, ['failed-runner'], 'one attempt: a timed-out test is red, not infrastructure');
   assert.equal(run.localRan, false);
-  assert.equal(run.receipts.at(-1).runner.id, 'next-runner');
   assert.equal(run.holders.length, 0);
+});
+
+test('a runner that cannot clean up after the tests ran refuses RUNNER_TEST_LEAK once, with no retry; before READY it stays infrastructure [C7]', t => {
+  const run = failover(t, { leaked: true });
+  assert.equal(run.failure?.code, 'RUNNER_TEST_LEAK');
+  assert.match(run.failure.message, /left processes/u);
+  assert.deepEqual(run.attempts, ['failed-runner'], 'the leak is the tests\' red: no other runner runs it again');
+  assert.equal(run.holders.length, 0);
+  const before = failover(t);
+  assert.deepEqual(before.attempts, ['failed-runner', 'next-runner'], 'a cleanup timeout with no READY is still retried');
 });
 
 for (const dropped of [false, true]) {
@@ -110,6 +123,17 @@ for (const dropped of [false, true]) {
     assert.equal(run.holders.length, 0);
   });
 }
+
+test('clause 1: with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
+  // gate.timingRunner 'auto' keeps failed-runner (no measured headroom or cores, so registration order) for timed checks.
+  const run = failover(t, { dropped: true, timingRunner: 'auto' });
+  assert.equal(run.failure, undefined);
+  assert.equal(run.result, 'next-runner');
+  assert.deepEqual(run.attempts, ['next-runner']);
+  assert.equal(run.localRan, false);
+  assert.equal(run.receipts.at(-1).runner.id, 'next-runner');
+  assert.equal(run.holders.length, 0);
+});
 
 test('runners-first opt-out retains the explicit local check control [C7]', t => {
   const run = failover(t, { first: false });
@@ -136,7 +160,7 @@ function phaseEvidence(t, { timedOut = false } = {}) {
     'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
     runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
-    gate: { runnersFirst: true, memoryFloorMB: 0 } }));
+    gate: { runnersFirst: true, memoryFloorMB: 0, timingRunner: false } }));
   writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   runFixtureGit(['add', 'source.txt'], { cwd: root, env });
@@ -189,15 +213,13 @@ test('a remote proof refusal preserves the completed frozen-check output [C7,V4]
 });
 
 
-test('runSubmitGate retries a timeout in its frozen check on another runner [C7]', t => {
+test('runSubmitGate records a timeout in its frozen check as the check\'s red, without a retry on another runner [C7]', t => {
   const run = phaseEvidence(t, { timedOut: true });
   assert.equal(run.code, undefined);
-  assert.equal(run.result.isGreen, true);
-  assert.equal(run.result.check.green, true);
-  assert.deepEqual(run.calls.map(call => call.command),
-    ['fixture-check', "fixture-proof './test/proof.test.js'", 'fixture-check', "fixture-proof './test/proof.test.js'"]);
-  assert.deepEqual(run.calls.map(call => call.host),
-    ['first-runner', 'first-runner', 'second-runner', 'second-runner']);
-  assert.equal(run.output, 'ok', 'the successful retry replaces the timed-out frozen-check log');
-  assert.equal(run.holders.length, 0, 'both attempts release their private leases');
+  assert.equal(run.result.isGreen, false);
+  assert.equal(run.result.check.green, false);
+  assert.deepEqual(run.calls.map(call => call.command), ['fixture-check', "fixture-proof './test/proof.test.js'"]);
+  assert.deepEqual(run.calls.map(call => call.host), ['first-runner', 'first-runner']);
+  assert.equal(run.output, run.expected, 'the timed-out check output is the recorded red');
+  assert.equal(run.holders.length, 0, 'the one attempt releases its private lease');
 });

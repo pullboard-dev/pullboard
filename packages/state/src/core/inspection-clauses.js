@@ -5,6 +5,7 @@ export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'm
 const KINDS = EVIDENCE_KINDS.join('|');
 const CLAUSE_MARKER = /(?:^|\s)(\d+)[.)]\s+/gu;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
+const RUN_EVIDENCE = /^green pullboard (?:test|check) run of \S/u;
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
 /** The clauses of a criterion, or [] when it is free text: sequential numbered outcomes. */
@@ -64,20 +65,71 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner);
   const problems = [];
+  const testClauses = [];
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
-    const proven = () => [...greenFiles].some(file => file && tick.evidence.includes(file));
+    const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick && gateNamedFile(clause, new Set([...gateFiles, ...greenFiles]), item)) continue;
-    if (!tick) problems.push(`${label} has no evidence`);
+    if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
     } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence) && !proven()) {
       problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
+      testClauses.push(clause);
     }
   }
   if (!problems.length) return null;
-  return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`);
+  const tickWith = `tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`;
+  if (!testClauses.length) return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${tickWith}`);
+  return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${testStep(item, testClauses).message} or ${tickWith}`, testStep(item, testClauses).next);
+}
+
+/**
+ * The one command that ticks an unticked test clause: pullboard check <id> when the item has a frozen check, since it runs
+ * the check and writes every test tick itself; otherwise pullboard test on a file a clause names.
+ * Why: two Haiku seats released #3544 and #3567 on 8 Nov after green test runs, because the old step said to hand-write a case name [C7].
+ *
+ * @param {object} item - The item row.
+ * @param {{ text: string }[]} testClauses - The unticked test clauses.
+ * @returns {{ message: string, next: string }}
+ */
+function testStep(item, testClauses) {
+  if (String(item.item_check ?? '').trim()) {
+    const command = `pullboard check ${item.item_id}`;
+    return { message: `run ${command}, which runs the frozen check and ticks every test clause`, next: `${command}, then submit again` };
+  }
+  // A path the clause quotes that names a test; no runner's file naming is spelled out in this core file.
+  const file = testClauses.flatMap(clause => clause.text.match(/[\w./-]+\/[\w.-]+\.[cm]?[jt]s/gu) ?? []).find(path => /test/u.test(path)) ?? null;
+  const command = file ? `pullboard test ${file}` : 'pullboard test <a test file the clause names>';
+  return { message: `run ${command}, then tick the clause with its green run`, next: `${command}, then tick the clause and submit again` };
+}
+
+/**
+ * The tick notes a green `pullboard test` run earns: one per clause that is a test clause (declared [test] or
+ * undeclared) when every file the run named is part of the item's check. Why: the run is the proof the clause cites,
+ * so the builder never retypes a case name or spends a second run after a green runner proof [C7].
+ */
+export function testRunTickNotes(item, files, head) {
+  const clauses = criterionClauses(item.item_criterion);
+  const check = String(item.item_check ?? '');
+  if (!clauses.length || !files.length || !files.every(file => check.includes(file))) return [];
+  return testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head);
+}
+
+/**
+ * The tick notes a green `pullboard check` run earns: the frozen check is the proof of every test clause, whether it is a test file
+ * or a shell command such as `test ! -e src/x.js`. Why: shell-command checks never name a file `pullboard test` could run [C7].
+ */
+export function checkRunTickNotes(item, head) {
+  const check = String(item.item_check ?? '').trim();
+  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head) : [];
+}
+
+/** One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit. */
+function testClauseTickNotes(clauses, run, head) {
+  return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
+    .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */

@@ -121,7 +121,7 @@ every time and a denied write invalidates the read cache. Provider failures refu
 the current operation. Revocation or expiry during an awaited check also refuses
 it. Call `auth.close()` when the relay shuts down.
 
-`test/relay-github.test.js`, `test/relay.test.js`, and `test/relay-http.test.js` use
+`apps/relay/tests/relay-github.test.js`, `test/relay.test.js`, and `apps/relay/tests/relay-http.test.js` use
 real loopback HTTP, generated RSA keys, and private SQLite files. No live GitHub
 credentials, repositories, or board databases are needed.
 

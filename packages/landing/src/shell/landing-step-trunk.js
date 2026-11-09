@@ -1,4 +1,5 @@
 import { prepareFlakeLanding } from './landing-step-publish.js';
+import { checkFlakeRatchet } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -13,7 +14,7 @@ import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
 import { headTree } from '../../../git/index.js';
-import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { smokeCandidate } from './landing-cli-smoke.js';
 import { submitHandoff } from '../../../store/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
@@ -29,6 +30,7 @@ import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
+import { trunkMoveReruns } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { bisect } from './landing-step-diagnose.js';
@@ -43,6 +45,7 @@ import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
 import { landingFault } from './landing-step-diagnose.js';
+import { landingSpan } from '../../../resources/index.js';
 
 /** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
 function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
@@ -66,7 +69,22 @@ export function provenTreeGate(board, items, tree) {
   const job = submitHandoff(board, items[0].id);
   if (!item || !job || job.state !== 'green' || job.gateGreen === false || job.executionTree !== tree
     || job.commit !== items[0].commit || job.digest !== item.item_frozen_digest) return null;
+  // A submit that deferred affected files to landing never ran them, so its green proves only part of this tree.
+  const state = { board, batch: { items } };
+  if (deferredSelections(state).length) return null;
   return { isGreen: true, tree, failures: [], logPath: null, reusedSubmitGate: job.id };
+}
+
+/**
+ * The CLI smoke a landing's guards run: the caller's stand-in, else smokeCandidate, which runs on a runner when
+ * gate.runnersOnly is on and never as a local process. Why: the proven-tree path called the local smoke directly, so
+ * a landing that reused its submit gate still ran a CLI smoke on the coordinator (#3011).
+ *
+ * @param {{ runLandingCliSmoke?: Function }} services
+ * @returns {Function}
+ */
+export function landingSmoke(services) {
+  return services.runLandingCliSmoke ?? smokeCandidate;
 }
 
 /**
@@ -76,13 +94,13 @@ export function provenTreeGate(board, items, tree) {
 export async function quickGuards(state, label = 'local-trunk', options = {}) {
   const services = state.guardServices ?? {};
   const runChecks = services.runStaticChecks ?? runStaticChecks;
-  const smoke = services.runLandingCliSmoke ?? runLandingCliSmoke;
+  const smoke = landingSmoke(services);
   const runGate = services.gateGroup ?? gateGroup;
   const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
   if (proven) {
-    await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+    await landingSpan('static', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }))
       .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); });
-    smoke(state.batch.root);
+    await smoke(state.batch.root, { record: true });
     state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
     return proven;
   }
@@ -90,7 +108,7 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
   // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
   // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
-  const staticChecks = runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
+  const staticChecks = landingSpan('static', () => runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })) // a landing slot: not an item check, not a short slot
     .then(result => ({ result }), error => ({ error }));
   let gate;
   try { gate = await runGate(state, label, { localTrunk: true, ...options }); }
@@ -148,12 +166,34 @@ async function followMovedTrunk(state, gate) {
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
-    const focus = !affected.full && affected.files.length ? { focus: affected.files } : {};
+    // Only tests whose closure reaches both sides can change; none means the batch's proof holds on the new tip [C7].
+    const reruns = trunkMoveReruns(state, { trunkFiles, batchFiles, trunkAffected: affected });
+    if (reruns && !reruns.length) {
+      state.say(`main's move to ${moved.slice(0, 12)} shares no test closure with this batch; its proof stands on the rebuilt tree`);
+      gate = await reusedAcrossMove(state, gate, previous, moved);
+      continue;
+    }
+    const focus = reruns ? { focus: reruns } : !affected.full && affected.files.length ? { focus: affected.files } : {};
     gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
     if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
   return gate;
+}
+
+/**
+ * The batch's gate carried onto the tree rebuilt on main's move, after the static checks and the CLI smoke on that
+ * tree, which read every file and so are never reused. The gate keeps its log and names the move it was carried over.
+ */
+async function reusedAcrossMove(state, gate, from, to) {
+  const services = state.guardServices ?? {};
+  const runChecks = services.runStaticChecks ?? runStaticChecks;
+  await Promise.all([
+    runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .catch(error => { throw landingStaticRefusal(state.batch.root, state.batch.base, error, state.config.staticChecks); }),
+    landingSmoke(services)(state.batch.root, { record: true }),
+  ]);
+  return { ...gate, tree: headTree(state.batch.root), carriedAcrossMove: { from, to, tree: gate.tree } };
 }
 
 /**
@@ -192,6 +232,18 @@ export async function flakeRatchetOrBlock(state) {
     await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
     return false;
+  }
+}
+
+/**
+ * Ask the flake ratchet before the batch merges or gates. A refusal records the batch blocked FLAKE_RATCHET, starts no
+ * gate run and is thrown so the landing exits as refused. The publish step still checks again for a flake proven during
+ * the gate. Why: a batch the ratchet would refuse spent a whole gate first [C7].
+ */
+export async function flakeRatchetBeforeGate(state) {
+  try { checkFlakeRatchet(state); } catch (error) {
+    if (error?.code === 'FLAKE_RATCHET') await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    throw error;
   }
 }
 
@@ -245,7 +297,7 @@ export async function landOnTrunk(state) {
     requireOutsideOwner(state.board, item);
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
-  gate = await followMovedTrunk(state, gate);
+  gate = await landingSpan('follow trunk', () => followMovedTrunk(state, gate));
   const proof = landingProof(gate, () => gate.knownMainProof ?? waivedProof(state, gate));
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   state.say('trunk: gate proved; binding the flake ratchet');

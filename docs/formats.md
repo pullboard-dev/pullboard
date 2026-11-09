@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `244` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `249` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -231,6 +231,8 @@ An optional `landing.environment` in `pullboard.json` requires all three exact f
 
 Engine 85 also adds `recordLandingTestDefect`. A red batch whose bisection finds no item culprit records a neutral repair item and a `landing-test-defect` event with its test path, content hash, red-tree blob, original trunk blob, failure names, batch ID and trunk branch. Its batch remains `test-defect`, and further landings on that trunk stop before another gate runs. A committed correction to the test on the trunk, or live existing waivers covering every recorded failure, releases the hold. Candidate-only changes and uncommitted edits do not release it. A waiver keeps the red tree and its waived failures explicit. Existing culprit and flake diagnosis retain their meanings; older engines cannot revise or finish a batch carrying these fields.
 
+A later `closeLandingTestDefect` move records a `landing-test-defect-closed` event (`closed`: trunk branch, test path, repair item and trunk commit) when a landing finds the defect's recorded failing cases passing in a recorded run at the trunk commit. The closed defect no longer holds landings at later trunk commits; a new red of the same cases files a new defect that holds the trunk again. Older engines cannot apply the move.
+
 Engine 90 records the parent session a seat joined under and stamps each verdict with its assurance: independent when the builder's and reviewer's recorded parents differ, procedural when either is unknown (#1102). Review eligibility, next and the queue exclude any seat sharing a parent with an author. Older engines replay their recorded verdicts with no parent recorded.
 The unassigned signing engine (`PERSON_SIGNING_ENGINE`) signs person moves with a passkey. `setPersonSigning` records a `person_signing` event: anyone may turn signing on, and turning it off is the person's move, carrying out a request whose relay stamp and exact document the event keeps as `request`, `presence` and `intent`; an off counts only when that document turns signing off and its digest is the one the stamp signed. `proposePersonMove` records a terminal-started person move as a `person_proposal` event and keeps the exact request in `board_meta` as `person_proposals`, for the passkey device to show; it grants nothing. While signing is on, every replica refuses with `PERSON_SIGNED` a person-only move (a row or sentinel decision, an answer, hold, fact or waiver as the person, or any move the person makes) unless it carries out a recorded phone request whose sender carries the relay's passkey stamp; that request's claim, refusal and coordinator-request receipts still pass. Older engines refuse both moves with `ENGINE_VERSION`, and moves recorded before signing was turned on replay as before.
 
@@ -253,6 +255,8 @@ changed. The service checks again under its board lock and on live-stream polls.
 Engine 3 checks each move or request against the relay's authenticated sender before replay. An agent token acts only as its named agent and cannot act as the person. Refused attribution attempts advance the sequence with a `relay_refusal_<sequence>` receipt and a `relay_refused` event naming the sender, attempted actor and refusal code. They change no item, shout or verdict and do not reserve the forged operation id. Snapshot restoration requires an authenticated person or board machine sender. A machine can register ordinary agents and ensure the coordinator; other person effects require an earlier authenticated phone intent with exact operation, arguments, target and digest. Every replica consumes its execution once, including row decisions waiting for repository application. Receipt shouts have fixed text; refusal details remain in the structured request result. The event log remains version 1.
 
 A board without `event_log_version` is a legacy version-0 event log. Opening an older board writes the current marker without replacing its events. Opening a newer event log refuses with `EVENT_LOG_VERSION`, naming the stored and supported versions and asking you to upgrade Pullboard. `doctor` reports that version conflict read-only. Turning signed person moves on raises the board to format 2 in the same transaction, and an import or checkpoint restore whose events include `person_signing` does too, so a Pullboard from before signed person moves refuses the board instead of ignoring them. Ordinary boards stay at format 1.
+
+The `job` and `job_step` tables are part of a board export only while they hold rows: an export of a board with no jobs leaves both tables (and their `sqlite_sequence` counters) out, and an import treats a missing `job` or `job_step` table as empty. Every other table must be present exactly. Import reports the tables the export carried, so its `tables` list equals the export's table names.
 
 A native board export includes the marker in its `board_meta` rows. Import refuses a newer event-log version before changing the destination; an older export upgrades its marker in place. Static view exports put `eventLogVersion` beside the data in both `state.json` and `events.json`, separately from the API envelope's `version`.
 
@@ -405,6 +409,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_item_id_event_id` | `event` | `item_id`, `event_id` | no |
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
+| `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
@@ -466,14 +471,13 @@ Automatic milestone placement records its chosen release, order position, rule a
 | Kind | Actor | Detail fields |
 | --- | --- | --- |
 | `join` | joining agent | `lane`, `route`, optional `grantEngine`, optional `family` (the family the registration named, recorded from the family-declaration engine) |
-| `family` | agent | `family` |
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
-| `escalate` | builder | `from`, `to`, `note`, `attempt` |
+| `escalate` | builder, or coordinator | `from`, `to`, `note`, `attempt`, `rejections` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
 | `board_members` | coordinator | `document` (exact version-1 body with board, repository, revision and complete members, approving login and SSH signature; native moves and checkpoints carry it sealed) |
@@ -513,6 +517,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `shout_news` | sender | `shout`, `to`, `decision`, `request`, `answers` |
 | `flake-observation` | reporting agent | `engine`, `observation` |
 | `flake-repair` | reporting agent | `engine`, `key`, `item` |
+| `test-quarantine` | reporting agent | `engine`, `file`, `name`, `tree`, `runs`, ledger `ledger` (true when the typed flake ledger filed it), automatic-Submit `autoSubmit` |
 | `health-scan` | observing agent | `active`, optional `pendingCpu`, `engine` |
 | `health-failure` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
 | `health-resolved` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
@@ -536,6 +541,8 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `submit-handoff` | queued builder | Queue `state` (queued, running, green, submitted, red or incomplete) and captured source `commit`; submitted retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
 | `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
 <!-- events:end -->
+
+The current engine records a seat's vendor family on its `join` event and no longer writes a separate `family` event; boards from older engines may still carry `family` events with one `family` field.
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
 
