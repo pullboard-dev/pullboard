@@ -122,13 +122,17 @@ test('clause 3: a listed pure helper may be imported by a cell test, and a liste
     'test/pure.js': "import { tmpdir } from 'node:os';\nexport const where = tmpdir;\n",
     'test/impure.js': "import { spawnSync } from 'node:child_process';\nexport const run = () => spawnSync('node', ['bin/pullboard.js', 'list']);\n",
     'test/uses-door.js': "import { a } from '../packages/a/index.js';\nexport const x = a;\n",
+    'apps/cli/index.js': 'export const main = () => 0;\n',
+    'packages/c/index.js': "import { main } from '../../apps/cli/index.js';\nexport const c = main;\n",
+    'test/reaches.js': "import { c } from '../packages/c/index.js';\nexport const x = c;\n",
     'packages/a/tests/helped.test.js': "import { where } from '../../../test/pure.js';\nexport const x = where;\n",
   });
-  const listing = { ...readListing(root), pureHelpers: { 'test/pure.js': 'imports only node built-ins', 'test/uses-door.js': 'imports a front door, launches nothing', 'test/impure.js': 'claimed pure' } };
+  const listing = { ...readListing(root), pureHelpers: { 'test/pure.js': 'imports only node built-ins', 'test/uses-door.js': 'imports a front door, launches nothing', 'test/impure.js': 'claimed pure', 'test/reaches.js': 'claimed pure' } };
   const row = classifyTests(root, { listing }).find(entry => entry.file === 'packages/a/tests/helped.test.js');
   assert.equal(row.kind, 'cell');
   const problems = testCellsProblems(root, { listing, facts: FACTS }).map(problem => `${problem.path}: ${problem.text}`);
   assert.ok(problems.includes('test/impure.js: listed as a pure helper but it launches the CLI or installs hooks'), problems.join('\n'));
+  assert.ok(problems.includes('test/reaches.js: listed as a pure helper but its import closure reaches the CLI entry apps/cli/index.js'), problems.join('\n'));
   assert.ok(!problems.some(text => text.startsWith('test/pure.js') || text.startsWith('test/uses-door.js')), 'a helper that launches nothing is not refused');
 });
 

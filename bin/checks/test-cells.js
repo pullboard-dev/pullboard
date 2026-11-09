@@ -102,9 +102,13 @@ export function cellTestReading(file, source, { pureHelpers = [], leaves = [], o
   return { problems, tier };
 }
 
+// The CLI entries a pure helper's import closure must never reach (sealing rule 1).
+const CLI_ENTRIES = new Set(['apps/cli/index.js', 'bin/pullboard.js', 'test/e2e-helpers.js']);
+
 /**
- * Each listed pure helper that is not pure (sealing rule 1): missing, or it or a test-side helper it imports launches the
- * CLI or installs hooks. Running git or plain node child processes and importing product front doors are allowed.
+ * Each listed pure helper that is not pure, checked on every run so the list cannot rot (sealing rules 1 and 7): missing,
+ * its whole import closure reaching a CLI entry, or a test-side file in that closure that installs hooks or spawns the CLI.
+ * Running git or plain node child processes and importing product front doors that stay clear of the CLI are allowed.
  *
  * @returns {{ path: string, line: number, text: string }[]}
  */
@@ -112,20 +116,26 @@ export function impurePureHelpers(root, listing) {
   const problems = [];
   for (const path of Object.keys(pureHelperMap(listing.pureHelpers)).sort()) {
     if (!existsSync(resolve(root, path))) { problems.push({ path: LISTING, line: 1, text: `listed pure helper ${path} does not exist` }); continue; }
-    const seen = new Set([path]), queue = [path];
-    for (let at = 0; at < queue.length; at++) {
-      const source = readFileSync(resolve(root, queue[at]), 'utf8');
-      if (CLI_LAUNCH.test(source) || HOOKS.test(source)) {
-        problems.push({ path, line: 1, text: `listed as a pure helper but ${queue[at] === path ? 'it' : queue[at]} launches the CLI or installs hooks` });
-        break;
-      }
-      for (const { specifier } of importSpecifiers(source)) {
-        const target = posix.normalize(posix.join(posix.dirname(queue[at]), specifier));
-        if (target.startsWith('test/') && !seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
-      }
-    }
+    const reason = impurity(root, path);
+    if (reason) problems.push({ path, line: 1, text: `listed as a pure helper but ${reason}` });
   }
   return problems;
+}
+
+/** Why one helper is not pure, walking its full relative import closure, or null when it is. */
+function impurity(root, path) {
+  const seen = new Set([path]), queue = [path];
+  for (let at = 0; at < queue.length; at++) {
+    const file = queue[at];
+    if (CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
+    const source = readFileSync(resolve(root, file), 'utf8');
+    if (file.startsWith('test/') && (CLI_LAUNCH.test(source) || HOOKS.test(source))) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    for (const { specifier } of importSpecifiers(source)) {
+      const target = posix.normalize(posix.join(posix.dirname(file), specifier));
+      if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
+    }
+  }
+  return null;
 }
 
 /**
