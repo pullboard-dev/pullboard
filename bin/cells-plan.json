@@ -2078,6 +2078,8 @@
     "health->doctrine",
     "rigor->doctrine",
     "runners->doctrine",
-    "apps/lib->doctrine"
+    "apps/lib->doctrine",
+    "store->items",
+    "github->items"
   ]
 }
