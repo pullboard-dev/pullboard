@@ -34,7 +34,7 @@ test('the scheduled wake io lands one accepted item through landAfterAcceptance 
   landingPolicy(box, { manualOverride: false }, 'chore: the board lands accepted items');
   const source = [
     `import { wakeIo } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../bin/automatic-landing.js')).href)};`,
-    `import { context } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/cli.js')).href)};`,
+    `import { cli$context as context } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/cli/index.js')).href)};`,
     `import { landAfterAcceptance } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/cli/index.js')).href)};`,
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
