@@ -11,8 +11,7 @@ async function heartbeat() {
 
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
-  const { main } = await import('../../../../src/cli.js');
-  const { launchRelaySender } = await import('./relay-sender-main.js');
+  const { cli$main: main, launchRelaySender } = await import('../../../cli/index.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
     loadNativeBoard: () => import('../core/native-board.js'), hookWorker: HOOK_WORKER,
     submitHandoffWorker: fileURLToPath(new URL('../../../cli/src/shell/submit-handoff-worker.js', import.meta.url)), launchRelaySender,

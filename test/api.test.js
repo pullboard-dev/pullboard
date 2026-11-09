@@ -525,7 +525,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './packages/api/index.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './packages/api/index.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './apps/cli/index.js';
     import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;
@@ -578,7 +578,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   writeFileSync(guardedSource, unguardedText);
   const mutationProbe = join(unguarded, '.schema-mutation-probe.mjs');
   writeFileSync(mutationProbe, `
-    import { closeBoard } from './src/board.js';
+    import { closeBoard } from './packages/store/index.js';
     import { openBoard } from './apps/lib/index.js';
     const board = openBoard(process.env.PULLBOARD_FIXTURE_BOARD, undefined, { isMain: false });
     closeBoard(board);

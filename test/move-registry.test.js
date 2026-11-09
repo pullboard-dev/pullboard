@@ -167,7 +167,7 @@ test('two new board moves declared in two files need no edit to engine.js, board
   const child = `
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './packages/moves/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { NEXT_STEPS } from './src/next-step-words.js';
+import { nextStepWords$NEXT_STEPS as NEXT_STEPS } from './apps/cli/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
+import * as store from './packages/store/index.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();

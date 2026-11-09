@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/gate",
  "frontDoor": "packages/gate/index.js",
+ "lightFrontDoor": "packages/gate/core.js",
  "paths": [
   ["src/known-main-autofile-receipts.js","packages/gate/src/shell/known-main-autofile-receipts.js","rule"],
   ["src/affected-tests.js","packages/gate/src/shell/affected-tests.js","seed"],

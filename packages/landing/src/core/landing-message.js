@@ -4,7 +4,7 @@ import {
   commitMessageProblems,
   parseCommitMessage,
 } from '../../../commits/index.js';
-import { landingRows } from '../../../commits/src/core/landing-rows.js';
+import { landingRows } from '../../../commits/index.js';
 import { tryGit } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../spec/index.js';
