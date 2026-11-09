@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 import { test } from 'node:test';
-import { checkCuts } from '../bin/cells-plan-cuts.js';
-import { computePlan } from '../bin/cells-plan.js';
-import { writePlan } from '../bin/cells-plan.js';
-import { cellInventory } from '../packages/codemap/index.js';
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { fixture } from './cells-plan-fixture.js';
-import { git } from './cells-plan-fixture.js';
+import { checkCuts } from '../../../bin/cells-plan-cuts.js';
+import { computePlan } from '../../../bin/cells-plan.js';
+import { writePlan } from '../../../bin/cells-plan.js';
+import { cellInventory } from '../../codemap/index.js';
+import { importsIn } from '../index.js';
+import { commonJsIn } from '../index.js';
+import { fixture } from '../../../test/cells-plan-fixture.js';
+import { git } from '../../../test/cells-plan-fixture.js';
 
 const LOADER = '/** @pullboard-module-loads src/stats*.js */\nexport class Refused extends Error {}\nexport const load = name => import(name);\n';
 

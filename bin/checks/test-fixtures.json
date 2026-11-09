@@ -787,7 +787,7 @@
   "test/cells-shims.test.js": {
     "tempdir": 1
   },
-  "test/cells-temporary-edges.test.js": {
+  "packages/gate/tests/cells-temporary-edges.test.js": {
     "tempdir": 1
   },
   "test/cells-tools.test.js": {
