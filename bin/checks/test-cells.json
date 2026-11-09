@@ -1,6 +1,8 @@
 {
   "journeys": {},
-  "pureHelpers": [],
+  "pureHelpers": [
+    "test/http-fixture.js"
+  ],
   "leaves": [],
   "findings": {
     "apps/cli/tests/cli-io-gate-wait-default.test.js": "imports apps/cli/index.js, outside its own cell cli; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
@@ -70,7 +72,6 @@
     "apps/view/tests/cockpit/verdict-pure.test.js": "imports apps/view/src/core/view/verdict-render.js, outside its own cell view; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "apps/view/tests/cockpit/view-pure.test.js": "imports apps/view/src/core/view/record-row.js, outside its own cell view; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "apps/view/tests/cockpit/view-styles.test.js": "imports apps/view/index.js, outside its own cell view; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
-    "packages/api/tests/api-http-error-log.test.js": "imports apps/cli/index.js, outside its own cell api; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/api/tests/shout-item-cli.test.js": "imports packages/store/index.js, outside its own cell api; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/blueprints/tests/blueprint-part-2.test.js": "imports packages/spec/index.js, outside its own cell blueprints; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
     "packages/blueprints/tests/blueprint-part-3.test.js": "imports test/fixture-child.js, outside its own cell blueprints; a cell test imports only its own cell, a leaf cell's front door or a pure testkit helper",
