@@ -71,10 +71,14 @@ if(command.includes(' --health ')||command.includes(' --restart ')||command.incl
  process.stdout.on('error',()=>{});child.stdout.on('data',part=>{if(command.includes(' --health '))appendFileSync(${JSON.stringify(probeReplies)},part);process.stdout.write(part);});
  child.once('exit',code=>{process.exitCode=code??255;});
 }else{
- process.on('SIGTERM',()=>{});let frame=Buffer.alloc(0),started=false;
- process.stdin.on('data',async part=>{frame=Buffer.concat([frame,part]);const newline=frame.indexOf(10);if(newline<0||started)return;
- const length=Number(frame.subarray(0,newline));if(!Number.isSafeInteger(length)||length<1||length>1048576)process.exit(2);
- if(frame.length<newline+1+length)return;started=true;const spec=JSON.parse(frame.subarray(newline+1,newline+1+length));
+ process.on('SIGTERM',()=>{});let frame=Buffer.alloc(0),started=false,capsule=false;
+ // stdin carries the tooling capsule record first, then the work frame record, each length-prefixed (4e8628b548).
+ process.stdin.on('data',async part=>{frame=Buffer.concat([frame,part]);if(started)return;
+ for(;;){const newline=frame.indexOf(10);if(newline<0)return;
+ const length=Number(frame.subarray(0,newline));if(!Number.isSafeInteger(length)||length<1||length>(capsule?4194304:1048576))process.exit(2);
+ if(frame.length<newline+1+length)return;const record=frame.subarray(newline+1,newline+1+length);frame=frame.subarray(newline+1+length);
+ if(!capsule){capsule=true;continue;}
+ started=true;const spec=JSON.parse(record);
  const owner=spawn(process.execPath,['--input-type=module','-e',${JSON.stringify(ownerSource)},root,JSON.stringify(spec.recovery)],{stdio:['ignore','pipe','inherit']});
  await once(owner.stdout,'data');const startup=join(root,'recovery-launches',spec.recovery.request,'startup.json');
  const state=JSON.parse(readFileSync(startup,'utf8'));const own=processCensus().get(process.pid);const owned=[{pid:own.pid,started:own.started},state.owner];
@@ -91,6 +95,7 @@ if(command.includes(' --health ')||command.includes(' --restart ')||command.incl
   process.stderr.write('PULLBOARD_RUNNER_CLEANUP_DETAILS '+spec.id+' '+Buffer.from(JSON.stringify(details)).toString('base64')+'\\nPULLBOARD_RUNNER_CLEANUP_UNVERIFIED '+spec.id+' controlled unknown cleanup\\nPULLBOARD_RUNNER_CLEANUP_TIMEOUT '+spec.id+'\\n');
  }
  setInterval(()=>{},1000);
+ return;}
  });process.stdin.resume();
 }
 `;
