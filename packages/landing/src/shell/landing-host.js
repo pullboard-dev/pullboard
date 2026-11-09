@@ -2,12 +2,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../src/git.js';
-import { mainPolicy } from '../../../sandbox/src/shell/trusted-policy-read.js';
+import { mainPolicy } from '../../../sandbox/core.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import {
   environmentLabel,
   executionEnvironment,
-} from '../../../sandbox/src/shell/execution-environment.js';
+} from '../../../sandbox/core.js';
 import { sameEnvironment } from '../../../verify/core.js';
 import { Refused } from '../../../kernel/index.js';
 

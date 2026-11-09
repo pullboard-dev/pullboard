@@ -2,7 +2,7 @@
 import { SPEC_RULES } from './runner-spec-rules.js';
 import { flushStdout } from './runner-worker-command.js';
 import { safeGitDiagnostic } from './runner-worker-git.js';
-import { executionEnvironment } from '../../../../packages/sandbox/src/shell/execution-environment.js';
+import { executionEnvironment } from '../../../../packages/sandbox/core.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';

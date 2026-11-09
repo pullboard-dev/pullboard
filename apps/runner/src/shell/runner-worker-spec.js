@@ -1,6 +1,6 @@
 import { processCensus } from './runner-custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
-import { runnerPolicyRecord } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
+import { runnerPolicyRecord } from '../../../../packages/sandbox/core.js';
 import { runnerPublicKeyProblem } from '../../../../packages/runners/src/core/runner-signature.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { analysisArtifactDescriptor } from '../../../../packages/resources/index.js';

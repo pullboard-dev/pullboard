@@ -103,6 +103,8 @@ function tryLock(dir, owner) {
       try { writeSync(fd, `${process.pid} ${Date.now()} ${owner}`); } finally { closeSync(fd); }
       return true;
     } catch (error) {
+      // The folder was removed after this process made it (a machine home swept away): make it again and retry.
+      if (error.code === 'ENOENT') { made.delete(dir); makeDirectory(dir); continue; }
       if (error.code !== 'EEXIST') throw error;
     }
     let text = '';
