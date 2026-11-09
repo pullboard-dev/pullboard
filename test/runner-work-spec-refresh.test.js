@@ -48,6 +48,7 @@ test('a mismatched runner refreshes once, a second mismatch names both versions,
   const paths = { bin: join(box.dir, 'bin'), worker: join(box.dir, 'worker'), home: join(box.dir, 'worker-home'),
     machineHome: join(box.dir, 'worker-machine'), requests: join(box.dir, 'requests') };
   for (const dir of [paths.bin, paths.worker, paths.home, paths.machineHome]) mkdirSync(dir);
+  box.env.PATH = `${paths.bin}:${box.env.PATH}`;
   for (const mode of ['once', 'twice', 'malformed']) {
     const calls = mismatchTransport(box, paths, mode);
     const script = `import assert from 'node:assert/strict';
