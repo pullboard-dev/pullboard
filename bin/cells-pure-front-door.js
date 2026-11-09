@@ -61,7 +61,8 @@ export function pureDoorProblems(root, cell) {
 function doorProblems(root, cell, entry, key, light) {
   const directory = posix.dirname(cell.frontDoor), expected = `${directory}/${key === 'pureDoor' ? 'pure' : 'core'}.js`;
   const kind = light ? 'light' : 'pure';
-  if (!directory.startsWith('packages/') || entry !== expected) return [`${cell.name} ${key} must be ${expected}`];
+  // A light door may sit in an app (apps/<name>/core.js); a pure door stays in a package.
+  if (!(directory.startsWith('packages/') || light && directory.startsWith('apps/')) || entry !== expected) return [`${cell.name} ${key} must be ${expected}`];
   const problems = [], queue = [entry], seen = new Set();
   const index = sourceAt(root, cell.frontDoor);
   try {
