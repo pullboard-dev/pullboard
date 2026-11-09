@@ -32,7 +32,9 @@
     "test/trunk.test.js": "drives the real CLI (init, claim, submit, verify, show) in private repositories and checks branch-independent check baselines and lane merge ownership, output and board rows end to end",
     "test/trusted-policy.test.js": "drives the real CLI (claim, submit, release, show) in private repositories and checks that a later reclaim cannot turn unchanged coordinator history into an item edit, output and board rows end to end",
     "test/projects-init-registry.test.js": "runs the real CLI (init --yes and the HTTP view) in a temporary repository and checks the person project registry bytes are unchanged",
-    "test/relay-checkpoint.test.js": "drives the real CLI (shout, status) against a relay stand-in and checks which relay calls and background checkpoint uploads it makes end to end"
+    "test/relay-checkpoint.test.js": "drives the real CLI (shout, status) against a relay stand-in and checks which relay calls and background checkpoint uploads it makes end to end",
+    "test/runner-add-keeps-settings.test.js": "drives the real CLI (runner add with --node and --root, run twice) against a private SSH stand-in and checks the registered runner it prints keeps its discovered Node and root on re-registration",
+    "test/runner-signed-result.test.js": "registers a fake runner through the real CLI (runner add --json), then runs the registered gate path and checks the signing key stays owner-only in the runner machine home and the controller accepts the signed green result"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -980,7 +982,6 @@
     "test/run-tests-timeout.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-timing-receipts.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-add-keeps-settings.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-browser-need-single-decision.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-cache-prune.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-cleanup-recovery.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1007,7 +1008,6 @@
     "test/runner-scan-cache.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-self-heal.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-self-recovery.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runner-signed-result.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-slot-quarantine.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-source-reuse.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-stage.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
