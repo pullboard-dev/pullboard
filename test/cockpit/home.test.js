@@ -7,7 +7,7 @@ import { fetchPage, machine, openPage, project, startView, storage, chromeExecut
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../src/board.js';
+import * as store from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { rebuildProofCounters } from '../../packages/verify/index.js';
 import { submitFixture } from '../board-submit-fixture.js';

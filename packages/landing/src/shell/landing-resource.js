@@ -10,11 +10,9 @@ import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { LANDING_BACKOFF_MAX_MS } from '../core/automatic-landing-retry.js';
 import { coordinatorHolder } from '../../../seats/index.js';
-import {
-  localLandingEntry,
-  rememberLocalLanding,
-  forgetLocalLanding,
-} from '../../../../src/board-landing-local-lease.js';
+import { localLandingEntry } from '../../../store/index.js';
+import { rememberLocalLanding } from '../../../store/index.js';
+import { forgetLocalLanding } from '../../../store/index.js';
 
 /** Asks why this process's landing-lease waits stop (a reason or null); set by a lander whose loaded code may be older than main's. */
 let waitsStopped = null;

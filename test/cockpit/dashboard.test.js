@@ -4,7 +4,7 @@ import './dashboard-render.test.js';
 import '../../apps/view/tests/cockpit/dashboard-runtime.test.js';
 import './dashboard-clock.test.js';
 import './needs-panel.test.js';
-import './dashboard-model.test.js';
+import '../../apps/view/tests/cockpit/dashboard-model.test.js';
 /** The approved Dashboard opens a real board and presents its live state [N26]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';

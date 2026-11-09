@@ -1,10 +1,12 @@
 /** Synthetic native board moves test classification and guard composition; they are not gate receipts [V4,B26,H16]. */
+/** @pullboard-world-pin: the guard-list and path-map clauses read the shipped guard list and cell path maps to prove moved guard tests keep their class. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { sealStrictRenames } from '../packages/store/index.js';
 import { STRICT_RENAME_ENGINE } from '../packages/state/index.js';
 import * as store from '../packages/store/index.js';
@@ -82,6 +84,20 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
     'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js', 'packages/gate/tests/resources.test.js', 'packages/gate/tests/gate-resource.test.js']) {
     assert.equal(gateJudgmentPath(path), false, path);
+  }
+});
+
+test('every guard test in packages/verify/guard-tests.json is a tracked Strict file, and a moved one stays Strict at its old path [V4,B26,H16]', () => {
+  const guards = JSON.parse(readFileSync(new URL('../packages/verify/guard-tests.json', import.meta.url), 'utf8'));
+  const tracked = new Set(spawnSync('git', ['ls-files', '-z'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' }).stdout.split('\0'));
+  for (const path of guards.paths) {
+    assert.ok(tracked.has(path), `${path} is listed as a guard test but is not a tracked file`);
+    assert.equal(gateJudgmentPath(path), true, path);
+  }
+  for (const [old, moved] of Object.entries(guards.moved)) {
+    assert.ok(guards.paths.includes(moved), `${old} moved to ${moved}, which is not a listed guard test`);
+    assert.equal(tracked.has(old), false, `${old} is tracked again; list it under paths`);
+    assert.equal(gateJudgmentPath(old), true, old);
   }
 });
 

@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard, events, recordHealthFindings } from '../../src/board.js';
+import { closeBoard, events, recordHealthFindings } from '../../packages/store/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 

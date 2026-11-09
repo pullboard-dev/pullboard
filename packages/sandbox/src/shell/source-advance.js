@@ -1,9 +1,5 @@
-import {
-  boardWriteSnapshot,
-} from '../../../../src/board-write-preparation.js';
-import {
-  requireBoardWriteSnapshot,
-} from '../../../../src/board-write-preparation.js';
+import { boardWriteSnapshot } from '../../../store/index.js';
+import { requireBoardWriteSnapshot } from '../../../store/index.js';
 /** Ordered exact-source completion never changes the original submission or its review [C7,V4,H16]. */
 import {
   sourceAdvanceReviewEpisode,
