@@ -5,6 +5,7 @@ import { logEvent } from "./board-event-log.js";
 import { Refused } from "../../../kernel/index.js";
 import { coordinatorOnly } from "./board.js";
 import { setItem } from "./board.js";
+import { withdraw } from "./board-withdraw.js";
 import { FORCED_MERGE_ENGINE } from "../../../../src/forced-merge-engine.js";
 
 /**
@@ -12,8 +13,8 @@ import { FORCED_MERGE_ENGINE } from "../../../../src/forced-merge-engine.js";
  *
  * @param {any} board
  * @param {number} id
- * A forced merge (`forced` is the reason) records work landed around the gate: the item becomes verified at that commit,
- * even when it was open or withdrawn as met, and its event is marked forced so the board and /live count it as landed.
+ * A forced merge (`forced` is the reason) records work landed around the gate at a commit, even when the item was open or
+ * withdrawn as met; its event is marked forced, and a withdrawn item with a merged event reads as landed on the board and /live.
  * Why: hand landings were withdrawn as met, which /live and stats do not count [C7].
  *
  * @param {{ agentId: string, commit: string, note?: string, forced?: string }} merge
@@ -31,7 +32,11 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     if (!reason) requireOutsideOwner(board, item);
-    setItem(board, id, reason ? { item_status: 'verified', item_merged_commit: commit } : { item_merged_commit: commit });
+    // A forced landing closes an unfinished item by the ordinary withdraw move; the merged event then reads it as landed.
+    if (reason && ['open', 'claimed', 'submitted'].includes(item.item_status)) {
+      withdraw(board, id, { agentId, reason: `landed by hand at ${commit.slice(0, 12)}: ${reason}` });
+    }
+    setItem(board, id, { item_merged_commit: commit });
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
       ...(reason ? { forced: true, reason, from: item.item_status } : {}),
       ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
