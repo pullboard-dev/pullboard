@@ -21,8 +21,6 @@ export function gateDriveWorkerEntry() { return ENTRY; }
 
 if (process.argv[1] && resolve(process.argv[1]) === ENTRY) {
   const [requestFile, owner] = gateDriveArguments(process.argv);
-  const realExit = process.exit; process.exit = c => { process.stderr.write('DIAG exit ' + c + ' ' + new Error().stack + '\n'); realExit.call(process, c); };
-  process.on('exit', c => process.stderr.write('DIAG onexit ' + c + '\n'));
   // The board's module graph reaches the worker through the lib front door; load it once this entry runs.
   Promise.all([import('../apps/lib/src/core/native-board.js'), import('../apps/cli/src/shell/submit-handoff-worker.js')])
     .then(([nativeBoard, worker]) => worker.driveSubmitHandoff(requestFile, { nativeBoard, owner }))
