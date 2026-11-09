@@ -49,14 +49,16 @@ export function closeLandingSpans() {
  * Append one landing step span. `start` and `end` are epoch milliseconds. With no open sink nothing is recorded.
  * Why it never throws: telemetry must never change a landing's outcome.
  *
- * @param {{ phase: string, start: number, end?: number, items?: number[], outcome?: string, code?: string|null }} span
+ * @param {{ phase: string, start: number, end?: number, items?: number[], outcome?: string, code?: string|null,
+ *   host?: string|null, cause?: string|null, runKind?: string|null }} span - `host`, `cause` and `runKind` name a runner dispatch's step.
  * @returns {object|null} The recorded line, or null when no sink is open or the write failed.
  */
-export function recordLandingSpan({ phase, start, end = Date.now(), items = [], outcome = 'ok', code = null }) {
+export function recordLandingSpan({ phase, start, end = Date.now(), items = [], outcome = 'ok', code = null, host = null, cause = null, runKind = null }) {
   const folder = process.env[FOLDER_KEY], run = process.env[RUN_KEY];
   if (!folder || !run || !Number.isFinite(start) || !Number.isFinite(end)) return null;
   const line = { v: 1, job: run, kind: 'landing', phase, start: new Date(start).toISOString(), end: new Date(end).toISOString(),
-    ms: Math.max(0, Math.round(end - start)), items: items.filter(Number.isSafeInteger), outcome, ...(code ? { code: String(code).slice(0, 80) } : {}) };
+    ms: Math.max(0, Math.round(end - start)), items: items.filter(Number.isSafeInteger), outcome, ...(code ? { code: String(code).slice(0, 80) } : {}),
+    ...(host ? { host } : {}), ...(cause ? { cause } : {}), ...(runKind ? { runKind } : {}) };
   try { appendGateSpan(folder, line); return line; }
   catch { return null; /* Telemetry is diagnostic; the landing's own result stands without it. */ }
 }

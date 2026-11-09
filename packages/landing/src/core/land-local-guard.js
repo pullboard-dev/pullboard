@@ -1,7 +1,7 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../shell/landing-shards.js';
-import { runProfiledShell } from '../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../gate/index.js';
 import { pinRunMain } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { landingControllerPlacement } from '../../../gate/index.js';
@@ -19,7 +19,8 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
     pinRunMain(lease, onFailure);
     lease.quarantines = quarantines;
     if (quarantines.length) lease.proof = proofContext;
-    const run = runProfiledShell(root, config.gate, { waitMs: lease.waitMs, gateLease: lease,
+    // Awaited, so the lander's landing lease keeps its heartbeat while the guard runs (9 Nov, LAND_LEASE_LOST) [C7].
+    const run = await runProfiledShellAsync(root, config.gate, { waitMs: lease.waitMs, gateLease: lease,
       // Every named file runs to completion, so main's first known red never leaves the rest unrun [C7,#3167].
       stages: true, landing: true, collectAll: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
       timeoutMs: config.landing?.timeoutMs });
