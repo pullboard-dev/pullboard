@@ -1,6 +1,6 @@
-import { itemFolderIdentity } from './item-folder.js';
-import { itemFolderPath } from './item-folder.js';
-import { mainPolicy } from '../../../../packages/sandbox/index.js';
+import { itemFolderIdentity } from '../../../items/index.js';
+import { itemFolderPath } from '../../../items/index.js';
+import { mainPolicy } from './trusted-policy-read.js';
 /** Capture queued source at the genuine registered origin before the native writer; replay consumes values only. */
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,11 +11,11 @@ import {
   headTree,
   isClean,
   invalidateGitFacts,
-} from '../../../../packages/git/index.js';
-import { prepareItemPatchSubmit } from '../../../../packages/items/index.js';
-import { itemPatchDigest } from '../../../../packages/items/index.js';
-import { getItem } from '../../../../packages/store/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+} from '../../../git/index.js';
+import { prepareItemPatchSubmit } from '../../../items/index.js';
+import { itemPatchDigest } from '../../../items/index.js';
+import { getItem } from '../../../store/index.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Retain exact native source and companions; source-only validation creates no job or reservation. */
 export function sealSubmitHandoffQueue(board, id, options, { sourceOnly = false } = {}) {

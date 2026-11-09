@@ -11977,7 +11977,7 @@
       ]
     },
     {
-      "file": "test/claim-watchdog.test.js",
+      "file": "packages/seats/tests/claim-watchdog.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -27547,7 +27547,7 @@
       ]
     },
     {
-      "file": "test/landing-lease.test.js",
+      "file": "packages/state/tests/landing-lease.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28312,7 +28312,7 @@
       ]
     },
     {
-      "file": "test/landing-runner-source-hold.test.js",
+      "file": "packages/items/tests/landing-runner-source-hold.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -36746,7 +36746,7 @@
       ]
     },
     {
-      "file": "test/relay-device-http.test.js",
+      "file": "packages/kernel/tests/relay-device-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37902,7 +37902,7 @@
       ]
     },
     {
-      "file": "test/relay-page-store.test.js",
+      "file": "packages/kernel/tests/relay-page-store.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -37960,7 +37960,7 @@
       ]
     },
     {
-      "file": "test/relay-pages-http.test.js",
+      "file": "packages/kernel/tests/relay-pages-http.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -40819,7 +40819,7 @@
       ]
     },
     {
-      "file": "test/rework-same-family.test.js",
+      "file": "packages/kernel/tests/rework-same-family.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -41263,7 +41263,7 @@
       ]
     },
     {
-      "file": "test/roadmap-queue-order.test.js",
+      "file": "packages/roadmap/tests/roadmap-queue-order.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -41662,7 +41662,7 @@
       ]
     },
     {
-      "file": "test/row-decisions-replay.test.js",
+      "file": "packages/kernel/tests/row-decisions-replay.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -42797,7 +42797,7 @@
       ]
     },
     {
-      "file": "test/runner-disk-sweep.test.js",
+      "file": "packages/resources/tests/runner-disk-sweep.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",
@@ -44207,7 +44207,7 @@
       ]
     },
     {
-      "file": "test/runner-worker-capacity-sync.test.js",
+      "file": "packages/resources/tests/runner-worker-capacity-sync.test.js",
       "tier": "T3",
       "packages": [
         "apps/runner",

@@ -138,8 +138,8 @@ test('a changed cockpit test selects the shared-wait scanner [C7,B3]', (t) => {
   execFileSync('git', ['clone', '--quiet', '--no-hardlinks', ROOT, root]);
   /** Commit real private repository inputs without changing the user's Git identity. */
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: root, encoding: 'utf8' }).trim();
-  writeFileSync(join(root, 'test/shared-wait-guard.test.js'), readFileSync(join(ROOT, 'test/shared-wait-guard.test.js')));
-  git('add', '--', 'test/shared-wait-guard.test.js');
+  writeFileSync(join(root, 'packages/gate/tests/shared-wait-guard.test.js'), readFileSync(join(ROOT, 'packages/gate/tests/shared-wait-guard.test.js')));
+  git('add', '--', 'packages/gate/tests/shared-wait-guard.test.js');
   // A committed scanner already matches its clone; an empty baseline still pins that input.
   git('commit', '--allow-empty', '--quiet', '-m', 'test(view): preserve actual scanner input [C7,B3]');
   const base = git('rev-parse', 'HEAD');
@@ -150,5 +150,5 @@ test('a changed cockpit test selects the shared-wait scanner [C7,B3]', (t) => {
   assert.deepEqual(git('diff', '--name-only', base, commit).split('\n'), ['test/cockpit/demo.test.js'], 'the actual repository changes only the cockpit test');
   const selection = selectAffectedTests(root, { base, commit });
   assert.equal(selection.full, false, `a cockpit-only change retains affected selection: ${selection.reason}; selected ${selection.files.length} files`);
-  assert.ok(selection.files.includes('test/shared-wait-guard.test.js'), 'the actual shared-wait scanner is selected');
+  assert.ok(selection.files.includes('packages/gate/tests/shared-wait-guard.test.js'), 'the actual shared-wait scanner is selected');
 });

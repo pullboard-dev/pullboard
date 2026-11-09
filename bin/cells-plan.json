@@ -1027,6 +1027,10 @@
       "path": "bin/cut-shims.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "codemap"
+    },
+    {
+      "path": "src/move-history/249.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -1443,6 +1447,22 @@
       "row": [
         "src/plan-merge-engine.js",
         "packages/state/src/shell/plan-merge-engine.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-origin.js",
+        "apps/cli/src/shell/submit-handoff-origin.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-seal.js",
+        "apps/cli/src/shell/submit-handoff-seal.js",
         "rule"
       ]
     }

@@ -1,5 +1,5 @@
 import { itemFolderIdentity } from './item-folder.js';
-import { submitHandoffActor } from './submit-handoff-origin.js';
+import { submitHandoffActor } from '../../../../packages/sandbox/index.js';
 /** Caller identity keeps its synchronous full-store behavior for existing callers [C7,E18]. */
 import * as store from '../../../../packages/store/index.js';
 import { identifyCaller as readCaller } from './cli-read-context.js';

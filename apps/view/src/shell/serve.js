@@ -405,72 +405,136 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     // Both row lists and their cached ages name this commit even if HEAD moves between Git reads.
     const head = resolveCommit(info.root, 'HEAD');
     const specAges = rowAges(info.root, config.spec, head, 'spec', { later: rowAgesLater });
-    const rows = (file, ages) => {
-      return loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
-        id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
-        gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
-          const path = resolve(info.root, name);
-          const inside = !isAbsolute(name) && !relative(info.root, path).split(/[\\/]/u).includes('..');
-          let exists = false;
-          try { exists = inside && statSync(path).isFile(); } catch { /* A missing gate is visible evidence, not a failed board read. */ }
-          return { file: name, exists, ref: exists && head ? name + ':1@' + head : null };
-        }) : [],
-      }));
-    };
     const doctrine = loadDoctrine(info.root, config);
     // A standard rule was never added to this repo, so it has no age here; the repo's own rows have.
     const doctrineAges = rowAges(info.root, doctrine.name, head, 'doctrine', { later: rowAgesLater });
-    // A decline's text is its reason. Keep the inherited rule available so the page strikes the
-    // rule itself, while showing the repo's reason beside it.
-    const inherited = new Map(standardDoctrine().rows.map((row) => [row.id, row.text]));
-    const log = store.recentEvents(board, 80);
-    const lastMove = store.lastMoves(board);
-    const state = projectRowDecisions(store.rowDecisions(board), {
+    const now = board.clock.now().getTime();
+    const marker = derivedMarker(board, info.root, [config.spec, doctrine.name], [head, specAges.at, doctrineAges.at, Math.floor(now / 60_000), JSON.stringify(config)]);
+    const kept = derivedKept.get(info.root);
+    const derived = kept?.marker === marker ? kept.derived : derivedState(board, info, config, { all, head, doctrine, specAges, doctrineAges, now });
+    derivedKept.set(info.root, { marker, derived });
+    const lastMove = derived.lastMove;
+    const fields = derived.fields;
+    // The keys keep the order the page and the exported snapshot have always had.
+    const state = projectRowDecisions(derived.rowDecisions, {
       root: info.root,
       releaseNotes: viewReleaseNotes(),
       rowAgesAt: { [config.spec]: specAges.at, [doctrine.name]: doctrineAges.at },
-      lanes: [COORDINATOR, ...Object.keys(config.lanes)],
-      // The lanes that own folders, where builders work; review lanes own none.
-      owning: Object.keys(config.lanes).filter((lane) => (config.lanes[lane].owns ?? []).length > 0),
+      lanes: fields.lanes,
+      owning: fields.owning,
       // A caller with its own copy of an item returns it; project() builds the item only when asked.
       items: all.map((item) => (itemProjector
         ? itemProjector(item, { board, status, project: () => projectItemState(board, item, status) })
         : projectItemState(board, item, status))),
-      shouts: store.recentShouts(board, 40),
-      // Every ask still waiting for an answer, however far back the forty shouts reach (B21): the
-      // person's to answer here, and the rest with who holds them (B26).
-      decisions: store.openDecisions(board, store.PERSON),
-      decisionQueue: store.openDecisions(board, COORDINATOR),
-      asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
-      events: log,
-      dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime(), store),
-      dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
-        .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
-      landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
-        .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
+      shouts: fields.shouts,
+      decisions: fields.decisions,
+      decisionQueue: fields.decisionQueue,
+      asked: fields.asked,
+      events: fields.events,
+      dashboardNext: fields.dashboardNext,
+      dashboardPace: fields.dashboardPace,
+      dashboardLanded: fields.dashboardLanded,
+      landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
-      holds: store.laneHolds(board),
-      // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
-      itemHolds: all.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at })),
-      spec: rows(config.spec, specAges.ages),
-      practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
-        id, status: state, tier, text, gate, serves, section, origin, version, reason,
-        standardVersion: inherited.has(id) ? doctrine.version : null, overrides: origin === 'repo' && inherited.has(id), added: origin === 'standard' ? null : doctrineAges.ages.get(id) ?? 0,
-        gateFiles: doctrineGateFiles(info.root, head, gate),
-        ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
-      })),
+      holds: fields.holds,
+      itemHolds: fields.itemHolds,
+      spec: fields.spec,
+      practice: fields.practice,
       unseen: seen === null ? null : { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
-      // Each product's progress, counted as pullboard status counts it (N28).
-      products: productSummaries(config, loadSpec(info.root, config), all),
+      products: fields.products,
     });
-    // Pending person decisions govern the calls on the API, sealed relay and exported page alike.
-    const rigorRows = projectRowDecisions(store.rowDecisions(board), { root: info.root, spec: loadSpec(info.root, config).rows, practice: doctrine.rows });
-    const focus = milestoneFocus(board, { milestones: store.milestones });
-    const projected = projectSpecRevisions({ ...state, focusMilestone: focus ? { name: focus.name, items: [...focus.ids] } : null, rigorDrafts: rigorDraftNeeds(rigorRows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) }, store.rowDrafts(board), store.rowDecisions(board));
+    const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
     return { ...projected, needs: personNeeds(projected) };
   }, providedBoard, boardOpeners);
 }
+
+/**
+ * Everything in a project's state that only the board's recorded history, HEAD, the spec and doctrine files and the
+ * minute decide: every field but the items, the agents and the unseen count. projectState keeps it while
+ * derivedMarker is unchanged, so a read after an agent heartbeat or lease renewal rebuilds only what moved.
+ *
+ * @param {any} board
+ * @param {{ root: string }} info
+ * @param {any} config
+ * @param {{ all: any[], head: string | null, doctrine: any, specAges: { ages: Map<string, number> }, doctrineAges: { ages: Map<string, number> }, now: number }} reads
+ * @returns {{ fields: object, late: object, lastMove: Map<string, string>, rowDecisions: any[], rowDrafts: any[] }}
+ */
+function derivedState(board, info, config, { all, head, doctrine, specAges, doctrineAges, now }) {
+  const rows = (file, ages) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
+    id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
+    gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
+      const path = resolve(info.root, name);
+      const inside = !isAbsolute(name) && !relative(info.root, path).split(/[\\/]/u).includes('..');
+      let exists = false;
+      try { exists = inside && statSync(path).isFile(); } catch { /* A missing gate is visible evidence, not a failed board read. */ }
+      return { file: name, exists, ref: exists && head ? name + ':1@' + head : null };
+    }) : [],
+  }));
+  // A decline's text is its reason. Keep the inherited rule available so the page strikes the
+  // rule itself, while showing the repo's reason beside it.
+  const inherited = new Map(standardDoctrine().rows.map((row) => [row.id, row.text]));
+  const rowDecisions = store.rowDecisions(board), rowDrafts = store.rowDrafts(board);
+  const spec = loadSpec(info.root, config);
+  const fields = {
+    lanes: [COORDINATOR, ...Object.keys(config.lanes)],
+    // The lanes that own folders, where builders work; review lanes own none.
+    owning: Object.keys(config.lanes).filter((lane) => (config.lanes[lane].owns ?? []).length > 0),
+    shouts: store.recentShouts(board, 40),
+    // Every ask still waiting for an answer, however far back the forty shouts reach (B21): the
+    // person's to answer here, and the rest with who holds them (B26).
+    decisions: store.openDecisions(board, store.PERSON),
+    decisionQueue: store.openDecisions(board, COORDINATOR),
+    asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
+    events: store.recentEvents(board, 80),
+    dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
+    dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
+    dashboardLanded: all.filter(item => item.item_merged_commit)
+      .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+    landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
+      .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
+    holds: store.laneHolds(board),
+    // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
+    itemHolds: all.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at })),
+    spec: rows(config.spec, specAges.ages),
+    practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
+      id, status: state, tier, text, gate, serves, section, origin, version, reason,
+      standardVersion: inherited.has(id) ? doctrine.version : null, overrides: origin === 'repo' && inherited.has(id), added: origin === 'standard' ? null : doctrineAges.ages.get(id) ?? 0,
+      gateFiles: doctrineGateFiles(info.root, head, gate),
+      ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
+    })),
+    // Each product's progress, counted as pullboard status counts it (N28).
+    products: productSummaries(config, spec, all),
+  };
+  // Pending person decisions govern the calls on the API, sealed relay and exported page alike.
+  const rigorRows = projectRowDecisions(rowDecisions, { root: info.root, spec: spec.rows, practice: doctrine.rows });
+  const focus = milestoneFocus(board, { milestones: store.milestones });
+  const late = { focusMilestone: focus ? { name: focus.name, items: [...focus.ids] } : null, rigorDrafts: rigorDraftNeeds(rigorRows, rowDrafts, rowDecisions), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) };
+  return { fields, late, lastMove: store.lastMoves(board), rowDecisions, rowDrafts };
+}
+
+/**
+ * A cheap marker of everything derivedState reads: the board's id, the newest event, shout and verdict, the holds, the item count and
+ * newest id, each named file's size and times, and the caller's own parts (HEAD, row-age heads, the minute, config).
+ * Why these: every board move records an event in the same transaction, so a read that sees the same newest event saw
+ * the same items, settings, milestones and batches; shouts, verdicts and holds have their own tables.
+ *
+ * @param {any} board
+ * @param {string} root
+ * @param {string[]} files
+ * @param {any[]} parts
+ * @returns {string}
+ */
+function derivedMarker(board, root, files, parts) {
+  const row = board.db.prepare(`SELECT (SELECT meta_value FROM board_meta WHERE meta_key = 'board_id') AS board, (SELECT MAX(event_id) FROM event) AS event, (SELECT MAX(shout_id) FROM shout) AS shout,
+    (SELECT COUNT(*) || ':' || MAX(rowid) FROM verdict) AS verdict, (SELECT COUNT(*) || ':' || MAX(rowid) FROM hold) AS hold,
+    (SELECT COUNT(*) || ':' || MAX(item_id) FROM item) AS item`).get();
+  const stats = files.map(file => {
+    try { const stat = statSync(resolve(root, file)); return [stat.size, stat.mtimeMs, stat.ctimeMs, stat.ino]; } catch { return null; }
+  });
+  return JSON.stringify([row, stats, parts]);
+}
+/** @type {Map<string, { marker: string, derived: ReturnType<typeof derivedState> }>} */
+const derivedKept = new Map();
 
 /**
  * The running view's project state: row ages come from what the view already has, refreshed off the request

@@ -75,8 +75,6 @@
     "src/serve.js",
     "src/spec-approval-baseline.js",
     "src/spec.js",
-    "src/submit-handoff-origin.js",
-    "src/submit-handoff-seal.js",
     "src/test-file-pool.js",
     "src/test-isolation.js",
     "src/test-run.js",

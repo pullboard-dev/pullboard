@@ -40,7 +40,7 @@ import {
 } from "../../../items/index.js";
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
   if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.claimHealthSnapshot !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
   const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
@@ -86,7 +86,11 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         const verdictState = freshness(item);
         return verdictState ? { ...projected, verdictState } : projected;
       }
-      return previous.items.get(item.item_id);
+      // A trunk move changes only whether each verdict is still fresh, so a kept item takes its verdict state again [C7].
+      if (!refreshVerdicts) return previous.items.get(item.item_id);
+      const { verdictState: _stale, ...kept } = previous.items.get(item.item_id);
+      const verdictState = freshness(item);
+      return verdictState ? { ...kept, verdictState } : kept;
     } });
     const progressById = workProgress(board);
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));

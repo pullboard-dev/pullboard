@@ -1,10 +1,10 @@
 /** The claim watchdog nudges an idle live seat once, then releases the claim after the grace period [B4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planClaimWatchdog } from '../packages/seats/index.js';
-import { runClaimWatchdog } from '../packages/seats/index.js';
-import { runScheduledClaimWatchdog } from '../packages/health/src/shell/claim-sweep.js';
-import { sweepClaims } from '../packages/health/src/shell/claim-sweep.js';
+import { planClaimWatchdog } from '../index.js';
+import { runClaimWatchdog } from '../index.js';
+import { runScheduledClaimWatchdog } from '../../health/index.js';
+import { sweepClaims } from '../../health/index.js';
 
 const T0 = Date.parse('2026-11-04T12:00:00.000Z');
 const minutes = count => new Date(T0 + count * 60_000).toISOString();
