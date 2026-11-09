@@ -2163,6 +2163,22 @@
         "packages/gate/src/shell/browser-source-files.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-origin.js",
+        "apps/cli/src/shell/submit-handoff-origin.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/submit-handoff-seal.js",
+        "apps/cli/src/shell/submit-handoff-seal.js",
+        "rule"
+      ]
     }
   ],
   "entries": [

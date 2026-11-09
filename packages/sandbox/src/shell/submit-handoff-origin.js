@@ -1,12 +1,12 @@
-import { ownershipWaitForJob } from '../../../../packages/store/index.js';
-import { requireSubmitHandoffHookProof } from '../../../../packages/store/index.js';
+import { ownershipWaitForJob } from '../../../store/index.js';
+import { requireSubmitHandoffHookProof } from '../../../store/index.js';
 import {
   mainPolicy,
   policyAt,
-} from '../../../../packages/sandbox/index.js';
-import { contains } from '../../../../packages/git/index.js';
-import { itemPatchDigest } from '../../../../packages/items/index.js';
-import { agentById } from '../../../../packages/store/index.js';
+} from './trusted-policy-read.js';
+import { contains } from '../../../git/index.js';
+import { itemPatchDigest } from '../../../items/index.js';
+import { agentById } from '../../../store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';
 import {
@@ -21,10 +21,10 @@ import {
   git,
   tryGit,
   untracked,
-} from '../../../../packages/git/index.js';
-import { submitHandoff } from '../../../../packages/store/index.js';
-import { handoffRecords } from '../../../../packages/store/index.js';
-import { Refused } from '../../../../packages/kernel/index.js';
+} from '../../../git/index.js';
+import { submitHandoff } from '../../../store/index.js';
+import { handoffRecords } from '../../../store/index.js';
+import { Refused } from '../../../kernel/index.js';
 
 const CONTEXTS = new WeakMap();
 const BOARDS = new WeakMap();
