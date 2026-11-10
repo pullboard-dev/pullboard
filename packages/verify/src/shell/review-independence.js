@@ -18,7 +18,7 @@ import { sameFamilyProblem } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
 import { familiesDiffer } from '../core/review-policy.js';
 import { itemReviewPolicy } from '../core/review-policy.js';
-import { lineSettings } from '../../../state/src/core/line-settings-read.js';
+import { lineSettings } from '../../../state/core.js';
 export { itemReviewPolicy } from '../core/review-policy.js';
 
 /** Old sealed moves keep their recorded authorship and family semantics. */

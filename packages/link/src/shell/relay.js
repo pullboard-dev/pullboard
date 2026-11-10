@@ -1,5 +1,5 @@
 import { relayFetch } from '../../../person/index.js';
-import { operationIntent } from '../../../state/src/core/relay-sender-policy.js';
+import { operationIntent } from '../../../state/index.js';
 import { orderedMoveCommand } from '../core/relay-command-order.js';
 import { withRelayExclusion } from './relay-exclusion-state.js';
 import { relinkReplacement } from './relay-relink.js';

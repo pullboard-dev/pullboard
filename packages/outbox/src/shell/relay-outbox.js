@@ -1,4 +1,4 @@
-import { operationIntent } from '../../../state/src/core/relay-sender-policy.js';
+import { operationIntent } from '../../../state/index.js';
 /**
  * The ordered outbox (#922): board moves made on an accepted relay link while the relay is unavailable, sealed on
  * this machine with the board as the relay last ordered it, until they replay in relay order.

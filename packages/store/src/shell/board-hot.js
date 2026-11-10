@@ -1,7 +1,7 @@
 import { ensureFactIdentityIndexes } from "../../../spec/index.js";
 import { missingFactIdentityIndexes } from "../../../spec/index.js";
-import { ensureGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
-import { missingGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
+import { ensureGrantActivationIndex } from "../../../state/core.js";
+import { missingGrantActivationIndex } from "../../../state/core.js";
 import { ensureJobTables } from "./board-jobs-schema.js";
 import { missingJobTables } from "./board-jobs-schema.js";
 
