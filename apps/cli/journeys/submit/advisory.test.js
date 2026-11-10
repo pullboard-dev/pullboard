@@ -202,6 +202,6 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   rmSync(marker, { force: true });
   const submitted = box.run(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/data\/plan\.js --place src\/ordinary-added\.js/u);
+  assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place src\/ordinary-added\.js/u);
   assert.equal(existsSync(marker), true, 'the ordinary item proceeds to its check');
 });
