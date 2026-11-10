@@ -297,7 +297,8 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   const box = fixture(t);
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Refresh cached HEAD', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
-    brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest case: the runner reads the commit it just made.',
+    brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest: the runner reads the commit it just made.',
+    diagnosis: 'Files: src/result.txt\nChange: create the runner result file.\nTest case: the runner reads the commit it just made.',
     args: ['--specs', 'C7'] });
   const agent = join(box.dir, 'agent.sh');
   writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
