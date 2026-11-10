@@ -118,7 +118,7 @@ function fixture(t, required = true) {
   t.after(async () => { await finishAudits(box, helpers.waitFor); helpers.cleanup(); });
   delete box.env.NODE_TEST_CONTEXT;
   // A root installation retains a single real package scope for the production import-closure audit.
-  copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../..'));
   // Remove only the copied repository's own cells plan: its rows name Pullboard's unshipped tests, so a landing here
   // would refuse LAND_PLAN_UNPLACED before the receipt rules under test. The shipped modules stay intact.
   rmSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), { force: true });
