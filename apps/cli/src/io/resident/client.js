@@ -238,10 +238,11 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
   let code, place;
   try {
     if (!residentCommand(argv)) return Promise.resolve(null);
-    code = codeVersion(entry);
-    if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
+    if (!residentAllowed(env, false)) return Promise.resolve(null);
     place = residentPlace(cwd, entry, env);
     if (!place) return Promise.resolve(null);
+    code = codeVersion(entry);
+    if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
   } catch { return Promise.resolve(null); }
   return new Promise((done) => {
     let started = false, finished = false, buffer = '';
