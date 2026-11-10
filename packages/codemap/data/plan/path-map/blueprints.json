@@ -1,0 +1,18 @@
+{
+  "src/blueprint-fit-command.js": "packages/blueprints/src/io/fit/command.js",
+  "src/blueprint-fit.js": "packages/blueprints/src/io/fit.js",
+  "src/blueprint-report.js": "packages/blueprints/src/io/report.js",
+  "src/blueprint-set.js": "packages/blueprints/src/io/set.js",
+  "src/blueprints.js": "packages/blueprints/src/io/main.js",
+  "src/blueprints/data-pipeline.json": "packages/blueprints/data/blueprints/data-pipeline.json",
+  "src/blueprints/ios-app.json": "packages/blueprints/data/blueprints/ios-app.json",
+  "src/blueprints/library.json": "packages/blueprints/data/blueprints/library.json",
+  "src/blueprints/pullboard.json": "packages/blueprints/data/blueprints/pullboard.json",
+  "src/blueprints/research.json": "packages/blueprints/data/blueprints/research.json",
+  "src/blueprints/serverless.json": "packages/blueprints/data/blueprints/serverless.json",
+  "src/blueprints/test-reliability.json": "packages/blueprints/data/blueprints/test-reliability.json",
+  "src/blueprints/web-app.json": "packages/blueprints/data/blueprints/web-app.json",
+  "src/blueprints/website.json": "packages/blueprints/data/blueprints/website.json",
+  "src/blueprints/writing.json": "packages/blueprints/data/blueprints/writing.json",
+  "test/blueprint.test.js": "packages/blueprints/tests/io/blueprint.test.js"
+}

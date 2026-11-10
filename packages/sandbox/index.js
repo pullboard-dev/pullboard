@@ -1,47 +1,47 @@
 /** Sandbox execution and immutable submission policy behind one named front door [C7,CD60]. */
-export * from './core.js';
+export * from './light.js';
 export {
   runtimeCaptureSource,
   testRuntimeOption,
-} from './src/shell/execution-environment.js';
+} from './src/io/environment.js';
 export {
   mainRedBuildOffer,
   nextTake,
   closePassingMainReds,
   nextProgress,
-} from './src/shell/next-take.js';
+} from './src/io/take.js';
 export {
   runPushReceiptSmoke,
-} from './src/shell/push-receipt-smoke.js';
+} from './src/io/smoke.js';
 export {
   hostedReleaseFields,
   verifyHostedRelease,
-} from './src/shell/release-hosted.js';
+} from './src/io/hosted.js';
 export {
   sandboxBlockedScanner,
   sandboxBlockedOperation,
-} from './src/shell/sandbox-denial.js';
+} from './src/io/denial.js';
 export {
   verifyOutsideSandbox,
-} from './src/shell/sandbox-verify.js';
+} from './src/io/verify.js';
 export {
   captureSourceAdvanceBasis,
   prepareSourceAdvance,
   sealSourceAdvance,
   prepareSourceAdvanceReturn,
   sealSourceAdvanceReturn,
-} from './src/shell/source-advance-origin.js';
+} from './src/io/source/advance/origin.js';
 export {
   sourceAdvanceDirectory,
   hasSourceAdvanceJobs,
   runSourceAdvances,
-} from './src/shell/source-advance-worker.js';
+} from './src/io/source/advance/worker.js';
 export {
   sourceAdvanceVerdict,
   sourceAdvanceCASProblem,
   sourceAdvanceProblem,
   advanceItemSource,
-} from './src/shell/source-advance.js';
+} from './src/io/source/advance.js';
 export {
   requireTrunkMerge,
   itemPolicy,
@@ -49,8 +49,8 @@ export {
   dependencySnapshots,
   frozenCheck,
   trunkMerge,
-} from './src/shell/trusted-policy.js';
-export { regenerateToolChange } from './src/shell/tool-regeneration.js';
-export { spawnCaptured } from './src/shell/captured-child.js';
-export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from './src/shell/submit-handoff-origin.js';
-export { sealSubmitHandoffQueue } from './src/shell/submit-handoff-seal.js';
+} from './src/io/trusted/policy.js';
+export { regenerateToolChange } from './src/io/regeneration.js';
+export { spawnCaptured } from './src/io/captured.js';
+export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from './src/io/submit/handoff/origin.js';
+export { sealSubmitHandoffQueue } from './src/io/submit/handoff/seal.js';

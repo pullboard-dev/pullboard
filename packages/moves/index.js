@@ -1,14 +1,14 @@
 /** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
-export * from "./src/core/bar-ready-setting.js";
-export * from "./src/shell/move-registry.js";
-export * from "./src/shell/claim-freezer.js";
-export { nextOnce, nextSelection } from "./src/shell/next-selection.js";
-export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/core/next-reasons.js";
-export { default as reopen } from "./src/core/moves/reopen.js";
-export { default as shout } from "./src/core/moves/shout.js";
-export { default as submit } from "./src/core/moves/submit.js";
-export { default as verify } from "./src/core/moves/verify.js";
-export { default as finishLandingBatch } from "./src/core/moves/finishLandingBatch.js";
-export { default as release } from "./src/core/moves/release.js";
-export { default as recordGateRun } from "./src/core/moves/recordGateRun.js";
-export { default as recordSelectorGap } from "./src/core/moves/recordSelectorGap.js";
+export * from "./src/logic/bar/ready.js";
+export * from "./src/io/registry.js";
+export * from "./src/io/freezer.js";
+export { nextOnce, nextSelection } from "./src/io/selection.js";
+export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/logic/reasons.js";
+export { default as reopen } from "./src/logic/moves/reopen.js";
+export { default as shout } from "./src/logic/moves/shout.js";
+export { default as submit } from "./src/logic/moves/submit.js";
+export { default as verify } from "./src/logic/moves/verify.js";
+export { default as finishLandingBatch } from "./src/logic/moves/finishLandingBatch.js";
+export { default as release } from "./src/logic/moves/release.js";
+export { default as recordGateRun } from "./src/logic/moves/recordGateRun.js";
+export { default as recordSelectorGap } from "./src/logic/moves/recordSelectorGap.js";

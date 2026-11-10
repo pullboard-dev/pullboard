@@ -1,7 +1,0 @@
-{
-  "src/doctrine-checks.js": "packages/doctrine/src/shell/doctrine-checks.js",
-  "src/doctrine-rulings.js": "packages/doctrine/src/shell/doctrine-rulings.js",
-  "src/doctrine.js": "packages/doctrine/src/shell/doctrine.js",
-  "src/standard-doctrine.md": "packages/doctrine/src/shell/standard-doctrine.md",
-  "test/package.test.js": "packages/doctrine/tests/package.test.js"
-}

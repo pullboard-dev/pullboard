@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from '../test/e2e-helpers.js';
-import { runFixtureGit } from '../test/fixture-child.js';
+import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
+import { runFixtureGit } from '../apps/cli/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const e2e = createE2eHelpers();
