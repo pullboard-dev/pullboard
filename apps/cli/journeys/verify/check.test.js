@@ -243,8 +243,6 @@ test('a landing while a review waits for its gate slot leaves the verdict standi
   const { repo, web } = project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
-  mkdirSync(join(repo, 'web'), { recursive: true });
-  writeFileSync(join(repo, 'web', 'review-input.txt'), 'before submit\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
@@ -294,6 +292,8 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   const { repo, web } = project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
+  mkdirSync(join(repo, 'web'), { recursive: true });
+  writeFileSync(join(repo, 'web', 'review-input.txt'), 'before submit\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
@@ -313,10 +313,10 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   assert.deepEqual(verdictsOf(repo, id), [], 'a verdict is not recorded for a check that saw a moved main');
 });
 
-// Accepted main265b6e8 pins store bodies except relocation operands; known-main-autofile also includes accepted changes through 73ee00be5d.
+// Accepted main265b6e8 pins store bodies except relocation operands; known-main-autofile and board-access include accepted changes through 73ee00be5d and f12fe8e3bf respectively.
 const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
-  "src/known-main-autofile.js": "7e3b77ea7a14f8ddd28ae0cf6b94f17a012fa639223eb03216ae8c590610c9b8", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
+  "src/known-main-autofile.js": "7e3b77ea7a14f8ddd28ae0cf6b94f17a012fa639223eb03216ae8c590610c9b8", "src/board-access.js": "03c7a5da790be8c956ac996a07b32160f546ecc5b29453c9919aa67f81c6dffc",
   "src/board-busy.js": "46dfa1149b6468c47b3d1b75142495c8532397640cfd64300fc3c19371b444d6", "src/board-capture.js": "3bdf7cfe9c7e7a223c1d2b0e5e1deb89e519fa82c4ceb0d1f513d82076f9f3e3",
   "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "871e7170802e5264c21cf080ffe8faced27fd39821efcf08b9929c88751b55ae",
   "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "74f05d984278479e92155d8750d071368fd59a1c586bd57f95e833134cc784a7",
