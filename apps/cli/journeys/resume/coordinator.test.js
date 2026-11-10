@@ -61,7 +61,7 @@ function fixture() {
   git(repo, 'init', '-q', '-b', 'main');
   assert.equal(run(repo, 'init').code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({
-    gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
+    gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', landing: { manualOverride: true },
     lanes: { web: { owns: ['web/'], specs: ['G1', 'G2'] } },
   }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
@@ -117,7 +117,7 @@ function addAndClaim(box, cwd, title, row) {
 function submitFile(box, cwd, id, row, path, text, subject) {
   write(cwd, path, text);
   const head = commit(box.git, cwd, `feat(web): ${subject} [${row}]`);
-  const submitted = box.run(cwd, 'submit', String(id));
+  const submitted = box.run(cwd, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   return head;
 }
@@ -213,6 +213,9 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   const reviewBuilder = addBuilder(box, 'review-builder');
   const reviewId = addAndClaim(box, reviewBuilder, 'Review item', 'G2');
   submitFile(box, reviewBuilder, reviewId, 'G2', 'web/review.txt', 'review\n', 'submit review item');
+  const conflictBeforeResume = box.run(box.repo, 'show', String(conflictId), '--json');
+  assert.equal(conflictBeforeResume.code, 0, conflictBeforeResume.err || conflictBeforeResume.out);
+  assert.equal(JSON.parse(conflictBeforeResume.out).item_status, 'verified', 'fixture retains the accepted receipt for resume');
 
   const open = box.run(cleanBuilder, 'shout', 'coordinator', 'Need a decision on the next build.', '--kind', 'question', '--decision');
   assert.equal(open.code, 0, open.err || open.out);

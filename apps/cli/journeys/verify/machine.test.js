@@ -74,26 +74,27 @@ const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA
  * they answer for its refusals together.
  */
 const ENTRY_POINTS = [
-  { verbs: ['claim'], at: ['../packages/store/src/shell/board.js#claim'] },
-  { verbs: ['release'], at: ['../packages/store/src/shell/board.js#release'] },
-  { verbs: ['submit'], at: ['../packages/store/src/shell/board.js#submit', '../apps/cli/src/shell/commands/submit.js#submitHere'] },
-  { verbs: ['reserve'], at: ['../packages/store/src/shell/board.js#reserveReview', '../packages/store/src/shell/board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['../packages/store/src/shell/board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['../packages/store/src/core/board-escalate.js#escalate'] },
-  { verbs: ['withdraw'], at: ['../packages/store/src/shell/board.js#withdraw'] },
-  { verbs: ['refreeze'], at: ['../packages/store/src/shell/board.js#refreeze'] },
-  { verbs: ['reopen'], at: ['../packages/store/src/shell/board.js#reopen'] },
+  { verbs: ['claim'], at: ['../packages/store/src/io/board.js#claim'] },
+  { verbs: ['release'], at: ['../packages/store/src/io/board.js#release'] },
+  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere'] },
+  { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
+  { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
+  { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
+  { verbs: ['withdraw'], at: ['../packages/store/src/io/board.js#withdraw'] },
+  { verbs: ['refreeze'], at: ['../packages/store/src/io/board.js#refreeze'] },
+  { verbs: ['reopen'], at: ['../packages/store/src/io/board.js#reopen'] },
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
-const RUNNER_ENTRY_FILES = ['../../../../packages/runners/index.js', '../../../../packages/gate/src/io/slot.js', '../../../../packages/runners/src/io/result.js',
-  '../../../../packages/runners/src/io/dispatch.js', '../../../runner/src/io/worker/entry.js'];
+const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
+  '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 const NON_MOVE_ENTRY_POINTS = [
-  '../apps/lib/src/core/native-board.js#openBoard', // Physical storage is composed before any item move.
-  '../apps/cli/src/shell/cli/join.js#refuseRemoteCoordinatorModel',
+  '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
+  '../packages/store/index.js#recordSpecApprovalBaseline', // A distinct bootstrap operation precedes the requested move.
+  '../apps/cli/src/io/join.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
-  '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
-  '../packages/person/src/shell/person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
+  '../packages/resources/src/io/main.js#gateSlotEnvironment',
+  '../packages/person/src/io/signing/cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
 /**
@@ -104,46 +105,49 @@ const NON_MOVE_ENTRY_POINTS = [
  */
 const CAUGHT = {
   // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
-  '../apps/cli/src/shell/cli/claim.js#refreshesLanePolicy': ['../apps/cli/src/shell/cli/claim.js#freezer'],
+  '../apps/cli/src/io/claim.js#refreshesLanePolicy': ['../apps/cli/src/io/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
-  '../packages/store/src/shell/board-next-for.js#nextFor': ['../packages/store/src/core/exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  '../packages/store/src/io/board/next.js#nextFor': ['../packages/store/src/logic/exit/rules/continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
   // An unknown code map keeps the file collision; every read inside it is caught.
-  '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
-  '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
+  '../packages/items/src/io/planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
+  '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
-  '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['../packages/store/src/shell/board.js#reviewerChecks'],
-  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', '../packages/doctrine/src/shell/doctrine-checks.js#checkRulesAt'],
+  '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
+  '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
   // Machine-verified submit lands after its record, and that landing call is caught like verify's.
   // The same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
-  '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
-  '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
+  '../packages/spec/src/io/approval.js#approvalEvidence': ['../packages/spec/src/io/main.js#readSignoffs'],
+  '../packages/spec/src/io/approval.js#confirmedDecision': ['../packages/spec/src/io/signature.js#verifyRowDecision'],
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
-  '../packages/spec/src/shell/spec-approval.js#specApprovalState': ['../packages/store/src/shell/board-query.js#specApprovalBaseline'],
+  '../packages/spec/src/io/approval.js#specApprovalState': ['../packages/store/index.js#specApprovalBaseline', '../packages/store/src/io/board/query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  '../packages/store/src/shell/board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
+  '../packages/store/src/io/board.js#reopen': ['../packages/rigor/src/logic/notices.js#declinedRigorSource'],
+  '../packages/rigor/src/logic/notices.js#declinedRigorSource': ['../packages/spec/index.js#parseSpec'], // Only the historical source parser is caught here.
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
-  '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
-  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
+  '../packages/store/src/logic/board/rigor.js#eventCauses': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
+  '../packages/rigor/src/logic/counter.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
-  '../packages/store/src/core/board-rigor-auto-source.js#readAutomaticRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
+  '../packages/rigor/src/logic/counter.js#declineKey': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/logic/board/rigor/provenance.js#readRigorSource': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
+  '../packages/store/src/logic/board/rigor/auto.js#readAutomaticRigorSource': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/person/src/shell/person-row-proof.js#signedRowDecisionsMatch': ['../packages/spec/src/shell/spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
+  '../packages/store/src/logic/board/rigor/auto.js#automaticDecisionSource': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/logic/board/rigor/auto.js#rigorDecisionKey': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/person/src/io/proof.js#signedRowDecisionsMatch': ['../packages/spec/src/io/main.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/shell/relay.js#relayLinked', '../packages/link/src/shell/relay.js#relayOperation', '../packages/link/src/shell/relay.js#relayRecovered', '../packages/link/src/shell/relay.js#relayCommandReceipt', '../packages/link/src/shell/relay.js#relayCommandReceiptReported']);
+const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported']);
+// This independently ordered bootstrap happens before the requested move; its refusals remain audited above.
+const SETUP_EDGES = { '../apps/cli/src/io/claim.js#ordered': ['../packages/store/index.js#recordSpecApprovalBaseline'] };
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -193,6 +197,7 @@ function codeWalk(read, { caught = false } = {}) {
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).some(entry => entry === callee)) continue;
+      if (caught && (SETUP_EDGES[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
     return codes;
@@ -240,14 +245,14 @@ function codeProblems(machine, read = fromDisk) {
   for (const { verbs, at } of ENTRY_POINTS) {
     const declared = declaredCodes(machine, verbs);
     for (const entry of at) {
-      for (const code of walk.refusalsOf(entry, new Set(CAUGHT[entry] ?? []))) {
+      for (const code of walk.refusalsOf(entry)) {
         if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
       }
     }
   }
-  const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
-  const moveFiles = new Set([...read('../../../../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
-    '../../../../packages/store/src/io/board.js', ...moveFiles, '../../src/io/entry.js', '../../../../packages/spec/src/io/main.js', '../../../../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+  const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
+  const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
+    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -466,13 +471,13 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
     'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
-  assert.ok(walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
-  assert.ok(!walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
-  assert.ok(walk.refusalsOf('../apps/cli/src/shell/cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
+  assert.ok(walk.refusalsOf('../apps/cli/src/io/commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
+  assert.ok(!walk.refusalsOf('../apps/cli/src/io/commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/io/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('../apps/cli/src/io/entry.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
@@ -535,23 +540,23 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
 
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
-    ['../../../../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
-    ['../../../../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
+    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
+    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
   }
-  const inForeignCaller = editedSource('../../../../packages/items/src/logic/cross/repo.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
+  const inForeignCaller = editedSource('../packages/items/src/logic/cross/repo.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignCaller).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by reserve but not declared there',
   ], 'the foreign-state caller is still audited outside its exact evidence catches');
-  const inCaughtBaseline = editedSource('../../../../packages/store/src/io/board/query.js', /^export function specApprovalBaseline\(board\) \{$/m,
+  const inCaughtBaseline = editedSource('../packages/store/src/io/board/query.js', /^export function specApprovalBaseline\(board\) \{$/m,
     "$&\n  if (!board) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inCaughtBaseline), [], 'the real caller catches a Refused from the baseline reader');
-  const inBaselineCaller = editedSource('../../../../packages/spec/src/io/approval.js', /^export function specApprovalState\(root, .*$/m,
+  const inBaselineCaller = editedSource('../packages/spec/src/io/approval.js', /^export function specApprovalState\(root, .*$/m,
     "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inBaselineCaller).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
@@ -562,7 +567,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('../../../../packages/store/src/logic/board/rigor/auto.js',
+    const inHistoricalCaller = editedSource('../packages/store/src/logic/board/rigor/auto.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
@@ -574,7 +579,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     ], 'the native summary fact keeps release in the rigor-source refusal audit alongside existing lifecycle moves');
   }
 
-  const inFreeze = editedSource('../../../../packages/spec/src/io/main.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inFreeze = editedSource('../packages/spec/src/io/main.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
@@ -582,7 +587,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by submit but not declared there',
   ], 'claim, refreeze and submit\'s pending-correction claim let a freeze refusal through; verify catches it');
 
-  const inProof = editedSource('../../../../packages/spec/src/io/approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inProof = editedSource('../packages/spec/src/io/approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inProof).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
@@ -590,14 +595,14 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by submit but not declared there',
   ], 'only caught proof readers are excluded; a new guard inside their caller is still audited');
 
-  const inArrow = editedSource('../../../../packages/seats/src/logic/route/escalation.js', /^export const canTake = .*$/m, "import { Refused } from '../../../kernel/core.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
+  const inArrow = editedSource('../packages/seats/src/logic/route/escalation.js', /^export const canTake = .*$/m, "import { Refused } from '../../../../kernel/index.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inArrow).sort(), [
     'NO_ROUTE is raised by accept and reject but not declared there',
     'NO_ROUTE is raised by claim but not declared there',
     'NO_ROUTE is raised by reserve but not declared there',
   ], 'reserve reaches the route check through the reviewer checks it shares with a verdict');
 
-  const doubleQuoted = editedSource('../../src/io/read.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
+  const doubleQuoted = editedSource('../apps/cli/src/io/read.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, doubleQuoted), [
     'NO_ROOT is raised by submit but not declared there',
     'NO_ROOT is raised by accept and reject but not declared there',
@@ -1408,7 +1413,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
 });
 
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
-  const inDispatch = editedSource('../../src/io/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args(?:, \{ prepareInWriter \} = \{\})?\) \{$/m,
+  const inDispatch = editedSource('../apps/cli/src/io/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args(?:, \{ prepareInWriter \} = \{\})?\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
@@ -1416,12 +1421,20 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
 });
 
+test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
+  const source = editedSource('../packages/store/src/io/baseline/spec/approval.js', /^export function recordSpecApprovalBaseline\(board, \{ agentId, baseline \}\) \{$/m,
+    "$&\n  throw new Refused('BOOTSTRAP_PROBE', 'repair the baseline');");
+  const walk = codeWalk(source, { caught: true });
+  assert.ok(walk.refusalsOf('../packages/store/index.js#recordSpecApprovalBaseline').has('BOOTSTRAP_PROBE'));
+  assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
+});
+
 test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
   assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
 test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
-  const broken = editedSource('../../../../packages/rigor/src/logic/counter.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
+  const broken = editedSource('../packages/rigor/src/logic/counter.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
@@ -1432,7 +1445,7 @@ test('a source walk scans local facts once while retaining caller-specific refus
 
 test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
   assertCommitShimRefusals(codeWalk, fromDisk, editedSource, codeProblems, machineRules.MACHINE);
-  const file = '../../../../packages/state/src/logic/handoff.js';
+  const file = '../packages/state/src/logic/handoff.js';
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf(`${file}#requireHandoffActive`).has('AGENT_REPLACED'));
   const planted = editedSource(file, /^export function requireHandoffActive\(board, actor, operation, args\) \{$/m,
@@ -1442,7 +1455,7 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 
 /** The exact native guard binding remains audited after the canonical root supplies it. */
 test('native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
-  const planted = editedSource('../../../../packages/landing/src/logic/environment.js', /^export function requireVerdict\([^\n]+\) \{$/m,
+  const planted = editedSource('../packages/landing/src/logic/environment.js', /^export function requireVerdict\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('NATIVE_PORT_PROBE', 'planted native guard');");
   const reaches = codeProblems(machineRules.MACHINE, planted);
   assert.ok(reaches.includes('NATIVE_PORT_PROBE is raised by accept and reject but not declared there'), 'the actual bound guard reaches its lifecycle caller');
@@ -1460,13 +1473,13 @@ test('lifecycle source walks follow Git shims and catch a planted body refusal [
 
 /** The bound storage callback must reach its real body through the moved public facade. */
 test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
-  const entry = '../apps/lib/src/core/native-board.js#openBoard';
+  const entry = '../apps/lib/src/logic/native.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
-  const planted = editedSource('../../../../packages/store/src/io/board/read/snapshot.js',
+  const planted = editedSource('../packages/store/src/io/board/read/snapshot.js',
     /^export function readEventLogVersion\(db\) \{$/m,
     "$&\n  throw new Refused('STORE_SETUP_PROBE', 'planted event-log guard');");
   assert.ok(codeWalk(planted).refusalsOf(entry).has('STORE_SETUP_PROBE'));
-  const beside = editedSource('../../../../packages/store/src/io/board/read/snapshot.js',
+  const beside = editedSource('../packages/store/src/io/board/read/snapshot.js',
     /^export function readEventLogVersion\(db\) \{$/m,
     "export function unrelatedStoreProbe() { throw new Refused('STORE_ADJACENT_PROBE', 'unbound function'); }\n$&");
   assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));

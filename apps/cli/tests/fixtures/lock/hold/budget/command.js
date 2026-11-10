@@ -71,7 +71,7 @@ export async function assertCommandHoldBudget(t) {
     const box = e2e.project('test ! -f RED', e2e.sandbox(), { withWorktree: false });
     box.web = join(box.dir, 'web-1');
     box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
-    const joined = fixtureJoin(box.run, box.web, 'web', '--model', 'gpt-6.1-sol', '--family', 'openai');
+    const joined = fixtureJoin(box.run, box.web, 'web', '--model', 'gpt-6.1-sol', '--family', 'openai', '--route', 'strong');
     assert.equal(joined.code, 0, joined.err || joined.out);
     seed(box);
     const file = join(box.dir, 'lock-budget.jsonl');
@@ -82,7 +82,7 @@ export async function assertCommandHoldBudget(t) {
       '--criterion', 'The private fixture source exists', '--check', 'test -f web/hold-budget.js', '--json');
     const id = String(JSON.parse(added).item.item_id);
     command(box, e2e.BIN, box.web, 'claim', 'claim', id);
-    command(box, e2e.BIN, box.web, 'release', 'release', id, '--no-next');
+    command(box, e2e.BIN, box.web, 'release', 'release', id, '--reason', 'BLOCKED', '--no-next');
     command(box, e2e.BIN, box.web, 'reclaim', 'claim', id);
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, 'web/hold-budget.js'), 'export const budget = true;\n');

@@ -24,7 +24,7 @@ import {
 /** Read the actual release-header totals and unfinished rendered rows beside the browser title. */
 const ROADMAP_COUNT = `JSON.stringify({ title: document.title,
   remaining: [...document.querySelectorAll('#roadmap .roadmap-left b')].reduce((sum, node) => sum + Number.parseInt(node.textContent, 10), 0),
-  unfinished: [...document.querySelectorAll('#roadmap .milestone-item')].filter(node => !node.querySelector('.roadmap-landed')).length })`;
+  unfinished: [...document.querySelectorAll('#roadmap .milestone-item')].filter(node => !node.querySelector('.roadmap-state.landed')).length })`;
 
 // budget: hang ceiling for one real browser, native fixture setup, and one streamed landing; no speed threshold.
 test('Roadmap title counts shown remaining work and follows a real landing without manual refresh [N26,N38]', { timeout: 120_000 }, async () => {
@@ -53,7 +53,7 @@ test('Roadmap title counts shown remaining work and follows a real landing witho
 
     box.git(demo.repo, 'merge', '--no-ff', '--no-edit', demo.itemBranches.get(`${demo.baseBranch}:1`));
     box.run(demo.repo, 'merged', '1', box.git(demo.repo, 'rev-parse', 'HEAD'));
-    await chrome.waitFor("document.querySelectorAll('#roadmap .roadmap-landed').length === 1");
+    await chrome.waitFor("document.querySelectorAll('#roadmap .roadmap-state.landed').length === 1");
     assert.deepEqual(JSON.parse(await chrome.stable(ROADMAP_COUNT)), {
       title: '(2 remaining) roadmap-count · Roadmap · Pullboard', remaining: 2, unfinished: 2,
     }, 'the event stream updates both the Roadmap and its browser title');

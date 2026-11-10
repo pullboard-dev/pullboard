@@ -18,7 +18,6 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   closeBoard,
-  openBoard,
 } from '../../../lib/src/logic/native.js';
 import * as store from '../../../../packages/store/index.js';
 import {
@@ -51,6 +50,10 @@ import {
   temporaryDirectory,
 } from '../../tests/fixtures/board.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../tests/fixtures/testkit.js';
+import { withFixtureBoard } from '../../tests/fixtures/testkit.js';
 import { readText } from '../../../../packages/gate/src/io/scan.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -93,12 +96,13 @@ test('clause 1: the dispatcher runs each gate through a drive-cell driver under 
   const dir = temporaryDirectory('pullboard-durable-wire-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   machineHome(t, join(dir, 'home'));
-  const commonDir = join(dir, 'repo.git');
-  mkdirSync(join(commonDir, 'pullboard'), { recursive: true });
-  closeBoard(openBoard(join(commonDir, 'pullboard', 'board.sqlite')));
+  const { commonDir, item } = setupServingHandoff(t);
+
+
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   // A gate driver that records the owner it was admitted under and its result, then exits.
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), `const { writeFileSync } = require('node:fs');
 const { dirname, join } = require('node:path');
 writeFileSync(join(dirname(process.argv[2]), 'driver.txt'), process.argv[3]);
@@ -106,12 +110,12 @@ writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');
 `);
   const directory = join(dir, 'jobs', 'wire-gate');
   mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'wire-gate' }) + '\n');
+  writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'wire-gate', item }) + '\n');
   queueHandoffLaunch({ directory, tools, commonDir, job: 'wire-gate' }, await reserveHandoffTicket('wire-gate'));
   const { started } = await drainHandoffQueue({ capacity: 1, pollMs: 20, admission: gateAdmission });
   assert.deepEqual(started, ['wire-gate']);
   const owner = readFileSync(join(directory, 'driver.txt'), 'utf8');
-  const board = openBoard(join(commonDir, 'pullboard', 'board.sqlite'));
+  const board = openKitBoard(join(commonDir, 'pullboard', 'board.sqlite'));
   try {
     const record = readGateDrive(board.db, 'wire-gate');
     assert.equal(record.owner, owner, 'the driver runs under the owner its drive job admitted');
@@ -124,7 +128,7 @@ writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');
     assert.deepEqual([first.spawned, second.spawned, launches], [true, false, 1]);
   } finally { closeBoard(board); }
   dispatcherRow(commonDir, 'submit-a').release();
-  const freed = openBoard(join(commonDir, 'pullboard', 'board.sqlite'));
+  const freed = openKitBoard(join(commonDir, 'pullboard', 'board.sqlite'));
   try { assert.equal(jobView(freed.db, DISPATCHER_JOB).leaseOwner, null, 'a drained dispatcher frees its row'); }
   finally { closeBoard(freed); }
   assert.equal(existsSync(join(directory, 'worker.json')), false, 'nothing is written beside the hand-off');
@@ -181,7 +185,7 @@ test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off
       else if (/\.js$/u.test(entry.name) && !/\.test\.js$/u.test(entry.name)) sources.push(path);
     }
   };
-  for (const folder of ['apps', 'packages', 'bin', 'src']) walk(folder);
+  for (const folder of ['apps', 'packages', 'bin', 'src']) if (existsSync(join(ROOT, folder))) walk(folder);
   const offenders = (pattern, allowed = []) => sources.filter(path => !allowed.includes(relative(ROOT, join(ROOT, path)))
     && pattern.test(readText(ROOT, path)));
   assert.deepEqual(offenders(/submit-handoff-worker\.js'\)?,\s*join\(launch\.directory/u), [], 'the dispatcher never launches the hand-off worker');
@@ -201,7 +205,7 @@ test('clause 3: two drivers writing steps on one board never fail with database 
   const dir = temporaryDirectory('pullboard-durable-lock-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');
-  closeBoard(openBoard(file));
+  closeBoard(openKitBoard(file));
   // Each driver reads its job's step log and writes the next step, 300 times, against the other on the same file.
   const driver = name => `import { openBoard, closeBoard } from ${JSON.stringify(join(ROOT, 'apps/lib/index.js'))};
 import { createJob, writeStep } from ${JSON.stringify(join(ROOT, 'packages/jobs/index.js'))};
@@ -216,7 +220,26 @@ try {
     assert.doesNotMatch(run.stderr ?? '', /database is locked/u, run.context);
     assert.equal(run.status, 0, run.context);
   }
-  const board = openBoard(file);
+  const board = openKitBoard(file);
   try { for (const name of ['driver-a', 'driver-b']) assert.equal(jobView(board.db, name).steps.length, 300, `${name} wrote every step`); }
   finally { closeBoard(board); }
 });
+
+/** Seed a real claimed item and its queued handoff through the shared fixture seams. */
+function setupServingHandoff(t) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project();
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Wire fixture gate', '--specs', 'G1', '--criterion', 'The wire gate serves its item.', '--check', 'true', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const item = JSON.parse(added.out).item.item_id;
+  const claimed = box.run(box.web, 'claim', String(item), '--json');
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
+  const commonDir = join(box.repo, '.git');
+  withFixtureBoard(join(commonDir, 'pullboard', 'board.sqlite'), board => {
+    const current = store.getItem(board, item);
+    recordSubmitHandoff(board.db, item, { version: 1, id: 'wire-gate', agentId: current.item_owner, commit: 'c'.repeat(40), digest: current.item_frozen_digest, state: 'queued' });
+    assert.equal(store.handoffServes(board, item, 'wire-gate'), true, 'the real queued handoff serves its claimed item');
+  });
+  return { commonDir, item };
+}

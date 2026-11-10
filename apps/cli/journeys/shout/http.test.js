@@ -34,6 +34,7 @@ import {
 import { test } from 'node:test';
 import {
   createLocalApiHandler,
+  WHOLE_STATE_DELTA_FIELDS,
   serveApi,
 } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
@@ -218,10 +219,10 @@ try {
     rounds: 2, elapsedMs: Number(elapsedMs.toFixed(2)), processes: { ...counters, methods: { ...counters.methods } } };
   const provenanceChecks = [];
   if (codeMetadataMarker) {
-    const { apiBoards } = await import(new URL('../../../../../packages/api/src/shell/api.js', pathToFileURL(serveFile)));
+    const { apiBoards } = await import(new URL('../../../../../packages/api/index.js', pathToFileURL(serveFile)));
     const { openBoard, openBoardForRead } = await import(new URL('../../../../../apps/lib/index.js', pathToFileURL(serveFile)));
     const apiBoardOpeners = { openBoard, openBoardForRead };
-    const { withGitReadFacts } = await import(new URL('../../../../../packages/git/src/shell/git.js', pathToFileURL(serveFile)));
+    const { withGitReadFacts } = await import(new URL('../../../../../packages/git/index.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID
     // diagnostic before measuring provenance; ordinary warmed reads still require zero children.
     const { prepareBoardWriteIdentity } = await import(new URL('../../../../../packages/store/index.js', pathToFileURL(serveFile)));
