@@ -105,7 +105,7 @@ export async function requireSubmitCells(root, main, source, item, services) {
 `);
   put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('apps/cli/src/io/static/checks.js', `import { existsSync } from 'node:fs';
-import { record } from '../../../lib/tests/io/submit/requeue/record.js';
+import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static', import.meta.url);
 if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per line'); process.exitCode = 1; }
 `);
