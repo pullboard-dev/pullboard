@@ -11,8 +11,8 @@ import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
-import { syncSpawnProblems } from '../../../../bin/checks/sync-spawn-in-leases.js';
 import { assumptionProblems } from '../../../codemap/index.js';
+import { syncSpawnProblems } from '../../../codemap/index.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { EXPORT_ONLY_CEILINGS } from '../core/export-only-files.js';
 import { declaredDoorFiles } from '../core/export-only-files.js';
@@ -90,7 +90,7 @@ export const STATIC_CHECKS = Object.freeze([
   // A new cross-cell import or deep import past a cell's index needs a plan declaration (bin/checks/cells-edges.js).
   { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (bin/checks/sync-spawn-in-leases.js).
+  // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (packages/codemap/src/shell/sync-spawn-in-leases.js).
   { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Core code names no test runner or operating system; those literals live in adapters (packages/codemap/src/shell/no-runtime-assumptions.js).
