@@ -970,7 +970,7 @@
     },
     "bin/cells-plan-cuts.js": {
       "cells": 2,
-      "deep": 2
+      "deep": 0
     },
     "bin/cells-plan.js": {
       "cells": 5,
@@ -1486,6 +1486,10 @@
     },
     "packages/gate/src/shell/module-imports.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/shell/plan-cuts.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/gate/src/shell/proof-shards.js": {
