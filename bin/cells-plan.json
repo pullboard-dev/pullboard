@@ -2182,6 +2182,8 @@
     "link->kernel",
     "apps/relay->link",
     "apps/relay->apps/lib",
-    "apps/relay->outbox"
+    "apps/relay->outbox",
+    "apps/relay->keys",
+    "apps/relay->seats"
   ]
 }
