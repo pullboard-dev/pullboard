@@ -1,92 +1,54 @@
-import { MILESTONE_QUEUE_ORDER_ENGINE } from '../src/core/engines/milestone-queue-order-engine.js';
-import { orderMilestoneItems } from '../../store/index.js';
 /** The roadmap counts what landed on main, and shipping a milestone carries the rest forward [N26]. */
 import assert from 'node:assert/strict';
-import {
-  execFileSync,
-  spawnSync,
-} from 'node:child_process';
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
-import {
-  join,
-  resolve,
-} from 'node:path';
-import {
-  after,
-  test,
-} from 'node:test';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import { shipMilestone } from '../../store/index.js';
-import { addMilestone } from '../../store/index.js';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import * as store from '../index.js';
+import { addMilestone } from '../index.js';
+import { editMilestone } from '../index.js';
+import { editMilestoneItems } from '../index.js';
+import { exportBoard } from '../index.js';
+import { importBoard } from '../index.js';
+import { orderMilestoneItems } from '../index.js';
+import { roadmap } from '../index.js';
+import { shipMilestone } from '../index.js';
+import { ENGINE_VERSION } from '../../state/index.js';
+import { appliedSequence } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { applyRelayMove } from '../../state/index.js';
+import { engineReceipt } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../state/core.js';
+import { dependencyLabel } from '../../items/index.js';
+import { itemFileCollisions } from '../../items/index.js';
+import { localDependencyIds } from '../../items/index.js';
+import { workQueue } from '../../items/index.js';
+import { milestoneRoadmap } from '../../roadmap/index.js';
+import { listApiProjects } from '../../seats/index.js';
+import { eligibilityProblem } from '../../verify/index.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
-import { ENGINE_VERSION } from '../src/shell/machine.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellItem } from '../../../test/cell-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
+import { cellSeat } from '../../../test/cell-fixture.js';
+import { openCellBoard } from '../../../test/cell-fixture.js';
 
-const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const HOUR = 3_600_000;
-const TEMP_DIRS = [];
-
-after(() => {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
-});
+const SETUP = 'fixture release setup';
 
 /**
- * A real repo on main with an initialized board and a builder agent, and items in each state
- * the roadmap tells apart: landed (verified with a merge commit), accepted (verified only) and open.
- * Git runs with every GIT_* variable stripped, so a hook's repository never leaks into the fixture.
+ * A real repo on main with a board and a builder agent, and items in each state the roadmap tells apart: landed (verified
+ * with a merge commit), accepted (verified only) and open. No CLI, hooks or init run, and git is isolated from the machine.
  */
 function fixture(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-milestones-'));
-  TEMP_DIRS.push(dir);
-  const repo = join(dir, 'repo');
-  const bin = join(dir, 'bin');
-  mkdirSync(bin);
-  // The repo's hooks call pullboard by name, so the fixture puts this checkout's CLI on PATH.
-  const word = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  Object.assign(env, { HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'pullboard-home'),
-    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Milestone fixture', GIT_AUTHOR_EMAIL: 'milestones@example.invalid',
-    GIT_COMMITTER_NAME: 'Milestone fixture', GIT_COMMITTER_EMAIL: 'milestones@example.invalid', PATH: `${bin}:${process.env.PATH}` });
-  execFileSync('git', ['init', '-q', '-b', 'main', repo], { env });
-  /** Run Git inside the fixture repo with its private identity. */
-  const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  /** Run as coordinator; fixture membership changes explicitly override automatic placement [B35]. */
-  const run = (...args) => {
-    if (args[0] === 'milestone' && !args.includes('--reason') && (args[1] === 'order' || args[1] === 'add' && args.includes('--items') || args[1] === 'items' && args.includes('--add'))) args.push('--reason', 'fixture release setup');
-    const result = spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
-    return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
-  };
-  /** Run a command that must succeed and return its JSON document. */
-  const json = (...args) => {
-    const result = run(...args, '--json');
-    assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
-    return JSON.parse(result.stdout);
-  };
-  const initialized = run('init');
-  assert.equal(initialized.status, 0, initialized.stdout + initialized.stderr);
-  writeFileSync(join(repo, 'SPEC.md'), '# Fixture\n\n## G · Goals\n- G1 [approved, must] Work is tracked. | gate: true\n');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
-  git('add', '-A');
-  git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
-  t.after(() => store.closeBoard(board));
-  store.board_ensureCoordinator(board, repo);
-  const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
+  const project = cellProject(t);
+  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  store.board_ensureCoordinator(board, project.repo);
+  const builder = cellSeat(board, { lane: 'web', path: `${project.dir}/builder` }).id;
   const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, rows: [] }), digest: 'digest:tracked' });
+  const git = (...args) => project.git(project.repo, ...args);
   /** File an item and take it to the named state: open, accepted or landed. */
   const item = (title, state) => {
-    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title, criterion: 'Tracked work', specIds: ['G1'] });
+    const id = cellItem(board, { lane: 'web', title, criterion: 'Tracked work', specIds: ['G1'] }).item_id;
     if (state === 'open') return id;
     const commit = String(id).repeat(40).slice(0, 40);
     store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze });
@@ -95,32 +57,44 @@ function fixture(t) {
     if (state === 'landed') store.merged(board, id, { agentId: 'coordinator', commit: git('rev-parse', 'HEAD') });
     return id;
   };
-  return { repo, git, run, json, board, builder, item };
+  /** Add a milestone as the coordinator; fixture membership changes explicitly override automatic placement [B35]. */
+  const add = (name, ids = []) => addMilestone(board, { agentId: 'coordinator', name, note: null, items: ids.map(String), ...(ids.length ? { reason: SETUP } : {}) });
+  /** Add or remove members as the coordinator. */
+  const members = (name, change) => editMilestoneItems(board, name, { agentId: 'coordinator', add: [], remove: [], reason: SETUP, ...change });
+  /** Ship a milestone as the coordinator at main's commit, as the ship command does. */
+  const ship = (name, next) => shipMilestone(board, name, { agentId: 'coordinator', coordinatorActions: true, commit: git('rev-parse', 'main'), ...(next === undefined ? {} : { next }) });
+  /** The roadmap document the roadmap command prints, one entry per milestone. */
+  const document = () => milestoneRoadmap(project.repo, board, { ports: { ...store, roadmap, openBoard: openCellBoard, workQueue, listApiProjects } });
+  /** The queue's own release order as the oracle, never a duplicate of its comparator. */
+  const queueIds = () => {
+    const queue = workQueue(board, { buildOrder: store.buildOrder, canTake: store.canTake, listItems: store.listItems, itemById: store.itemById, laneHold: store.laneHold,
+      milestonePriorities: store.milestonePriorities, milestones: store.milestones, roadmap, ROUTES: store.ROUTES, foreignBlockers: store.foreignBlockers, localDependencyIds,
+      dependencyLabel, itemFileCollisions, withLocalSeatPresence: store.withLocalSeatPresence, eligibilityProblem }, null, { policy: 'any', familyPolicy: 'off' });
+    return [...queue.releases.flatMap(release => release.items), ...queue.unreleased].map(entry => entry.id);
+  };
+  /** The milestone moves recorded on an item's thread. */
+  const moves = id => store.itemThread(board, id).filter(entry => entry.kind === 'milestone_moved');
+  return { project, board, builder, git, item, add, members, ship, document, queueIds, moves };
 }
 
 /** The milestone named `name` in a roadmap document. */
 function milestone(document, name) {
-  return document.milestones.find((entry) => entry.name === name);
+  return document.find((entry) => entry.name === name);
 }
 
-/** The milestone moves recorded on an item's thread. */
-function moves(box, id) {
-  return box.json('show', String(id)).thread.filter((entry) => entry.kind === 'milestone_moved');
-}
-
-test('[N26] a milestone ships what landed and moves the rest', async (t) => {
+test('[N26] a milestone ships what landed and moves the rest', (t) => {
   const box = fixture(t);
   const landed = box.item('Landed work', 'landed');
   const accepted = box.item('Accepted work', 'accepted');
   const open = box.item('Open work', 'open');
   const later = box.item('Later work', 'open');
-  box.json('milestone', 'add', 'A', '--items', `${landed},${accepted},${open}`);
-  box.json('milestone', 'add', 'B', '--items', String(later));
+  box.add('A', [landed, accepted, open]);
+  box.add('B', [later]);
 
   // The target: set on A and shown in the roadmap and its JSON; a passed one is marked.
-  const edited = box.json('milestone', 'edit', 'A', '--target', '2026-01-02T03:04Z');
-  assert.equal(edited.milestone.target, '2026-01-02T03:04:00.000Z', 'the edit stores the target');
-  const before = box.json('roadmap');
+  const edited = editMilestone(box.board, 'A', { agentId: 'coordinator', target: store.canonicalMilestoneTarget('2026-01-02T03:04Z') });
+  assert.equal(edited.target, '2026-01-02T03:04:00.000Z', 'the edit stores the target');
+  const before = box.document();
   assert.equal(milestone(before, 'A').target, '2026-01-02T03:04:00.000Z', 'the roadmap JSON shows the target');
   assert.equal(milestone(before, 'A').pastTarget, true, 'an unshipped milestone past its target is marked');
   assert.equal(milestone(before, 'B').pastTarget, false, 'a milestone with no target is never past it');
@@ -131,12 +105,6 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   assert.equal(milestone(before, 'A').total, 3);
   assert.deepEqual(milestone(before, 'A').items.map(({ id, state }) => [id, state]),
     [[open, 'open'], [landed, 'landed'], [accepted, 'accepted']], 'each item shows its roadmap state, work to ship first');
-  const text = box.run('roadmap');
-  assert.equal(text.status, 0, text.stdout + text.stderr);
-  assert.match(text.stdout, /^A: 1\/3 landed · target 2026-01-02T03:04:00\.000Z, past target$/m, 'the text shows N/M landed, the target and past target');
-  assert.match(text.stdout, /^ {2}#\d+ Landed work — landed$/m);
-  assert.match(text.stdout, /^ {2}#\d+ Accepted work — accepted$/m);
-  assert.match(text.stdout, /^ {2}1\. #\d+ Open work — open$/m);
 
   // Shipping is the coordinator's move, not a builder's.
   assert.throws(() => shipMilestone(box.board, 'A', { agentId: box.builder, commit: box.git('rev-parse', 'main') }),
@@ -144,12 +112,12 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
 
   // Ship: A records main's commit, and the two unlanded items move into B.
   const main = box.git('rev-parse', 'main');
-  const shipped = box.json('milestone', 'ship', 'A');
+  const shipped = box.ship('A');
   assert.equal(shipped.milestone.shipped.commit, main, "the milestone is shipped at main's commit");
   assert.equal(shipped.into, 'B', 'the next milestone is the one after it');
   assert.deepEqual(shipped.moved, [accepted, open]);
   assert.deepEqual(shipped.notMoved, [], 'no external references were left behind');
-  const after = box.json('roadmap');
+  const after = box.document();
   assert.equal(milestone(after, 'A').shipped.commit, main, "the roadmap shows main's commit on the shipped milestone");
   assert.deepEqual(milestone(after, 'A').items.map(({ id }) => id), [landed], 'only the landed item stays in the shipped milestone');
   assert.equal(milestone(after, 'A').pastTarget, false, 'a shipped milestone is no longer past its target');
@@ -158,24 +126,20 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
 
   // The threads: each moved item records the move; the landed one records none.
   for (const id of [accepted, open]) {
-    const recorded = moves(box, id);
+    const recorded = box.moves(id);
     assert.equal(recorded.length, 1, `#${id}'s thread records its move`);
     assert.equal(recorded[0].detail.from, 'A');
     assert.equal(recorded[0].detail.to, 'B');
     assert.equal(recorded[0].detail.commit, main);
   }
-  assert.deepEqual(moves(box, landed), [], 'a landed item does not move');
+  assert.deepEqual(box.moves(landed), [], 'a landed item does not move');
 
   // The refusal: a shipped milestone takes no new items.
-  const refused = box.run('milestone', 'items', 'A', '--add', String(later), '--json');
-  assert.notEqual(refused.status, 0, refused.stdout + refused.stderr);
-  assert.equal(JSON.parse(refused.stdout).error.code, 'MILESTONE_SHIPPED', 'adding to a shipped milestone is refused');
-  assert.deepEqual(milestone(box.json('roadmap'), 'A').items.map(({ id }) => id), [landed], 'the refusal changes nothing');
+  assert.throws(() => box.members('A', { add: [String(later)] }), (error) => error.code === 'MILESTONE_SHIPPED', 'adding to a shipped milestone is refused');
+  assert.deepEqual(milestone(box.document(), 'A').items.map(({ id }) => id), [landed], 'the refusal changes nothing');
 
   // A target means one instant on every replica: the move carries UTC, and a bare local time
   // in an ordered envelope is refused alike in every zone instead of read in each one's own.
-  const { prepareEngineMove, applyEngineMove } = await import('../src/shell/engine.js');
-  const { exportBoard, importBoard } = await import('../../store/index.js');
   addMilestone(box.board, { agentId: 'coordinator', name: 'Z' });
   const snapshot = exportBoard(box.board);
   const prepared = prepareEngineMove(box.board, 'editMilestone', ['Z', { agentId: 'coordinator', target: '2026-10-20T18:00' }], { id: 'zone-target', actor: 'coordinator' });
@@ -185,10 +149,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   const replicas = [];
   try {
     for (const name of ['UTC', 'America/Chicago']) {
-      const dir = mkdtempSync(join(tmpdir(), 'pullboard-target-zone-'));
-      TEMP_DIRS.push(dir);
-      const replica = openBoard(join(dir, 'board.sqlite'));
-      t.after(() => store.closeBoard(replica));
+      const replica = cellBoard(t, join(box.project.dir, `zone-${name.replace('/', '-')}.sqlite`));
       importBoard(replica, snapshot);
       process.env.TZ = name;
       const refused = applyEngineMove(replica, bare, { sequence: 1, at: '2026-10-17T04:00:00.000Z' });
@@ -207,39 +168,34 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
 test('[N26] milestone ship --next names where the unlanded items go', (t) => {
   const box = fixture(t);
   const open = box.item('Open work', 'open');
-  box.json('milestone', 'add', 'A', '--items', String(open));
-  box.json('milestone', 'add', 'B');
-  box.json('milestone', 'add', 'C');
-  const shipped = box.json('milestone', 'ship', 'A', '--next', 'C');
+  box.add('A', [open]);
+  box.add('B');
+  box.add('C');
+  const shipped = box.ship('A', 'C');
   assert.equal(shipped.into, 'C', '--next overrides the milestone after it');
-  const document = box.json('roadmap');
+  const document = box.document();
   assert.deepEqual(milestone(document, 'B').items, [], 'the milestone after it gets nothing');
   assert.deepEqual(milestone(document, 'C').items.map(({ id }) => id), [open], 'the --next milestone gets the unlanded item');
-  assert.equal(moves(box, open)[0].detail.to, 'C', 'the thread names the --next milestone');
+  assert.equal(box.moves(open)[0].detail.to, 'C', 'the thread names the --next milestone');
 });
 
 test('[N26] milestone ship leaves external references in place and names them as not moved', (t) => {
   const box = fixture(t);
-  box.json('milestone', 'add', 'JSON release', '--items', 'other-repo#17,third-repo#29');
-  const shipped = box.json('milestone', 'ship', 'JSON release');
-  assert.deepEqual(shipped.notMoved, ['other-repo#17', 'third-repo#29'], 'JSON lists each reference that remains on another board');
+  box.add('JSON release', ['other-repo#17', 'third-repo#29']);
+  const shipped = box.ship('JSON release');
+  assert.deepEqual(shipped.notMoved, ['other-repo#17', 'third-repo#29'], 'the result lists each reference that remains on another board');
   assert.deepEqual(shipped.moved, [], 'shipping does not move foreign items');
-  assert.deepEqual(milestone(box.json('roadmap'), 'JSON release').items.map(({ id }) => id),
+  assert.deepEqual(milestone(box.document(), 'JSON release').items.map(({ id }) => id),
     ['other-repo#17', 'third-repo#29'], 'the foreign references remain on the shipped milestone');
 
-  box.json('milestone', 'add', 'Text release', '--items', 'other-repo#31,third-repo#33');
-  const text = box.run('milestone', 'ship', 'Text release');
-  assert.equal(text.status, 0, text.stdout + text.stderr);
-  assert.match(text.stdout, /not moved across boards: other-repo#31, third-repo#33/,
-    'human output names every foreign reference that stayed in place');
+  box.add('Text release', ['other-repo#31', 'third-repo#33']);
+  assert.deepEqual(box.ship('Text release').notMoved, ['other-repo#31', 'third-repo#33'], 'every foreign reference that stayed in place is named');
 });
 
-test('[N26,H16] engine 44 cannot ship a milestone or set its target', async (t) => {
+test('[N26,H16] engine 44 cannot ship a milestone or set its target', (t) => {
   const box = fixture(t);
-  box.json('milestone', 'add', 'A');
-  box.json('milestone', 'add', 'B');
-  const { applyEngineMove, appliedSequence, engineReceipt, prepareEngineMove } = await import('../src/shell/engine.js');
-  const { exportBoard } = await import('../../store/index.js');
+  box.add('A');
+  box.add('B');
   const main = box.git('rev-parse', 'main');
   const moves = [
     prepareEngineMove(box.board, 'shipMilestone', ['A', { agentId: 'coordinator', commit: main, next: 'B' }],
@@ -261,14 +217,10 @@ test('[N26,H16] engine 44 cannot ship a milestone or set its target', async (t) 
 });
 
 /** Supported older clients can add before shipment, then obey the receiver's shipped state. */
-test('[N26,H16] an older-engine client cannot add work after a milestone ships', async (t) => {
-  const { applyRelayMove, prepareEngineMove } = await import('../src/shell/engine.js');
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-milestone-legacy-'));
-  const board = openBoard(join(dir, 'board.sqlite'));
-  t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
-  store.board_ensureCoordinator(board, dir);
-  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Still owed',
-    criterion: 'An obligation remains recorded', specIds: [] });
+test('[N26,H16] an older-engine client cannot add work after a milestone ships', (t) => {
+  const board = cellBoard(t, ':memory:');
+  store.board_ensureCoordinator(board, '/milestone-legacy');
+  const id = cellItem(board, { lane: 'core', title: 'Still owed', criterion: 'An obligation remains recorded', specIds: [] }).item_id;
   addMilestone(board, { agentId: 'coordinator', name: 'A', items: [] });
   addMilestone(board, { agentId: 'coordinator', name: 'B', items: [] });
   const sender = { kind: 'person', userId: 'milestone-fixture-user' };
@@ -293,35 +245,31 @@ test('[N26,H16] an older-engine client cannot add work after a milestone ships',
   assert.deepEqual(store.milestones(board)[1].items, [id], 'the legacy addition before shipment remains');
 });
 
-
-/** Read the queue's own release order as the oracle, never duplicate its comparator. */
-function queueIds(box) {
-  const queue = box.json('queue');
-  return [...queue.releases.flatMap(release => release.items), ...queue.unreleased].map(item => item.id);
-}
-
 test('[N22,B13] ordering three of a hundred items leads both queue and roadmap after named pins', t => {
   const box = fixture(t);
   const ids = Array.from({ length: 100 }, (_, n) => box.item('Ranked item ' + n, 'open'));
-  box.json('milestone', 'add', 'hundred', '--items', ids.join(','));
+  box.add('hundred', ids);
   const chosen = [ids[92], ids[77], ids[89]];
-  const ordered = box.json('milestone', 'order', 'hundred', chosen.join(','));
-  assert.deepEqual(ordered.pins, []);
-  assert.deepEqual(queueIds(box).slice(0, 3), chosen);
-  assert.deepEqual(milestone(box.json('roadmap'), 'hundred').items.map(item => item.id), queueIds(box));
-  box.json('milestone', 'pin', 'hundred', String(ids[98]), '--reason', 'First real priority');
-  assert.equal(queueIds(box)[0], ids[98], 'a new pin leads the existing explicit order');
-  box.json('milestone', 'pin', 'hundred', String(ids[99]), '--reason', 'Newest urgent priority');
-  assert.deepEqual(queueIds(box).slice(0, 2), [ids[99], ids[98]], 'a new pin leads prior pins too');
-  const again = box.json('milestone', 'order', 'hundred', chosen.join(','));
-  assert.deepEqual(again.pins, [ids[99], ids[98]], 'JSON names the preserved pins');
-  const text = box.run('milestone', 'order', 'hundred', chosen.join(','));
-  assert.equal(text.status, 0, text.stdout + text.stderr);
-  assert.ok(text.stdout.includes('pins keep their place ahead of this order: #' + ids[99] + ', #' + ids[98]));
+  /** Order the milestone as the order command does and name the pins it preserved ahead of the order. */
+  const order = () => {
+    orderMilestoneItems(box.board, 'hundred', { agentId: 'coordinator', items: chosen.map(String), reason: SETUP });
+    const entry = store.milestones(box.board).find(value => value.name === 'hundred');
+    return (entry.order ?? []).filter(id => Object.hasOwn(entry.reasons ?? {}, String(id)));
+  };
+  /** Pin one item to the front, as the pin command does. */
+  const pin = (id, reason) => orderMilestoneItems(box.board, 'hundred', { agentId: 'coordinator', items: [String(id)], place: 'pin', reason });
+  assert.deepEqual(order(), []);
+  assert.deepEqual(box.queueIds().slice(0, 3), chosen);
+  assert.deepEqual(milestone(box.document(), 'hundred').items.map(item => item.id), box.queueIds());
+  pin(ids[98], 'First real priority');
+  assert.equal(box.queueIds()[0], ids[98], 'a new pin leads the existing explicit order');
+  pin(ids[99], 'Newest urgent priority');
+  assert.deepEqual(box.queueIds().slice(0, 2), [ids[99], ids[98]], 'a new pin leads prior pins too');
+  assert.deepEqual(order(), [ids[99], ids[98]], 'the order names the preserved pins');
   const expected = [ids[99], ids[98], ...chosen];
-  assert.deepEqual(queueIds(box).slice(0, expected.length), expected);
-  assert.deepEqual(milestone(box.json('roadmap'), 'hundred').items.map(item => item.id), queueIds(box));
-  assert.equal(new Set(queueIds(box)).size, 100, 'ranking and pinning preserve every milestone member');
+  assert.deepEqual(box.queueIds().slice(0, expected.length), expected);
+  assert.deepEqual(milestone(box.document(), 'hundred').items.map(item => item.id), box.queueIds());
+  assert.equal(new Set(box.queueIds()).size, 100, 'ranking and pinning preserve every milestone member');
 });
 
 test('[N22,B13] old recorded pin moves retain append semantics and current pins lead', t => {

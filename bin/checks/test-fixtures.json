@@ -369,18 +369,6 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/state/tests/milestone-limit.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "raw-board": 3,
-    "model": 1
-  },
-  "packages/state/tests/milestones.test.js": {
-    "tempdir": 4,
-    "hand-policy": 2,
-    "raw-board": 6,
-    "model": 1
-  },
   "packages/state/tests/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
