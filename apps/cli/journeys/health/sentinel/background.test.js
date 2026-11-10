@@ -139,11 +139,17 @@ test('the actual background sentinel scans once, honors off switches and drains 
   const expiredClock = { now: () => new Date(Date.now() - 2 * 3_600_000) };
   const board = openBoard(boardFile, expiredClock);
   const lane = Object.keys(config.lanes)[0];
-  const builder = store.register(board, { lane, path: join(box.dir, 'sentinel-builder') });
+  const builderPath = join(box.dir, 'sentinel-builder');
+  mkdirSync(builderPath);
+  const builder = store.register(board, { lane, path: builderPath });
   const id = store.addItem(board, { by: 'coordinator', lane, title: 'A real background finding', criterion: 'The private board remains readable.' });
   store.claim(board, id, { agentId: builder, lane, leaseMs: 3_600_000,
     freeze: item => frozenCriterion(loadSpec(repo, config), item, loadDoctrine(repo, config)) });
   store.closeBoard(board);
+  // Keep this real seat active after its lease lapses so the scheduled sweep observes rather than releases it.
+  const active = openBoard(boardFile);
+  assert.equal(store.heartbeatSeat(active, builder), true);
+  store.shout(active, { from: builder, to: 'coordinator', text: 'The fixture builder is active.', lanes: [lane] });
   /** Read the persisted result through the board reader; the worker alone executes the observer move. */
   const receipts = () => {
     const db = store.openBoardReadOnly(boardFile);
@@ -173,7 +179,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   assert.ok(first.notices.every(row => row.shout_text.includes('CLAIM_LAPSED')));
   assert.deepEqual({ ...first.item }, { item_status: 'claimed', item_owner: builder });
   await tick(); assert.equal(receipts().notices.length, 2, 'a persisting finding posts nothing again');
-  const renewed = openBoard(boardFile);
+  const renewed = active;
   store.claim(renewed, id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: item => frozenCriterion(loadSpec(repo, config), item, loadDoctrine(repo, config)) });
   store.release(renewed, id, builder, 'Return the background sentinel fixture claim.', 'OTHER'); store.closeBoard(renewed);
   await tick();
