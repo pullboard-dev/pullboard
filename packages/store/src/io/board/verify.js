@@ -140,9 +140,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    if (!isAccept && reopenFirstRefusalMinutes === undefined) {
-      if (rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
-      else if (engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
+    if (!isAccept) {
+      // A rejection goes to any eligible seat at once (#2779): from REJECT_OPEN_ENGINE no window is sealed, even when one is passed.
+      if (engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
+      else if (reopenFirstRefusalMinutes === undefined && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
     }
     const trigger = finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,

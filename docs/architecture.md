@@ -250,10 +250,10 @@ A declared move is in `MOVES`; an undeclared one is a code path the declaration 
 | `submit` | `claimed` | `submitted` | agent, coordinator | pullboard submit, after its queued gate is green | `submit` in `packages/store/src/io/board/submit.js` | NOT_YOURS, PENDING_REFREEZE, BAR_NOT_READY, CLAUSE_UNTICKED, SUBMISSION_PROOF, CHILDREN_OPEN, HEAD_NOT_NEW; CLI: DIRTY, OUTSIDE_LANE, GATE_RED | submit | `apps/cli/journeys/submit/handoff.test.js` |
 | `submit-merge` | `claimed` | `verified` | agent, coordinator | pullboard submit of a carried acceptance | `submit` in `packages/store/src/io/board/submit.js` | the submit guards, MERGE_ONLY_PROOF, SELF_VERIFY, PROOF_REQUIRED | merge-only-accept, submit | `apps/cli/journeys/verify/machine.test.js` |
 | `intake` | `open` | `submitted` | agent, coordinator | pullboard intake <PR> | `applyOutsideIntake` in `packages/store/src/io/outside.js` | NOT_CLAIMABLE, OUTSIDE_HEAD_CHANGED | outside-intake | `apps/cli/journeys/verify/machine.test.js` |
-| `reserve` | `submitted` | `submitted` | agent, coordinator | next --verify, plain next's mandatory review | `reserveWithin` in `packages/store/src/io/board/reserve/review.js` | NOT_SUBMITTED, GATE_PENDING, REVIEW_COOLDOWN, COMPANION_WINDOW, SELF_VERIFY, SAME_FAMILY, REQUIRED_REVIEW_FAMILY, ROUTE, REVIEW_HELD | reserve | `test/durable-review-24.test.js` |
+| `reserve` | `submitted` | `submitted` | agent, coordinator | next --verify, plain next's mandatory review | `reserveWithin` in `packages/store/src/io/board/reserve/review.js` | NOT_SUBMITTED, GATE_PENDING, REVIEW_COOLDOWN, COMPANION_WINDOW, SELF_VERIFY, SAME_FAMILY, REQUIRED_REVIEW_FAMILY, ROUTE, REVIEW_HELD | reserve | `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js` |
 | `accept` | `submitted`, `verified` | `verified` | agent, coordinator | pullboard verify <id> accept; verified to verified only for a new review on newer engines | `verify` in `packages/store/src/io/board/verify.js` | NOT_SUBMITTED, GATE_PENDING, ALREADY_MERGED, SELF_VERIFY, CRITERIA_CHANGED, PROOF_REQUIRED, CHECK_RED | accept and a verdict row | `apps/cli/journeys/verify/machine.test.js` |
 | `accept (machine)` (undeclared) | `submitted` | `verified` | coordinator | a machine-proved submission is accepted after submit | `acceptMachineSubmission` in `packages/verify/src/io/machine.js` | every accept guard passed as null; only the caller's MACHINE_PROOF check and the database proof trigger | accept by coordinator | NONE |
-| `reject` | `submitted`, `verified` | `open` | agent, coordinator | pullboard verify <id> reject | `verify` in `packages/store/src/io/board/verify.js` | as accept, plus BAD_REASON, NOTE_REQUIRED, BAR_CLAUSE_REQUIRED | reject and a verdict row (+hold_item, bar-sharpen) | `test/reject-reopens-to-any.test.js` |
+| `reject` | `submitted`, `verified` | `open` | agent, coordinator | pullboard verify <id> reject | `verify` in `packages/store/src/io/board/verify.js` | as accept, plus BAD_REASON, NOTE_REQUIRED, BAR_CLAUSE_REQUIRED | reject and a verdict row (+hold_item, bar-sharpen) | `packages/store/tests/any.test.js` |
 | `reopen` | `submitted`, `verified` | `open` | agent, coordinator | pullboard reopen; automatic trunk conflict; verdict withdrawal; stale verdict at landing | `reopen` in `packages/store/src/io/board/reopen.js` | NOT_SUBMITTED, COORDINATOR_ONLY, ALREADY_MERGED, VERDICT_WITHDRAW_*, NOTE_REQUIRED, BAD_CONFLICT | reopen | `apps/cli/journeys/reopen/conflict.test.js` |
 | `escalate` | `open`, `claimed` | `open` | agent, coordinator | pullboard escalate | `escalate` in `packages/store/src/logic/board/escalate.js` | CLOSED, NOTE_REQUIRED, NOT_YOURS | escalate | `apps/cli/journeys/verify/machine.test.js` |
 | `refreeze` | `open`, `claimed`, `submitted`, `verified` | `open` | coordinator | pullboard refreeze (edit --criterion) | `refreeze` in `packages/store/src/io/board/refreeze.js` | COORDINATOR_ONLY, CLOSED (verified only inside a spec correction, never merged), BAR_NOT_READY | refreeze | `apps/cli/journeys/verify/machine.test.js` |
@@ -362,7 +362,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 - **States:** `reserved`, `lapsed`, `released`. Terminal: none (released, never done).
 - **Lease:** LEASE_MS 120 s on the job; item_review_until follows the reviewLease setting (30 m); renewed only when the same reviewer reserves again; extended by a sweep while the reviewer heartbeats.
 - **Ends when its item moves on:** violated (gap SM5), at `sweepLapsedReviews` in `packages/store/src/io/board/review/lease.js`: no verdict, withdraw or reopen releases the job; reclaimLapsedReviews extends the lease while the reviewer heartbeats whatever the item's state
-- **Harness:** `test/durable-review-24.test.js`.
+- **Harness:** `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js`.
 
 | From | To | Trigger | Where |
 |---|---|---|---|
@@ -462,11 +462,27 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | (none) | `produce.started` | the first reader takes the lease | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
 | `produce.started` | `result` | produce returned | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
 
+#### `test-run`: queued test run
+
+- **Id:** `test-run:<uuid>`. Created by `queueTestRun` in `packages/drive/src/io/queue.js`.
+- **Serves:** no item that it ends: the seat that queued it, and an optional item for display.
+- **States:** `queued`, `running`, `result`, `delivered`. Terminal: `delivered`.
+- **Lease:** LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later.
+- **Ends when its item moves on:** n/a, at `workTestRun` in `packages/drive/src/io/queue.js`: serves the queuing seat, never an item state; no driver ends it on an item move
+- **Harness:** NONE.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `queued` | pullboard test queues a run and starts its detached worker | `queueTestRun` in `packages/drive/src/io/queue.js` |
+| `queued` | `running` | the worker takes the lease | `workTestRun` in `packages/drive/src/io/queue.js` |
+| `running` | `result` | the work returned or failed; lease released | `workTestRun` in `packages/drive/src/io/queue.js` |
+| `result` | `delivered` | next hands the finished or lost run to its seat once | `deliverTestRun` in `packages/drive/src/io/queue.js` |
+
 #### Processes that are not job rows
 
 | Process | What it does | Where | Serves | Harness |
 |---|---|---|---|---|
-| test-run | pullboard test --compare-main runs files on runners under a gate-slot lease; no job row | `runTestFiles` in `packages/gate/src/io/test/run.js` | no item | `packages/gate/tests/fixtures/pipeline/e2e.js` |
+| test-run | pullboard test --compare-main runs files on runners under a gate-slot lease; its queued run is the test-run job | `runTestFiles` in `packages/gate/src/io/test/run.js` | no item | `packages/gate/tests/fixtures/pipeline/e2e.js` |
 | main-red refresh | refreshes main-red comparisons under a resource lease and a cache file; no job row | `refreshMainRedComparisons` in `packages/landing/src/io/main/red.js` | no item | NONE |
 | sentinels | board sentinels run under an activeRun deadline of timeout + 10 s; no job row | `beginSentinelRun` in `packages/sentinels/src/io/main.js` | no item | NONE |
 | seat heartbeat | a heartbeat row every 60 s; proves the seat alive and never selects or claims | `heartbeatSeat` in `packages/store/src/io/presence.js` | the seat | `apps/cli/journeys/heartbeat/presence.test.js` |
@@ -510,11 +526,11 @@ Every build claim and every review reservation is checked in one write transacti
 | Case | Today | Intended | Harness |
 |---|---|---|---|
 | two seats claim the same item | the claim move runs in one write transaction; the second gets HELD and next retries | same | `apps/cli/journeys/claim/race.test.js` |
-| two reviewers reserve the same item | reserveChosen re-checks status, commit and digest inside the transaction; the second gets REVIEW_HELD and retries | same | `test/reserve-next-review-lock.test.js` |
+| two reviewers reserve the same item | reserveChosen re-checks status, commit and digest inside the transaction; the second gets REVIEW_HELD and retries | same | `packages/store/tests/io/board/reserve/next.test.js` |
 | a reviewer is offered its own work | notBuilder and the session skip list refuse it in the transaction (SELF_VERIFY) | same | `apps/cli/journeys/verify/machine.test.js` |
 | dead seat holding a claim | the lease runs out; readers see open; the next write frees it with builder first refusal | same | `apps/cli/journeys/init/lapse.test.js` |
 | heartbeat-only claim (seat alive, no work) | a live holder heartbeat vetoes expiry; idle maintenance releases it after health.stuck | a heartbeat proves the seat, never the work; an untouched claim frees after its idle window | `apps/cli/journeys/release/next/untouched.test.js` |
-| dead reviewer | the review job lapses after 2 minutes and the item is offered again | same | `test/durable-review-24.test.js` |
+| dead reviewer | the review job lapses after 2 minutes and the item is offered again | same | `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js` |
 | red gate | the hand-off ends red; the builder keeps the claim with a renewed lease and next tells it once | same | `apps/cli/journeys/submit/handoff.test.js` |
 | red notice after the claim lapsed | next still says the item stays claimed by you until a past time | the notice reads the live lease and says the claim lapsed | NONE |
 | a red from an older head shown at claim | returnedRecord shows the newest red or infrastructure gate without matching the current commit | only a red at the item's current commit is shown | NONE |
@@ -554,7 +570,7 @@ Ordered by severity. Each is a brief the coordinator can file as it stands; a te
 - **SM2 (high): the fallback lists only kind gate.** Files: `packages/drive/src/io/reclaim.js`, `apps/cli/src/io/reclaim.js`. Test: `apps/cli/journeys/gate/jobs.test.js`. Criterion: lapsedGateJobs lists kinds gate and gate-drive; a lapsed gate-drive job whose hand-off is ended, or whose item left its serving state, ends stale on the next next or status, never driven.
 - **SM3 (high): a running hand-off resumes with no item check.** Files: `packages/store/src/io/submit/handoff/retry.js`, `apps/cli/src/io/submit/handoff/worker.js`. Test: `apps/cli/journeys/handoff/dead/running.test.js`. Criterion: startSubmitHandoff on a running record checks the item is claimed by the record's seat at its digest, as it does for a queued one, and refuses SUBMIT_HANDOFF_CHANGED otherwise; the worker then ends the job.
 - **SM4 (high): the fallback's serving predicate is wrong for pre-submit gates.** Files: `apps/cli/src/io/reclaim.js`. Test: `apps/cli/journeys/gate/jobs.test.js`. Criterion: the active predicate takes the hand-off record: a queued or running gate serves claimed by its seat at its digest, and only a post-submit job serves submitted at its commit; a pre-submit gate for a claimed item is never ended stale.
-- **SM5 (medium): review jobs outlive their item's review.** Files: `packages/jobs/src/io/review.js`, `packages/store/src/io/board/review/lease.js`, `packages/store/src/io/board/verify.js`. Test: `test/durable-review-24.test.js`. Criterion: verify, withdraw and reopen release the item's review job (step released, done) in the same transaction; reclaimLapsedReviews never extends a lease whose item is not submitted.
+- **SM5 (medium): review jobs outlive their item's review.** Files: `packages/jobs/src/io/review.js`, `packages/store/src/io/board/review/lease.js`, `packages/store/src/io/board/verify.js`. Test: `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js`. Criterion: verify, withdraw and reopen release the item's review job (step released, done) in the same transaction; reclaimLapsedReviews never extends a lease whose item is not submitted.
 - **SM6 (medium): next resumes a held claim from a snapshot.** Files: `apps/cli/src/io/next.js`, `packages/store/src/io/eligibility.js`. Test: test/next-held-claim-fresh.test.js (new). Criterion: next and next --take print you hold #N only after re-reading, in the board read that prints, that #N is claimed by this seat with a live lease; otherwise they fall through to selection.
 - **SM7 (medium): next --wait shouts can hand out any item.** Files: `packages/activity/src/io/shouts.js`. Test: test/next-wait-shout-scope.test.js (new). Criterion: a shout ends next --wait with a shout asks you to act on #N only when #N is open in this seat's lane, claimed by this seat, or reservable by it; any other shout is printed and the wait continues.
 - **SM8 (medium): landing jobs and freed gate drivers never reach done.** Files: `packages/drive/src/io/landing.js`, `packages/land/src/io/sequence.js`, `apps/cli/src/io/submit/handoff/worker.js`. Test: test/jobs-reach-done.test.js (new). Criterion: a failed landing run, a finish sequence stopped by LAND_PROOF_NOT_GREEN, and a gate driver freed by a signal each end with a failed or ended step and done, so no job row is left unowned and not done.
