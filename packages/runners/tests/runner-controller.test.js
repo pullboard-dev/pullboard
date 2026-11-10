@@ -1,14 +1,16 @@
 /** The fixed higher-level controller entry never trusts a wire-selected implementation or a forged parent [C7,P3,V4]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-const LEGACY_ENTRY = fileURLToPath(new URL('../src/runners.js', import.meta.url));
-const ENTRY = fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url));
+const LEGACY_ENTRY = fileURLToPath(new URL('../../../src/runners.js', import.meta.url));
+const ENTRY = fileURLToPath(new URL('../../../bin/runner-controller.js', import.meta.url));
 
 test('the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {
   for (const entry of [ENTRY, LEGACY_ENTRY]) for (const flags of [[], ['--unrelated-entry']]) {
