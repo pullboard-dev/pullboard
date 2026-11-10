@@ -1021,6 +1021,27 @@ export function localConfigIs(root, section, key, value) {
   return values.length === 1 && values[0] === value;
 }
 
+/** Read an unambiguous plain local config value without a Git process; undefined asks Git to decide. */
+export function plainLocalConfigValue(root, section, key) {
+  const location = fileLocation(root, { clean: true });
+  if (!location) return undefined;
+  let text;
+  try { text = readFileSync(join(location.commonDir, 'config'), 'utf8'); }
+  catch { return undefined; }
+  if (/^\s*\[\s*include/imu.test(text) || /\\\r?$/mu.test(text)) return undefined;
+  let inSection = false, hasSection = false;
+  const values = [];
+  for (const line of text.split('\n')) {
+    if (/^\s*(?:[#;].*)?$/u.test(line)) continue;
+    const header = /^\s*\[([A-Za-z0-9.-]+)(?:\s+"[^"\\]*")?\]\s*$/u.exec(line);
+    if (header) { hasSection = true; inSection = header[1].toLowerCase() === section && !line.includes('"'); continue; }
+    const entry = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*([\w./-]+)\s*$/u.exec(line);
+    if (!entry || !hasSection) return undefined;
+    if (inSection && entry[1].toLowerCase() === key) values.push(entry[2]);
+  }
+  return values.length > 1 ? undefined : values[0] ?? null;
+}
+
 /**
  * The full id of a commit-ish, or null when it names no commit here.
  *

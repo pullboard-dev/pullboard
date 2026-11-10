@@ -382,15 +382,7 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-move-fixtures.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/cells-move-tool.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-transaction.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
@@ -424,14 +416,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-data-reads.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-mentions.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
     },
@@ -444,19 +428,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/import-only-change.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-inventory-cache.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
       "path": "bin/cells-submit-checks.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -680,10 +656,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/command-docs/seats.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-test-placement.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -759,10 +731,6 @@
     },
     {
       "path": "bin/checks/relay-boundary.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "relay/browser-adapter.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -947,10 +915,6 @@
     },
     {
       "path": "src/move-history/239.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/tier-row-change.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1589,6 +1553,126 @@
         "packages/config/tests/registry.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/bar-corrections.test.js",
+        "packages/state/tests/bar-corrections.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/decision-queue.test.js",
+        "packages/state/tests/decision-queue.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/file-growth-notice.test.js",
+        "packages/state/tests/file-growth-notice.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flakes-ledger.test.js",
+        "packages/state/tests/flakes-ledger.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flow-submit-size.test.js",
+        "packages/state/tests/flow-submit-size.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/implies.test.js",
+        "packages/state/tests/implies.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/item-hold.test.js",
+        "packages/state/tests/item-hold.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/landing-waiver-replay.test.js",
+        "packages/state/tests/landing-waiver-replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/machine-home.test.js",
+        "packages/state/tests/machine-home.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestone-limit.test.js",
+        "packages/state/tests/milestone-limit.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestones.test.js",
+        "packages/state/tests/milestones.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/registry-merge.test.js",
+        "packages/state/tests/registry-merge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "test/runner-slots-measured.test.js",
+        "packages/runners/tests/runner-slots-measured.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/exit-rules.test.js",
+        "apps/cli/tests/exit-rules.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/worktree-maintenance-scheduler.test.js",
+        "apps/cli/tests/worktree-maintenance-scheduler.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -1971,7 +2055,10 @@
     "drive->jobs",
     "drive->kernel",
     "resources->jobs",
+    "resources->git",
     "codemap->git",
+    "codemap->kernel",
+    "gate->codemap",
     "runners->config",
     "runners->verify",
     "landing->verify",
@@ -2001,10 +2088,14 @@
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
+    "doctrine->codemap",
     "gate->store",
     "gate->kernel",
     "gate->git",
     "gate->resources",
+    "gate->drive",
+    "gate->config",
+    "gate->seats",
     "github->store",
     "items->git",
     "items->kernel",
@@ -2035,6 +2126,7 @@
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
+    "apps/cli->queue",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2063,11 +2155,13 @@
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",
+    "sandbox->commits",
     "rigor->store",
     "(root)->store",
     "spec->kernel",
     "gate->spec",
     "(root)->doctrine",
+    "(root)->codemap",
     "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine",
@@ -2078,6 +2172,11 @@
     "store->items",
     "store->resources",
     "store->git",
-    "github->items"
+    "github->items",
+    "link->kernel",
+    "apps/relay->link",
+    "apps/relay->kernel",
+    "apps/relay->apps/lib",
+    "apps/relay->outbox"
   ]
 }

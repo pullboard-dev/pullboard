@@ -1,17 +1,19 @@
 /** Launcher for the cuts check: gate owns the engine, this file binds the snapshot-aware path-map reader and files cut items [C7,D3]. */
 import { spawnSync } from 'node:child_process';
-import { checkCuts as gateCheckCuts, entryPlacementProblems as gateEntryPlacementProblems, addedPlacementProblems as gateAddedPlacementProblems, frontDoorBypasses as gateFrontDoorBypasses } from '../packages/gate/index.js';
+import { checkCuts as gateCheckCuts, addedPlacementProblems as gateAddedPlacementProblems, frontDoorBypasses as gateFrontDoorBypasses } from '../packages/gate/index.js';
+import { planEntryProblems } from '../packages/codemap/index.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
 
-export { ownerFor, ownedStayProblems, processEntry, onlyForwards, withDeclaredLoads, retiredProblems } from '../packages/gate/index.js';
+export { ownerFor, onlyForwards, withDeclaredLoads } from '../packages/gate/index.js';
+export { ownedStayProblems, processEntry, retiredProblems } from '../packages/codemap/index.js';
 
 /** The gate engine's checks, reading rename metadata through the snapshot-aware reader. */
 export const checkCuts = (root, plan, name, options = {}) => gateCheckCuts(root, plan, name, { readPathMap, ...options });
-export const entryPlacementProblems = (root, plan, files, sharedMap) => gateEntryPlacementProblems(root, plan, files, sharedMap, readPathMap);
+export const entryPlacementProblems = (root, plan, files, sharedMap) => planEntryProblems(root, plan, files, sharedMap, readPathMap);
 export const addedPlacementProblems = (baseRoot, mergedRoot, readers) => gateAddedPlacementProblems(baseRoot, mergedRoot, { readPathMap, ...readers });
 export const frontDoorBypasses = (root, plan, name, options = {}) => gateFrontDoorBypasses(root, plan, name, { readPathMap, ...options });
 

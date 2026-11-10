@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, request } from 'node:http';
 import { drainJourneyTasks } from './journey-deadline.js';
-import { createRelayBrowserHandler } from '../../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../../apps/relay/index.js';
 import { fetchLive } from './fixture.js';
 
 export const JOURNEY_HOSTED = 'https://app.pullboard.dev';

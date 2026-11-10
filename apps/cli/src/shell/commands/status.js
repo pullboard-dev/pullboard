@@ -12,7 +12,7 @@ import { releaseBlockingItems } from '../../../../../packages/health/index.js';
 import { staleStateSnapshot } from '../../../../../packages/health/index.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/state/index.js';
-import { routingCapacity } from '../../../../../src/routing-capacity.js';
+import { routingCapacity } from '../../../../../packages/queue/index.js';
 import { foreignBlockers } from '../../../../../packages/items/index.js';
 import { readReceivedBoardState } from '../../../../../packages/store/index.js';
 import { existsSync } from 'node:fs';

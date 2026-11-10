@@ -19,7 +19,7 @@ import {
   commonJsIn,
   compileModules,
   importsIn,
-} from './module-imports.js';
+} from '../../../codemap/index.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -31,7 +31,7 @@ const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
 const COMMAND_REGISTRY = 'apps/cli/src/shell/commands/index.js';
-const GLOBAL = new Set(['bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
+const GLOBAL = new Set(['bin/run-tests.js', 'packages/gate/src/shell/run-tests.js', 'packages/gate/src/shell/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /**
  * The file's leading comment header: its lines before the first line of code. A declaration counts only here, so
@@ -465,7 +465,7 @@ function closuresInGraph(graph) {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
     for (const path of reached) {
       let dependencies = forward.get(path) ?? [];
-      if (withoutSelectedRunnerModules && ['bin/run-tests.js', 'packages/gate/src/shell/test-file-dispatch.js'].includes(path)) {
+      if (withoutSelectedRunnerModules && ['bin/run-tests.js', 'packages/gate/src/shell/run-tests.js', 'packages/gate/src/shell/test-file-dispatch.js'].includes(path)) {
         // These two ** declarations admit caller-selected reporters and test files. The caller
         // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
         // conservative discovery edges; ordinary affected-test selection still follows **.

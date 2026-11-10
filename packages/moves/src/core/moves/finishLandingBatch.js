@@ -6,7 +6,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../../../src/engine-metadata.js";
 import { carriesLandingEnvironment } from "../../../../sandbox/core.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../state/core.js";
-import { latestLandingBatch } from "../../../../git/core.js";
+import { latestLandingBatch } from "../../../../git/pure.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { landingTestDefects } from "../../../../store/index.js";

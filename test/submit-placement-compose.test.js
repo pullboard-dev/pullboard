@@ -6,15 +6,15 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { readPlan, writePlan, placePath } from '../bin/cells-plan.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 import { requirePlannedSource } from '../packages/items/index.js';
 import { plannedProject } from './placement-project.fixture.js';
 import { success } from './placement-project.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Join a real view seat and claim a completed-baseline item through the native CLI. */
-function ownPlacementFixture(t) {
-  const box = plannedProject(t, { companionLanes: true });
+async function ownPlacementFixture(t) {
+  const box = await plannedProject(t, { companionLanes: true });
   const view = join(box.dir, 'own-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view');
@@ -30,8 +30,8 @@ function ownPlacementFixture(t) {
   return { ...box, view, id, file };
 }
 
-test('a view commit creating its own file and one plan row passes the hook and native submit [L3,C7]', t => {
-  const box = ownPlacementFixture(t);
+test('a view commit creating its own file and one plan row passes the hook and native submit [L3,C7]', async t => {
+  const box = await ownPlacementFixture(t);
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
   rmSync(box.marker);
   const submitted = success(box, box.view, 'submit', String(box.id));
@@ -40,8 +40,8 @@ test('a view commit creating its own file and one plan row passes the hook and n
   assert.equal(box.git(box.view, 'status', '--porcelain'), '');
 });
 
-test('adding an owned new-file row cannot lend authority to editing an existing row [L3,C7]', t => {
-  const box = ownPlacementFixture(t);
+test('adding an owned new-file row cannot lend authority to editing an existing row [L3,C7]', async t => {
+  const box = await ownPlacementFixture(t);
   const plan = readPlan(box.view);
   const cell = plan.cells.find(cell => cell.name === 'app:view');
   const original = structuredClone(cell.paths[0]);
@@ -59,8 +59,8 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
   assert.ok(box.git(box.view, 'status', '--porcelain').includes(box.file), 'the original staged work remains available');
 });
 
-test('native view submit validates its core companion placement on the composed source [C7,V4]', t => {
-  const box = plannedProject(t, { companionLanes: true });
+test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
+  const box = await plannedProject(t, { companionLanes: true });
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');

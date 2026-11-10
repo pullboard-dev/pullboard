@@ -2,7 +2,7 @@
 /** The fixture source analyzer reports source-path reads and names board or data file reads as excluded [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';

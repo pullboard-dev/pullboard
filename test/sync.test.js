@@ -33,7 +33,7 @@ test('two machines share a board through git [H11]', async t => {
   document(box.run(clone, 'sync', '--json'), 'the second machine joins the same board');
   const secondSeat = join(box.dir, 'second-web');
   box.git(clone, 'worktree', 'add', secondSeat, '-b', 'web/second');
-  document(fixtureJoin(box.run, secondSeat, 'web', '--model', 'fixture', '--json'), 'join a distinct seat on machine two');
+  document(fixtureJoin(box.run, secondSeat, 'web', '--model', 'fixture', '--route', 'strong', '--json'), 'join a distinct seat on machine two');
   /** Start a public CLI command so independent machines can race real Git pushes. */
   async function run(root, ...args) {
     const child = helpers.launch(box, root, process.execPath, [helpers.BIN, ...args, '--json']);

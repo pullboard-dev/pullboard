@@ -4,8 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { test } from 'node:test';
-import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
-import { canonicalCopierPaths } from '../bin/cells-move-mentions.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
+import { canonicalCopierPaths } from '../packages/codemap/src/shell/cells-move-mentions.js';
 import { copyPackageFiles, shimTargets } from '../packages/runners/index.js';
 import { toolSourcePath } from '../packages/runners/index.js';
 

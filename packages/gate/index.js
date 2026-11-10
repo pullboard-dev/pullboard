@@ -38,7 +38,7 @@ export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, sa
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/shell/main-audit-worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/shell/main-audit-attribution.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
-export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
+export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/shell/release-gate-receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/shell/release-gate.js";
@@ -59,7 +59,8 @@ export { testOutcomeCollector, formatTestOutcomes, readTestOutcomes, committedTe
 export { refreshTestPlacement } from "./src/shell/test-placement-report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/shell/test-placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/shell/test-result-store.js";
-export { runFullSuite, testFiles, runTestFiles } from "./src/shell/test-run.js";
+export { runFullSuite, testFiles, runTestFiles, inCleanCheckout } from "./src/shell/test-run.js";
+export { readTestFileBudgets, testFileBudgetPath } from "./src/shell/test-file-budget-policy.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/shell/test-selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/shell/test-value-timing.js";
 export { testValueReport } from "./src/shell/test-value.js";
@@ -103,4 +104,4 @@ export { gateHealthReport } from "./src/shell/gate-health.js";
 export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
 export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/shell/test-shards.js";
-export { ownerFor, ownedStayProblems, processEntry, entryPlacementProblems, addedPlacementProblems, onlyForwards, withDeclaredLoads, retiredProblems, checkCuts, frontDoorBypasses } from "./src/shell/plan-cuts.js";
+export { ownerFor, addedPlacementProblems, onlyForwards, withDeclaredLoads, checkCuts, frontDoorBypasses } from "./src/shell/plan-cuts.js";

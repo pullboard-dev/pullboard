@@ -1,2 +1,0 @@
-/** Preserve this module's public names through the apps/relay front door [C7]. */
-export { RELAY_SCREEN_WORDS, clearBrowserReadFailure, emptyBoardStep, homeLineDismissed, homeScreenLine, nothingShared, noticeLines, reconcileOwnedRequests, recordBrowserReadFailure, relayScreenMarkup, rememberOwnedRequestId, showRelayScreen, storedOwnedRequestState, uploadSizeLine, wireRelayScreens } from '../apps/relay/index.js';

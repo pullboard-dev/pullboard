@@ -24,7 +24,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { specGateMoveOnly } from '../packages/spec/index.js';
 import { submissionPaths } from '../packages/sandbox/index.js';
 import { ownsNewFile } from '../packages/sandbox/src/shell/trusted-policy.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 const CONFIG = {
@@ -434,7 +434,7 @@ test('native submit refuses a plan row for a file already present on main [L3,C7
 });
 
 test('cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
-  const { movedImportOnlyChange, movedImportTargets } = await import('../src/import-only-change.js');
+  const { movedImportOnlyChange, movedImportTargets } = await import('../packages/commits/src/core/import-only-change.js');
   const diff = 'R100\0api/old.js\0api/new.js\0D\0api/shim.js\0';
   const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from './new.js';\n" : null, path => path === 'api/new.js');
   const before = "import { value } from '../api/old.js';\nexport const result = value;\n";

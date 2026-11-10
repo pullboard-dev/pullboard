@@ -135,7 +135,7 @@
     "state-file": 1,
     "unref": 1
   },
-  "bin/run-tests.js": {
+  "packages/gate/src/shell/run-tests.js": {
     "daemon-loop": 4,
     "state-file": 23,
     "unref": 2
@@ -209,7 +209,7 @@
     "daemon-loop": 1,
     "state-file": 5
   },
-  "packages/gate/src/shell/module-imports.js": {
+  "packages/codemap/src/shell/module-imports.js": {
     "state-file": 3
   },
   "packages/gate/src/shell/refusal-trial.js": {

@@ -11,8 +11,13 @@ function fixture(t) {
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   store.register(board, { lane: 'coordinator', path: '/private/fairness-coordinator' });
   const seat = store.register(board, { lane: 'web', path: '/private/fairness-seat', route: 'strong' });
-  const add = (title, route = 'light', after = []) => store.addItem(board, { by: 'coordinator', lane: 'web', title,
-    criterion: 'Native ready-item queue remains deterministic.', check: 'true', route, after, brief: 'Files: web/queue.js\nTest: native ready-item ordering follows the recorded waiting rate.' });
+  const add = (title, route = 'light', after = []) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title,
+      criterion: 'Native ready-item queue remains deterministic.', check: 'true', route: route === 'light' ? 'mid' : route, after, brief: 'Files: web/queue.js\nTest: native ready-item ordering follows the recorded waiting rate.' });
+    // Light work needs a capable seat's diagnosis since 7a964958ab [C7].
+    if (route === 'light') store.appendFact(board, id, { agentId: seat, kind: 'diagnosis', text: 'Files: web/queue.js Change: preserve the native queue ordering Test case: waiting work ranks at the recorded aging rate' });
+    return id;
+  };
   const setting = value => store.setLineSetting(board, { agentId: 'coordinator', key: 'agingMinutes', value,
     reason: 'Private queue starvation control', window: { windowMinutes: 600 } });
   const order = () => store.listItems(board).sort(store.buildOrder(board)).map(item => item.item_id);

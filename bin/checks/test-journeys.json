@@ -1956,7 +1956,6 @@
       ],
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
-        "imports past app:relay front door (relay/browser-notice.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -2061,7 +2060,6 @@
       ],
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
-        "imports past app:relay front door (relay/browser-page.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -2080,7 +2078,6 @@
       ],
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
-        "imports past app:relay front door (relay/browser-page.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -2099,7 +2096,6 @@
       ],
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
-        "imports past app:relay front door (relay/browser-page.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -3483,17 +3479,6 @@
         "spawns a child process (test/e2e-helpers.js)"
       ]
     },
-    "test/fixture-copiers.test.js": {
-      "cells": [
-        "codemap",
-        "kernel",
-        "runners"
-      ],
-      "reasons": [
-        "installs git hooks (test/package-copy-fixture.js)",
-        "runs the CLI (test/fixture-copiers.test.js)"
-      ]
-    },
     "test/fixture-env-isolated.test.js": {
       "cells": [
         "app:lib",
@@ -4599,7 +4584,6 @@
       ],
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
-        "imports past app:relay front door (relay/browser-page.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
@@ -5455,7 +5439,6 @@
       "reasons": [
         "drives a browser (test/e2e-helpers.js)",
         "imports past codemap front door (src/main-facts-cache.js)",
-        "imports past doctrine front door (src/main-criterion-facts.js)",
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/e2e-helpers.js)",
         "spawns a child process (test/e2e-helpers.js)"

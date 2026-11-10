@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { movesStats, movesLines, moveTranscripts } from '../packages/stats/index.js';
-import { importOnlyChange } from '../src/import-only-change.js';
+import { importOnlyChange } from '../packages/commits/src/core/import-only-change.js';
 import { infraNote } from '../packages/commits/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { commandOutput } from '../packages/config/index.js';

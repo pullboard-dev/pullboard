@@ -94,7 +94,7 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
   writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
-  const checker = join(copy, 'packages/gate/src/shell/module-imports.js');
+  const checker = join(copy, 'packages/codemap/src/shell/module-imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// modified tooling copy\n`);
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   assert.equal(toolingIsPinned(root, commit), true, 'this checkout carries the pinned tooling');
@@ -114,7 +114,7 @@ function modifiedToolingCopy(t, root) {
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
   writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
-  const checker = join(copy, 'packages/gate/src/shell/module-imports.js');
+  const checker = join(copy, 'packages/codemap/src/shell/module-imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// candidate changes the checker\n`);
   return copy;
 }

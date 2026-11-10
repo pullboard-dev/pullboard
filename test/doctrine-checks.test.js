@@ -52,7 +52,7 @@ function nextWebItem(box, title) {
   const web = join(box.dir, `web-${id}`);
   const source = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
-  assert.match(fixtureJoin(box.run, web, 'web', '--model', 'Fixture').out, /joined as web-/);
+  assert.match(fixtureJoin(box.run, web, 'web', '--model', 'Fixture Opus').out, /joined as web-/);
   assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
   return { id, web };
 }
@@ -68,7 +68,7 @@ function commitWebAt(box, web, files, message) {
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
   const text = output.endsWith('\n') ? output.slice(0, -1) : output;
-  const footer = /\nnext: pullboard next --(?:wait \d+|take)$/u.exec(text);
+  const footer = /\nnext: pullboard next$/u.exec(text);
   assert.ok(footer, 'doctrine check appends its exact navigation footer');
   assert.equal(text.slice(0, footer.index), expected);
 }

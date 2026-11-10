@@ -3,7 +3,7 @@
     "apps/runner/",
     "packages/runners/",
     "packages/sandbox/",
-    "bin/run-tests.js",
+    "packages/gate/src/shell/run-tests.js",
     "docs/"
   ],
   "baseline": {

@@ -1,4 +1,6 @@
 {
+  "src/module-imports.js": "packages/codemap/src/shell/module-imports.js",
+  "src/module-import-cache-state.js": "packages/codemap/src/shell/module-import-cache-state.js",
   "src/cell-binding-uses.js": "packages/codemap/src/shell/cell-binding-uses.js",
   "src/cell-lint-baseline-plan.js": "packages/codemap/src/shell/cell-lint-baseline-plan.js",
   "src/cell-lint-exports.js": "packages/codemap/src/shell/cell-lint-exports.js",
@@ -17,5 +19,6 @@
   "src/source-advance-plan.js": "packages/codemap/src/shell/source-advance-plan.js",
   "src/source-inventory.js": "packages/codemap/src/shell/source-inventory.js",
   "src/cell-lint-cell-shards.js": "packages/codemap/src/shell/cell-lint-cell-shards.js",
-  "src/map-slice-say.js": "packages/codemap/src/shell/map-slice-say.js"
+  "src/map-slice-say.js": "packages/codemap/src/shell/map-slice-say.js",
+  "src/main-facts-cache.js": "packages/codemap/src/shell/main-facts-cache.js"
 }

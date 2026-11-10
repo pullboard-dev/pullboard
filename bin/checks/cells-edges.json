@@ -818,7 +818,7 @@
     },
     "apps/runner/src/shell/runner-custody.js": {
       "cells": 2,
-      "deep": 3
+      "deep": 2
     },
     "apps/runner/src/shell/runner-disk-sweep.js": {
       "cells": 1,
@@ -850,7 +850,7 @@
     },
     "apps/runner/src/shell/runner-worker-health.js": {
       "cells": 3,
-      "deep": 7
+      "deep": 1
     },
     "apps/runner/src/shell/runner-worker-main.js": {
       "cells": 5,
@@ -945,7 +945,7 @@
       "deep": 0
     },
     "bin/cells-inventory-cache.js": {
-      "cells": 5,
+      "cells": 4,
       "deep": 0
     },
     "bin/cells-move-fixtures.js": {
@@ -970,7 +970,7 @@
     },
     "bin/cells-plan-cuts.js": {
       "cells": 2,
-      "deep": 0
+      "deep": 2
     },
     "bin/cells-plan.js": {
       "cells": 5,
@@ -993,7 +993,7 @@
       "deep": 0
     },
     "bin/cells-submit-checks.js": {
-      "cells": 4,
+      "cells": 3,
       "deep": 0
     },
     "bin/check-baseline.js": {
@@ -1075,10 +1075,6 @@
     "bin/pullboard.js": {
       "cells": 2,
       "deep": 3
-    },
-    "bin/release-gate.js": {
-      "cells": 1,
-      "deep": 1
     },
     "bin/resident-board.js": {
       "cells": 2,
@@ -1397,11 +1393,7 @@
       "deep": 0
     },
     "packages/gate/src/shell/accepted-cells-inventory.js": {
-      "cells": 4,
-      "deep": 0
-    },
-    "packages/gate/src/shell/affected-tests.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 0
     },
     "packages/gate/src/shell/browser-admission.js": {
@@ -1484,14 +1476,6 @@
       "cells": 4,
       "deep": 0
     },
-    "packages/gate/src/shell/module-imports.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "packages/gate/src/shell/plan-cuts.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "packages/gate/src/shell/proof-shards.js": {
       "cells": 2,
       "deep": 0
@@ -1511,10 +1495,6 @@
     "packages/gate/src/shell/run-timing.js": {
       "cells": 1,
       "deep": 1
-    },
-    "packages/gate/src/shell/seals.js": {
-      "cells": 3,
-      "deep": 0
     },
     "packages/gate/src/shell/seat-keepalive.js": {
       "cells": 1,
@@ -1573,10 +1553,6 @@
       "deep": 1
     },
     "packages/gate/src/shell/test-tier-selection.js": {
-      "cells": 2,
-      "deep": 0
-    },
-    "packages/gate/src/shell/test-tiers.js": {
       "cells": 2,
       "deep": 0
     },
@@ -2062,7 +2038,7 @@
     },
     "packages/landing/src/shell/landing-shards.js": {
       "cells": 5,
-      "deep": 11
+      "deep": 0
     },
     "packages/landing/src/shell/landing-static-checks.js": {
       "cells": 2,
@@ -2732,6 +2708,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/runners/src/shell/runner-probe.js": {
+      "cells": 2,
+      "deep": 1
+    },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
       "deep": 1
@@ -2751,10 +2731,6 @@
     "packages/runners/src/shell/runner-tooling-snapshot.js": {
       "cells": 1,
       "deep": 0
-    },
-    "packages/runners/src/shell/runner-transport.js": {
-      "cells": 3,
-      "deep": 2
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -4368,9 +4344,9 @@
       "cells": 1,
       "deep": 0
     },
-    "src/import-only-change.js": {
+    "packages/commits/src/core/import-only-change.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "src/item-offer-contract.js": {
       "cells": 1,
@@ -4456,7 +4432,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/main-criterion-facts.js": {
+    "packages/doctrine/src/shell/main-criterion-facts.js": {
       "cells": 4,
       "deep": 0
     },
@@ -4741,7 +4717,7 @@
     },
     "<-gate": {
       "imports": [],
-      "deepImporters": 18
+      "deepImporters": 17
     },
     "apps/view": {
       "imports": [
@@ -5092,6 +5068,7 @@
     },
     "merge": {
       "imports": [
+        "codemap",
         "git",
         "items",
         "kernel"
@@ -5381,6 +5358,10 @@
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15,
     "packages/config/core.js": 9,
-    "packages/seats/core.js": 27
+    "packages/seats/core.js": 27,
+    "packages/runners/core.js": 40,
+    "packages/git/core.js": 12,
+    "packages/resources/core.js": 27,
+    "packages/kernel/core.js": 7
   }
 }
