@@ -309,7 +309,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   stageAcceptedQueue(box, alpha);
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    for (let index = 5; index <= 299; index += 1) {
+    for (let index = 4; index <= 299; index += 1) {
       store.register(board, {
         lane: 'web',
         path: join(box.dir, `private-agent-${index}`),
@@ -548,7 +548,7 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
     assert.notEqual(backgrounds.light, backgrounds.dark, 'both color themes were rendered');
     await pickProject(chrome, 'document.querySelector(' + JSON.stringify('[data-root="' + empty.repo + '"]') + ')');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(empty.repo));
-    const blank = JSON.parse(await chrome.stable(`JSON.stringify({ stages:[...document.querySelectorAll('[data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('[data-oldest]')].map(node => node.textContent), action:document.querySelector('[data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('[data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
+    const blank = JSON.parse(await chrome.stable(`JSON.stringify({ stages:[...document.querySelectorAll('#proof-stats [data-stage]')].map(node => node.textContent), oldest:[...document.querySelectorAll('#proof-stats [data-oldest]')].map(node => node.textContent), action:document.querySelector('#proof-stats [data-flow=recommendation]')?.textContent ?? null, message:document.querySelector('#proof-stats [data-flow=bottleneck]')?.textContent, api:data.project.proofStats.flow })`));
     assert.deepEqual(blank.stages, Array(4).fill('unmeasured'), 'missing measurements are not invented zeroes');
     assert.deepEqual(blank.oldest, Array(4).fill('Oldest: none'));
     assert.equal(blank.action, null, 'no action is invented without an API recommendation');
