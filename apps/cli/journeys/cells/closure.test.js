@@ -100,7 +100,7 @@ function forwardingFixture(t, fullBarrel, retain = false) {
   box.put('packages/stats/src/logic/flow.js', 'export const flow = 1;\n');
   box.put('src/stats-flow.js', fullBarrel ? "export * from '../packages/stats/index.js';\n"
     : "export { flow } from '../packages/stats/src/logic/flow.js';\n");
-  box.put('packages/codemap/data/plan/path-map/stats.json', JSON.stringify({ 'src/stats-flow.js': 'packages/stats/src/logic/flow.js' }));
+  box.put('packages/codemap/data/plan/path-map/stats.json', JSON.stringify({ 'src/stats-flow.js': fullBarrel ? 'packages/stats/index.js' : 'packages/stats/src/logic/flow.js' }));
   box.put('packages/codemap/data/plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
@@ -110,7 +110,7 @@ function forwardingFixture(t, fullBarrel, retain = false) {
   git(box.root, 'commit', '-qm', 'accepted forwarding baseline');
   const main = git(box.root, 'rev-parse', 'HEAD').trim();
   box.put('src/refused.js', "import { flow } from '../packages/stats/index.js'; export class Refused extends Error {}\n");
-  box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from '../packages/stats/index.js';\nconsole.log(stats, flow);\n");
+  if (!retain) box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from '../packages/stats/index.js';\nconsole.log(stats, flow);\n");
   if (!retain) rmSync(join(box.root, 'src/stats-flow.js'));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'replace the old alias with an explicit binding');
