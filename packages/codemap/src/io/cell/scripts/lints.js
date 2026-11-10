@@ -34,7 +34,7 @@ withCellLintParser(compile => {
   else if (mode === '--init') {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
-    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
+    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { const a = cellLintBaseline(cellLintReport(root, parsers)); for (const m of Object.keys(plan.baseline.metrics)) { const x = plan.baseline.metrics[m].allowances, y = a.metrics[m].allowances; if (plan.baseline.metrics[m].count !== a.metrics[m].count) console.error('DBGC', m, plan.baseline.metrics[m].count, a.metrics[m].count); for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (x[k] !== y[k]) console.error('DBG', m, k, x[k], y[k]); } return JSON.stringify(a) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
     if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
     const baseline = readCellLintBaseline(root);
