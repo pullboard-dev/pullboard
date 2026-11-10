@@ -14,13 +14,13 @@ import {
   posix,
 } from 'node:path';
 import { test } from 'node:test';
-import { fixtureSourceEdits } from '../../codemap/index.js';
-import { canonicalCopierPaths } from '../../codemap/src/io/cells-move-mentions.js';
+import { fixtureSourceEdits } from '../../../../packages/codemap/index.js';
+import { canonicalCopierPaths } from '../../../../packages/codemap/src/io/cells-move-mentions.js';
 import {
   copyPackageFiles,
   shimTargets,
-} from '../index.js';
-import { toolSourcePath } from '../index.js';
+} from '../../../../packages/runners/index.js';
+import { toolSourcePath } from '../../../../packages/runners/index.js';
 
 const BODY = 'export const answer = 42;\n';
 const MOVES = [['src/foo.js', 'packages/foo/src/shell/foo.js']];

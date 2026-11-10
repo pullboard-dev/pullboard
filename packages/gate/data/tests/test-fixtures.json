@@ -1470,7 +1470,7 @@
     "hand-policy": 5,
     "repo-read": 1
   },
-  "packages/runners/tests/folder.test.js": {
+  "packages/state/tests/io/engine/folder.test.js": {
     "tempdir": 3
   },
   "packages/moves/tests/engine.test.js": {
@@ -1490,7 +1490,7 @@
   "apps/cli/tests/fixtures/child.js": {
     "tempdir": 1
   },
-  "packages/runners/tests/copier.test.js": {
+  "apps/cli/journeys/move/copier.test.js": {
     "tempdir": 2
   },
   "packages/runners/tests/fixture-copiers.test.js": {
@@ -2177,7 +2177,7 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "packages/runners/tests/closure/move/merge.test.js": {
+  "apps/cli/journeys/move/merge.test.js": {
     "repo-read": 2,
     "hex64": 1
   },
@@ -3721,7 +3721,7 @@
   "apps/cli/tests/io/verify.test.js": {
     "tempdir": 2
   },
-  "packages/runners/tests/closure/move/verify.test.js": {
+  "apps/cli/journeys/move/verify.test.js": {
     "repo-read": 1
   },
   "apps/cli/journeys/verify/trunk/moved.test.js": {
