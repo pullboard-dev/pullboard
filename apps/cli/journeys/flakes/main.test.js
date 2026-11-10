@@ -75,7 +75,7 @@ test('empty automatic wakes leave no advisory state in a private repository [C7,
   const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
   assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../../src/io/landing/advance.js', import.meta.url), eligible: false }), null,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
-  assert.equal(await nudgeMainAudit(box.root), null,
+  assert.equal(await nudgeMainAudit(box.root, new URL('../../src/io/landing/audit.js', import.meta.url)), null,
     'the foreground skips spawning an audit worker before explicit activation');
   assert.equal(box.cli('sentinel', 'run', '--health-only').code, 0,
     'the real higher-layer CLI path completes a successful health-only command');
@@ -184,13 +184,14 @@ test('the pinned bundled runner selects one target and skips unrelated bodies [C
   const git = (_repo, ...args) => box.git(...args);
   commitFixtureFiles({ repo: box.root, git }, copied);
   writeFileSync(join(box.root, 'package.json'), '{"type":"module"}\n');
-  writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
+  mkdirSync(join(box.root, 'apps/cli/tests'), { recursive: true });
+  writeFileSync(join(box.root, 'apps/cli/tests/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
 test('unrelated bundled execution [C7]', () => appendFileSync(${JSON.stringify(unrelated)}, 'run\\n'));
 `);
   const file = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js test/alternating.test.mjs test/unrelated.test.mjs';
+  config.gate = 'node packages/gate/src/io/run/tests.js test/alternating.test.mjs apps/cli/tests/unrelated.test.mjs';
   config.affectedTests = 'node packages/gate/src/io/run/tests.js';
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: private bundled runner');
@@ -209,10 +210,11 @@ test('an unknown script named run-tests cannot rerun unrelated tests or confirm 
   mkdirSync(join(box.root, 'packages/gate/src/io/run'), { recursive: true });
   writeFileSync(join(box.root, 'packages/gate/src/io/run/tests.js'), `import { spawnSync } from 'node:child_process';
 // This user's runner deliberately does not implement Node's test-name selector.
-const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/alternating.test.mjs', 'test/unrelated.test.mjs'], { env: process.env, stdio: 'inherit' });
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/alternating.test.mjs', 'apps/cli/tests/unrelated.test.mjs'], { env: process.env, stdio: 'inherit' });
 process.exitCode = run.status;
 `);
-  writeFileSync(join(box.root, 'test/unrelated.test.mjs'), `import { test } from 'node:test';
+  mkdirSync(join(box.root, 'apps/cli/tests'), { recursive: true });
+  writeFileSync(join(box.root, 'apps/cli/tests/unrelated.test.mjs'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
 test('unrelated execution [C7]', () => appendFileSync(${JSON.stringify(unrelated)}, 'run\\n'));
 `);
