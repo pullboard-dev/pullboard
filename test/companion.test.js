@@ -32,7 +32,7 @@ test('a companion request becomes one claimable child item and a second request 
   const other = seat(box, 'requester-two', 'web');
   const parent = run(box, box.repo, 'add', 'web', 'Parent feature', '--specs', 'G1', '--criterion', 'needs the API', '--json').item.item_id;
   run(box, box.web, 'claim', String(parent));
-  const args = ['companion', String(parent), 'api', 'Provide the API', '--key', 'api-part', '--criterion', 'the API serves this parent', '--specs', 'G2', '--json'];
+  const args = ['companion', String(parent), 'api', 'Provide the API', '--key', 'api-part', '--criterion', 'the API serves this parent [test]', '--specs', 'G2', '--json'];
   // Concurrent independent processes must observe one creation, not merely converge after serial retries.
   const children = [box.web, other].map(cwd => helpers.launch(box, cwd, process.execPath, [helpers.BIN, ...args]));
   const completed = await Promise.all(children.map(child => child.closed));
