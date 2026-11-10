@@ -315,7 +315,7 @@ test('hold pauses a lane: next names who held it and why; --off lets it go [N22]
   assert.match(box.run(box.web, 'hold', 'web', '--reason', 'mine').err, /COORDINATOR_ONLY/);
   assert.match(box.run(box.repo, 'hold', 'nowhere', '--reason', 'x').err, /NO_LANE/);
   assert.match(box.run(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten').out, /holding the web lane: G1 is being rewritten/);
-  const held = box.run(box.web, 'next');
+  const held = box.run(box.web, 'next', '--take');
   assert.equal(held.code, 1);
   assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
   assert.match(box.run(box.web, 'claim', '1').err, /LANE_HELD/);
