@@ -38,7 +38,7 @@ import { publicUsage } from '../../../../../packages/stats/index.js';
 import { counterProofStats } from '../../../../../packages/verify/index.js';
 import {
   barStatsLines,
-} from '../../../../../src/bar-corrections.js';
+} from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { caughtLines } from '../../../../../packages/items/index.js';
 import * as gateReceipt from '../../../../../packages/gate/index.js';

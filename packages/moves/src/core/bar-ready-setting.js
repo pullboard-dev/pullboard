@@ -2,4 +2,4 @@
 export {
   readBarState,
   barReadySetting,
-} from "../../../../src/bar-corrections.js";
+} from "../../../verify/index.js";

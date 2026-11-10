@@ -25,7 +25,7 @@ import {
 import {
   barCorrectionLine,
   barCorrections,
-} from '../../../../../src/bar-corrections.js';
+} from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   agentApprovalLine,
