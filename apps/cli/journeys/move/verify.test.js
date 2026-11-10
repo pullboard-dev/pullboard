@@ -48,7 +48,7 @@ function closure(entries, read) {
   return { verify, native: [...native].sort(), launchers: [...launchers].sort() };
 }
 
-const WORKER = ['src/runner-worker.js'];
+const WORKER = ['apps/runner/src/io/worker.js'];
 const MOVES = ['packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].flatMap(folder => discovered(readdirSync(join(ROOT, folder)), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `${folder}/${file}`));
 const SOURCES = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT))).map(({ file, body }) => [file, body.toString('utf8')]));
 /** Read only the bounded working inventory, never a path outside it. */
@@ -65,13 +65,13 @@ test('clause 1: no module the worker and move registry reach imports child_proce
 });
 
 test('clause 1: a stub module that imports child_process is reported by the closure walk [C7,CD60,H16]', () => {
-  const stub = file => file === 'packages/verify/src/core/proof-provenance.js' ? "import { spawn } from 'node:child_process';\nexport const launch = spawn;\n" : read(file);
+  const stub = file => file === 'packages/verify/src/logic/proof/provenance.js' ? "import { spawn } from 'node:child_process';\nexport const launch = spawn;\n" : read(file);
   assert.ok(closure(MOVES, stub).launchers.length > 0, 'an injected child_process import in a verify module is reported');
   assert.ok(closure(WORKER, stub).launchers.length > 0, 'the worker walk reports it too');
 });
 
 test('the broad verify front door fails the closure control [C7,CD60,H16]', () => {
-  const broad = file => file === 'packages/verify/src/core/proof-provenance.js' ? "export * from '../../index.js';\n" : SOURCES.has(file) ? read(file) : '';
+  const broad = file => file === 'packages/verify/src/logic/proof/provenance.js' ? "export * from '../../../index.js';\n" : SOURCES.has(file) ? read(file) : '';
   const reached = closure(MOVES, broad);
   assert.ok(reached.verify.length > 7, 'the broad index pulls the whole cell into the registry');
   assert.ok(reached.native.includes('node:child_process'), 'and reaches actual process launchers');
