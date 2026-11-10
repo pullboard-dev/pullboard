@@ -14,11 +14,11 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { ENFORCED_FILE } from '../../../cli/src/io/static/view.js';
-import { enforcedRoots } from '../../../cli/src/io/static/view.js';
-import { viewPureGate } from '../../../cli/src/io/static/view.js';
-import { viewPureReport } from '../../../cli/src/io/static/view.js';
-import { viewTestProblems } from '../../index.js';
+import { ENFORCED_FILE } from '../../src/io/static/view.js';
+import { enforcedRoots } from '../../src/io/static/view.js';
+import { viewPureGate } from '../../src/io/static/view.js';
+import { viewPureReport } from '../../src/io/static/view.js';
+import { viewTestProblems } from '../../../view/light.js';
 
 const REPO = resolve(import.meta.dirname, '../../../..');
 const GOOD = 'test/cockpit/good.test.js', BAD = 'test/cockpit/bad.test.js', RENDER = 'src/view/example.js';

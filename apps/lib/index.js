@@ -5,5 +5,5 @@ export { warnUnsubmittedWork } from "./src/io/notice.js";
 export { submitHandoffRecord } from "./src/io/submit/handoff.js";
 export { INFRASTRUCTURE_CODES, healthyExecutor, infrastructureFailure, submitUntilSettled } from "./src/io/submit/requeue.js";
 export { runUsageCheckpointWorker } from "./src/io/worker/checkpoint/usage.js";
-export { produceAcceptedCells, acceptedCellsFromJob } from "./src/io/main/audit.js";
+export { acceptedCellsPorts, produceAcceptedCells, acceptedCellsFromJob } from "./src/io/main/audit.js";
 export { launchServes } from "./src/io/serving.js";
