@@ -381,7 +381,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
       const details = JSON.parse(await chrome.stable(`JSON.stringify({agentCount:document.querySelector('[data-stat="agentCount"]')?.textContent,
         familyTile:!!document.querySelector('[data-stat="familyCount"]'), hasFirstAgent:document.querySelector('#proof-stats-full').textContent.includes('web-1'),
         hasPrivateName:document.querySelector('#proof-stats-full').textContent.includes('Private model'), hasFamilyName:document.querySelector('#proof-stats-full').textContent.includes('private-family-')})`));
-      for (const agent of api.agents) assert.equal(card.includes(agent.id), false, `${width}px ${scheme}: the card does not name ${agent.id}`);
+      for (const agent of stats.agents) assert.equal(card.includes(agent.id), false, `${width}px ${scheme}: the card does not name ${agent.id}`);
       for (const family of api.families) assert.equal(card.includes(family.name), false, `${width}px ${scheme}: the card does not name family ${family.name}`);
       assert.equal(await chrome.stable("document.querySelector('[data-flow=bottleneck]').textContent"), api.flow.bottleneck.message, 'the full API message stays unchanged in the expanded card');
       assert.equal(await chrome.stable("document.querySelector('[data-flow=recommendation]').textContent"), api.flow.bottleneck.recommendation, 'the full API recommendation stays unchanged in the expanded card');
