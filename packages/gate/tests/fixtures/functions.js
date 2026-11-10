@@ -166,7 +166,6 @@ export function sourceFacts(source, file) {
   /** Resolve literal relative operands against the actual provider's repository layout. */
   const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
   for (const [, kind, names, , specifier] of text.matchAll(/(import|export)\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\3/g)) {
-    if (kind === 'export' && !facade) continue;
     for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
       const [original, local = original] = part.split(/\s+as\s+/);
       named.set(local, `${under(specifier)}#${original}`);
