@@ -15,7 +15,7 @@ import {
   QUOTED_LANDING_FAILURE_ENGINE,
   REOPEN_FIRST_REFUSAL_ENGINE,
   SUBMITTED_CONFLICT_ENGINE,
-} from "../../../../state/index.js";
+} from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { CONFLICT_ENGINE } from "../../../../state/light.js";

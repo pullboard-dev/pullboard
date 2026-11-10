@@ -205,6 +205,11 @@ export { ensureGrantActivationIndex } from './src/logic/relay/activation.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
 export { canonicalMilestoneTarget } from './src/logic/target.js';
 export { missingGrantActivationIndex } from './src/logic/relay/activation.js';
+export { CAUSE_ENGINE } from './src/logic/move/constants.js';
+export { IMPLIES_ENGINE } from './src/logic/move/constants.js';
+export { SUBMISSION_PROOF_ENGINE } from './src/logic/move/constants.js';
+export { VERDICT_REVIEW_ENGINE } from './src/logic/move/constants.js';
+export { VERIFIER_STANDING_ENGINE } from './src/logic/move/constants.js';
 export { CHECK_ACCEPT_ENGINE, MILESTONE_SHIP_ENGINE } from './src/logic/move/constants.js';
 
 /** The highest engine number the exported engines declare: the registry's ENGINE_VERSION without reading the engines folder, so this door stays free of node:fs [C7,H16]. */

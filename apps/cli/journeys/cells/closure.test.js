@@ -3,6 +3,7 @@
 /** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,11 +48,12 @@ test('landing history uses its existing pure port without growing any move closu
   const old = 'src/landing-batch-history.js';
   const files = [...new Set([...packageFiles(root), old])];
   copyPackageFiles(root, fixture, { files: files.filter(file => file !== old) });
+  mkdirSync(join(fixture, 'src'), { recursive: true });
   runFixtureGit(['init', '-q'], { cwd: fixture });
-  runFixtureGit(['add', 'package.json', 'bin/cells-plan/path-map'], { cwd: fixture });
+  runFixtureGit(['add', 'package.json', 'packages/codemap/data/plan/path-map'], { cwd: fixture });
   runFixtureGit(['-c', 'user.name=Closure fixture', '-c', 'user.email=closure@example.invalid',
     '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Pin the copied source map'], { cwd: fixture });
-  const callers = ['recordLandingBatch', 'finishLandingBatch'].map(name => `packages/moves/src/core/moves/${name}.js`);
+  const callers = ['recordLandingBatch', 'finishLandingBatch'].map(name => `packages/moves/src/logic/moves/${name}.js`);
   /** Read the actual copied working bytes through the bounded source inventory. */
   const sources = () => new Map(workingSourceInventory(fixture, sourceDirectories(files)).map(({ file, body }) => [file, body]));
   const initial = sources();
@@ -66,16 +68,16 @@ test('landing history uses its existing pure port without growing any move closu
   };
   /** Restore only the former forwarding layout around the same canonical provider. */
   const oldCallers = () => {
-    for (const [file, source] of current) writeFileSync(join(fixture, file), source.replace('../../../../git/pure.js', posix.relative(posix.dirname(file), old)));
+    for (const [file, source] of current) writeFileSync(join(fixture, file), source.replace('../../../../git/browser.js', posix.relative(posix.dirname(file), old)));
   };
   oldCallers();
-  writeFileSync(join(fixture, old), "export { landingBatches } from '../packages/landing/src/core/landing-batch-history.js';\n");
+  writeFileSync(join(fixture, old), "export { latestLandingBatch } from '../packages/git/browser.js';\n");
   const before = closure();
   for (const [file, source] of current) writeFileSync(join(fixture, file), source);
   rmSync(join(fixture, old));
   const after = closure();
   assert.equal(landingBatches, pureLandingBatches, 'the public Landing binding is the same pure Git projection');
-  assert.ok(after.has('packages/git/pure.js'));
+  assert.ok(after.has('packages/git/browser.js'));
   assert.equal([...after.keys()].filter(file => file.startsWith('packages/landing/')).length, 0);
   assert.ok(after.size < before.size, 'removing forwards reduces the real registry module count');
   assert.ok([...after.values()].reduce((sum, bytes) => sum + bytes.length, 0)
@@ -94,12 +96,12 @@ function forwardingFixture(t, fullBarrel, retain = false) {
   const box = planFixture(t);
   box.put('package.json', JSON.stringify({ type: 'module', bin: 'src/cli.js' }));
   box.put('src/refused.js', "import { flow } from './stats-flow.js'; export class Refused extends Error {}\n");
-  box.put('packages/stats/index.js', "export { flow } from './src/core/stats-flow.js';\n");
-  box.put('packages/stats/src/core/stats-flow.js', 'export const flow = 1;\n');
+  box.put('packages/stats/index.js', "export { flow } from './src/logic/flow.js';\n");
+  box.put('packages/stats/src/logic/flow.js', 'export const flow = 1;\n');
   box.put('src/stats-flow.js', fullBarrel ? "export * from '../packages/stats/index.js';\n"
-    : "export { flow } from '../packages/stats/src/core/stats-flow.js';\n");
-  box.put('bin/cells-plan/path-map/stats.json', JSON.stringify({ 'src/stats-flow.js': 'packages/stats/src/core/stats-flow.js' }));
-  box.put('bin/cells-plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
+    : "export { flow } from '../packages/stats/src/logic/flow.js';\n");
+  box.put('packages/codemap/data/plan/path-map/stats.json', JSON.stringify({ 'src/stats-flow.js': fullBarrel ? 'packages/stats/index.js' : 'packages/stats/src/logic/flow.js' }));
+  box.put('packages/codemap/data/plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'accepted exact forwarding fixture');
@@ -108,7 +110,7 @@ function forwardingFixture(t, fullBarrel, retain = false) {
   git(box.root, 'commit', '-qm', 'accepted forwarding baseline');
   const main = git(box.root, 'rev-parse', 'HEAD').trim();
   box.put('src/refused.js', "import { flow } from '../packages/stats/index.js'; export class Refused extends Error {}\n");
-  box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from '../packages/stats/index.js';\nconsole.log(stats, flow);\n");
+  if (!retain) box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from '../packages/stats/index.js';\nconsole.log(stats, flow);\n");
   if (!retain) rmSync(join(box.root, 'src/stats-flow.js'));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'replace the old alias with an explicit binding');
