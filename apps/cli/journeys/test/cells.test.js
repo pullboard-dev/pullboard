@@ -168,7 +168,7 @@ test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper cha
   assert.equal(spawnsCli("const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
   const root = fixture({
     'apps/cli/tests/fixtures/e2e.js': 'export const run = () => 0;\n',
-    'packages/a/tests/chain-fixture.js': "export { run } from '../../../test/e2e-helpers.js';\n",
+    'packages/a/tests/chain-fixture.js': "export { run } from '../../../apps/cli/tests/fixtures/e2e.js';\n",
     'packages/a/tests/chain.test.js': "import { run } from './chain-fixture.js';\nexport const x = run;\n",
     'packages/a/tests/data.test.js': "export const row = { check: 'node apps/cli/pullboard.js spec check' };\n",
   });
@@ -204,10 +204,10 @@ test('clause 1: a declared split counts as its one source and its targets carry 
   assert.ok(texts.includes('split target test/slow-a.test.js sits in two splits, test/slow.test.js and test/other.test.js'), texts.join('\n'));
 });
 
-test('clause 1: a test in a later app cell importing an earlier app\'s core.js is a component test, not a deep import [C7]', () => {
+test('clause 1: a test in a later app cell importing an earlier app\'s light.js is a component test, not a deep import [C7]', () => {
   const order = new Map([['apps/view', 1], ['apps/relay', 2]]);
   const reading = target => cellTestReading('apps/relay/tests/page.test.js', `import { x } from '${target}';\nexport { x };\n`, { order });
-  const door = reading('../../view/core.js');
+  const door = reading('../../view/light.js');
   assert.deepEqual(door.problems, []);
   assert.equal(door.tier, 'component');
   assert.equal(reading('../../view/src/core/view.js').problems.length, 1, 'a deep import past the door stays refused');
