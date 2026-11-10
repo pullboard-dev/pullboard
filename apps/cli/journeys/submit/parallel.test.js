@@ -72,6 +72,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   const { result, wallMs, receipts } = submit(box, 'green');
   assert.equal(result.code, 0, result.err + result.out);
   const runs = readFileSync(observations, 'utf8').trim().split('\n').map(line => JSON.parse(line)).slice(-2);
+  t.diagnostic('submit parallel timing: ' + JSON.stringify({ wallMs, runs, output: result.out, error: result.err }));
   assert.deepEqual(new Set(runs.map(run => run.role)), new Set(['criterion', 'proof']));
   assert.ok(Math.max(...runs.map(run => run.start)) < Math.min(...runs.map(run => run.end)), 'the real child intervals overlap');
   const slower = Math.max(...runs.map(run => run.end - run.start));
