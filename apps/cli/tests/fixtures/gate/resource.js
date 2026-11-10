@@ -22,6 +22,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../../../packages/resources/index.js'
 import { TEST_FILE_POOL_ENV } from '../../../../../packages/gate/index.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from '../testkit.js';
+import { DatabaseSync } from 'node:sqlite';
 
 export const RUNNER = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
 export const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
@@ -98,7 +99,7 @@ export function probeSuite(box, name) {
   const root = join(box.dir, name);
   const tests = join(root, 'test');
   mkdirSync(tests, { recursive: true });
-  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
+  writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\nwriteFileSync(${JSON.stringify(join(root, 'probe-env.json'))}, JSON.stringify({pid: process.pid, marker: process.env.${PROBE_PATH_ENV} ?? null, release: process.env.${PROBE_RELEASE_ENV} ?? null}));\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
   commitProbePolicy(box, root);
   return root;
 }
@@ -189,7 +190,10 @@ export async function wholeSuiteHolders(box, names) {
     return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
   });
   try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
-    throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
+    const db = new DatabaseSync(join(box.dir, 'home', 'resources.sqlite'), { readOnly: true });
+    let rows;
+    try { rows = { holders: db.prepare('SELECT * FROM holder').all(), waiters: db.prepare('SELECT * FROM waiter').all() }; } finally { db.close(); }
+    throw new Error(`${error.message}: ${runs.map((run, index) => JSON.stringify({pid: run.child.pid, exit: run.child.exitCode, signal: run.child.signalCode, stdout: run.child.stdoutText, stderr: run.child.stderrText, probe: existsSync(join(box.dir, names[index], 'probe-env.json')) ? readFileSync(join(box.dir, names[index], 'probe-env.json'), 'utf8') : null})).join(' | ')}; rows ${JSON.stringify(rows)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
   }
   return runs;
 }
