@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** Runner slots follow each runner's own measured cores and memory behind gate.measuredSlots [C7]. */
+/** The CLI lists runner slots from each runner's own measured cores and memory behind gate.measuredSlots [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -10,21 +10,21 @@ import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { HOST } from '../../../test/runner-ssh-fixture.js';
-import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
-import { cli } from '../../../test/runner-tooling-fixture.js';
-import { takeResource } from '../../resources/index.js';
-import { runnerResourceStatus } from '../../resources/index.js';
-import { recordRunnerGui } from '../../resources/index.js';
-import { recordRunnerMeasurement } from '../../config/index.js';
-import { loadMachineSettings } from '../../config/index.js';
-import { probeRunnerTransport } from '../src/shell/runner-transport.js';
-import { refreshRunnerMeasurements } from '../src/shell/runner-slots.js';
-import { RESERVED_MEMORY_MB } from '../src/shell/runner-slots.js';
-import { PLAIN_SLOT_MB } from '../src/shell/runner-slots.js';
-import { BROWSER_SLOT_MB } from '../src/shell/runner-slots.js';
-import { computeRunnerSlots } from '../src/shell/runner-slots.js';
-import { effectiveRunners } from '../src/shell/runner-slots.js';
+import { HOST } from './runner-ssh-fixture.js';
+import { installSshStandIn } from './runner-ssh-fixture.js';
+import { cli } from './runner-tooling-fixture.js';
+import { takeResource } from '../packages/resources/index.js';
+import { runnerResourceStatus } from '../packages/resources/index.js';
+import { recordRunnerGui } from '../packages/resources/index.js';
+import { recordRunnerMeasurement } from '../packages/config/index.js';
+import { loadMachineSettings } from '../packages/config/index.js';
+import { probeRunnerTransport } from '../packages/runners/index.js';
+import { refreshRunnerMeasurements } from '../packages/runners/index.js';
+import { RESERVED_MEMORY_MB } from '../packages/runners/index.js';
+import { PLAIN_SLOT_MB } from '../packages/runners/index.js';
+import { BROWSER_SLOT_MB } from '../packages/runners/index.js';
+import { computeRunnerSlots } from '../packages/runners/index.js';
+import { effectiveRunners } from '../packages/runners/index.js';
 
 /** A real CLI and real SSH stand-in; only the remote machine's reported size is faked, by a preload. */
 function box(t) {
@@ -62,15 +62,6 @@ os.availableParallelism=()=>read().cores;os.totalmem=()=>read().gb*1024**3;
     list: () => JSON.parse(run('runner', 'list', '--json').stdout).runners[0],
   };
 }
-
-test('the formula leaves a core and 2 GB free and counts 512 MB per slot, 2 GB per browser slot [C7]', () => {
-  assert.deepEqual(computeRunnerSlots({ cores: 10, memoryMB: 16384 }), { slots: 9, browser: 6 });
-  assert.deepEqual(computeRunnerSlots({ cores: 2, memoryMB: 16384 }), { slots: 1, browser: 1 });
-  assert.deepEqual(computeRunnerSlots({ cores: 32, memoryMB: 4096 }), { slots: 4, browser: 0 }, 'memory caps slots when cores are plentiful');
-  assert.deepEqual(computeRunnerSlots({ cores: 4, memoryMB: 1024 }), { slots: 0, browser: 0 }, 'a starved runner offers no computed capacity below its memory reserve');
-  const fleet = Array.from({ length: 6 }, () => computeRunnerSlots({ cores: 10, memoryMB: 16384 }).slots);
-  assert.ok(fleet.reduce((a, b) => a + b) > 24, 'six 10-core 16 GB runners offer more than today\'s fixed 24');
-});
 
 test('runner add measures a 10-core 16 GB runner on the runner itself and lists the formula slots [C7]', t => {
   const b = box(t);
@@ -121,16 +112,6 @@ test('a legacy runner takes its measured slots only after runner measure and onl
   assert.equal(b.list().slots, 4, 'turning the setting off restores the registered count');
 });
 
-test('the gate offers computed slots only when enabled, measured and not declared [C7]', () => {
-  const measured = { host: 'a', slots: 4, browser: 2, cores: 10, memoryMB: 16384 };
-  const fixed = { ...measured, host: 'b', fixed: true };
-  const bare = { host: 'c', slots: 4, browser: 2 };
-  assert.deepEqual(effectiveRunners({ runners: [measured, fixed, bare] }).map(r => r.slots), [4, 4, 4]);
-  assert.deepEqual(effectiveRunners({ gate: { measuredSlots: true }, runners: [measured, fixed, bare] }).map(r => r.slots), [9, 4, 4]);
-  assert.equal(effectiveRunners({ gate: { measuredSlots: true }, runners: [{ ...measured, browser: 0 }] })[0].browser, 0);
-});
-
-
 /** Scope only this process's private machine provider; every held lease is drained before restoration. */
 function useMachine(t, b) {
   const previous = { PULLBOARD_MACHINE_HOME: process.env.PULLBOARD_MACHINE_HOME, PATH: process.env.PATH };
@@ -175,18 +156,6 @@ test('periodic stale measurements use the real nonce probe and preserve unavaila
   assert.equal(loadMachineSettings().runners[0].cores,4,'fresh observations are reused until the periodic interval expires');
 });
 
-test('all computed mixtures fit their measured budget and inadequate or invalid observations never add capacity [C7]',()=>{
-  for(const cores of [1,2,10,32])for(const memoryMB of [1024,2048,2560,4096,8192,16384]){
-    const capacity=computeRunnerSlots({cores,memoryMB});
-    for(let browser=0;browser<=capacity.browser;browser++){
-      if(capacity.slots)assert.ok(RESERVED_MEMORY_MB+browser*BROWSER_SLOT_MB+(capacity.slots-browser)*PLAIN_SLOT_MB<=memoryMB);
-    }
-  }
-  assert.deepEqual(effectiveRunners({gate:{measuredSlots:true},runners:[{host:HOST,slots:4,browser:2,cores:4,memoryMB:1024}]}),[]);
-  for(const size of [{cores:0,memoryMB:16384},{cores:2,memoryMB:NaN},{cores:2.5,memoryMB:16384}])assert.throws(()=>computeRunnerSlots(size),TypeError);
-});
-
-
 test('computed listing preserves the latest canonical GUI observation [C7]', t => {
   const b=box(t);b.run('runner','add',HOST);b.run('settings','gate.measuredSlots','on');useMachine(t,b);
   recordRunnerGui(HOST,true);
@@ -195,7 +164,6 @@ test('computed listing preserves the latest canonical GUI observation [C7]', t =
   assert.equal(b.list().gui,false,'computed counts cannot revive a stale positive registration');
   assert.equal(b.list().slots,9);
 });
-
 
 test('periodic observations wait for real leases before changing measured capacity [C7]', async t => {
   const b=box(t);b.run('runner','add',HOST);b.run('settings','gate.measuredSlots','on');useMachine(t,b);
