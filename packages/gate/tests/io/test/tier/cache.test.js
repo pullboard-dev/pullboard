@@ -25,7 +25,7 @@ function privateMachine(t) {
 
 /** A fresh instance of the selection module, with an empty in-process memory, as another process would load it. */
 async function freshSelection(name) {
-  return import(`../src/shell/test-tier-selection.js?${name}`);
+  return import(`../../../../src/io/test/tier/selection.js?${name}`);
 }
 
 const COMMIT = 'a'.repeat(40), CODE = 'c'.repeat(64);

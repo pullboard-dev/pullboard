@@ -126,7 +126,8 @@ test('a committed cell plan owns its legacy paths: changing one unseals the decl
   const head = commit(root, { 'src/old.js': 'export const old = 2;\n' });
   const { unsealed, kept } = unsealedPackages(root, { base: planned, head });
   assert.deepEqual(unsealed.map(row => row.package), ['packages/legacy']);
-  assert.deepEqual(kept, ['.', 'packages/alone', 'packages/base', 'packages/user']);
+  // The plan lives under packages/codemap, so that folder is a fixture package that the source change leaves sealed.
+  assert.deepEqual(kept, ['.', 'packages/alone', 'packages/base', 'packages/codemap', 'packages/user']);
   const status = new Map(sealStatus(root, { rev: head, store }).map(row => [row.package, row.seal]));
   assert.equal(status.get('packages/legacy'), null);
   for (const name of kept) assert.deepEqual(status.get(name).receipts, [`receipt-${name}`], name);

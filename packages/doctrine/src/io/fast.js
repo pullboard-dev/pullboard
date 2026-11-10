@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/gate/src/io/scan.js packages/gate/src/io/catch.js packages/gate/src/io/file/size.js packages/gate/src/io/sync/spawn.js packages/gate/src/io/test/inputs.js packages/gate/src/io/test/names.js */
+/** @pullboard-module-loads packages/gate/src/io/scan.js packages/gate/src/io/assumptions.js packages/gate/src/io/catch.js packages/gate/src/io/file/size.js packages/gate/src/io/sync/spawn.js packages/gate/src/io/test/inputs.js packages/gate/src/io/test/names.js */
 /**
  * The fast doctrine path for submit [C7]. A rule whose command is `node packages/gate/src/io/<path>.js`, with
  * a script marked `@file-local`, reads only the files it walks, so submit imports that check and
@@ -30,7 +30,7 @@ const SCRIPT = /^node\s+(packages\/gate\/src\/io\/[\w./-]+\.js)$/u;
  * put every check script, the static tree registry and through it the CLI into the selection closure of every
  * test that reaches doctrine, so a check script outside this list runs on the runner path instead.
  */
-export const FAST_CHECK_SCRIPTS = Object.freeze(['packages/gate/src/io/catch.js', 'packages/gate/src/io/file/size.js',
+export const FAST_CHECK_SCRIPTS = Object.freeze(['packages/gate/src/io/assumptions.js', 'packages/gate/src/io/catch.js', 'packages/gate/src/io/file/size.js',
   'packages/gate/src/io/sync/spawn.js', 'packages/gate/src/io/test/inputs.js', 'packages/gate/src/io/test/names.js']);
 
 /**

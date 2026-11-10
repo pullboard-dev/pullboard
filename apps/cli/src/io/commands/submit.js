@@ -1,3 +1,4 @@
+import { parseSpec } from '../../../../../packages/spec/light.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
@@ -431,7 +432,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
-  if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
+  if (!isClean(root)) {
+    // Preserve the typed grammar refusal without starting gates for a dirty candidate.
+    try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
+    catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
+    throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
+  }
   const stray = untracked(root);
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);

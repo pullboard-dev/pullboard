@@ -101,8 +101,8 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (values.until !== undefined || values.reason !== undefined || values.max !== undefined && (!/^[1-9][0-9]*$/u.test(values.max) || !Number.isSafeInteger(Number(values.max)))) throw new Refused('USAGE', 'use --max with a positive item count, or --waive with --until and --reason');
-  await executeBoardLanding(ctx, board, io, values);
-  return 0;
+  const result = await executeBoardLanding(ctx, board, io, values);
+  return !values['dry-run'] && !result.landed?.length && result.culprits?.length ? 1 : 0;
 });
 }
 
