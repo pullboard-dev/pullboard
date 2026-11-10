@@ -9,10 +9,16 @@ import {
   cli,
 } from '../../../tests/fixtures/next/take.js';
 
-/** Record a green gate at the item's submitted head, the way the submit queue does. */
+/** Record a green gate at the item's submitted head with the proof receipt the production gate writes, as the submit queue does. */
 function green(box, id) {
-  const head = store.getItem(box.board, id).item_commit;
-  recordSubmitHandoff(box.board.db, id, { id: `fixture-${id}`, commit: head, agentId: box.seats.builder.id, state: 'green' });
+  const item = store.getItem(box.board, id);
+  const head = item.item_commit, tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
+  const agentId = box.seats.builder.id;
+  recordSubmitHandoff(box.board.db, id, { id: `fixture-${id}`, commit: head, tree, executionCommit: head, executionTree: tree,
+    digest: item.item_frozen_digest, agentId, state: 'green' });
+  box.board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
+    .run(box.clock.now().toISOString(), agentId, 'proof-run', id, JSON.stringify({ receipt: { id: `fixture-receipt-${id}`, kind: 'submit',
+      commit: head, tree, seat: agentId, frozenDigest: item.item_frozen_digest, sourceClean: true } }));
 }
 
 test('a seat with a green unreserved submission reviews it before any build, with no starvation wait [C7,#2992]', async t => {
