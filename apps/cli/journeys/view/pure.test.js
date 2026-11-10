@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ENFORCED_FILE } from '../../../../../apps/cli/src/io/static/view.js';
-import { viewPureGate } from '../../../../../apps/cli/src/io/static/view.js';
+import { ENFORCED_FILE } from '../../src/io/static/view.js';
+import { viewPureGate } from '../../src/io/static/view.js';
 
 const TEST = 'test/cockpit/example-pure.test.js', OLD = 'src/view/example-render.js', NEW = 'apps/view/src/core/view/example-render.js';
 const ROLES = { [TEST]: { kind: 'logic', reason: 'Seeded data through the actual renderer' } };

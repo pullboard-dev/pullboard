@@ -5,12 +5,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 
 const HOSTS = [HOST, `${HOST}-drop`, `${HOST}-setup`];
 
@@ -68,7 +68,7 @@ console.log(JSON.stringify({ outcome, sleeps, hosts, calls }));`;
  * @returns {{ outcome: object, sleeps: number[], hosts: string[], calls: number }}
  */
 function run(box, drops) {
-  const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, drops)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   return JSON.parse(result.stdout);
@@ -98,7 +98,7 @@ test('clause 2: only after the 30 minute window the gate stops as infrastructure
 });
 
 test('clause 2: a spent 30 minute window ends the queued submit at once with one stop, never three more reruns [C7]', async () => {
-  const { submitUntilSettled } = await import('../../../../../apps/lib/index.js');
+  const { submitUntilSettled } = await import('../../../lib/index.js');
   let runs = 0;
   const spent = Object.assign(new Error('runner-first check has no available runner (a, b): runners a, b all stopped on infrastructure through the 30-minute retry window'),
     { code: 'RUNNER_UNAVAILABLE', infrastructureWindowSpent: true });

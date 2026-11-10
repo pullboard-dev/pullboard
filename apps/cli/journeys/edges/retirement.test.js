@@ -2,8 +2,8 @@
 /** A named `plan retire entry <path>` line lets an accepted process entry leave the plan only once its file stopped running [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { policyProblems } from '../../../../../apps/cli/index.js';
-import { fixture } from '../../../../landing/tests/fixtures/plan.js';
+import { policyProblems } from '../../index.js';
+import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
 
 const ENTRY = 'bin/entry.js';
 const SOURCE = "import { fileURLToPath } from 'node:url';\nif (process.argv[1] === fileURLToPath(import.meta.url)) await Promise.resolve(process.argv.slice(2));\n";

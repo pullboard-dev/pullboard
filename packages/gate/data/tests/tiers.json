@@ -816,7 +816,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/imports/ratchet.test.js",
+      "file": "apps/cli/journeys/imports/ratchet.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1538,7 +1538,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/check/baseline/delivery.test.js",
+      "file": "apps/cli/journeys/baseline/delivery.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1595,7 +1595,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/check/baseline.test.js",
+      "file": "apps/cli/journeys/baseline/check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10552,7 +10552,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/study.test.js",
+      "file": "apps/cli/journeys/study/metrics.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10897,7 +10897,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/edges/reads.test.js",
+      "file": "apps/cli/journeys/edges/reads.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11276,7 +11276,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/board/write/plan.test.js",
+      "file": "apps/cli/journeys/plan/write.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11526,7 +11526,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/edges/door.test.js",
+      "file": "apps/cli/journeys/edges/door.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11832,7 +11832,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/test/cells.test.js",
+      "file": "apps/cli/journeys/test/placement.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53830,7 +53830,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/view/pure.test.js",
+      "file": "apps/cli/journeys/view/pure.test.js",
       "tier": "T3",
       "packages": [
         ".",

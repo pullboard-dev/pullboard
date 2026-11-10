@@ -1,13 +1,13 @@
 /** @pullboard-test-input source-tree */
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild as spawn } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -21,15 +21,15 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { addItem } from '../../../../store/index.js';
-import { closeBoard } from '../../../../store/index.js';
-import { validateItemAddition } from '../../../../store/index.js';
-import { openBoard } from '../../../../../apps/lib/index.js';
-import { prepareCheckBaseline } from '../../../src/io/check/baseline.js';
-import { removeFixtureDirectory } from '../../fixtures/diagnostics.js';
+import { addItem } from '../../../../packages/store/index.js';
+import { closeBoard } from '../../../../packages/store/index.js';
+import { validateItemAddition } from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
+import { prepareCheckBaseline } from '../../../../packages/gate/src/io/check/baseline.js';
+import { removeFixtureDirectory } from '../../../../packages/gate/tests/fixtures/diagnostics.js';
 
-const BIN = resolve(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
-const BASELINE_WORKER = resolve(import.meta.dirname, '../../../../../apps/lib/src/io/check/baseline.js');
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+const BASELINE_WORKER = resolve(import.meta.dirname, '../../../lib/src/io/check/baseline.js');
 const TEMP_DIRS = [];
 const BACKGROUND_WRITERS = [];
 const SPEC = `# Check ownership fixture

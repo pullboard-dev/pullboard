@@ -1,12 +1,12 @@
 /** Exact generated-data declarations never turn a moved repository source into fixture data [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureSourceEdits } from '../../../../codemap/index.js';
-import { checkMoved } from '../../../../codemap/src/io/cells/scripts/plan.js';
+import { fixtureSourceEdits } from '../../../../packages/codemap/index.js';
+import { checkMoved } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import {
   parseDataReads,
   staleDataReads,
-} from '../../../../codemap/src/io/cells-data-reads.js';
+} from '../../../../packages/codemap/src/io/cells-data-reads.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
 
 const FILE = 'test/example.test.js';
 const SOURCE = "import { readFileSync } from 'node:fs';\nconst generated = process.env.GENERATED_HOOK;\nreadFileSync(generated, 'utf8');\n";

@@ -16,25 +16,25 @@ import {
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { eventMetrics } from '../../../docs/tools/case-study/events.js';
+import { eventMetrics } from '../../../../docs/tools/case-study/events.js';
 import {
   structureMetrics,
   requireFinishedStructure,
-} from '../../../docs/tools/case-study/structure.js';
+} from '../../../../docs/tools/case-study/structure.js';
 import {
   caseStudy,
   readCaseStudyBaseline,
   writeCaseStudy,
-} from '../../../docs/tools/case-study/report.js';
+} from '../../../../docs/tools/case-study/report.js';
 import {
   frozenCheckMetrics,
   suiteLogMetrics,
-} from '../../../docs/tools/case-study/durations.js';
-import { receiptBody } from '../index.js';
+} from '../../../../docs/tools/case-study/durations.js';
+import { receiptBody } from '../../../../packages/gate/index.js';
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../tests/fixtures/child.js';
 
 const START = '2026-10-01T00:00:00.000Z', END = '2026-10-01T00:10:00.000Z';
 const A = 'a'.repeat(40), B = 'b'.repeat(40), C = 'c'.repeat(40);
@@ -221,7 +221,7 @@ test('case study frozen timings require canonical source and exact frozen-comman
 
 test('case study executable regenerates the report from the selected real sources [C7,D3]', t => {
   const { root, boardPath } = fixture(t), output = join(root, '.git', 'cli-report');
-  const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../../docs/tools/case-study.js'),
+  const result = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../../../docs/tools/case-study.js'),
     '--root', root, '--board', boardPath, '--from', START, '--to', END, '--output', output], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   const report = JSON.parse(readFileSync(join(output, '0.9.4.json'), 'utf8'));
@@ -233,7 +233,7 @@ test('case study executable regenerates the report from the selected real source
 test('case study reads every SQLite event across collection and multiple bounded pages [C7,D3]', t => {
   const entries = Array.from({ length: 385 }, (_, index) => [1, 'claim', index + 1, {}]);
   const { boardPath } = fixture(t, entries);
-  const module = pathToFileURL(join(import.meta.dirname, '../../../docs/tools/case-study/events.js')).href;
+  const module = pathToFileURL(join(import.meta.dirname, '../../../../docs/tools/case-study/events.js')).href;
   const program = `import {DatabaseSync} from 'node:sqlite';\nimport {eventRows} from ${JSON.stringify(module)};\n`
     + `const db=new DatabaseSync(${JSON.stringify(boardPath)},{readOnly:true});let n=0;\n`
     + 'try {for(const event of eventRows(db)){if(event.event_id!==++n)throw new Error("lost event order");if(n%64===0)globalThis.gc();}}finally{db.close();}\n'

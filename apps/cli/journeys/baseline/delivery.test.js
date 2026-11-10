@@ -1,10 +1,10 @@
 /** Durable check observations retry delivery without running their shell again [V2,H16]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -18,15 +18,15 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { addItem } from '../../../../../store/index.js';
-import { closeBoard } from '../../../../../store/index.js';
-import { events } from '../../../../../store/index.js';
-import { getItem } from '../../../../../store/index.js';
-import { openBoard } from '../../../../../../apps/lib/index.js';
-import { prepareCheckBaseline } from '../../../../src/io/check/baseline.js';
+import { addItem } from '../../../../packages/store/index.js';
+import { closeBoard } from '../../../../packages/store/index.js';
+import { events } from '../../../../packages/store/index.js';
+import { getItem } from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/index.js';
+import { prepareCheckBaseline } from '../../../../packages/gate/src/io/check/baseline.js';
 
-const BIN = resolve(import.meta.dirname, '../../../../../../apps/cli/pullboard.js');
-const WORKER_MODULE = new URL('../../../../src/io/check/baseline/worker.js', import.meta.url).href;
+const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+const WORKER_MODULE = new URL('../../../../packages/gate/src/io/check/baseline/worker.js', import.meta.url).href;
 const BOARD_FILE = '.git/pullboard/board.sqlite';
 const TEMP_DIRS = [];
 const SPEC = `# Delivery fixture\n\n## G · Goals\n- G1 [approved, must] The board retains the worker result. | gate: true\n`;
@@ -131,7 +131,7 @@ function runWorker(box, id, request) {
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
     runners: [{ host: 'fixture-runner', slots: 1, browser: 1 }], gate: { memoryFloorMB: 0, timingRunner: false } });
-  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../../../../apps/lib/index.js', import.meta.url).href)};\nimport { runnerExecutionServices } from ${JSON.stringify(new URL('../../../../../runners/index.js', import.meta.url).href)};\nimport { landingExecutionServices } from ${JSON.stringify(new URL('../../../../../landing/index.js', import.meta.url).href)};\nimport { runFixtureChild } from ${JSON.stringify(new URL('../../../../../../apps/cli/tests/fixtures/child.js', import.meta.url).href)};\nconst runners = { ...runnerExecutionServices(), refreshRunnerMeasurements: async () => {}, probeRunnerTransport: async () => ({ healthy: false }), probeRunnerHealth: async () => ({ healthy: false }), runOnRunnerAsync: async (root, command, options) => { if (!options.source?.commit || options.runner.host !== 'fixture-runner') throw new Error('baseline did not select the pinned runner'); const run = runFixtureChild('/bin/sh', ['-c', command], { cwd: root, encoding: 'utf8' }); return { exitCode: run.status, output: run.stdout + run.stderr }; } };\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard, gateExecutionServices: async () => ({ runners, landing: landingExecutionServices() }) });`;
+  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../lib/index.js', import.meta.url).href)};\nimport { runnerExecutionServices } from ${JSON.stringify(new URL('../../../../packages/runners/index.js', import.meta.url).href)};\nimport { landingExecutionServices } from ${JSON.stringify(new URL('../../../../packages/landing/index.js', import.meta.url).href)};\nimport { runFixtureChild } from ${JSON.stringify(new URL('../../tests/fixtures/child.js', import.meta.url).href)};\nconst runners = { ...runnerExecutionServices(), refreshRunnerMeasurements: async () => {}, probeRunnerTransport: async () => ({ healthy: false }), probeRunnerHealth: async () => ({ healthy: false }), runOnRunnerAsync: async (root, command, options) => { if (!options.source?.commit || options.runner.host !== 'fixture-runner') throw new Error('baseline did not select the pinned runner'); const run = runFixtureChild('/bin/sh', ['-c', command], { cwd: root, encoding: 'utf8' }); return { exitCode: run.status, output: run.stdout + run.stderr }; } };\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard, gateExecutionServices: async () => ({ runners, landing: landingExecutionServices() }) });`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });

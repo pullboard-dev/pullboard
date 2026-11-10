@@ -5,12 +5,12 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { shimImportProblems } from '../../../../codemap/index.js';
-import { stagedShimImportProblems } from '../../../../codemap/index.js';
-import { importsIn } from '../../../index.js';
-import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixturePolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { shimImportProblems } from '../../../../packages/codemap/index.js';
+import { stagedShimImportProblems } from '../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 
 const PLAN = { cells: [{ order: 1, name: 'git', root: 'packages/git', frontDoor: 'packages/git/index.js',
   paths: [['src/git.js', 'packages/git/src/shell/git.js', 'seed']] }] };

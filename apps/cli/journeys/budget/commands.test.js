@@ -19,11 +19,11 @@ import {
   budgetBreaches,
   effectiveCeilings,
   loweredCeilings,
-} from '../../../src/io/board/budget.js';
-import { HOPS } from '../../../src/io/matrix.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../src/io/landing/budget.js';
+import { HOPS } from '../../../../packages/gate/src/io/matrix.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
-const CEILINGS = JSON.parse(readFileSync(join(import.meta.dirname, '../../../data/ceilings/board-commands.json'), 'utf8'));
+const CEILINGS = JSON.parse(readFileSync(join(import.meta.dirname, '../../../../packages/gate/data/ceilings/board-commands.json'), 'utf8'));
 
 /** A measurement of every seat command at the given module counts and medians. */
 function measurement(modules, medianMs = 100) {

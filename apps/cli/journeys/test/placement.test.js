@@ -2,9 +2,9 @@
 /** Deterministic test placement follows real input edges without hiding uncertainty [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyTestFiles } from '../../../../codemap/src/io/cells/placement.js';
-import { placeTests } from '../../../../codemap/src/io/cells/placement.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { classifyTestFiles } from '../../../../packages/codemap/src/io/cells/placement.js';
+import { placeTests } from '../../../../packages/codemap/src/io/cells/placement.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fileURLToPath } from 'node:url';
 
 const plan = { cells: [
@@ -35,10 +35,10 @@ test('every tracked test and docs check is classified deterministically [C7,CD64
 test('the repository census accounts for every tracked test and docs check [C7,CD64]', async () => {
   const { execFileSync } = await import('node:child_process');
   const { fileURLToPath } = await import('node:url');
-  const { readPlan } = await import('../../../../codemap/src/io/cells/scripts/plan.js');
-  const { cellInventory } = await import('../../../../codemap/index.js');
-  const { importsIn, commonJsIn } = await import('../../../index.js');
-  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const { readPlan } = await import('../../../../packages/codemap/src/io/cells/scripts/plan.js');
+  const { cellInventory } = await import('../../../../packages/codemap/index.js');
+  const { importsIn, commonJsIn } = await import('../../../../packages/gate/index.js');
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const inventory = cellInventory(root, { importsIn, commonJsIn });
   const rows = classifyTestFiles(tracked, inventory, readPlan(root));
@@ -67,7 +67,7 @@ test('clause 3: the fixture report shows a cell, a journey and an unknown reason
 
 test('clause 1: node packages/codemap/src/io/cells/scripts/plan.js --place-tests prints every tracked test file and docs check with its home; clause 2: a repeated run prints identical output [C7,CD64]', async () => {
   const { fileURLToPath } = await import('node:url');
-  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const run = () => runFixtureChild(process.execPath, ['packages/codemap/src/io/cells/scripts/plan.js', '--place-tests'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const first = run();
   assert.equal(first.failure, null, first.context);
@@ -81,14 +81,14 @@ test('clause 1: node packages/codemap/src/io/cells/scripts/plan.js --place-tests
   assert.deepEqual(rows.map(line => line.split('\t')[0]), expected);
   assert.ok(rows.every(line => /\t(cell \S+|journey \S+,\S+|unknown .+)$/u.test(line)), 'every file names a cell, a journey or an unknown reason');
   const counts = lines.filter(line => line.startsWith('files for cell '));
-  const { readPlan } = await import('../../../../codemap/src/io/cells/scripts/plan.js');
+  const { readPlan } = await import('../../../../packages/codemap/src/io/cells/scripts/plan.js');
   assert.equal(counts.length, readPlan(root).cells.length, 'every plan cell reports how many test files it gets');
   assert.equal(lines.at(-1), `total: ${expected.length}`);
 });
 
 /** Build a real Git fixture with a kernel, a store and an app cell, their tests, and optionally a test that reads its own location. */
 async function moverFixture(t, { located = false } = {}) {
-  const { fixture, git } = await import('../../../../landing/tests/fixtures/plan.js');
+  const { fixture, git } = await import('../../../../packages/landing/tests/fixtures/plan.js');
   const { root, put } = fixture(t);
   const cells = [['kernel', 'package', 'packages/kernel'], ['store', 'package', 'packages/store'], ['app:cli', 'app', 'apps/cli']];
   put('packages/codemap/data/plan/cells.json', JSON.stringify({ version: 1, cells: cells.map(([name], index) => ({ order: index + 1, name, file: `bin/cells-plan/0${index + 1}.json` })), stays: [] }));
@@ -112,7 +112,7 @@ async function moverFixture(t, { located = false } = {}) {
 
 /** The real cells-plan CLI path. */
 function moverCli() {
-  return fileURLToPath(new URL('../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
+  return fileURLToPath(new URL('../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 }
 
 const moverSources = {
@@ -237,7 +237,7 @@ test('clause 1: a bare own-location read is still refused [C7,CD64]', async t =>
 test('clause 2: a move rewrites exact quoted moved paths in the declared test path tables and nothing else [C7,CD64]', async t => {
   const { readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const { TEST_PATH_TABLES_FILE } = await import('../../../../codemap/src/io/cells/placement.js');
+  const { TEST_PATH_TABLES_FILE } = await import('../../../../packages/codemap/src/io/cells/placement.js');
   const { root, git, cli } = await moverFixture(t);
   const table = 'packages/verify/src/io/review/tier.js';
   mkdirSync(join(root, 'bin/checks'), { recursive: true });

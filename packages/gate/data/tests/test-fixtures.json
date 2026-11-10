@@ -83,7 +83,7 @@
   "packages/gate/tests/allowlist.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/imports/ratchet.test.js": {
+  "apps/cli/journeys/imports/ratchet.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/land/landing/message.test.js": {
@@ -122,12 +122,12 @@
     "repo-read": 2,
     "tempdir": 2
   },
-  "packages/gate/tests/io/check/baseline/delivery.test.js": {
+  "apps/cli/journeys/baseline/delivery.test.js": {
     "tempdir": 1,
     "hand-policy": 1,
     "raw-board": 3
   },
-  "packages/gate/tests/io/check/baseline.test.js": {
+  "apps/cli/journeys/baseline/check.test.js": {
     "tempdir": 1,
     "env-spread": 1,
     "hand-policy": 1,
@@ -677,7 +677,7 @@
     "tempdir": 2,
     "raw-board": 3
   },
-  "packages/gate/tests/study.test.js": {
+  "apps/cli/journeys/study/metrics.test.js": {
     "tempdir": 2
   },
   "apps/cli/journeys/milestone/uses.test.js": {
@@ -693,7 +693,7 @@
   "apps/cli/journeys/submit/ratchet.test.js": {
     "raw-board": 1
   },
-  "packages/gate/tests/io/edges/reads.test.js": {
+  "apps/cli/journeys/edges/reads.test.js": {
     "tempdir": 2
   },
   "packages/landing/tests/cells/incremental.test.js": {
@@ -3732,7 +3732,7 @@
     "tempdir": 6,
     "env-spread": 5
   },
-  "packages/gate/tests/io/view/pure.test.js": {
+  "apps/cli/journeys/view/pure.test.js": {
     "tempdir": 1
   },
   "apps/cli/journeys/view/services.test.js": {

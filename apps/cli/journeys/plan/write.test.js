@@ -9,19 +9,19 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { computePlan } from '../../../../../codemap/index.js';
-import { placePath } from '../../../../../codemap/index.js';
-import { writePlan } from '../../../../../codemap/index.js';
-import { readPlan } from '../../../../../codemap/index.js';
-import { checkMoved } from '../../../../../codemap/src/io/cells/scripts/plan.js';
-import { stalePlanRows } from '../../../../../codemap/src/io/cells/scripts/plan.js';
-import { orphanCutEdges } from '../../../../../codemap/src/io/cells/scripts/plan.js';
-import { importCuts } from '../../../../../codemap/index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { fixture } from '../../../../../landing/tests/fixtures/plan.js';
-import { git } from '../../../../../landing/tests/fixtures/plan.js';
+import { computePlan } from '../../../../packages/codemap/index.js';
+import { placePath } from '../../../../packages/codemap/index.js';
+import { writePlan } from '../../../../packages/codemap/index.js';
+import { readPlan } from '../../../../packages/codemap/index.js';
+import { checkMoved } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { stalePlanRows } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { orphanCutEdges } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { importCuts } from '../../../../packages/codemap/index.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 
-const BIN = fileURLToPath(new URL('../../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
+const BIN = fileURLToPath(new URL('../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
 test('plan --write preserves exact temporary edge contracts while removing stale plan shards [C7,D3,CD64]', t => {
   const { root, put } = fixture(t);
