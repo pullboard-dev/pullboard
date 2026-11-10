@@ -144,6 +144,8 @@ function hooksFixture() {
   const box = helpers.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.core = { owns: ['core/'], specs: ['G1'] };
+  // Seat routes come from the board's model table since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   write(box.repo, {
     'pullboard.json': JSON.stringify(config, null, 2),
     'core/value.txt': 'one\n',
