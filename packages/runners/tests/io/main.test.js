@@ -1,5 +1,6 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -61,6 +62,7 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
   assert.equal(after[leaf], readFileSync(toolSourcePath(installed, leaf), 'utf8'));
   try {
     // Reconstruct the former transparent hop; today's compatibility shim uses the public front door.
+    mkdirSync(join(installed, 'src'), { recursive: true });
     writeFileSync(join(installed, 'src/trusted-policy-read.js'),
       "export { policyGit, mainPolicy, policyAt, RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk, trunkRef } from '../packages/sandbox/light.js';\n");
     writeFileSync(file, source.replace(direct, "'../../../../src/trusted-policy-read.js'"));
