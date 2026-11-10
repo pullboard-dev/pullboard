@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { help$VERSION as VERSION } from '../../apps/cli/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { createRelayBrowserHandler } from '../../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../../apps/relay/index.js';
 import { BIN, machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, styleOf, proofShot, press } from './fixture.js';
 import {
   chromeHealth,
@@ -211,7 +211,7 @@ test('a pullboard.dev page reads the local board [N26,A2]', { timeout: 120_000 }
         return nativeFetch(input, init);
       };
     })()` });
-    // The page as relay/browser-page.js serves it, with its own banner, which the relay client fills.
+    // The page as the relay app serves it, with its own banner, which the relay client fills.
     const relayPage = (relaySession) => cockpitPage('', { readOnly: true, requests: true, transportModule: '/relay/client.js', apiHeaders: {}, stylesheet: '/view.css', hostedLocal: true, relaySession, signIn: '/auth/github/start' })
       .replace('<main>', '<main><section class="card-panel" id="relay-notice" role="status"><p>Pairing this browser…</p></section>');
     const banner = "document.querySelector('#relay-notice').hidden";
