@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/commands/*.js */
+/** @pullboard-module-loads apps/cli/src/io/commands/*.js */
 /**
  * Every command, discovered: each src/commands/<name>.js is the pullboard <name> command and exports run. An item
  * adding a command adds its own new file and no line of any shared one, so two items adding different commands never
