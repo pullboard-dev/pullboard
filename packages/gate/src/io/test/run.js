@@ -61,7 +61,7 @@ export async function runFullSuite(root, runner, executionServices) {
   const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('../main.js'), import('../execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('../admission/cpu/load.js');
-  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
+  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node packages/gate/src/io/run/tests.js' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
   { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;
