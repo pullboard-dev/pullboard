@@ -29,6 +29,7 @@ import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -66,6 +67,7 @@ function project() {
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   /** Run one CLI command with --json and return its document. */
   const cli = (cwd, ...args) => {
+    args = fixtureJoinRoute(args, env.PULLBOARD_MODEL);
     if (args[0] === 'submit') args.push('--wait');
     const result = run(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
