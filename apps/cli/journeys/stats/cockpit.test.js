@@ -2,6 +2,7 @@
 /** @pullboard-test-gui */
 /** Cockpit stats checks, using the shared real-board fixtures [N26]. */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -132,7 +133,9 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
     await chrome.waitFor("data?.group?.name === 'Proof project' && document.querySelector('#group-view:not([hidden])') && document.querySelector('#proof-stats').hidden");
     assert.equal(await chrome.stable("document.querySelector('#proof-stats').innerHTML"), '', 'a grouped view cannot retain a prior repo\'s stats');
     const { flow: currentFlow, ...currentTotals } = (await boardOf(view, alpha.repo)).proofStats;
-    const { flow: expectedFlow, ...expectedTotals } = expected;
+    const { flow: expectedFlow, agents, bars, caught, ...expectedTotals } = expected;
+    for (const key of ['agents', 'bars', 'caught']) assert.equal(Object.hasOwn(currentTotals, key), false, `native state omits historical ${key}`);
+    assert.ok(agents && bars && caught, 'the full CLI stats retain historical proof detail');
     assert.deepEqual(currentTotals, expectedTotals, 'the comparison reads the same live API stats source; queue ages may advance');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
@@ -147,7 +150,7 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
 
   const box = machine();
   const alpha = project(box, 'stats-count-words');
-  box.run(alpha.web, 'join', 'web', '--family', 'solo');
+  box.run(alpha.web, 'join', 'web', '--model', FIXTURE_MODEL, '--family', 'solo');
   const crewOne = joinedAgent(box, alpha, 'stats-crew-one');
   const crewTwo = joinedAgent(box, alpha, 'stats-crew-two');
   const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
