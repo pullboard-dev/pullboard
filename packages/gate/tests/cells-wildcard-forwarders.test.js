@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 import { test } from 'node:test';
-import { checkCuts } from '../../../bin/cells-plan-cuts.js';
+import { checkCuts } from '../index.js';
 import { computePlan as modelComputePlan } from '../../codemap/index.js';
 import { writePlan as modelWritePlan } from '../../codemap/index.js';
 import { readPathMap } from '../../codemap/index.js';
