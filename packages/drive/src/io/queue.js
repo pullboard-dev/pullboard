@@ -30,7 +30,7 @@ import { writeStep } from '../../../jobs/index.js';
 export const TEST_RUN_KIND = 'test-run';
 
 /** The step `next` writes once it handed a finished run to its seat, so it is told once. */
-const DELIVERED = 'delivered';
+export const DELIVERED = 'delivered';
 
 /** How long a queued run may wait for its worker to take it before it is reported refused, not queued. */
 export const START_BOUND_MS = LEASE_MS;
