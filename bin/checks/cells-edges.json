@@ -945,7 +945,7 @@
       "deep": 0
     },
     "bin/cells-inventory-cache.js": {
-      "cells": 5,
+      "cells": 4,
       "deep": 0
     },
     "bin/cells-move-fixtures.js": {
@@ -993,7 +993,7 @@
       "deep": 0
     },
     "bin/cells-submit-checks.js": {
-      "cells": 4,
+      "cells": 3,
       "deep": 0
     },
     "bin/check-baseline.js": {
@@ -1397,11 +1397,7 @@
       "deep": 0
     },
     "packages/gate/src/shell/accepted-cells-inventory.js": {
-      "cells": 4,
-      "deep": 0
-    },
-    "packages/gate/src/shell/affected-tests.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 0
     },
     "packages/gate/src/shell/browser-admission.js": {
@@ -1484,10 +1480,6 @@
       "cells": 4,
       "deep": 0
     },
-    "packages/gate/src/shell/module-imports.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/gate/src/shell/proof-shards.js": {
       "cells": 2,
       "deep": 0
@@ -1507,10 +1499,6 @@
     "packages/gate/src/shell/run-timing.js": {
       "cells": 1,
       "deep": 1
-    },
-    "packages/gate/src/shell/seals.js": {
-      "cells": 3,
-      "deep": 0
     },
     "packages/gate/src/shell/seat-keepalive.js": {
       "cells": 1,
@@ -1569,10 +1557,6 @@
       "deep": 1
     },
     "packages/gate/src/shell/test-tier-selection.js": {
-      "cells": 2,
-      "deep": 0
-    },
-    "packages/gate/src/shell/test-tiers.js": {
       "cells": 2,
       "deep": 0
     },
@@ -2728,6 +2712,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/runners/src/shell/runner-probe.js": {
+      "cells": 2,
+      "deep": 1
+    },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
       "deep": 1
@@ -2749,8 +2737,8 @@
       "deep": 0
     },
     "packages/runners/src/shell/runner-transport.js": {
-      "cells": 3,
-      "deep": 2
+      "cells": 2,
+      "deep": 1
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -4366,7 +4354,7 @@
     },
     "src/import-only-change.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "src/item-offer-contract.js": {
       "cells": 1,
@@ -5377,6 +5365,7 @@
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15,
     "packages/config/core.js": 9,
-    "packages/seats/core.js": 27
+    "packages/seats/core.js": 27,
+    "packages/runners/core.js": 40
   }
 }

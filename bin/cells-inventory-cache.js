@@ -49,7 +49,7 @@ const ANCESTORS = 200;
 export function cellsCacheDirectory(kind) { return join(machineHome(), 'cells-cache', kind); }
 
 /** The modules whose code decides an inventory's content: the census, its incremental update and the import parsers. */
-const INVENTORY_CODE = ['../packages/codemap/src/shell/cell-lint-inventory.js', '../packages/gate/src/shell/module-imports.js', './cells-inventory-cache.js']
+const INVENTORY_CODE = ['../packages/codemap/src/shell/cell-lint-inventory.js', '../packages/codemap/src/shell/module-imports.js', './cells-inventory-cache.js']
   .map(path => fileURLToPath(new URL(path, import.meta.url)));
 let inventoryCode;
 

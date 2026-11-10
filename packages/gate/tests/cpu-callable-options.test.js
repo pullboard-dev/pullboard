@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cpuLoadOptionsIn } from '../src/shell/module-imports.js';
+import { cpuLoadOptionsIn } from '../index.js';
 import { testsNeedCpuRunner } from '../src/shell/cpu-load-admission.js';
 
 test('batched literals retain escaped registration and option authority [C7]', () => {
