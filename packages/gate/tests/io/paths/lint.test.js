@@ -8,6 +8,9 @@ import {
 } from '../../../src/io/paths/lint.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 
+/** Source text of the quoted segments, so a fixture can hold a segment-built join without this file holding one. */
+const quoted = (...parts) => parts.map(part => `'${part}'`).join(', ');
+
 /** Run the lint over a scratch repo of `files` whose only rename map is `map`. */
 function lint(files, map = {}) {
   const tree = privateFixtureFiles('pb-pathlint-');
@@ -44,7 +47,7 @@ const b = resolve(import.meta.dirname, 'also', 'nope.js');\n`,
 test('clause 1: segment-built paths on a repo-root variable and array path pieces are findings [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': `const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const a = join(REPO_ROOT, 'packages', 'gate', 'src', 'old.js');
+const a = join(REPO_ROOT, ${quoted('packages', 'gate', 'src', 'old.js')});
 const pieces = ['packages', 'gate', 'src', 'old2.js'];\n`,
   });
   assert.deepEqual(found.map(row => `${row.line}:${row.path}`), ['2:packages/gate/src/old.js', '3:packages/gate/src/old2.js']);
@@ -52,7 +55,7 @@ const pieces = ['packages', 'gate', 'src', 'old2.js'];\n`,
 
 test('clause 1: a missing path that is a path-map key suggests the new path, following chains [C7]', () => {
   const found = lint({
-    'packages/a/src/x.js': "const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');\nconst a = join(REPO_ROOT, 'src', 'old.js');\n",
+    'packages/a/src/x.js': `const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');\nconst a = join(REPO_ROOT, ${quoted('src', 'old.js')});\n`,
     'packages/z/new.js': '\n',
   }, { 'src/old.js': 'packages/z/mid.js', 'packages/z/mid.js': 'packages/z/new.js' });
   assert.equal(found.length, 1);
