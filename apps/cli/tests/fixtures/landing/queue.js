@@ -339,6 +339,9 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   writeFileSync(join(box.repo, 'web/queue-3.txt'), 'works\n');
   box.git(box.repo, 'add', 'web/queue-3.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: advance queue fixture main');
+  // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and must run its real gate.
+  const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
+  assert.equal(moved.status, 0, moved.stderr);
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   writeFileSync(policyCalls, '');
   const base = box.git(box.repo, 'rev-parse', 'main');

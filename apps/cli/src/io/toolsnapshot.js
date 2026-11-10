@@ -1,6 +1,5 @@
 /** A new tools snapshot is an idle kept one moved to the new tooling commit: only the files that differ are written [C7]. */
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -9,6 +8,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { queuedToolOwners } from '../../../../packages/items/index.js';
 import { toolTreeHasLiveOwner } from '../../../../packages/items/index.js';
+import { gitSpawnSync } from '../../../../packages/git/light.js';
 
 /**
  * The Git index a shared snapshot keeps inside its own folder, so the folder moves as one rename and a later
@@ -40,7 +40,7 @@ function cleanGitEnvironment() {
  * @returns {{ ok: boolean, out: string }}
  */
 function indexGit(toolRoot, work, args) {
-  const result = spawnSync('git', ['-C', toolRoot, '-c', 'core.autocrlf=false', `--work-tree=${work}`, ...args],
+  const result = gitSpawnSync(['-C', toolRoot, '-c', 'core.autocrlf=false', `--work-tree=${work}`, ...args],
     { encoding: 'utf8', env: { ...cleanGitEnvironment(), GIT_INDEX_FILE: join(work, TOOLS_INDEX) }, maxBuffer: 32 * 1024 * 1024 });
   return { ok: result.status === 0, out: String(result.stdout ?? '').trim() };
 }
@@ -118,7 +118,7 @@ export function keepToolsIndex(toolRoot, work, commit) {
  *   was moved from, and the count of files written or removed.
  */
 export function advanceIdleToolTree({ toolRoot, commit, job, temp, now = Date.now(), idleMs = TOOLS_IDLE_MS, owned }) {
-  const tree = spawnSync('git', ['-C', toolRoot, 'rev-parse', `${commit}^{tree}`], { encoding: 'utf8', env: cleanGitEnvironment() });
+  const tree = gitSpawnSync(['-C', toolRoot, 'rev-parse', `${commit}^{tree}`], { encoding: 'utf8', env: cleanGitEnvironment() });
   const wanted = String(tree.stdout ?? '').trim();
   if (tree.status !== 0 || !/^[0-9a-f]{40}$/u.test(wanted)) return null;
   const queued = owned ? null : queuedToolOwners({ now });

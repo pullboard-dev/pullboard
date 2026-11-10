@@ -272,7 +272,7 @@ function listingIsOwn(file, roots, read) {
  * reads a listing as input must run when the listing changes, even though a confined change runs no other journey (#4633).
  */
 function listingReaders(root, base, commit, listings) {
-  const needles = [...new Set(listings.map(file => PLAN_SHARD.test(file) ? 'cells-plan/' : posix.basename(file)))];
+  const needles = [...new Set(listings.map(file => PLAN_SHARD.test(file) ? 'packages/codemap/data/plan/' : posix.basename(file)))];
   const before = base ? codeMapGraph(root, base) : null;
   const readers = new Set();
   for (const graph of [before, codeMapGraph(root, commit, before)]) {
