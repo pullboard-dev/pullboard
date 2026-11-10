@@ -55,7 +55,8 @@ function hookedProject() {
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
   copyFileSync(join(REPO, '.githooks', 'pre-commit'), join(box.repo, '.githooks', 'pre-commit'));
   chmodSync(join(box.repo, '.githooks', 'pre-commit'), 0o755);
-  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'add', '--', '.githooks/pre-commit', 'packages/gate/data/baselines/test-waits-baseline.json',
+    'packages/gate/data/tests/test-fixtures.json', 'packages/gate/src/io/changed/scripts/static.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: record the static ceilings and the repository hook');
   box.git(box.repo, 'config', 'core.hooksPath', '.githooks');
   return box;
@@ -111,7 +112,7 @@ test('the staged checker judges a 20-file commit under 2 s, clause 2 [C7]', () =
     writeFileSync(join(box.repo, `src/module-${index}.js`), `/** Module ${index}. */\nexport const value${index} = ${index};\n`);
     writeFileSync(join(box.repo, `test/module-${index}.test.js`), `import { test } from 'node:test';\ntest('module ${index} loads [C7]', () => {});\n`);
   }
-  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'add', '-A', '--', 'src', 'test');
   assert.equal(box.git(box.repo, 'diff', '--cached', '--name-only').split('\n').filter(Boolean).length, 20);
   const started = performance.now();
   const done = stagedCheck(box);
