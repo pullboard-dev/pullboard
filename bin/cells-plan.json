@@ -946,10 +946,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/tier-row-change.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/240.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -2066,6 +2062,7 @@
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",
+    "sandbox->commits",
     "rigor->store",
     "(root)->store",
     "spec->kernel",
