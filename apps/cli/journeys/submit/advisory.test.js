@@ -199,7 +199,7 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   writeFileSync(join(box.web, 'src/ordinary-added.js'), 'export const value = 1;\n');
   box.git(box.web, 'add', 'src/ordinary-added.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add an ordinary source [G1]');
-  rmSync(marker);
+  rmSync(marker, { force: true });
   const submitted = box.run(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   assert.match(submitted.out + submitted.err, /cells warning: src\/ordinary-added\.js:1: no cells-plan placement; fix: node packages\/codemap\/data\/plan\.js --place src\/ordinary-added\.js/u);
