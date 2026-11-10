@@ -47,13 +47,15 @@ export function planRowChange(path, { before, after, ownNewFile }) {
       }
     }
     const finalRows = index.cells.flatMap(cell => json(after(cell.file)).paths);
+    const destinationParts = typeof old.root === 'string' && old.root.startsWith('apps/')
+      ? ['io', 'logic'] : ['core', 'shell'];
     for (const placement of additions) {
       const [source, target, via] = Array.isArray(placement) ? placement : [];
       const safe = typeof source === 'string' && /^(?:src|relay)\//u.test(source)
         && !source.split('/').some(piece => !piece || piece === '.' || piece === '..') && !/[\0\r\n\\]/u.test(source);
       const suffix = safe ? source.slice(source.indexOf('/') + 1) : '';
       if (!safe || placement.length !== 3 || via !== 'rule'
-        || !['core', 'shell'].some(part => target === `${old.root}/src/${part}/${suffix}`)
+        || !destinationParts.some(part => target === `${old.root}/src/${part}/${suffix}`)
         || occupied.has(source) || occupied.has(target) || !ownNewFile(source)
         || finalRows.filter(row => row[0] === source || row[1] === source).length !== 1
         || finalRows.filter(row => row[0] === target || row[1] === target).length !== 1) {
