@@ -93,7 +93,7 @@ test('candidate-only failures stay red, are first in text, and remain structured
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
   const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'SUBMISSION_PROOF');
+  assert.equal(refusal.error.code, 'GATE_RED');
   assert.match(refusal.error.message, /^fails only with your change:/u);
   assert.equal(refusal.mainFailures.length, 1);
   notice(refusal.mainFailures[0], box, { only: true });
@@ -115,7 +115,7 @@ test('a case red on both sources with different diagnostics is not described as 
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
   const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'SUBMISSION_PROOF');
+  assert.equal(refusal.error.code, 'GATE_RED');
   assert.equal(refusal.mainFailures[0].status, 'different-on-main');
   assert.match(refusal.error.message, /^fails differently with your change:/u);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
