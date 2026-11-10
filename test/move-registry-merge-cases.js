@@ -143,12 +143,12 @@ export function installRegistryMergeCase() {
     const legacy = 'src/move-history/legacy.json';
     const legacyBytes = readFileSync(join(root, legacy), 'utf8');
     const historical = JSON.parse(legacyBytes).engines.slice(0, 2);
-    const originalLeaves = historical.map(entry => readFileSync(join(root, 'src', entry.file), 'utf8'));
-    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'src', entry.file),
+    const originalLeaves = historical.map(entry => readFileSync(join(root, 'packages/state/src/core/engines', entry.file), 'utf8'));
+    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'packages/state/src/core/engines', entry.file),
       originalLeaves[index].replace(`= ${entry.number};`, `= ${historical[1 - index].number};`));
-    assert.ok(historyProblems(root, readEngineLeaves(join(root, 'src')), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
-    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'src', entry.file), originalLeaves[index]);
-    assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
+    assert.ok(historyProblems(root, readEngineLeaves(join(root, 'packages/state/src/core/engines')), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
+    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'packages/state/src/core/engines', entry.file), originalLeaves[index]);
+    assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages/state/src/core/engines')), git), []);
 
     writeFileSync(join(root, legacy), `${legacyBytes} `);
     assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${legacy}`), 'the one legacy record is frozen too');
