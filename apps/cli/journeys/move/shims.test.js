@@ -99,7 +99,7 @@ async function inspect(box) {
 function move(box, t) {
   const custody = realpathSync(mkdtempSync(join(tmpdir(), 'pb-shim-custody-')));
   t.after(() => rmSync(custody, { recursive: true, force: true }));
-  cellsMove.apply(cellsMove.plan({ root: box.root, from: 'src/refused.js', to: 'packages/kernel/src/core/refused.js',
+  cellsMove.apply(cellsMove.plan({ root: box.root, from: 'src/refused.js', to: 'packages/kernel/src/logic/refused.js',
     frontDoor: 'packages/kernel/index.js', purpose: 'Expose the actual fixture refusal class.' }), custody);
 }
 
