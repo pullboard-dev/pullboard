@@ -19,7 +19,6 @@ export function copyFixtureRunner(source, destination) {
   const sourceRoot = realpathSync(source);
   const parser = createRunnerModuleParser();
   const files = new Set(['package.json', ...Object.keys(runnerPackage(source).files),
-    ...readdirSync(join(source, 'src/command-docs')).filter(file => file.endsWith('.json')).map(file => `src/command-docs/${file}`),
     ...['apps/cli/src/shell/commands'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...['apps/cli/src/shell/command-docs', 'apps/cli/src/shell/documentation', 'apps/cli/src/shell/documentation/events'].filter(folder => existsSync(join(source, folder)))

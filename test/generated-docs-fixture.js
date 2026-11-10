@@ -37,7 +37,7 @@ export function docsRepository(t) {
 export function addDocumentedCommand(box, name) {
   writeFileSync(join(box.root, 'src', 'commands', `${name}.js`),
     `/** Fixture command. */\nexport function run(io) { io.result?.({ fixture: '${name}' }); io.say('${name}'); return 0; }\n`);
-  writeFileSync(join(box.root, 'src', 'command-docs', `${name}.json`), JSON.stringify({ name,
+  writeFileSync(join(box.root, 'apps', 'cli', 'src', 'shell', 'command-docs', `${name}.json`), JSON.stringify({ name,
     help: `  pullboard ${name}  fixture command\n`, required: { fixture: 'string' } }, null, 2) + '\n');
   const constant = name.toUpperCase().replaceAll('-', '_') + '_VERSION';
   writeFileSync(join(box.root, 'src', `${name}.js`), `export const ${constant} = 1;\n`);
