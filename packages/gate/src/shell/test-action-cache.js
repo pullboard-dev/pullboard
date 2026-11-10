@@ -257,7 +257,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const context = executionContext(env);
   // Hash the executing analyzer as well as the committed tree: fixture and installed tooling
   // can live outside that tree, and a new analyzer must not read an older algorithm's memo.
-  const analyzer = ['test-action-cache.js', 'test-action-key-memo.js', 'test-result-store.js', 'affected-tests.js', 'affected-graph-cache.js', '../../../../src/main-facts-cache.js', '../../../codemap/src/core/import-map.js', 'module-imports.js']
+  const analyzer = ['test-action-cache.js', 'test-action-key-memo.js', 'test-result-store.js', 'affected-tests.js', 'affected-graph-cache.js', '../../../codemap/src/shell/main-facts-cache.js', '../../../codemap/src/core/import-map.js', 'module-imports.js']
     .map(file => [file, readFileSync(new URL(file, import.meta.url), 'utf8')]);
   shared.policy = digest(analyzer);
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
