@@ -28,6 +28,7 @@ import { SHIPPED_SKILL_DIGESTS } from '../../index.js';
 import { installSkills } from '../../index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+const LEGACY_FIXTURES = resolve(import.meta.dirname, '../../tests/fixtures/skills-0.8.1');
 const RELEASES = ['0.5.0', '0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.8.4'];
 const LEGACY_SNIPPETS = {
   decompose: ['SPEC.md and DOCTRINE.md (or PRACTICE.md when it is the only legacy file) if they exist.', 'SPEC.md and PRACTICE.md if they exist.'],
@@ -72,9 +73,11 @@ function project() {
 }
 
 /** Return the earlier skill bytes derived from an immutable 0.8.1 fixture. */
-function legacySkill(role, testRoot = import.meta.dirname) {
+function legacySkill(role, testRoot = null) {
   const name = ROLES[role];
-  const file = resolve(testRoot, `fixtures/skills-0.8.1/${name}/SKILL.md`);
+  const file = testRoot
+    ? resolve(testRoot, `fixtures/skills-0.8.1/${name}/SKILL.md`)
+    : resolve(LEGACY_FIXTURES, name, 'SKILL.md');
   const release = readFileSync(file, 'utf8');
   const [currentSnippet, oldSnippet] = LEGACY_SNIPPETS[role];
   assert.ok(release.includes(currentSnippet), `${role} 0.8.1 fixture contains the doctrine migration phrase`);
@@ -110,7 +113,7 @@ test('legacy skill fixtures match the 0.8.1 release [C7,I11]', () => {
       .map(([shippedDigest]) => shippedDigest);
     assert.equal(releaseDigests.length, 1, `${role} has one catalog digest for 0.8.1`);
     const name = ROLES[role];
-    const fixture = readFileSync(resolve(import.meta.dirname, `fixtures/skills-0.8.1/${name}/SKILL.md`));
+    const fixture = readFileSync(resolve(LEGACY_FIXTURES, name, 'SKILL.md'));
     assert.equal(digest(fixture), releaseDigests[0], `${role} fixture matches its 0.8.1 release digest`);
   }
 });
@@ -123,7 +126,7 @@ test('a current skill change leaves the legacy fixtures alone [C7,I11]', () => {
   const before = {};
   for (const role of roles) {
     const name = ROLES[role];
-    const fixture = resolve(import.meta.dirname, `fixtures/skills-0.8.1/${name}/SKILL.md`);
+    const fixture = resolve(LEGACY_FIXTURES, name, 'SKILL.md');
     const scratchFixture = join(testRoot, 'fixtures', 'skills-0.8.1', name, 'SKILL.md');
     const scratchCurrent = join(currentRoot, name, 'SKILL.md');
     mkdirSync(join(testRoot, 'fixtures', 'skills-0.8.1', name), { recursive: true });
