@@ -143,7 +143,7 @@ test('clause 1: native submit refuses an unplanned source while independent chec
   const refused = box.run(box.web, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
-  assert.match(refused.out, /node packages\/codemap\/data\/plan\.js --place/);
+  assert.match(refused.out, /node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place/);
   refusedPhaseCounts(box.marker);
   assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
     'placement refusal records no accepted submission');
