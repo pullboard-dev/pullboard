@@ -26,6 +26,7 @@ import { relayMachineSignIn } from './relay.js';
 import { relayMachineContext } from './relay.js';
 import { relayRevokeDevice } from './relay.js';
 import { relayOn } from './relay.js';
+import { relayIo } from './relay-io.js';
 import { originRepository } from './relay.js';
 import { revokeRelayPersonSession } from './relay.js';
 import { terminalQr } from '../../../person/core.js';
@@ -575,7 +576,7 @@ export async function startViewSignIn({ relayUrl, signal, relayPorts } = {}) {
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   // The established linking path still owns authorization and pairing. Its terminal IO is a
   // sink; progress enters this operation only through typed callbacks, never parsed text.
-  const io = { ...relayPorts, personChannel: 'view', say() {}, err() {}, stderr: { write() {} } };
+  const io = relayIo({ ...relayPorts, personChannel: 'view' });
   operation.finished = Promise.resolve().then(() => relayOnAll(relayUrl, io, {
     signal: operation.controller.signal,
     onSignIn(flow) {
