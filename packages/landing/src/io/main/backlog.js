@@ -1,13 +1,14 @@
+/** Collect the accepted cells' import-cut backlog for the main audit; landing owns it because it composes gate, landing and outbox [C7]. */
 import { existsSync } from 'node:fs';
 import { git } from '../../../../git/index.js';
 import { join } from 'node:path';
 import { warmAcceptedCells } from '../../../../gate/index.js';
 import { readAcceptedCells } from '../../../../gate/index.js';
 import { recordAcceptedCellsFailure } from '../../../../gate/index.js';
-import { withMainCheckout } from '../../../../landing/index.js';
+import { withMainCheckout } from './red.js';
 import { withFileLock } from '../../../../outbox/index.js';
-import { checkCuts } from './plan/cuts.js';
-import { readPlan } from './scripts/plan.js';
+import { checkCuts } from '../../../../codemap/index.js';
+import { readPlan } from '../../../../codemap/index.js';
 
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 

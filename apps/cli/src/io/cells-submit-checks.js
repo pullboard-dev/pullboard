@@ -562,7 +562,7 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const expectedInventory = acceptedCellsIdentity(root, acceptedMain, { pinned: true });
   if (['tree', 'checker', 'preloads'].some(name => artifact.descriptor?.[name] !== expectedInventory[name])) throw inventoryPending('accepted inventory identity differs from the actual main checker', acceptedMain);
   const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads,
-    { acceptedMain, artifact, artifacts: services.acceptedArtifacts, strict: true });
+    { acceptedMain, artifact, artifacts: services.acceptedArtifacts, readAccepted: readAcceptedCells, strict: true });
   const observations = observationCache(root, receiptKey, samePreloads);
   for (const [id, row] of artifact.observations ?? []) if (!observations.values.has(id)) observations.values.set(id, row);
   commit = cellsComposition(root, acceptedMain, source);

@@ -1,0 +1,4 @@
+{
+  "packages/codemap/src/io/cells/backlog.js": "packages/landing/src/io/main/backlog.js",
+  "packages/gate/src/io/plan-cuts.js": "packages/codemap/src/io/cells/plan/engine.js"
+}

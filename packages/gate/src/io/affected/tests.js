@@ -18,6 +18,10 @@ import {
 import {
   commonJsIn,
   compileModules,
+  declaredLoads,
+  declaredSourceLoads,
+  globPattern,
+  headerLines,
   importsIn,
 } from '../../../../codemap/index.js';
 
@@ -27,83 +31,8 @@ const DOC = /^docs\/.+\.md$/u;
 // A scanner declares this header rather than executing code while the graph is read.
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
-// A computed-import test may declare the repository modules it can load, in its leading comment header only.
-const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
-const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
 const COMMAND_REGISTRY = 'apps/cli/src/io/commands/index.js';
 const GLOBAL = new Set(['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
-
-/**
- * The file's leading comment header: its lines before the first line of code. A declaration counts only here, so
- * declaration-looking text inside a string or template later in the file is never read as one (#803).
- */
-function headerLines(source) {
-  const lines = [];
-  let inBlock = false;
-  for (const [index, line] of source.split(/\r?\n/u).entries()) {
-    const text = line.trim();
-    if (inBlock) { lines.push(line); if (text.includes('*/')) inBlock = false; continue; }
-    if (!text || (index === 0 && text.startsWith('#!')) || text.startsWith('//')) { lines.push(line); continue; }
-    if (!text.startsWith('/*')) break;
-    lines.push(line);
-    inBlock = !text.slice(2).includes('*/');
-  }
-  return lines;
-}
-
-/** Match a declared path glob: * and ? stay within one folder, ** crosses folders; null for other glob syntax. */
-function globPattern(glob) {
-  if (/[[\]{}]/u.test(glob)) return null;
-  const source = glob.split(/(\*\*\/|\*\*|\*|\?)/u).map(part => part === '**/' ? '(?:.*/)?' : part === '**' ? '.*'
-    : part === '*' ? '[^/]*' : part === '?' ? '[^/]' : part.replace(/[.+^$()|\\]/gu, '\\$&')).join('');
-  return new RegExp(`^${source}$`, 'u');
-}
-
-/**
- * The repository modules a computed loader declares in its leading header, with globs expanded over committed
- * modules. Tests retain legacy outside-path filtering; strict source declarations require every target to exist
- * and every glob to match. Invalid declarations return null so unknown imports still require the full suite.
- *
- * @returns {string[] | null}
- */
-function declaredPaths(source, declaration, strict) {
-  const header = headerLines(source);
-  if (strict && header.some(line => line.includes('@pullboard-module-loads') && !declaration.test(line))) return null;
-  const declared = header.map(line => declaration.exec(line)).filter(Boolean)
-    .flatMap(match => match[1].trim().split(/\s+/u)).map(path => posix.normalize(path));
-  if (strict && declared.some(path => path.startsWith('../') || path.startsWith('/'))) return null;
-  return declared.filter(path => !path.startsWith('../') && !path.startsWith('/'));
-}
-
-/** Expand the same canonical declaration paths over actual committed module identities. */
-function declaredLoads(source, modulePaths, declaration = LOADS, strict = false) {
-  const paths = declaredPaths(source, declaration, strict);
-  if (paths === null) return null;
-  const loads = [];
-  for (const path of paths) {
-    if (!/[*?[\]{}]/u.test(path)) {
-      if (strict && (!MODULE.test(path) || !modulePaths.includes(path))) return null;
-      if (MODULE.test(path)) loads.push(path);
-      continue;
-    }
-    const pattern = globPattern(path);
-    if (!pattern) return null;
-    const matches = modulePaths.filter(module => pattern.test(module));
-    if (strict && !matches.length) return null;
-    loads.push(...matches);
-  }
-  return loads;
-}
-
-/** Resolve strict source loader declarations; malformed or unmatched declarations remain unknown. */
-export function declaredSourceLoads(source, modulePaths) {
-  return declaredLoads(source, modulePaths, SOURCE_LOADS, true);
-}
-
-/** Return canonical source patterns only after the complete declaration resolves against its actual snapshot. */
-export function declaredSourcePatterns(source, modulePaths) {
-  return declaredSourceLoads(source, modulePaths) === null ? null : declaredPaths(source, SOURCE_LOADS, true);
-}
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
 function declaredInputs(source, paths) {
@@ -247,7 +176,7 @@ function knownBuiltinUtilities(sources, imports, parse) {
 function contribute(g, path) {
   const { paths, modules, blobs, unsafeInputs, importMap, reverse, unknown, undeclared, testTreeReaders, sourceTreeReaders } = g;
   const imports = g.imports.get(path);
-  const sourceLoads = declaredLoads(modules.get(path), paths, SOURCE_LOADS, true);
+  const sourceLoads = declaredSourceLoads(modules.get(path), paths);
   const inputs = declaredInputs(modules.get(path), [...blobs.keys()]);
   if (inputs === null) unknown.set(path, 'invalid or unmatched declared test input');
   for (const input of inputs ?? []) {
@@ -288,7 +217,7 @@ function contribute(g, path) {
     }
     // Source loaders explicitly declare their committed module universe; unknown loaders still fail closed.
     if (target === '(computed)' && !TEST.test(path)) {
-      const loads = declaredLoads(modules.get(path), paths, SOURCE_LOADS, true);
+      const loads = declaredSourceLoads(modules.get(path), paths);
       if (loads?.length) {
         for (const load of loads) {
           if (!reverse.has(load)) reverse.set(load, new Set());

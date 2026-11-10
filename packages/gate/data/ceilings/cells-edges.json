@@ -1488,7 +1488,7 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/codemap/src/io/cells/backlog.js": {
+    "packages/landing/src/io/main/backlog.js": {
       "cells": 4,
       "deep": 0
     },

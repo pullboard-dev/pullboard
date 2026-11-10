@@ -1,10 +1,10 @@
-/** Launcher for the cuts check: gate owns the engine, this file binds the snapshot-aware path-map reader and files cut items [C7,D3]. */
+/** Launcher for the cuts check: engine.js owns the checks, this file binds the snapshot-aware path-map reader and files cut items [C7,D3]. */
 import { spawnSync } from 'node:child_process';
 import {
-  checkCuts as gateCheckCuts,
-  addedPlacementProblems as gateAddedPlacementProblems,
-  frontDoorBypasses as gateFrontDoorBypasses,
-} from '../../../../../gate/index.js';
+  checkCuts as engineCheckCuts,
+  addedPlacementProblems as engineAddedPlacementProblems,
+  frontDoorBypasses as engineFrontDoorBypasses,
+} from './engine.js';
 import { planEntryProblems } from '../../../../index.js';
 import { cutItemCommands } from '../../../../index.js';
 import { cutTitle } from '../../../../index.js';
@@ -12,14 +12,14 @@ import { importCuts } from '../../../../index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { readPathMap } from '../git.js';
 
-export { ownerFor, onlyForwards, withDeclaredLoads } from '../../../../../gate/index.js';
+export { ownerFor, onlyForwards, withDeclaredLoads } from './engine.js';
 export { ownedStayProblems, processEntry, retiredProblems } from '../../../../index.js';
 
-/** The gate engine's checks, reading rename metadata through the snapshot-aware reader. */
-export const checkCuts = (root, plan, name, options = {}) => gateCheckCuts(root, plan, name, { readPathMap, ...options });
+/** The engine's checks, reading rename metadata through the snapshot-aware reader. */
+export const checkCuts = (root, plan, name, options = {}) => engineCheckCuts(root, plan, name, { readPathMap, ...options });
 export const entryPlacementProblems = (root, plan, files, sharedMap) => planEntryProblems(root, plan, files, sharedMap, readPathMap);
-export const addedPlacementProblems = (baseRoot, mergedRoot, readers) => gateAddedPlacementProblems(baseRoot, mergedRoot, { readPathMap, ...readers });
-export const frontDoorBypasses = (root, plan, name, options = {}) => gateFrontDoorBypasses(root, plan, name, { readPathMap, ...options });
+export const addedPlacementProblems = (baseRoot, mergedRoot, readers) => engineAddedPlacementProblems(baseRoot, mergedRoot, { readPathMap, ...readers });
+export const frontDoorBypasses = (root, plan, name, options = {}) => engineFrontDoorBypasses(root, plan, name, { readPathMap, ...options });
 
 /** Read existing items through the real joined CLI; one exact stable title identifies one importing cell's item. */
 function existingCuts(root, plan) {
