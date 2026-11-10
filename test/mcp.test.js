@@ -91,7 +91,8 @@ function project(t) {
   assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', modelTiers: [{ contains: '-model', route: 'strong' }], lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore: set up mcp fixture');
