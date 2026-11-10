@@ -332,9 +332,9 @@
   "packages/state/tests/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/decision-queue.test.js": {
+  "packages/store/tests/decision-queue.test.js": {
     "tempdir": 1,
-    "raw-board": 7
+    "raw-board": 4
   },
   "packages/state/tests/engine-replay.test.js": {
     "tempdir": 1,
@@ -347,8 +347,8 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/state/tests/file-growth-notice.test.js": {
-    "raw-board": 6
+  "packages/store/tests/file-growth-notice.test.js": {
+    "raw-board": 4
   },
   "packages/flakes/tests/flakes-ledger.test.js": {
     "raw-board": 5
