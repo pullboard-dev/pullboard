@@ -1,7 +1,7 @@
-import { itemReviewPolicyEngine } from "../../../../verify/light.js";
+import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { frozenRelaxationEngine } from '../floor.js';
-import { requiredReviewFamilyEngine } from "../../../../verify/light.js";
+import { requiredReviewFamilyEngine } from "../../../../verify/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by reserveReview, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";

@@ -1,4 +1,4 @@
-import { itemReviewPolicyEngine } from "../../../../verify/light.js";
+import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { PATCH_FOLLOW_ENGINE } from "../../../../state/light.js";
 import { itemPatchRecords } from "../../../../items/light.js";

@@ -62,9 +62,4 @@ export function coordinatorCheck(agentId, command) {
   if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
   return command.trim();
 }
-export { quarantineBatchGates } from './src/logic/verdict/quarantine.js';
-export { frozenBar, namedClause, wording } from './src/logic/frozen.js';
-export { carriesBarReason, readBarState, barReadySetting } from './src/logic/bar/corrections.js';
-export { barCheckEnabled } from './src/logic/bar/check.js';
-export { itemReviewPolicy, itemReviewPolicyEngine, anyItemReviewPolicyEngine } from './src/logic/review/policy.js';
-export { requiredReviewFamilyEngine, anyRequiredReviewFamilyEngine } from './src/logic/required.js';
+

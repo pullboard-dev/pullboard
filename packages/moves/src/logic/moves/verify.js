@@ -1,16 +1,16 @@
 import { REVIEW_REQUEST_ENGINE } from '../../../../state/light.js';
-import { frozenBar } from '../../../../verify/light.js';
-import { namedClause } from '../../../../verify/light.js';
-import { wording } from '../../../../verify/light.js';
+import { frozenBar } from '../../../../verify/browser.js';
+import { namedClause } from '../../../../verify/browser.js';
+import { wording } from '../../../../verify/browser.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../state/light.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
 import { checkTimingEngine } from "../../../../items/light.js";
 import { REJECT_CLAUSE_ENGINE } from "../../../../state/light.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
-import { itemReviewPolicyEngine } from "../../../../verify/light.js";
+import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
 import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
-import { requiredReviewFamilyEngine } from "../../../../verify/light.js";
+import { requiredReviewFamilyEngine } from "../../../../verify/browser.js";
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */

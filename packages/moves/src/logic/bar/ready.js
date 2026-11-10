@@ -2,4 +2,4 @@
 export {
   readBarState,
   barReadySetting,
-} from "../../../../verify/light.js";
+} from "../../../../verify/browser.js";

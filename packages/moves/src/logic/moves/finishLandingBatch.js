@@ -1,6 +1,6 @@
 import { FLAKE_RATCHET_ENGINE } from '../../../../state/light.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
-import { quarantineBatchGates } from "../../../../verify/light.js";
+import { quarantineBatchGates } from "../../../../verify/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from "../../../../state/light.js";
