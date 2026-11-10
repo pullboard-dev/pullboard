@@ -426,12 +426,11 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
  */
 export async function runItems(io, values, deps) {
   // Keep package import light; unattended work is the first point that needs board and gate machinery.
-  const [board, gate, gateConfig] = await Promise.all([
-    import('../../../store/index.js'), import('../../../gate/index.js'), import('../../../gate/src/shell/gate-config.js'),
+  const [board, gate] = await Promise.all([
+    import('../../../store/index.js'), import('../../../gate/index.js'),
   ]);
   store = board;
-  ({ digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = gate);
-  ({ missingGate } = gateConfig);
+  ({ digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate, missingGate } = gate);
   const ctx = deps.context(io);
   if (ctx.info.isMain) {
     throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --model "<model name>" --route light, then run it there');
