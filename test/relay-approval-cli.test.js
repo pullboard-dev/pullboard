@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** Real native approvals survive page work and keep refusal identity [H15,H12]. */
+/** The CLI's printed and JSON output when a phone approval is refused or approved: init and relay off partial failures, and linked with the board name [H15,H12,H17,E16]. */
 import assert from 'node:assert/strict';
 import {
   spawn,
@@ -17,13 +17,13 @@ import {
   join,
 } from 'node:path';
 import { test } from 'node:test';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
+import { relayClientFixture } from './relay-client-fixture.js';
 import {
   findChromeExecutable,
   startChrome,
-} from '../../../test/relay-browser-fixture.js';
+} from './relay-browser-fixture.js';
 
-const CLI = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const APPROVAL_TIMEOUT_MS = 90_000;
 
 /** Poll an actual fixture state transition without retrying the operation under test. */
