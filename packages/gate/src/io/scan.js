@@ -15,7 +15,7 @@ import {
   readFileSync,
   realpathSync,
 } from 'node:fs';
-import { readPathMap } from '../../../codemap/index.js';
+import { readPathMap } from '../../../codemap/light.js';
 import { tryGit } from '../../../git/index.js';
 import {
   join,
@@ -146,7 +146,7 @@ export {
   readText,
   TEST_FILE,
   walk,
-} from '../../../codemap/index.js';
+} from '../../../codemap/light.js';
 
 /** Compare by UTF-16 code units, so the order never depends on the machine's locale. */
 function byText(left, right) {

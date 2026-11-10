@@ -1,3 +1,4 @@
+import * as self from './light.js';
 /** Pure state source classification, without loading the native board [C7]. */
 export { EXIT_RULES_ENGINE } from "./src/logic/engine/metadata.js";
 export { correctedBar } from "./src/logic/bar.js";
@@ -10,9 +11,10 @@ export { AGENT_GRANT_ENGINE } from './src/logic/engines/agent-grant-engine.js';
 export { AUTOMATIC_DISPATCH_ENGINE } from './src/logic/engines/automatic-dispatch-engine.js';
 export { AUTO_ESCALATE_ENGINE } from './src/logic/engines/auto-escalate-engine.js';
 export { AUTO_SUBMIT_QUARANTINE_ENGINE } from './src/logic/engines/auto-submit-quarantine-engine.js';
-export { BAR_ENGINE } from './src/logic/engines/bar-engine.js';
 export { BAR_CHECK_ENGINE } from './src/logic/engines/bar-check-engine.js';
+export { BAR_ENGINE } from './src/logic/engines/bar-engine.js';
 export { BAR_READY_ENGINE } from './src/logic/engines/bar-ready-engine.js';
+export { BAR_SIGN_GRANT_ENGINE } from './src/logic/engines/bar-sign-grant-engine.js';
 export { BLOCKED_DEPENDENCIES_ENGINE } from './src/logic/engines/blocked-dependencies-engine.js';
 export { BOARD_MEMBERS_ENGINE } from './src/logic/engines/board-members-engine.js';
 export { BOARD_PROGRESS_ENGINE } from './src/logic/engines/board-progress-engine.js';
@@ -22,6 +24,9 @@ export { CHECK_TIMING_ENGINE } from './src/logic/engines/check-timing-engine.js'
 export { CHECK_WIDEN_SELF_ENGINE } from './src/logic/engines/check-widen-self-engine.js';
 export { CI_FLAKE_ENGINE } from './src/logic/engines/flake-engine.js';
 export { CLAIM_IDLE_ENGINE } from './src/logic/engines/claim-idle-engine.js';
+export { CLAIM_PROGRESS_ENGINE } from './src/logic/engines/claim-progress-engine.js';
+export { CLAIM_RETURNS_ENGINE } from './src/logic/engines/claim-returns-engine.js';
+export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engine.js';
 export { CLAUSE_INSPECTION_ENGINE } from './src/logic/engines/clause-inspection-engine.js';
 export { COMPANION_ENGINE } from './src/logic/engines/companion-engine.js';
 export { COMPUTER_NAME_ENGINE } from './src/logic/engines/computer-name-engine.js';
@@ -35,6 +40,7 @@ export { COST_INPUT_SPLIT_ENGINE } from './src/logic/engines/cost-input-split-en
 export { CPU_SENTINEL_ENGINE } from './src/logic/engines/cpu-sentinel-engine.js';
 export { CRITICAL_PATH_ENGINE } from './src/logic/engines/critical-path-engine.js';
 export { CROSS_REPO_DEPENDENCY_ENGINE } from './src/logic/engines/cross-repo-dependency-engine.js';
+export { DEAD_HANDOFF_RETRY_ENGINE } from './src/logic/engines/dead-handoff-retry-engine.js';
 export { DECISION_ORIGIN_ENGINE } from './src/logic/engines/decision-origin-engine.js';
 export { DECISION_QUEUE_ENGINE } from './src/logic/engines/decision-queue-engine.js';
 export { EXPECTED_BUILD_ENGINE } from './src/logic/engines/expected-build-engine.js';
@@ -45,6 +51,7 @@ export { FLAKE_RATCHET_ENGINE } from './src/logic/engines/flake-ratchet-engine.j
 export { FLOW_SIZE_ENGINE } from './src/logic/engines/flow-size-engine.js';
 export { FOCUS_BOUNDARY_ENGINE } from './src/logic/engines/focus-boundary-engine.js';
 export { FOCUS_MILESTONE_ENGINE } from './src/logic/engines/focus-milestone-engine.js';
+export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
 export { GATE_RUN_ENGINE } from './src/logic/engines/gate-run-engine.js';
 export { GENERATED_DOCS_ENGINE } from './src/logic/engines/generated-docs-engine.js';
 export { GONE_CLAIM_ENGINE } from './src/logic/engines/gone-claim-engine.js';
@@ -134,6 +141,7 @@ export { REVIEW_DEFAULT_ENGINE } from './src/logic/engines/review-default-engine
 export { REVIEW_FAMILY_RELAX_ENGINE } from './src/logic/engines/review-family-relax-engine.js';
 export { REVIEW_FAMILY_SEAT_ENGINE } from './src/logic/engines/review-family-seat-engine.js';
 export { REVIEW_GATE_RECEIPT_ENGINE } from './src/logic/engines/review-gate-receipt-engine.js';
+export { REVIEW_GRANT_ENGINE } from './src/logic/engines/review-grant-engine.js';
 export { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from './src/logic/engines/review-head-builder-family-engine.js';
 export { REVIEW_INDEPENDENCE_ENGINE } from './src/logic/engines/review-independence-engine.js';
 export { REVIEW_REQUEST_ENGINE } from './src/logic/engines/review-request-engine.js';
@@ -147,6 +155,7 @@ export { RIGOR_NOTICE_ENGINE } from './src/logic/engines/rigor-notice-engine.js'
 export { ROUTE_CALIBRATION_ENGINE } from './src/logic/engines/route-calibration-engine.js';
 export { ROW_DRAFT_ENGINE } from './src/logic/engines/row-draft-engine.js';
 export { RULING_OWNER_ENGINE } from './src/logic/engines/ruling-owner-engine.js';
+export { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from './src/logic/engines/running-handoff-item-check-engine.js';
 export { RUN_TIMING_ENGINE } from './src/logic/engines/run-timing-engine.js';
 export { SAME_FAMILY_REFUSAL_ENGINE } from './src/logic/engines/same-family-refusal-engine.js';
 export { SEAT_GONE_RELEASE_ENGINE } from './src/logic/engines/seat-gone-release-engine.js';
@@ -196,3 +205,12 @@ export { ensureGrantActivationIndex } from './src/logic/relay/activation.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
 export { canonicalMilestoneTarget } from './src/logic/target.js';
 export { missingGrantActivationIndex } from './src/logic/relay/activation.js';
+export { CAUSE_ENGINE } from './src/logic/move/constants.js';
+export { IMPLIES_ENGINE } from './src/logic/move/constants.js';
+export { SUBMISSION_PROOF_ENGINE } from './src/logic/move/constants.js';
+export { VERDICT_REVIEW_ENGINE } from './src/logic/move/constants.js';
+export { VERIFIER_STANDING_ENGINE } from './src/logic/move/constants.js';
+export { CHECK_ACCEPT_ENGINE, MILESTONE_SHIP_ENGINE } from './src/logic/move/constants.js';
+
+/** The highest engine number the exported engines declare: the registry's ENGINE_VERSION without reading the engines folder, so this door stays free of node:fs [C7,H16]. */
+export const ENGINE_VERSION = Math.max(...Reflect.ownKeys(self).filter(name => typeof name === 'string' && name !== 'ENGINE_VERSION' && name.endsWith('_ENGINE')).map(name => self[name]));

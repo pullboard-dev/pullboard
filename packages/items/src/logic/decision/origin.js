@@ -6,7 +6,7 @@
  * as the person's (P6). A decision with no recorded origin reads as unknown, never as the person's.
  */
 import { DECISION_ORIGIN_ENGINE } from '../../../../state/light.js';
-import { ENGINE_VERSION } from '../../../../state/src/io/engine/metadata.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { Refused } from "../../../../kernel/index.js";
 
 /** The origins an agent may name; `person` is reserved for a real person answer. */

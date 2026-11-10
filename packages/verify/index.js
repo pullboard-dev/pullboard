@@ -40,7 +40,7 @@ export { editCheck, selfWidenedFiles, widenedCheckFiles } from './src/io/check/w
 export { asSubmitted, refuseUnreviewable, unreviewableStrict } from './src/logic/review/reachability.js';
 export { compositionAuthors, compositionFamilyFallback, compositionOwner, compositionReviews, compositionSessionOptions, reviewPatchAuthors } from './src/io/review/composition.js';
 export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarantineBatchGates, quarantineVerdict, quarantineVerdictFields, receiptBlockingGreen } from './src/logic/verdict/quarantine.js';
-export { CHECK_ACCEPT_ENGINE } from '../state/src/logic/move/constants.js';
+export { CHECK_ACCEPT_ENGINE } from '../state/light.js';
 
 export { refuseManualCheckBaseline } from './src/logic/baseline.js';
 export { comparisonRestartPlan, COMPARISON_RESTART_LIMIT } from './src/io/compare.js';

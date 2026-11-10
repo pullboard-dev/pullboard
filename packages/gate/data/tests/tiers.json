@@ -816,7 +816,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/imports/ratchet.test.js",
+      "file": "apps/cli/journeys/imports/ratchet.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1538,7 +1538,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/check/baseline/delivery.test.js",
+      "file": "apps/cli/journeys/baseline/delivery.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -1595,7 +1595,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/check/baseline.test.js",
+      "file": "apps/cli/journeys/baseline/check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -2585,7 +2585,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/submit/cells/incremental.test.js",
+      "file": "apps/cli/journeys/cells/backlog.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4750,7 +4750,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/check-engine.test.js",
+      "file": "apps/cli/journeys/engine/check.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4864,7 +4864,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/io/engine/replay.test.js",
+      "file": "apps/cli/journeys/engine/replay.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -4921,7 +4921,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/grant-engine/exchange.test.js",
+      "file": "apps/cli/journeys/engine/exchange.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5377,7 +5377,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/io/engine/merged.test.js",
+      "file": "apps/cli/journeys/engine/merged.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5590,7 +5590,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/relay/activation.test.js",
+      "file": "apps/cli/journeys/relay/activation.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5705,7 +5705,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/relay/activation/browser.test.js",
+      "file": "apps/cli/journeys/relay/activation/browser.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5763,7 +5763,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/relay/activation/client.test.js",
+      "file": "apps/cli/journeys/relay/activation/client.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5879,7 +5879,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engine/move/reopen.test.js",
+      "file": "apps/cli/journeys/engine/reopen.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5936,7 +5936,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/review-engine.test.js",
+      "file": "apps/cli/journeys/engine/review.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -5993,7 +5993,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/queue-engine.test.js",
+      "file": "apps/cli/journeys/engine/queue.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6050,7 +6050,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/settings-engine.test.js",
+      "file": "apps/cli/journeys/engine/settings.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6125,7 +6125,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/grant-engine/team.test.js",
+      "file": "apps/cli/journeys/engine/team.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -6182,7 +6182,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/logic/engines/grant-engine/grants.test.js",
+      "file": "apps/cli/journeys/engine/grants.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10552,7 +10552,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/study.test.js",
+      "file": "apps/cli/journeys/study/metrics.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10897,7 +10897,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/edges/reads.test.js",
+      "file": "apps/cli/journeys/edges/reads.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10939,7 +10939,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/cells/stays.test.js",
+      "file": "apps/cli/journeys/cells/stays.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10986,7 +10986,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/cells/incremental.test.js",
+      "file": "apps/cli/journeys/cells/incremental.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11276,7 +11276,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/board/write/plan.test.js",
+      "file": "apps/cli/journeys/plan/write.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11526,7 +11526,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/edges/door.test.js",
+      "file": "apps/cli/journeys/edges/door.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11738,7 +11738,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/cells/door.test.js",
+      "file": "apps/cli/journeys/cells/door.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11832,7 +11832,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/test/cells.test.js",
+      "file": "apps/cli/journeys/test/placement.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -28455,7 +28455,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/closure.test.js",
+      "file": "apps/cli/journeys/cells/closure.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35373,7 +35373,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/io/main/audit/against.test.js",
+      "file": "apps/cli/journeys/cells/against.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -48982,7 +48982,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/submit/cells/composed.test.js",
+      "file": "apps/cli/journeys/cells/composed.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -49072,7 +49072,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/submit/cells/stays.test.js",
+      "file": "apps/cli/journeys/cells/preflight.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -49119,7 +49119,7 @@
       ]
     },
     {
-      "file": "packages/landing/tests/submit/cells/wildcard.test.js",
+      "file": "apps/cli/journeys/cells/wildcard.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53830,7 +53830,7 @@
       ]
     },
     {
-      "file": "packages/gate/tests/io/view/pure.test.js",
+      "file": "apps/cli/journeys/view/pure.test.js",
       "tier": "T3",
       "packages": [
         ".",

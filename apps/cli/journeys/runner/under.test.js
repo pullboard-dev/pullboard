@@ -81,7 +81,7 @@ test('clause 1: the real ssh and Node confirming probe waits out a runner that a
   const bin = helpers.sandbox().dir;
   // A stand-in ssh that connects slowly, as a loaded runner did, then runs the remote Node command locally.
   const ssh = join(bin, 'ssh');
-  writeFileSync(ssh, '#!/bin/sh\nsleep 4\nfor last; do :; done\nexec /bin/sh -c "$last"\n');
+  writeFileSync(ssh, '#!/bin/sh\nfor arg; do [ "$arg" = "-O" ] && exit 0; done\nsleep 4\nfor last; do :; done\nexec /bin/sh -c "$last"\n');
   chmodSync(ssh, 0o755);
   const path = process.env.PATH;
   process.env.PATH = `${bin}:${path}`;
