@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +19,13 @@ import { planRowChange } from '../packages/commits/core.js';
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 function mergedPlacement(t) {
   const box = plannedProject(t, { companionLanes: true });
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
+  writeFileSync(configPath, JSON.stringify(config));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-qm', 'chore: route placement fixture');
   const view = join(box.dir, 'merged-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
   success(box, view, 'join', 'view');
