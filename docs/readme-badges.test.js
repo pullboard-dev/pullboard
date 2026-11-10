@@ -7,7 +7,6 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
 import { runFixtureGit } from '../apps/cli/tests/fixtures/child.js';
-import { joinFixtureSeat } from '../apps/cli/tests/fixtures/testkit.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const e2e = createE2eHelpers();
@@ -37,12 +36,10 @@ test('README board-count badges read tracked main endpoint documents [I10,B3,V1]
 
 test('landing rewrites stale tracked board badge counts inside the containing merge [B3,V1]', () => {
   const check = 'node --test --test-reporter=tap web/badge.test.cjs';
-  const box = e2e.project(check);
+  const box = e2e.project(check, e2e.sandbox({ declareFamilies: true }));
   // These are fresh fixture CLIs; retain native admission while avoiding nested Node worker suppression.
   delete box.env.NODE_TEST_CONTEXT;
-  // The fixture already joined the web worktree as web-1.
-  const reviewer = joinFixtureSeat(box, box.repo, 'coordinator');
-  assert.equal(reviewer.code, 0, reviewer.err || reviewer.out);
+  // The fixture joined the web worktree as web-1 and init registered the coordinator, each with a declared vendor, so the accept counts as independent.
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, landing: { publish: 'separate', manualOverride: true } }, null, 2));
