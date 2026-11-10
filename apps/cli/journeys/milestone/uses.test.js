@@ -169,17 +169,17 @@ test('native file URL composition retains the actual repository body and refuses
   assert.deepEqual(proved.problems, []);
   assert.equal(proved.edits.length, 1);
   assert.match(proved.edits[0].text, /packages\/sync\/src\/io\/local\.js/u);
-  const moved = read.replace("'src', 'local-fetch.js'", "'packages', 'sync', 'src', 'io', 'local.js'");
+  const moved = read.replace("'src/local-fetch.js'", "'packages/sync/src/io/local.js'");
   assert.deepEqual(fixtureSourceEdits(prefix + root + moved, options), { edits: [], problems: [] });
   const alias = (prefix + root + read).replace('{fileURLToPath}', '{fileURLToPath as nativePath}').replace('= fileURLToPath(', '= nativePath(');
   assert.deepEqual(fixtureSourceEdits(alias, options).problems, []);
   for (const unknown of [
     root.replace("new URL('../../../..', import.meta.url)", 'unknown'),
     root.replace("new URL('../../../..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
-    root.replace("'..'", "'https://outside.invalid/source'"),
-    root.replace("'..'", "'../%2e/source'"),
-    root.replace("'..'", "'../source?query'"),
-    root.replace("'..'", "'../source#fragment'"),
+    root.replace("'../../../..'", "'https://outside.invalid/source'"),
+    root.replace("'../../../..'", "'../%2e/source'"),
+    root.replace("'../../../..'", "'../source?query'"),
+    root.replace("'../../../..'", "'../source#fragment'"),
     "const URL = unknown;\n" + root,
     root.replace('fileURLToPath(', 'arbitraryPath('),
   ]) assert.ok(fixtureSourceEdits(prefix + unknown + read, options).problems.length, unknown);
@@ -638,7 +638,7 @@ test('mapped working source path fields follow the path map while lookalikes, ot
     valid.replace("'packages/git/index.js'", 'identity'),
     valid + 'mapped.implementationPath = other;\n',
     valid.replace("mappedWorkingSource(root, 'packages/git/index.js')", "copy(root, 'packages/git/index.js')"),
-    valid.replace('join(installed, mapped.implementationPath)', "join(installed, mapped.implementationPath, 'git.js')"),
+    valid.replace('join(installed, mapped.implementationPath)', "join(installed, mapped.implementationPath, 'index.js')"),
     valid + 'function shadow(mappedWorkingSource) { return mappedWorkingSource; }\n',
   ]) assert.ok(inspect(body).length, body);
   assert.ok(fixtureSourceEdits(head.replace('../packages/gate/src/io/scan.js', './scan-lookalike.js') + valid, options).problems.length,
