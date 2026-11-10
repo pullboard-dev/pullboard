@@ -170,7 +170,7 @@ const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remo
 const first=${workerFirst}?runDeferred():null;
 const health=await probeRunnerHealth(runner,[failure.recovery]);
 const delayed=runDeferred();
-const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(join(home, '.pullboard-runner', 'runtime'))}+'/'+failure.recovery.tooling+'/src/runner-worker.js'],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
+const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(join(home, '.pullboard-runner', 'runtime'))}+'/'+failure.recovery.tooling+'/apps/runner/runner-worker.js'],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
 console.log(JSON.stringify({direct:direct?{code:direct.status,stderr:direct.stderr}:null,first,health,delayed,jobDirectory:existsSync(${JSON.stringify(join(home, '.pullboard-runner', 'jobs'))})}));`;
       const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` }; delete env.NODE_TEST_CONTEXT;
       const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30_000 });
