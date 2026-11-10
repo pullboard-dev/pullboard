@@ -602,7 +602,7 @@
     "tempdir": 3,
     "raw-board": 1
   },
-  "apps/relay/tests/io/board/inbox.test.js": {
+  "apps/cli/journeys/relay/inbox.test.js": {
     "tempdir": 1
   },
   "apps/lib/tests/logic/native/hold.test.js": {

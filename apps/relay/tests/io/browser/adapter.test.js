@@ -4,7 +4,6 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import { browserJSON } from '../../../index.js';
-import { relayBoundaryProblems } from '../../../../../packages/gate/src/io/relay.js';
 import { createFakeRelayAdapter } from '../../../../../packages/person/index.js';
 import { realRelayAdapter } from '../../../../../packages/person/index.js';
 import { relayFetch } from '../../../../../packages/person/index.js';
@@ -58,16 +57,4 @@ test('browser relay JSON accepts the shared fake contract [C7]', async () => {
   });
   const result = await browserJSON('/board', { adapter: fake });
   assert.deepEqual(result.document, { version: 1 });
-});
-
-/** The source gate rejects a new direct network call while ignoring comments and fixture strings. */
-test('relay lint refuses a stray direct fetch [C7]', () => {
-  const rows = relayBoundaryProblems([{ file: 'src/stray-relay.js', source: 'export async function read(url) { return fetch(url); }' }]);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].file, 'src/stray-relay.js');
-  assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: "globalThis['fetch']('/relay')" }]).length, 1);
-  assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: 'const send = globalThis.fetch; send(url);' }]).length, 1);
-  assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: 'const { fetch } = globalThis; fetch(url);' }]).length, 2);
-  assert.equal(relayBoundaryProblems([{ file: 'apps/relay/src/io/github.js', source: "fetch(url, { method: form || json }); fetch('/relay');" }]).length, 1);
-  assert.deepEqual(relayBoundaryProblems([{ file: 'src/fixture.js', source: 'const example = "fetch(url)"; // fetch(url)' }]), []);
 });

@@ -1,10 +1,10 @@
-import { request as boardLinkRequest } from '../../../../../packages/link/index.js';
-import { createRelayJournal } from '../../../index.js';
+import { request as boardLinkRequest } from '../../../../packages/link/index.js';
+import { createRelayJournal } from '../../../relay/index.js';
 import {
   signedBoard,
   consent,
   linkRelay,
-} from '../../../../cli/tests/fixtures/board/link.js';
+} from '../../tests/fixtures/board/link.js';
 /** Bilateral board links disclose only authorized state and retain real SSH consent [E32,H16,H17]. */
 import assert from 'node:assert/strict';
 import {
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
+import * as store from '../../../../packages/store/index.js';
 
 test('opening a relay journal installs delivery storage before the first link envelope [E32,H16,H17]', async t => {
   const { DatabaseSync } = await import('node:sqlite');
@@ -43,10 +43,10 @@ test('opening a relay journal installs delivery storage before the first link en
 });
 
 test('a signed two-sided link carries only its disclosure mode and refuses a cycle [E32,H16,H17]', async t => {
-  const loaded = await import('../../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
+  const loaded = await import('../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
   assert.equal(loaded.error, undefined, 'the shared production board-link boundary must exist');
   const api = loaded.api;
-  const { createSshBoardLinkAuthority } = await import('../../../../../packages/store/index.js');
+  const { createSshBoardLinkAuthority } = await import('../../../../packages/store/index.js');
   const parent = signedBoard(t, 'parent');
   const child = signedBoard(t, 'child');
   const second = signedBoard(t, 'second');
@@ -101,13 +101,13 @@ test('a signed two-sided link carries only its disclosure mode and refuses a cyc
 });
 
 test('sealed board-link delivery authenticates both boards and retains exact retries after restart [E32,H16,H17]', async t => {
-  const loaded = await import('../../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
+  const loaded = await import('../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
   assert.equal(loaded.error, undefined, 'the common authenticated delivery dispatcher must exist');
   const transportApi = loaded.api;
-  const api = await import('../../../../../packages/store/index.js');
-  const { createSshBoardLinkAuthority } = await import('../../../../../packages/store/index.js');
-  const { createBoardLinkCapability } = await import('../../../../../packages/store/index.js');
-  const { generateBoardKey, seal, unseal } = await import('../../../../../packages/kernel/src/logic/seal.js');
+  const api = await import('../../../../packages/store/index.js');
+  const { createSshBoardLinkAuthority } = await import('../../../../packages/store/index.js');
+  const { createBoardLinkCapability } = await import('../../../../packages/store/index.js');
+  const { generateBoardKey, seal, unseal } = await import('../../../../packages/kernel/src/logic/seal.js');
   const parent = signedBoard(t, 'parent');
   const child = signedBoard(t, 'child');
   const authority = createSshBoardLinkAuthority([parent, child]);
