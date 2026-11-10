@@ -740,7 +740,7 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
  * Every fixture join in the check-baseline and check-timing-admission files names a model, so none stops at MODEL_REQUIRED [C7].
  */
 test('clause 1: every pullboard join in check-baseline and check-timing-admission passes --model [C7]', () => {
-  for (const file of ['check-baseline.test.js', 'check-timing-admission.test.js']) {
+  for (const file of ['main.test.js', '../check/admission.test.js']) {
     const source = readFileSync(resolve(import.meta.dirname, file), 'utf8');
     const joins = source.split('\n').filter(line => /'join'\s*,|fixtureJoin\(/.test(line) && !line.includes("test('"));
     assert.ok(joins.length >= 1, `${file} joins at least once`);
