@@ -37,6 +37,7 @@ function movedWithPureDoor(t, { body = 'export class Refused extends Error {}\n'
   put('src/refused.js', "export { Refused } from '../packages/kernel/browser.js';\n");
   put('bin/tool.js', "import '../packages/kernel/index.js';\nimport '../src/cli.js';\n");
   assert.equal(plan(root, '--write').status, 0);
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/kernel.json'), JSON.stringify({ 'src/refused.js': BODY }));
   declare(root, 'kernel', 'pureDoor', key);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture moved kernel with a pure door');

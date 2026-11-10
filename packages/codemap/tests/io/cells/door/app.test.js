@@ -40,6 +40,7 @@ function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { 
   put('src/cli.js', "export { run } from '../apps/cli/light.js';\n");
   put('bin/tool.js', "import '../apps/cli/index.js';\n");
   assert.equal(plan(root, '--write').status, 0);
+  writeFileSync(join(root, 'packages/codemap/data/plan/path-map/cli.json'), JSON.stringify({ 'src/cli.js': BODY }));
   declare(root, 'app:cli', key, value);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture moved app with a light door');
