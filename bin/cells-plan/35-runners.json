@@ -32,8 +32,7 @@
   ["src/runner-result.js","packages/runners/src/shell/runner-result.js","rule"],
   ["src/runner-dispatch.js","packages/runners/src/shell/runner-dispatch.js","rule"],
   ["src/runner-health.js","packages/runners/src/shell/runner-health.js","rule"],
-  ["src/runner-slots.js","packages/runners/src/shell/runner-slots.js","rule"],
-  ["test/runner-slots-measured.test.js","packages/runners/tests/runner-slots-measured.test.js","rule"]
+  ["src/runner-slots.js","packages/runners/src/shell/runner-slots.js","rule"]
  ],
  "reexports": [
   "src/run.js",
