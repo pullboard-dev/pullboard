@@ -242,7 +242,6 @@ function additiveSource(base, ours, theirs) {
 
 /** Resolve only declared generated output, structural JSON or genuine additions; never execute candidate code. */
 function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION) {
-  if (GENERATED.has(path)) return { kind: 'generated', keys: [] };
   if (version >= 3) {
     const generated = generatedDocResolution(path, base, ours, theirs);
     if (generated) return generated;
