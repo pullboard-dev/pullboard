@@ -44,7 +44,7 @@ RFC 0006's K1–K10 (CD1–CD10) and the liveness invariant hold. In addition:
 - [DJ4] A payload is small JSON that names inputs by id: commit and tree ids, runner, shard list, receipt id, result digest. A payload never holds a path to something a sweep may delete.
 - [DJ5] Every step a driver takes is written before the next one starts.
 
-**As built.** Item branch `core/item-3403` adds the `job` and `job_step` tables as an additive board upgrade (`packages/store/src/shell/board-jobs-schema.js`, created on the next owning open) and the `jobs` cell's `createJob`, `writeStep` and `jobView`. Creating an existing id returns it unchanged; `writeStep` is a no-op on a repeat. Not on main as of 4032b7655e.
+**As built.** Item branch `core/item-3403` adds the `job` and `job_step` tables as an additive board upgrade (`packages/store/src/io/board/jobs.js`, created on the next owning open) and the `jobs` cell's `createJob`, `writeStep` and `jobView`. Creating an existing id returns it unchanged; `writeStep` is a no-op on a repeat. Not on main as of 4032b7655e.
 
 ## 2. The state machine
 

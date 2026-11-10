@@ -1,0 +1,15 @@
+{
+  "src/commit-message.js": "packages/commits/src/logic/message.js",
+  "src/commit-metadata.js": "packages/commits/src/logic/metadata.js",
+  "src/commit-signoff.js": "packages/commits/src/io/signoff.js",
+  "src/guard-revert.js": "packages/commits/src/io/revert.js",
+  "src/hooks.js": "packages/commits/src/io/hooks.js",
+  "src/infra-note.js": "packages/commits/src/io/note.js",
+  "src/import-only-change.js": "packages/commits/src/logic/import-only-change.js",
+  "src/plan-row-change.js": "packages/commits/src/logic/change/row/plan.js",
+  "src/tier-row-change.js": "packages/commits/src/logic/change/row/tier.js",
+  "src/why-file.js": "packages/commits/src/logic/why.js",
+  "test/agent-guidance.test.js": "packages/commits/tests/guidance.test.js",
+  "test/landing-message.test.js": "apps/cli/journeys/land/landing/message.test.js",
+  "test/merge-hooks.test.js": "packages/commits/tests/merge-hooks.test.js"
+}
