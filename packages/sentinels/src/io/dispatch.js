@@ -32,6 +32,8 @@ export function dispatchHealth(board, config = {}) {
   const at = board.clock.now();
   const dispatch = [], findings = [], items = new Set();
   const agents = store.listAgents(board);
+  const roadmap = store.roadmap(board);
+  const current = roadmap.find(milestone => !milestone.shipped && milestone.items.some(item => item.status !== 'verified'));
   const seats = lineSettings(board)['route.liveOnly'] ? withLocalSeatPresence(board, agents) : agents;
   for (const seat of seats) {
     if (seat.agent_id === 'coordinator' || seat.presence !== 'live' || !existsSync(join(seat.agent_path, '.git'))) continue;
@@ -46,6 +48,7 @@ export function dispatchHealth(board, config = {}) {
     const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds });
     if (!selected.item || selected.held || items.has(selected.item.item_id)) continue;
     const item = selected.item.item_id;
+    if (current && !current.items.some(entry => entry.id === item)) continue;
     items.add(item);
     const before = previous.find(entry => entry.seat === seat.agent_id && entry.item === item && entry.review === selected.review);
     const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
