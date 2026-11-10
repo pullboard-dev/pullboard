@@ -110,7 +110,7 @@ test('worker threads share the journaled pid and add no records or files until t
     const { Worker } = require('node:worker_threads');
     (async () => {
       for (let round = 0; round < 40; round += 1) {
-        await Promise.all(Array.from({ length: 40 }, () => new Promise(done => new Worker('0', { eval: true }).on('exit', done))));
+        await Promise.all(Array.from({ length: 40 }, () => new Promise(done => new Worker('setTimeout(() => {}, 30)', { eval: true }).on('exit', done))));
       }
       console.log('WORKERS DONE');
     })();`);
