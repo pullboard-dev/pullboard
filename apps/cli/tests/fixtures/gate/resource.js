@@ -183,7 +183,9 @@ export async function wholeSuiteHolders(box, names) {
     const release = join(box.dir, `${name}.release`);
     return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
   });
-  await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run');
+  try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
+    throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}`);
+  }
   return runs;
 }
 

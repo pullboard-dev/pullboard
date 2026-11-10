@@ -139,9 +139,10 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
-  // The move changes main's tree: an empty commit leaves the composed tree alike, so the submit proof is reused.
-  writeFileSync(join(root, 'moved.txt'), 'main moved\n');
-  assert.equal(spawnSync('git', ['add', 'moved.txt'], { cwd: root, env: box.env }).status, 0);
+  // The move reaches a file the item changed (same bytes, so it composes cleanly); a move elsewhere leaves the sealed receipt standing.
+  mkdirSync(join(root, 'web'));
+  writeFileSync(join(root, 'web', 'result.txt'), 'ready\n');
+  assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: root, env: box.env }).status, 0);
   const moved = spawnSync('git', ['commit', '-q', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(moved.status, 0, moved.stderr);
   writeFileSync(box.events, '');
