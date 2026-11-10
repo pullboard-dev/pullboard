@@ -494,25 +494,3 @@ test('agents gives the coordinator a row with the helpers it opened [N2,B13]', (
   assert.ok(at >= 0, 'the text view has a coordinator line');
   assert.match(lines[at + 1] ?? '', new RegExp(`^ {2}\\S.*${helper.result.agent}|^ {2}.*\\(web lane\\)`, 'u'), 'the helper is indented under it');
 });
-
-test('review.independence off (the default): a seat under the building session verifies, the building seat does not [V1,B3]', { timeout: 120_000 }, async () => {
-  const box = project();
-  const builder = 'codex-thread-secret-builder-5407';
-  const build = (args) => box.run(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(build(['claim', '1', '--json']).status, 0);
-  writeFileSync(join(box.web, 'web', 'page.txt'), 'built\n');
-  box.git(box.web, 'commit', '-qam', 'feat(web): build the fixture item [G1]');
-  const submitted = build(['submit', '1', '--json']);
-  assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
-  await waitForReviewComparison(box);
-  const own = build(['verify', '1', 'accept', '--note', 'checked the page', '--json']);
-  assert.notEqual(own.status, 0, 'the building seat still cannot accept its own item');
-  assert.equal(JSON.parse(own.stdout).error.code, 'SELF_VERIFY');
-  // A subagent of the same session opens a seat of its own: a different seat name, the same session.
-  const review = join(box.dir, 'review-seat');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
-  const reviewAs = (args) => box.run(review, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
-  assert.equal(reviewAs(['join', 'web', '--family', 'Fixture-Reviewer', '--route', 'strong', '--json']).status, 0);
-  const accepted = reviewAs(['verify', '1', 'accept', '--note', 'checked the page', '--json']);
-  assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
-});

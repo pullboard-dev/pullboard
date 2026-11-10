@@ -260,8 +260,9 @@ export function fixtureJoinRoute(args, defaultModel) {
   return args;
 }
 
-/** Make one checkout's pullboard.json ask for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
+/** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
 export function requireSessionIndependence(dir) {
   const file = join(dir, 'pullboard.json');
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), review: { independence: 'session' } }, null, 2) + '\n');
+  runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'chore: ask for strict review independence'], { cwd: dir });
 }
