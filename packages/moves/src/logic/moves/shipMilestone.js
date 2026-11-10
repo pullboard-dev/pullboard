@@ -1,4 +1,3 @@
-import { ENGINE_VERSION } from '../../../../state/light.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../../state/light.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by shipMilestone, discovered without a shared registry edit [C7,V4,H16]. */
@@ -17,7 +16,7 @@ function existingEngine(args, board, at) {
 /** New ships seal the shared release ratchet; historical executions retain their original rule. */
 function minimumEngine(args, board, at) {
   const captured = args[1]?.coordinatorActions === true || args[1]?.asPerson === true || args[1]?.reason !== undefined;
-  const current = board && (board.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE;
+  const current = board && (/* Unversioned local boards use the current feature rule. */ board.executionEngineVersion ?? COORDINATOR_ACTIONS_ENGINE) >= COORDINATOR_ACTIONS_ENGINE;
   const active = board?.db?.prepare("SELECT 1 FROM event WHERE event_kind='milestone_ship' AND json_type(event_detail,'$.coordinatorActions')='object' LIMIT 1").get();
   return Math.max(existingEngine(args, board, at), captured || current || active ? COORDINATOR_ACTIONS_ENGINE : 1);
 }

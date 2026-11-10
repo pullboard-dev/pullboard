@@ -41,13 +41,13 @@ export const ENGINE_VERSION = Math.max(...Object.values(ENGINE_REGISTRY));
  * The engine whose relay moves carry seat provenance and verifier standing (#579). It is its own
  * constant because engine slots are allotted per item: whoever lands second renumbers this line.
  */
-export const VERIFIER_STANDING_ENGINE = 48;
+export { VERIFIER_STANDING_ENGINE } from '../../logic/move/constants.js';
 
 /** The engine at which reject, reopen and person facts may carry cause keys [D1,H16]. */
-export const CAUSE_ENGINE = 30;
+export { CAUSE_ENGINE } from '../../logic/move/constants.js';
 
 /** First released engine binding the checked composition, review trunk and paths [E8,H16]. */
-export const VERDICT_REVIEW_ENGINE = 33;
+export { VERDICT_REVIEW_ENGINE } from '../../logic/move/constants.js';
 
 export { MILESTONE_RANK_ENGINE } from '../../../light.js';
 

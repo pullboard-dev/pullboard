@@ -8,7 +8,6 @@
  * stored, and nothing in the correction record is taken from the move beyond the reason text, so
  * a relay or API caller cannot mark a reject as the bar's.
  */
-import { ENGINE_VERSION } from '../../../../state/light.js';
 import { Refused } from '../../../../kernel/light.js';
 import { BAR_ENGINE } from '../../../../state/light.js';
 
@@ -47,7 +46,7 @@ function unexplainedReject(board, id) {
  */
 export function barCorrectionFields(board, item, next, { reason, widened }) {
   if (widened) return { reason: reason?.trim() || `added test files: ${widened.join(', ')}`, widenedCheck: widened };
-  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const engine = /* Unversioned local boards use the current feature rule. */ board.executionEngineVersion ?? BAR_ENGINE;
   if (engine < BAR_ENGINE) return {};
   if (reason !== undefined && typeof reason !== 'string') throw new Refused('USAGE', 'a reason is text: --reason "what the old bar got wrong"');
   const fields = [...(next.item_criterion !== item.item_criterion ? ['criterion'] : []), ...(next.item_check !== item.item_check ? ['check'] : []), ...(next.item_check_timing !== item.item_check_timing ? ['checkTiming'] : [])];
