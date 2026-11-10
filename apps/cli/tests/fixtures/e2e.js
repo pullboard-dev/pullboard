@@ -28,6 +28,7 @@ import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { fetchPrintedViewLink } from './view/link.js';
 import { fileFixtureItem } from './testkit.js';
+import { fixtureJoinRoute } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
@@ -113,13 +114,7 @@ function sandbox({ declareFamilies = false } = {}) {
       if (familyFlag >= 0) declareFamily(cwd, args[familyFlag].startsWith('--family=') ? args[familyFlag].slice(9) : args[familyFlag + 1]);
       else if (!declaredFamilies.has(cwd)) args.push('--family', declareFamily(cwd));
     }
-    if (args[0] === 'join' && !args.some(arg => arg === '--route' || arg.startsWith('--route='))) {
-      const modelFlag = args.findIndex(arg => arg === '--model' || arg.startsWith('--model='));
-      const model = modelFlag < 0 ? env.PULLBOARD_MODEL : args[modelFlag].startsWith('--model=') ? args[modelFlag].slice(8) : args[modelFlag + 1];
-      // The product maps an unlisted model to the mid route; fixture items default strong, so a fixture seat joins strong
-      // unless it is a light model the fixture means to be light (claude-haiku-*, gpt-6-luna) [C7].
-      if (!/^claude-haiku-/u.test(String(model ?? '')) && model !== 'gpt-6-luna') args.push('--route', 'strong');
-    }
+    fixtureJoinRoute(args, env.PULLBOARD_MODEL);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   };
