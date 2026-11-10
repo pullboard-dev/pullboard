@@ -334,9 +334,10 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   const entries = acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst);
-  // Advance fixture main after submission so the merged batch has its own tree and must run its gate.
-  writeFileSync(join(box.repo, 'queue-main-context.txt'), 'independent main context\n');
-  box.git(box.repo, 'add', 'queue-main-context.txt');
+  // Advance a real gate input after submission so the merged batch needs a fresh gate.
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/queue-3.txt'), 'works\n');
+  box.git(box.repo, 'add', 'web/queue-3.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: advance queue fixture main');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   writeFileSync(policyCalls, '');
