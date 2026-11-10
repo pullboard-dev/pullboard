@@ -1,5 +1,0 @@
-{
-  "src/focus-milestone.js": "packages/roadmap/src/core/focus-milestone.js",
-  "src/milestones.js": "packages/roadmap/src/core/milestones.js",
-  "src/roadmap.js": "packages/roadmap/src/core/roadmap.js"
-}

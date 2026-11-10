@@ -60,7 +60,7 @@ The rows below make A1–A6 checkable: what a receipt is, what its key is, when 
 - [SC5] The verdict is recorded before bookkeeping runs (caches, accounting, logs, flake notes), and bookkeeping can never change it.
 - [SC6] Only a red verdict returns an item to its builder; an infra verdict is retried by the job that produced it (RFC 0008).
 
-**As built.** `packages/receipt` on main holds `judge(collected)`, `verdictStep(judgement, receiptId)` and `settle(collected, receiptId, io)`, with `SECTIONS` and `OUTCOMES`. They implement SC2–SC5 as written. The gate's existing run receipts (`packages/gate/src/shell/gate-run-receipt.js`) record a tree, the command's digest, the result and the failed tests under the git directory; they are the result files a receipt judges until RFC 0008's runner result files replace them. Not built yet: the key and the reuse rule below.
+**As built.** `packages/receipt` on main holds `judge(collected)`, `verdictStep(judgement, receiptId)` and `settle(collected, receiptId, io)`, with `SECTIONS` and `OUTCOMES`. They implement SC2–SC5 as written. The gate's existing run receipts (`packages/gate/src/io/run/receipt.js`) record a tree, the command's digest, the result and the failed tests under the git directory; they are the result files a receipt judges until RFC 0008's runner result files replace them. Not built yet: the key and the reuse rule below.
 
 ### 1.3 The reuse key
 
