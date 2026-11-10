@@ -29,8 +29,8 @@ test('clause 1: the guide names the notBuilder identity refusals the guard raise
 test('clause 2: step 5 starts verifiers in a separate session, never as subagents of the coordinator [C7]', () => {
   const line = skill.split('\n').find(row => row.startsWith('5. **Verify'));
   assert.ok(line, 'the guide has a step 5 for verifying');
-  assert.match(line, /separate agent session/u, 'step 5 starts a separate agent session');
-  assert.match(line, /never a subagent of your own session/u, 'step 5 forbids a subagent of the coordinator session');
+  assert.match(line, /separate session/u, 'step 5 starts a separate session');
+  assert.match(line, /never a subagent of yours/u, 'step 5 forbids a subagent of the coordinator session');
   assert.match(line, /SELF_SESSION_VERIFY/u, 'step 5 names the refusal');
   assert.doesNotMatch(line, /start a subagent with its opening lines/u, 'step 5 no longer starts a subagent');
 });

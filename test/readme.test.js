@@ -13,7 +13,6 @@ import { FIGURES, drawLifecycle } from '../docs/img/draw.mjs';
 import { themeVariants } from '../docs/img/theme.mjs';
 import { help$HELP as HELP, commandPhrases } from '../apps/cli/index.js';
 import { MACHINE } from '../packages/state/index.js';
-import { agentsBlock } from '../packages/doctrine/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -509,32 +508,15 @@ test("what's next lists only unbuilt work [I11]", () => {
   assert.equal(lines.at(-1), 'The full plan lives in the Roadmap tab in Pullboard View and `pullboard roadmap`.', 'the section ends by pointing to the full plan');
 });
 
-test('every command in help is taught to agents [I11]', () => {
-  const skillFiles = readdirSync(join(ROOT, 'skills'), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => join(ROOT, 'skills', entry.name, 'SKILL.md'));
-  const instructionLines = `${skillFiles.map((file) => readFileSync(file, 'utf8')).join('\n')}\n${agentsBlock()}`.split(/\r?\n/u);
+test('every command has its usage in pullboard help, the one reference [I11]', () => {
+  // One source of truth (Corey, 9 Nov): skills teach the common path and judgment; the CLI owns syntax.
   const phrases = new Set(commandPhrases({ all: HELP.all, commands: {} }));
   for (const declaration of Object.values(HELP.commands)) {
     for (const usage of declaration.usages) {
       for (const phrase of commandPhrases({ all: `  ${usage}`, commands: {} })) phrases.add(phrase);
     }
   }
-  const personOnly = new Map([
-    ['spec approve', 'Only the person approves a SPEC row.'],
-    ['intake approve', 'Only the owner approves an outside commit that touches a sensitive path.'],
-    ['spec decline', 'Only the person declines a SPEC row.'],
-    ['relay recover', 'The command is explicitly reserved for person-only recovery.'],
-  ]);
-  assert.ok(personOnly.size <= 4, 'the person-only exception list stays short');
-  for (const [phrase, reason] of personOnly) {
-    assert.ok(phrases.has(phrase), `${phrase} is still a command in help`);
-    assert.ok(reason.trim(), `${phrase} has a reason agents must not run it`);
-  }
-  const untaught = [...phrases].filter((phrase) => {
-    const command = phrase.split(' ').map((word) => word.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('\\s+');
-    const taught = instructionLines.some((line) => new RegExp(`(?:^|[^A-Za-z0-9_-])pullboard\\s+${command}(?=$|[^A-Za-z0-9_-])`, 'u').test(line));
-    return !taught && !personOnly.has(phrase);
-  });
-  assert.deepEqual(untaught, [], `teach each command where agents need it, or explain a person-only exception:\n${untaught.join('\n')}`);
+  const usages = Object.values(HELP.commands).flatMap((declaration) => declaration.usages);
+  const missing = [...phrases].filter((phrase) => !usages.some((usage) => usage.replace(/^pullboard\s+/u, '').startsWith(phrase)));
+  assert.deepEqual(missing, [], `give each command a usage line in pullboard help:\n${missing.join('\n')}`);
 });
