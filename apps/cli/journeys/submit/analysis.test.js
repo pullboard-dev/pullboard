@@ -105,7 +105,7 @@ export async function requireSubmitCells(root, main, source, item, services) {
 `);
   put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('apps/cli/src/io/static/checks.js', `import { existsSync } from 'node:fs';
-import { record } from '../../../lib/tests/io/submit/requeue/record.js';
+import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static', import.meta.url);
 if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per line'); process.exitCode = 1; }
 `);
@@ -195,7 +195,7 @@ test('a red remote step returns its refusal to the queued submit, and altered ou
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box, { tamper: true }), join(box.dir, 'tampered')),
     { code: 'RUNNER_RESULT_INVALID' });
   let reads = 0;
-  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, () => [{ item_id: ++reads > 1 ? 8 : 7 }]), fakeRunner(box), join(box.dir, 'moved')),
+  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, () => [{ item_id: ++reads > 2 ? 8 : 7 }]), fakeRunner(box), join(box.dir, 'moved')),
     { code: 'CELLS_SUBMIT' });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), { runner: null }, join(box.dir, 'none')), { code: 'RUNNER_SOURCE' });
 });
