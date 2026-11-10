@@ -82,8 +82,11 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   box.git(box.repo, 'add', 'src', 'packages');
   box.git(box.repo, 'commit', '-q', '-m', 'test: preserve pre-migration dependency [G1]');
   mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
-  writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify(PLAN));
-  box.git(box.repo, 'add', 'packages/codemap/data/plan/cells.json');
+  const shard = 'packages/codemap/data/plan/00-git.json';
+  writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ cells: [
+    { order: 1, name: 'git', file: shard }] }));
+  writeFileSync(join(box.repo, shard), JSON.stringify(PLAN.cells[0]));
+  box.git(box.repo, 'add', 'packages/codemap/data/plan/cells.json', shard);
   box.git(box.repo, 'commit', '-q', '-m', 'test: declare existing cell migration [G1]');
   writeFileSync(join(box.repo, 'src/new.js'), "import { git } from './git.js';\n");
   box.git(box.repo, 'add', 'src/new.js');
