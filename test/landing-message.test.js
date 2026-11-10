@@ -92,6 +92,13 @@ function buildAndAccept(box, entry, header = `feat(web): build ${entry.file.spli
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
 
+/** Move main after acceptance so landing must compose and execute its own gate. */
+function advanceMain(box) {
+  writeFileSync(join(box.repo, 'main-advance.txt'), 'main changed after acceptance\n');
+  box.git(box.repo, 'add', 'main-advance.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main before landing');
+}
+
 test('a landing batch writes ids that fit then +N, and every frozen row in spec order as the last paragraph [C7,B3,R3]', () => {
   const box = localProject();
   // 36 rows cited in scattered order: landing never refuses, and the trailer lists them in spec order.
@@ -106,6 +113,7 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   assert.deepEqual([...frozenRows].sort(), ['G1', 'Z3', 'Z9'], 'the refreeze froze the corrected bar with its rows');
   buildAndAccept(box, many);
   buildAndAccept(box, refrozen);
+  advanceMain(box);
 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landed = box.run(box.repo, 'land', '--json');
@@ -165,6 +173,7 @@ test('docs shard ${name} completes [G1]', () => { appendFileSync(${JSON.stringif
   box.git(box.repo, 'commit', '-q', '-m', 'test: configure two real landing shard files [G1]');
   const entry = claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
   buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
+  advanceMain(box);
   await drainComparisons(box, t.signal);
   const changed = box.git(entry.path, 'diff', '--name-only', 'main...HEAD');
   assert.equal(changed, 'docs/note.md', 'the item changes only documentation');
