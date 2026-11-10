@@ -24,7 +24,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { specGateMoveOnly } from '../packages/spec/index.js';
 import { submissionPaths } from '../packages/sandbox/index.js';
 import { ownsNewFile } from '../packages/sandbox/src/shell/trusted-policy.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 const CONFIG = {

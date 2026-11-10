@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-gui */
 /** The browser tab title is built once per refresh and written only when it changes (#3200) [N26,N38]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
