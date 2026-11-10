@@ -946,10 +946,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/tier-row-change.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/240.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1585,6 +1581,110 @@
         "packages/config/tests/registry.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/bar-corrections.test.js",
+        "packages/state/tests/bar-corrections.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/decision-queue.test.js",
+        "packages/state/tests/decision-queue.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/file-growth-notice.test.js",
+        "packages/state/tests/file-growth-notice.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flakes-ledger.test.js",
+        "packages/state/tests/flakes-ledger.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flow-submit-size.test.js",
+        "packages/state/tests/flow-submit-size.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/implies.test.js",
+        "packages/state/tests/implies.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/item-hold.test.js",
+        "packages/state/tests/item-hold.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/landing-waiver-replay.test.js",
+        "packages/state/tests/landing-waiver-replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/machine-home.test.js",
+        "packages/state/tests/machine-home.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestone-limit.test.js",
+        "packages/state/tests/milestone-limit.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestones.test.js",
+        "packages/state/tests/milestones.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/registry-merge.test.js",
+        "packages/state/tests/registry-merge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "test/runner-slots-measured.test.js",
+        "packages/runners/tests/runner-slots-measured.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -2063,6 +2163,7 @@
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",
+    "sandbox->commits",
     "rigor->store",
     "(root)->store",
     "spec->kernel",
