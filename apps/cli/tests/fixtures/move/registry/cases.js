@@ -16,8 +16,11 @@ import { test } from 'node:test';
 import { runFixtureChild } from '../../child.js';
 import { unpackRelease } from '../../release/archive.js';
 import { historyProblems } from './history.js';
-import { readEngineLeaves } from '../../../../../../packages/state/src/io/engine/numbers.js';
-import { assignEngineNumbers } from '../../../../../../packages/state/src/io/engine/numbers.js';
+import {
+  ENGINE_FOLDER,
+  assignEngineNumbers,
+  readEngineLeaves,
+} from '../../../../../../packages/state/src/io/engine/numbers.js';
 import { repoPath } from '../../../../../../packages/kernel/light.js';
 
 /** Run real Git or a real registry child and preserve its diagnostics. */
@@ -38,7 +41,7 @@ function commit(root, message) {
 /** Add one source move, one engine leaf and no shared registry or history edit. */
 function addFeature(root, name, symbol) {
   writeFileSync(join(root, `packages/state/src/logic/engines/${name}-engine.js`), `import { unassignedEngine } from './engine-next.js';\nexport const ${symbol} = unassignedEngine();\n`);
-  writeFileSync(join(root, `packages/moves/src/logic/moves/${name}.js`), `import { ${symbol} } from '../../../../state/src/core/engines/${name}-engine.js';
+  writeFileSync(join(root, `packages/moves/src/logic/moves/${name}.js`), `import { ${symbol} } from '../../../../state/src/logic/engines/${name}-engine.js';
 /** Return this feature's discovered engine without changing a shared number. */
 function minimumEngine() { return ${symbol}; }
 /** Bind the explicit options actor. */
@@ -56,7 +59,7 @@ export function installRegistryMergeCase() {
     const root = mkdtempSync(join(tmpdir(), 'pullboard-registry-source-only-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     mkdirSync(join(root, 'src/moves'), { recursive: true });
-    mkdirSync(join(root, 'packages/state/data/history'));
+    mkdirSync(join(root, 'packages/state/data/history'), { recursive: true });
     writeFileSync(join(root, 'packages/state/data/history/legacy.json'), '{}');
     const engines = join(root, 'packages/state/src/logic/engines');
     mkdirSync(engines, { recursive: true });
@@ -109,7 +112,7 @@ export function installRegistryMergeCase() {
     commit(root, 'second independent move');
     run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
     assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
-    const shared = ['src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
+    const shared = ['packages/state/src/io/engine.js', 'packages/store/src/io/board/ports.js', 'apps/cli/src/logic/step/words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
     assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
     const output = run(root, process.execPath, ['--test', '--test-reporter=tap', 'apps/cli/journeys/move/registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
     assert.match(output, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
@@ -144,12 +147,12 @@ export function installRegistryMergeCase() {
     const legacy = 'packages/state/data/history/legacy.json';
     const legacyBytes = readFileSync(join(root, legacy), 'utf8');
     const historical = JSON.parse(legacyBytes).engines.slice(0, 2);
-    const originalLeaves = historical.map(entry => readFileSync(repoPath(root, `src/${entry.file}`), 'utf8'));
-    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `src/${entry.file}`),
+    const originalLeaves = historical.map(entry => readFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), 'utf8'));
+    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`),
       originalLeaves[index].replace(`= ${entry.number};`, `= ${historical[1 - index].number};`));
-    assert.ok(historyProblems(root, readEngineLeaves(join(root, 'src')), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
-    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `src/${entry.file}`), originalLeaves[index]);
-    assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
+    assert.ok(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
+    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), originalLeaves[index]);
+    assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git), []);
 
     writeFileSync(join(root, legacy), `${legacyBytes} `);
     assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${legacy}`), 'the one legacy record is frozen too');

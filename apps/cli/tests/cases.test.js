@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-const FILES = ['e2e.test.js', 'e2e-board.test.js', 'e2e-gate-slot.test.js'];
+/** Where the three files are now; they were test/e2e.test.js, test/e2e-board.test.js and test/e2e-gate-slot.test.js. */
+const FILES = ['apps/cli/journeys/merged/e2e.test.js', 'apps/cli/journeys/list/board.test.js', 'apps/cli/journeys/gate/slot.test.js'];
 
 /** Each original case as its quote and exact title; a template quote is a case a loop declares once per mode. */
 const CASES = [
@@ -32,7 +33,7 @@ const CASES = [
  * @returns {number}
  */
 function declarations(name, quote, caseTitle) {
-  const source = readFileSync(join(import.meta.dirname, '../../../test', name), 'utf8');
+  const source = readFileSync(join(import.meta.dirname, '../../..', name), 'utf8');
   return source.split(/\n {0,2}test\(/u).slice(1).filter(rest => rest.startsWith(`${quote}${caseTitle}${quote}, `)).length;
 }
 

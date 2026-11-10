@@ -4,14 +4,10 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import {
   after,
   test,
@@ -27,6 +23,8 @@ import { commandOutput as lightCommandOutput } from '../../../../packages/config
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { REPOSITORY } from '../../tests/fixtures/source.js';
+import { movedSourceFiles } from '../../tests/fixtures/source.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -46,10 +44,9 @@ function addBuild(box, repo, title, check) {
 }
 
 test('clause 2: every refusal names a next step that works [P4,I1,I2]', async () => {
-  const sourceRoot = resolve(import.meta.dirname, '../src');
   const codes = new Set(['API_LISTEN', 'CORE_BARE', 'VIEW_SIGN_IN_STOPPED']);
-  for (const file of readdirSync(sourceRoot).filter(name => name.endsWith('.js'))) {
-    const source = readFileSync(join(sourceRoot, file), 'utf8');
+  for (const file of movedSourceFiles()) {
+    const source = readFileSync(join(REPOSITORY, file), 'utf8');
     for (const match of source.matchAll(/new Refused\(\s*['"]([A-Z][A-Z0-9_]*)['"]/gu)) codes.add(match[1]);
   }
   for (const code of codes) {

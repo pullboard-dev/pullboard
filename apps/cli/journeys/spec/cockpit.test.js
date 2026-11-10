@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -21,6 +20,8 @@ import vm from 'node:vm';
 import { standardDoctrine } from '../../../../packages/doctrine/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { pageScriptPart4 } from '../../../view/index.js';
+import { readPathMap } from '../../../../packages/codemap/index.js';
+import { REPOSITORY } from '../../tests/fixtures/source.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
@@ -74,14 +75,17 @@ function regexLiterals(source) {
 
 test('no hosted page script part loses a regex backslash [N26]', () => {
   const offenders = [];
-  for (const name of readdirSync(new URL('../../src/view/', import.meta.url)).filter((file) => /^page-script-\d+\.js$/u.test(file))) {
-    const source = readFileSync(new URL(`../../src/view/${name}`, import.meta.url), 'utf8');
+  // The four hosted page script parts were src/view/page-script-N.js; the path map says where each lives now.
+  const parts = [...readPathMap(REPOSITORY)].filter(([from]) => /^src\/view\/page-script-\d+\.js$/u.test(from));
+  assert.equal(parts.length, 4, 'the map names all four hosted page script parts');
+  for (const [, file] of parts) {
+    const source = readFileSync(join(REPOSITORY, file), 'utf8');
     const start = source.indexOf('return `') + 'return `'.length;
     const body = source.slice(start, source.lastIndexOf('`;'));
     for (const literal of regexLiterals(body)) {
       if (/(?<!\\)\\[sdwbSDWBrn]/u.test(literal.body)) {
         const line = body.slice(0, literal.index).split('\n').length + 10;
-        offenders.push(`src/view/${name}:${line}`);
+        offenders.push(`${file}:${line}`);
       }
     }
   }

@@ -7,7 +7,7 @@ const entrySource = readFileSync(new URL('../../../../runner/src/io/controller.j
 /** Follow the literal shipped composition entry and its actual native ports, never an arbitrary child executable. */
 export function runnerControllerCallees(file, body, source) {
   if (file === '../../../../../packages/runners/src/io/dispatch.js'
-    && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[installation\?\.entry \?\? fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\),\s*'--pullboard-runner-controller'\]/u.test(body)
+    && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[installation\?\.entry \?\? fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/apps\/runner\/src\/io\/controller\.js', import\.meta\.url\)\),\s*'--pullboard-runner-controller'\]/u.test(body)
     && source.includes('export async function serveRunnerController(ports)')
     && entrySource.includes("import { serveRunnerController } from '../../../../../packages/runners/index.js'")
     && entrySource.includes("import { privateCheckEnvelope, privateCheckPhases } from '../../../../runner/index.js'")
@@ -43,12 +43,12 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
     assert.equal(codeWalk(otherPort).refusalsOf(`../packages/gate/src/shell/gate-execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), false,
       'an unrelated property chain does not inherit a canonical runner operation');
   }
-  const otherExecutable = editedSource('../../../../../packages/runners/src/io/dispatch.js', /const child = spawn\(process\.execPath, \[installation\?\.entry \?\? fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\), '--pullboard-runner-controller'\]/,
-    "const child = spawn('unrelated-worker', [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller']");
+  const otherExecutable = editedSource('../../../../../packages/runners/src/io/dispatch.js', /const child = spawn\(process\.execPath, \[installation\?\.entry \?\? fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/apps\/runner\/src\/io\/controller\.js', import\.meta\.url\)\), '--pullboard-runner-controller'\]/,
+    "const child = spawn('unrelated-worker', [installation?.entry ?? fileURLToPath(new URL('../../../../apps/runner/src/io/controller.js', import.meta.url)), '--pullboard-runner-controller']");
   assert.equal(codeWalk(otherExecutable).refusalsOf('../packages/runners/src/shell/runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
     'a different executable does not inherit the private controller edge');
-  const otherEntry = editedSource('../../../../../packages/runners/src/io/dispatch.js', /new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)/g,
-    "new URL('../../../../bin/unrelated-controller.js', import.meta.url)");
+  const otherEntry = editedSource('../../../../../packages/runners/src/io/dispatch.js', /new URL\('\.\.\/\.\.\/\.\.\/\.\.\/apps\/runner\/src\/io\/controller\.js', import\.meta\.url\)/g,
+    "new URL('../../../../apps/runner/src/io/unrelated-controller.js', import.meta.url)");
   assert.equal(codeWalk(otherEntry).refusalsOf('../packages/runners/src/shell/runners.js#runOnRunnerAsync').has('RUNNER_WORK_SPEC'), false,
     'an arbitrary module path does not inherit native controller policy authority');
 }

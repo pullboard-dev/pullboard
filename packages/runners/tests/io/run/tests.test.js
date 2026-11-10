@@ -167,7 +167,6 @@ function makeLandingStopFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-stop-')));
   const bin = join(root, 'bin');
   const tests = join(root, 'test');
-  const source = fileURLToPath(new URL('../src', import.meta.url));
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));

@@ -13,6 +13,7 @@ import {
 import { sourceFacts } from '../../../../packages/gate/tests/fixtures/functions.js';
 import { moveOf } from '../../../../packages/gate/tests/fixtures/functions.js';
 import { declaredBoardOrder } from '../../../../packages/gate/tests/fixtures/functions.js';
+import { movedSourceFiles } from '../../tests/fixtures/source.js';
 import { sourceReader } from '../../../../packages/gate/tests/fixtures/functions.js';
 import { sourceDirectories } from '../../../../packages/gate/tests/fixtures/functions.js';
 import { packageFiles } from '../../../../packages/runners/index.js';
@@ -1322,14 +1323,15 @@ function statusWriters(read) {
   const writers = [];
   const movedFiles = packageFiles(fileURLToPath(new URL('../../../..', import.meta.url)))
     .filter(file => (file.startsWith('packages/items/src/') || file.startsWith('packages/store/src/')) && file.endsWith('.js')).map(file => `../${file}`);
-  const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
-    '../../../../packages/config/src/logic/json.js', ...movedFiles];
+  const others = movedSourceFiles().filter(file => !file.startsWith('packages/items/src/') && !file.startsWith('packages/store/src/')).map(file => `../${file}`);
+  // The old src/config.js shim was deleted by the move; its moved body stays scanned beside the other src files.
+  const files = [...new Set([...others, '../packages/config/src/io/main.js', '../packages/config/src/logic/json.js', ...movedFiles])];
   for (const file of files) {
     const source = read(file);
-    const allowedNames = file === '../../../../packages/store/src/io/board.js' ? ['moveItem'] : file === '../../../../packages/items/src/logic/fields.js' ? ['setItem'] : file === '../../../../packages/store/src/io/board/query.js' ? ['current'] : [];
+    const allowedNames = file === '../packages/store/src/io/board.js' ? ['moveItem'] : file === '../packages/items/src/logic/fields.js' ? ['setItem'] : file === '../packages/store/src/io/board/query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
-    if (file === 'json.js' || file === '../../../../packages/config/src/logic/json.js') {
+    if (file === 'json.js' || file === '../packages/config/src/logic/json.js') {
       const catalog = /^export const JSON_SHAPES = \{[\s\S]*?^\};/m.exec(source);
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
@@ -1346,23 +1348,23 @@ function statusWriters(read) {
 
 test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
-  const besideSetter = editedSource('../../../../packages/items/src/logic/fields.js', /^export function setItem/m,
+  const besideSetter = editedSource('../packages/items/src/logic/fields.js', /^export function setItem/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
-  assert.deepEqual(statusWriters(besideSetter), ['../packages/items/src/core/item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
-  const besideReader = editedSource('../../../../packages/store/src/io/board/query.js', /^export function current/m,
+  assert.deepEqual(statusWriters(besideSetter), ['../packages/items/src/logic/fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
+  const besideReader = editedSource('../packages/store/src/io/board/query.js', /^export function current/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
-  assert.deepEqual(statusWriters(besideReader), ['../packages/store/src/shell/board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
-  assert.match(functionsIn(fromDisk('../../../../packages/store/src/io/board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
-  const planted = editedSource('../../../../packages/store/src/logic/board/escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
-  assert.deepEqual(statusWriters(planted), ['../packages/store/src/core/board-escalate.js#escalate']);
-  const lowercase = editedSource('../../../../packages/store/src/logic/board/attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(lowercase), ['../packages/store/src/core/board-record-attempt.js#reopenByHand']);
-  const computed = editedSource('../../../../packages/store/src/logic/board/attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(computed), ['../packages/store/src/core/board-record-attempt.js#reopenByKey']);
-  const besideCatalog = editedSource('../../../../packages/config/src/logic/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
-  assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
-  const besideShim = editedSource('config.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
-  assert.deepEqual(statusWriters(besideShim), ['config.js#reopenByKey'], 'a retained legacy shim remains scanned alongside its moved body');
+  assert.deepEqual(statusWriters(besideReader), ['../packages/store/src/io/board/query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
+  assert.match(functionsIn(fromDisk('../packages/store/src/io/board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
+  const planted = editedSource('../packages/store/src/logic/board/escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
+  assert.deepEqual(statusWriters(planted), ['../packages/store/src/logic/board/escalate.js#escalate']);
+  const lowercase = editedSource('../packages/store/src/logic/board/attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(lowercase), ['../packages/store/src/logic/board/attempt.js#reopenByHand']);
+  const computed = editedSource('../packages/store/src/logic/board/attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(computed), ['../packages/store/src/logic/board/attempt.js#reopenByKey']);
+  const besideCatalog = editedSource('../packages/config/src/logic/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
+  assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/logic/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
+  const besideShim = editedSource('../packages/config/src/io/main.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
+  assert.deepEqual(statusWriters(besideShim), ['../packages/config/src/io/main.js#reopenByKey'], 'the moved body of the old config shim stays scanned');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
@@ -1387,8 +1389,8 @@ test('the board refuses a status written outside moveItem at run time, however i
 test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
   try {
-    copyPackageFiles(dirname(import.meta.dirname), dir);
-    const boardFile = join(dir, 'src/board.js');
+    copyPackageFiles(join(import.meta.dirname, '../../../..'), dir);
+    const boardFile = join(dir, 'packages/store/index.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
     const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);
