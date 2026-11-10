@@ -54,7 +54,7 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
   const plan = readPlan(box.view);
   const cell = plan.cells.find(cell => cell.name === 'app:view');
   const original = structuredClone(cell.paths[0]);
-  cell.paths[0][1] = cell.paths[0][1].replace('/shell/', '/core/');
+  cell.paths[0][1] = cell.paths[0][1].replace('/io/', '/logic/');
   assert.notEqual(cell.paths[0][1], original[1]);
   writePlan(box.view, plan);
   box.git(box.view, 'add', 'packages/codemap/data/plan');
