@@ -28,10 +28,10 @@ import {
   staleDispatcherTools as runnersStaleDispatcherTools,
 } from '../../../../../packages/runners/index.js';
 import { appendFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { gitSpawnSync } from '../../../../../packages/git/light.js';
 
 /** How long one repository's sweep may run before the dispatcher moves on. */
 const SWEEP_TIMEOUT_MS = 60_000;
@@ -100,7 +100,7 @@ export function lateTicketRetaken(drained, row) {
 
 /** The commit a tool root's HEAD names, or null when it has none; runs git here, in the bin, never in a cell the leases reach. */
 function toolRootHead(root) {
-  const run = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  const run = gitSpawnSync(['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
   return run.status === 0 && /^[0-9a-f]{40}$/u.test(run.stdout.trim()) ? run.stdout.trim() : null;
 }
 

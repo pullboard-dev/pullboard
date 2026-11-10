@@ -171,7 +171,7 @@ export function qualifyingLandingTimes(history, items) {
   for (const event of history) {
     if (event.event_kind !== 'merged') continue;
     const item = items.get(event.item_id);
-    if (item?.item_status !== 'verified' || !item.item_merged_commit || first.has(event.item_id)) continue;
+    if (!['verified', 'withdrawn'].includes(item?.item_status) || !item.item_merged_commit || first.has(event.item_id)) continue;
     if (JSON.parse(event.event_detail).commit !== item.item_merged_commit) continue;
     first.set(event.item_id, Date.parse(event.event_at));
   }
