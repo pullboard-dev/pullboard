@@ -74,6 +74,10 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const phases = [];
   timed(phases, 'submit', () => { for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : 'PASS\n'); });
   timed(phases, 'accept', () => { for (const entry of entries) acceptItem(box, entry); });
+  // The acceptance proof is for the old main; a real later change makes the batch run its landing gate.
+  writeFileSync(join(box.repo, 'main-advance.txt'), 'main changed after acceptance\n');
+  box.git(box.repo, 'add', 'main-advance.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main before landing');
   delete box.env.LAND_SUPPRESS_RED;
   const base = box.git(box.repo, 'rev-parse', 'main');
   const batchesBefore = onBoard(box, board => store.landingBatches(board).length);
