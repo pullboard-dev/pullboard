@@ -532,7 +532,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     if (!row) throw new Refused('NO_ROW', `no row ${second ?? ''} in ${ctx.config.spec}`);
     const standing = standings(parsed.rows, signoffs).get(row.id) ?? { met: [], stale: [] };
     io.result?.({ row, standing });
-    io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${row.text}`);
+    io.say(`${row.id} [${row.status}${row.tier ? `, ${row.tier}` : ''}] ${store.readableRigorText(row.text)}`);
     if (row.stage) io.say(row.stage);
     if (row.reason) io.say(`reason: ${row.reason}`);
     if (row.gate) io.say(`gate: ${row.gate}`);
@@ -549,7 +549,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     const testFiles = citedTestFiles(ctx.info.root);
     const by = standings(spec.rows, signoffs);
     io.result?.({ rows: rows.map((row) => ({ ...row, stage: rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles })) })) });
-    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${row.text} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
+    rows.forEach((row) => io.say(`${row.id} [${row.tier || 'no tier'}] ${store.readableRigorText(row.text)} — ${rowStage(by.get(row.id), rowEvidence(ctx.info.root, row.id, { ...proof, testFiles }))}`));
     io.say(`${rows.length} approved rows without a current sign-off`);
     return 0;
   }

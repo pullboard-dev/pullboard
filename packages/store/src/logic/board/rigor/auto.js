@@ -37,6 +37,16 @@ export function automaticSourceFromText(text) {
   return readAutomaticRigorSource(source) ? source : null;
 }
 
+/** Row text for display: a trailing rigor-auto source becomes one readable line, all other text is unchanged. */
+export function readableRigorText(text) {
+  const source = automaticSourceFromText(text);
+  if (!source) return text;
+  const { key, evidence } = readAutomaticRigorSource(source);
+  const ids = evidence.items.map(item => `#${item.id}`).join(', ');
+  const count = `${evidence.occurrences} occurrence${evidence.occurrences === 1 ? '' : 's'}`;
+  return `${text.slice(0, text.length - source.length - ' Source: '.length)} Source: Rigor evidence for ${key}, ${count}${ids ? ` across ${ids}` : ''}.`;
+}
+
 /** The exact automatic source captured in a person's existing file-backed row decision. */
 export function automaticDecisionSource(record) {
   try {
