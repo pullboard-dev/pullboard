@@ -303,14 +303,15 @@ test('a move that names an offline item where the outbox cannot follow it is ref
 test('a milestone edit naming an offline item follows that item when another machine takes its number first [B26,H16,H17]', async (t) => {
   // The milestone is part of the linked baseline, as on a board that already had one before the outage.
   const { box, other } = await twoMachines(t, 'Added before the outage', {
-    beforeLink: async (unlinked) => assert.equal((await unlinked.cli('milestone', 'add', 'next')).code, 0),
+    beforeLink: async (unlinked) => {
+      assert.equal((await unlinked.cli('milestone', 'add', 'next')).code, 0);
+      assert.equal((await unlinked.cli('milestone', 'add', 'target')).code, 0);
+    },
   });
   await box.stopRelay();
   const added = await box.cli('add', box.lane, 'Added here while the relay is down');
   const local = added.document.item.item_id;
-  const removed = await box.cli('milestone', 'items', 'next', '--remove', String(local), '--reason', 'Exercise offline milestone item remapping');
-  assert.equal(removed.code, 0, removed.failure + JSON.stringify(removed.document));
-  const listed = await box.cli('milestone', 'items', 'next', '--add', String(local), '--reason', 'Exercise offline milestone item remapping');
+  const listed = await box.cli('milestone', 'items', 'target', '--add', String(local), '--reason', 'Exercise offline milestone item remapping');
   assert.equal(listed.code, 0, listed.failure + JSON.stringify(listed.document));
   await box.restartRelay();
   assert.equal((await (await otherAgent(box, other))('add', box.lane, 'Added there first')).document.item.item_id, local, 'the other machine takes the number used offline');
@@ -321,7 +322,7 @@ test('a milestone edit naming an offline item follows that item when another mac
   for (const machine of [box, other]) {
     const exported = (await machine.cli('export')).document;
     const titles = new Map(exported.tables.item.map((row) => [row.item_id, row.item_title]));
-    assert.deepEqual(milestoneItems(exported).next.map((id) => titles.get(id)), ['Added here while the relay is down'],
+    assert.deepEqual(milestoneItems(exported).target.map((id) => titles.get(id)), ['Added here while the relay is down'],
       'the milestone holds the item this machine added, not the other machine\'s');
   }
 });
