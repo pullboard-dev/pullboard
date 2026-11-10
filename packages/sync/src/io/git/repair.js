@@ -1,0 +1,73 @@
+/** Recover conflicting local Git-sharing artifacts without rewriting board history [H11,C7]. */
+import { randomUUID } from 'node:crypto';
+import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { gitSyncCompatibility } from '../main.js';
+import { inspectGitSyncLock } from './lock.js';
+import { withGitSyncLock } from './lock.js';
+import { gitSyncFiles } from '../../../../config/index.js';
+import { readGitSyncMarker } from '../../../../config/index.js';
+import { Refused } from '../../../../kernel/index.js';
+
+/** Retain one exact conflicting marker under its own immutable recovery summary. */
+function quarantineMarker(root, observed, owner, lease) {
+  lease.assertHeld();
+  const { marker, quarantine } = gitSyncFiles(root);
+  let current;
+  try { current = lstatSync(marker); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  if (!observed.stat || current.dev !== observed.stat.dev || current.ino !== observed.stat.ino
+    || current.mtimeMs !== observed.stat.mtimeMs || current.size !== observed.stat.size) return null;
+  mkdirSync(quarantine, { recursive: true, mode: 0o700 });
+  const parent = lstatSync(quarantine);
+  if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Refused('GIT_SYNC_LOCAL_CHANGED',
+    'Git sync recovery evidence needs a real local quarantine directory; the original marker was preserved',
+    'restore the quarantine directory without deleting the original evidence');
+  const at = new Date().toISOString();
+  const folder = join(quarantine, `git-sync-${Date.now()}-${randomUUID()}`);
+  mkdirSync(folder, { mode: 0o700 });
+  lease.assertHeld();
+  const destination = join(folder, 'git-sync.json');
+  renameSync(marker, destination);
+  const writer = observed.value?.writer;
+  const summary = { version: 1, at, reason: 'foreign-marker', artifacts: [{ name: 'git-sync.json',
+    path: destination, pid: Number.isSafeInteger(writer?.pid) ? writer.pid : owner.pid ?? null,
+    command: typeof writer?.command === 'string' ? writer.command : owner.command ?? 'unknown',
+    at: typeof writer?.at === 'string' ? writer.at : at, sha256: observed.sha256 ?? null }] };
+  writeFileSync(join(folder, 'recovery.json'), JSON.stringify(summary) + '\n', { flag: 'wx', mode: 0o600 });
+  return summary;
+}
+
+/** Quarantine only positively conflicting markers and provably stale locks before choosing the write transport. */
+export async function repairGitSync(root, board, io = {}) {
+  const { marker } = gitSyncFiles(root);
+  const state = gitSyncCompatibility(root, board);
+  const observed = readGitSyncMarker(root);
+  const owner = inspectGitSyncLock(marker);
+  const foreign = observed.exists && (!observed.valid || state.relayHistory);
+  const stale = ['dead', 'expired'].includes(owner.state);
+  if (!foreign && !stale) return [];
+  // A corrupted opt-in must never turn an established Git board into an unrelated local writer.
+  if (foreign && state.prefix) throw new Refused('GIT_SYNC_LOCAL_CHANGED',
+    'the Git marker conflicts with an established Git prefix; that prefix and pending intent were preserved',
+    'restore the explicit Git opt-in before writing; do not create a second move order');
+  const summaries = [];
+  const recoveryIo = { ...io, onQuarantine: summary => { summaries.push(summary); } };
+  /** Recheck under the repair capability: an explicit concurrent opt-in is never mistaken for the original file. */
+  const recoverMarker = lease => {
+    if (!foreign) return;
+    const current = readGitSyncMarker(root);
+    const currentState = gitSyncCompatibility(root, board);
+    if (!current.exists || current.valid && !currentState.relayHistory) return;
+    const summary = quarantineMarker(root, current, owner, lease);
+    if (summary) summaries.push(summary);
+  };
+  // A conflicting marker does not authorize stealing an unknown live legacy lock. Its separate
+  // repair lease removes only the foreign marker; ordinary writes then use the existing transport.
+  await withGitSyncLock(stale ? marker : marker + '.repair', recoverMarker, recoveryIo);
+  for (const summary of summaries) io.err?.('pullboard health: Git sync recovery ' + JSON.stringify(summary));
+  return summaries;
+}

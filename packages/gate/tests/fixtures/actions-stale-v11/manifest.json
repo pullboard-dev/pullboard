@@ -1,0 +1,83 @@
+{
+  "version": "v11.0.0",
+  "sources": [
+    {
+      "file": "v11.ts.txt",
+      "source": "issues-processor-v11.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/issues-processor.ts",
+      "sha256": "9545917e652b88e06a64c8c9c10645b25cba5659a91901ef5981a2a227c920d1"
+    },
+    {
+      "file": "assignees.ts.txt",
+      "source": "src/classes/assignees.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/assignees.ts",
+      "sha256": "4622503d2c5cecdf91c3e22eb292c02d1cf903f61dbf31ef85246926f6a591ef"
+    },
+    {
+      "file": "request.ts.txt",
+      "source": "src/classes/exempt-draft-pull-request.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/exempt-draft-pull-request.ts",
+      "sha256": "1984f7cf2c914c4149d1d8264611cf4d30bce93d101e28f83e0feade17c4ce01"
+    },
+    {
+      "file": "updates.ts.txt",
+      "source": "src/classes/ignore-updates.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/ignore-updates.ts",
+      "sha256": "6783c1a9c43250fa8d81f0a2745d32b55acd6e1590cb59de42364cd9a04c4bde"
+    },
+    {
+      "file": "issue.ts.txt",
+      "source": "src/classes/issue.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/issue.ts",
+      "sha256": "8a4a6d49eafe1f3892f45fe706b317466d0657d38c3a39258a64d56e3068a8d7"
+    },
+    {
+      "file": "milestones.ts.txt",
+      "source": "src/classes/milestones.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/classes/milestones.ts",
+      "sha256": "df67de489cc64f5d7c4a5a13867c76fb8d17f066c0ee162eb398be3f4e838ea0"
+    },
+    {
+      "file": "label.ts.txt",
+      "source": "src/functions/clean-label.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/clean-label.ts",
+      "sha256": "df072e23023427f2c57e1f97268fb1c95b8946da3943d1a05c12ac6d318eedae"
+    },
+    {
+      "file": "is/than.ts.txt",
+      "source": "src/functions/dates/is-date-more-recent-than.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/dates/is-date-more-recent-than.ts",
+      "sha256": "f4bbd5da44a0ecf45795729181436c17bc16ded2d991706397f892d7c05d1070"
+    },
+    {
+      "file": "is/boolean.ts.txt",
+      "source": "src/functions/is-boolean.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/is-boolean.ts",
+      "sha256": "0503dbd40107520d932383ae11571cdfbe89318bde4bb29d0df564df6d4af212"
+    },
+    {
+      "file": "is/labeled.ts.txt",
+      "source": "src/functions/is-labeled.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/is-labeled.ts",
+      "sha256": "e37c4efadbf5e1069ad031e192492a865900bc62979b86ad1ec7434ab6c69376"
+    },
+    {
+      "file": "is/request.ts.txt",
+      "source": "src/functions/is-pull-request.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/is-pull-request.ts",
+      "sha256": "e8a3668a5d976e2834cb123d5d51babd7a3b2c17088feb4d9cf7c276aaaa9f38"
+    },
+    {
+      "file": "stale/when.ts.txt",
+      "source": "src/functions/should-mark-when-stale.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/should-mark-when-stale.ts",
+      "sha256": "b838994ce92077230fbc0afd61487e3544ef7bd58c0fe543a4bffbbd7c513f00"
+    },
+    {
+      "file": "words.ts.txt",
+      "source": "src/functions/words-to-list.ts",
+      "url": "https://raw.githubusercontent.com/actions/stale/v11.0.0/src/functions/words-to-list.ts",
+      "sha256": "478393dccda38190f042c2e2230e0333299d57699bc0e83b00614147d270aa82"
+    }
+  ]
+}
