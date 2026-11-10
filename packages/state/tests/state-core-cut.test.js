@@ -52,7 +52,7 @@ test('engineAtLeast matches the engine-folder comparison for every declared engi
 test('the light door carries the readers moves, roadmap and seats use [C7]', async () => {
   const core = await import('../core.js');
   for (const name of ['itemHandoff', 'handoffMoveProblem', 'requireHandoffActive', 'submissionProof', 'boundedProofReason', 'submissionSize',
-    'lineSettings', 'relaySenderPolicy', 'operationIntent', 'carriesImplies', 'rejectedWorkReturns', 'factFromEvent', 'submitAdmission',
+    'lineSettings', 'carriesImplies', 'rejectedWorkReturns', 'factFromEvent', 'submitAdmission',
     'ensureGrantActivationIndex', 'manualLandingFailureQuoted', 'canonicalMilestoneTarget']) {
     assert.equal(typeof core[name], 'function', `${name} is a light-door function`);
   }

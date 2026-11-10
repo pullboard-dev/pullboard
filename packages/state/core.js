@@ -189,8 +189,6 @@ export { boundedProofReason } from './src/core/submission-proof.js';
 export { submissionSize } from './src/core/submission-size.js';
 export { SUBMISSION_SIZE_METHOD } from './src/core/submission-size.js';
 export { lineSettings } from './src/core/line-settings-read.js';
-export { relaySenderPolicy } from './src/core/relay-sender-policy.js';
-export { operationIntent } from './src/core/relay-sender-policy.js';
 export { carriesImplies } from './src/core/move-implies.js';
 export { rejectedWorkReturns } from './src/core/rejected-work-return.js';
 export { factFromEvent } from './src/core/fact-projection.js';
