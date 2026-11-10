@@ -4440,7 +4440,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/main-criterion-facts.js": {
+    "packages/doctrine/src/shell/main-criterion-facts.js": {
       "cells": 4,
       "deep": 0
     },

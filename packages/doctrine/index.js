@@ -5,3 +5,4 @@ export * from './src/shell/doctrine-rulings.js';
 export * from './src/shell/doctrine.js';
 export * from './src/shell/doctrine-fast.js';
 export * from './src/shell/doctrine-history.js';
+export * from './src/shell/main-criterion-facts.js';

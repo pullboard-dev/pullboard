@@ -2100,6 +2100,7 @@
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
+    "doctrine->codemap",
     "gate->store",
     "gate->kernel",
     "gate->git",

@@ -25,8 +25,8 @@ import { barCoverageForPolicy } from '../../../verify/index.js';
 import { barReadiness } from '../../../verify/index.js';
 import { barReadinessRequired } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
-import { liveCriterionSpec } from '../../../../src/main-criterion-facts.js';
-import { mainCriterionFacts } from '../../../../src/main-criterion-facts.js';
+import { liveCriterionSpec } from '../../../doctrine/index.js';
+import { mainCriterionFacts } from '../../../doctrine/index.js';
 
 /**
  * Freeze a criterion from committed policy, refreshing trunk policy only on an explicit refreeze.

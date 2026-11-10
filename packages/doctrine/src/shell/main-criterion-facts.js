@@ -1,21 +1,21 @@
 /** Committed criterion inputs are shared; person decisions and checkout edits are never cached. */
 import { join } from 'node:path';
-import { gitSpawnSync } from './git-adapter.js';
+import { gitSpawnSync } from '../../../git/core.js';
 import { readFileSync } from 'node:fs';
-import { Refused } from '../packages/kernel/index.js';
-import { CONFIG_FILE } from '../packages/config/index.js';
-import { DOCTRINE_FILE } from '../packages/config/index.js';
-import { LEGACY_DOCTRINE_FILE } from '../packages/config/index.js';
-import { doctrineFromSource } from '../packages/doctrine/core.js';
-import { standardDoctrine } from '../packages/doctrine/core.js';
-import { mainCheckout } from './git.js';
-import { tryGit } from './git.js';
-import { cleanGitEnvironment } from './git.js';
-import { cachedMainFact } from '../packages/codemap/index.js';
-import { mainFactToolIdentity } from '../packages/codemap/index.js';
-import { parseSpec } from '../packages/spec/index.js';
-import { policyAt } from '../packages/sandbox/index.js';
-import { trunkRef } from '../packages/sandbox/index.js';
+import { Refused } from '../../../kernel/index.js';
+import { CONFIG_FILE } from '../../../config/index.js';
+import { DOCTRINE_FILE } from '../../../config/index.js';
+import { LEGACY_DOCTRINE_FILE } from '../../../config/index.js';
+import { doctrineFromSource } from './doctrine.js';
+import { standardDoctrine } from './doctrine.js';
+import { mainCheckout } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
+import { cachedMainFact } from '../../../codemap/index.js';
+import { mainFactToolIdentity } from '../../../codemap/index.js';
+import { parseSpec } from '../../../spec/index.js';
+import { policyAt } from '../../../sandbox/index.js';
+import { trunkRef } from '../../../sandbox/index.js';
 
 /** Validate the portable parsed row collections before taking a local cache hit. */
 function validFacts(value) {
