@@ -5366,6 +5366,7 @@
     "packages/sandbox/core.js": 15,
     "packages/config/core.js": 9,
     "packages/seats/core.js": 27,
-    "packages/runners/core.js": 40
+    "packages/runners/core.js": 40,
+    "packages/git/core.js": 12
   }
 }
