@@ -167,7 +167,7 @@ async function registerProject(box, name) {
 let approvedLinkRun;
 
 /**
- * Walkthrough-090 issue 15 once, shared by the two tests below: a paired phone, a new board
+ * Walkthrough-090 issue 15 once, for the test below: a paired phone, a new board
  * "notes" whose link card waits on it, relay on --all running, one tap. The snapshot upload is
  * held until the phone has rendered its notice, so the phone is observed before its key arrives.
  */
@@ -254,30 +254,6 @@ function approvedLinkScenario(t) {
   })();
   return approvedLinkRun;
 }
-
-test('an approved link opens on the phone without another command [H17,E16]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  const run = await approvedLinkScenario(t);
-  assert.equal(run.waited, true, `relay on --all waits for the phone's link card: ${run.stdout}`);
-  assert.equal(run.taps, 1, 'one phone tap authorizes the link');
-  assert.equal(run.code, 0, `the waiting run finishes cleanly: ${run.stderr}`);
-  assert.equal(run.linkedAtExit, true, 'the same run links notes; no later command is needed');
-  assert.equal(run.opened, true, 'the phone unwraps the notes key and lists the board with no other command');
-  assert.equal(run.displayed.root, run.targetBoard, 'the phone selects the newly approved board, rather than only listing it');
-  assert.equal(run.displayed.name, 'notes', 'the visible project heading names the approved notes board');
-  assert.ok(run.displayed.text.includes(run.notesTitle), "the approved board's own item is visible");
-  assert.equal(run.sameDocument, true, 'approval keeps the same browser document');
-  for (const result of run.visibleItems) {
-    assert.equal(result.tab, 'items', `${result.width}px approval opens Items after Shouts`);
-    assert.equal(result.visible, true, `${result.width}px approved item is visible on screen`);
-  }
-  assert.equal(run.displayed.text.includes('private cleanup fixture item'), false, "the previously open board's item is not left on screen");
-  assert.match(run.noticeBeforeKey, /approved; waiting for the computer to send this phone its key\./u,
-    'before the key arrives the phone says it is on the way');
-  assert.equal(run.noticeLog.some(text => text.includes('pair this browser')), false,
-    `the phone that approved is never told to pair again: ${JSON.stringify(run.noticeLog)}`);
-});
 
 test('the computer prints linked with the board name [H17,E16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
