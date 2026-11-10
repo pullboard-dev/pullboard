@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/runners",
  "frontDoor": "packages/runners/index.js",
+ "lightFrontDoor": "packages/runners/core.js",
  "dryRunName": "runner-client",
  "paths": [
   ["src/run.js","packages/runners/src/shell/run.js","seed"],
