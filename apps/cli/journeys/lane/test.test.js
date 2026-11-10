@@ -50,7 +50,7 @@ test('clause 1: each pattern is flagged and a clean file is not [C7]', () => {
   ].join('\n');
   assert.deepEqual(kinds(clean), []);
   assert.deepEqual(kinds("/** @pullboard-world-pin spec */\nreadFileSync(new URL('../../../../SPEC.md', import.meta.url));"), []);
-  assert.deepEqual(fixtureSites("mkdtempSync('x');", 'test/kit/repo.js'), []);
+  assert.deepEqual(fixtureSites("mkdtempSync('x');", 'apps/cli/tests/fixtures/testkit.js'), []);
 });
 
 test('clause 2: a test file one over its ceiling is refused [C7]', () => {
@@ -83,7 +83,7 @@ test('clause 1: env-spread, hand-policy and raw-board are each reported with the
   assert.deepEqual(rows("store.addItem(board, {});\nstore.register(board, {});\nstore.submit(board, 1);"), ['raw-board:1', 'raw-board:2', 'raw-board:3']);
   assert.deepEqual(rows("// fixture-subject: addItem\nconst board = openBoard(':memory:');\nstore.addItem(board, {});"), [], 'a store unit test of addItem itself');
   assert.deepEqual(rows("assert.equal(typeof openBoard(':memory:'), 'object');"), [], 'an assertion argument');
-  assert.deepEqual(fixtureSites("writeFileSync(join(dir, 'pullboard.json'), '{}'); openBoard(':memory:');", 'test/kit/world.js'), [], 'the kit holds the raw seam');
+  assert.deepEqual(fixtureSites("writeFileSync(join(dir, 'pullboard.json'), '{}'); openBoard(':memory:');", 'apps/cli/tests/fixtures/testkit.js'), [], 'the kit holds the raw seam');
   assert.deepEqual(rows("const note = 'openBoard( writeFileSync(x, \"pullboard.json\")';\n// store.addItem(board)\nexport const clean = true;"), []);
 });
 
