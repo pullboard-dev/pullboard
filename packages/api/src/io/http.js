@@ -145,8 +145,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
    * Open one board for a stream: its watcher and revision come before its replay, so a change
    * between them is still signalled.
    */
-  async function openFollow(board, who, after) {
-    const watcher = await adapter.watchRevision?.(board, who);
+  async function openFollow(board, who, after, { signals = true } = {}) {
+    const watcher = await adapter.watchRevision?.(board, who, { signals });
     try {
       const lastRevision = await watcher?.revision();
       const initial = await adapter.events(board, after, who);
@@ -383,7 +383,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
       if (req.method === 'GET' && route[2] === 'events') {
         const after = eventCursor(req.headers['last-event-id'] ?? url.searchParams.get('after'));
         if (wantsLive(req)) {
-          const follow = await openFollow(board, who, after);
+          // signals=none asks for events only: no changed notification, so no per-write state revision is built for this client.
+          const follow = await openFollow(board, who, after, { signals: url.searchParams.get('signals') !== 'none' });
           try {
             return await stream(req, res, [follow], false);
           } catch (error) {

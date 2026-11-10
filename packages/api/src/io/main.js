@@ -97,6 +97,7 @@ import { personRequestStatuses } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
+import { watchEventSignals } from './event-signals.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -1314,7 +1315,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const sent = localState(board, seen, options);
       return { json: sent.json, validator: sent.validator, reportValidator: sent.reportValidator };
     })),
-    watchRevision: (board) => {
+    watchRevision: (board, who, { signals = true } = {}) => {
+      if (!signals) return projectRead(board, () => watchEventSignals(board));
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
       return watched;
