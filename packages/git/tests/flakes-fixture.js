@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   appendFileSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -10,6 +11,7 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,6 +26,9 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../../test/fixture-child.js';
+import { fixtureMachineSettings } from '../../../test/testkit-fixture.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
@@ -147,9 +152,24 @@ export function commitCandidate(builder, message) {
 export function checkedItem(box) {
   writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
   const check = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate;
+  const bin = join(box.scratch, 'baseline-bin'), worker = join(box.scratch, 'baseline-worker');
+  const home = join(box.scratch, 'baseline-home'), machine = box.env.PULLBOARD_MACHINE_HOME;
+  for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.scratch, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
+  const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
+  const previousPath = box.env.PATH;
+  box.env.PATH = `${bin}:${previousPath}`;
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+    runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
-  const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
-    '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
+  let added;
+  try {
+    added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
+      '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
+  } finally {
+    box.env.PATH = previousPath;
+    if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
+  }
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
