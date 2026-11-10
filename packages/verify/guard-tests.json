@@ -76,16 +76,13 @@
     "test/landing-waiver-replay.test.js": "packages/landing/tests/landing-waiver-replay.test.js",
     "test/person-credential-vault.test.js": "packages/keys/tests/person-credential-vault.test.js",
     "test/person-request.test.js": "packages/person/tests/person-request.test.js",
-    "test/person.test.js": "test/person.test.js",
     "test/relay-device-keys.test.js": "packages/link/tests/relay-device-keys.test.js",
     "test/relay-key.test.js": "packages/keys/tests/relay-key.test.js",
     "test/relay-machine-auth.test.js": "apps/relay/tests/relay-machine-auth.test.js",
     "test/relay-outbox-format.test.js": "packages/outbox/tests/relay-outbox-format.test.js",
     "test/relay-phone-crypto.test.js": "packages/link/tests/relay-phone-crypto.test.js",
     "test/run-tests-worker-identity.test.js": "packages/runners/tests/run-tests-worker-identity.test.js",
-    "test/runner-wait-deadline.test.js": "test/runner-wait-deadline.test.js",
     "test/seal.test.js": "packages/kernel/tests/seal.test.js",
-    "test/selection-fallbacks.test.js": "packages/gate/tests/selection-fallbacks.test.js",
-    "test/verdict-check.test.js": "test/verdict-check.test.js"
+    "test/selection-fallbacks.test.js": "packages/gate/tests/selection-fallbacks.test.js"
   }
 }
