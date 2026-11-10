@@ -1,5 +1,8 @@
 import { landingPorts } from './landing-ports-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureMachineSettings } from './testkit-fixture.js';
+import { HOST } from './runner-ssh-fixture.js';
+import { installSshStandIn } from './runner-ssh-fixture.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
@@ -9,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { mainAuditKey } from '../packages/gate/index.js';
 import { readMainAudit } from '../packages/gate/index.js';
@@ -61,6 +65,24 @@ function running(pid) {
   return !state.stdout.trim().startsWith('Z');
 }
 
+/** Run a setup add with a private runner so its baseline is measured before the claim. */
+function withBaselineRunner(box, action) {
+  const bin = join(box.dir, 'baseline-bin'), worker = join(box.dir, 'baseline-worker'), home = join(box.dir, 'baseline-home');
+  const machine = box.env.PULLBOARD_MACHINE_HOME;
+  for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.dir, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
+  const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
+  const previousPath = box.env.PATH;
+  box.env.PATH = `${bin}:${previousPath}`;
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+    runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
+  try { return action(); }
+  finally {
+    box.env.PATH = previousPath;
+    if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
+  }
+}
+
 /** Retain actual states for only this fixture's known PIDs when a custody assertion fails. */
 function processObservation(pids) {
   const result = spawnSync('/bin/ps', ['-o', 'pid=,ppid=,pgid=,stat=', '-p', pids.join(',')], { encoding: 'utf8' });
@@ -74,9 +96,9 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/queue-${number}`, root, 'main');
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
-    const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
+    const added = JSON.parse(withBaselineRunner(box, () => run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
       '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
-      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json'));
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json')));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
