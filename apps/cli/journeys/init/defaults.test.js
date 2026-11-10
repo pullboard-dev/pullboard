@@ -29,7 +29,7 @@ test('clause 1: defaults, move refusals and the init loop never suggest a timed 
   assert.doesNotMatch(template, /--wait/u);
   assert.match(template, /next, build or review, commit, submit, next/u);
   assert.match(template, /When next has nothing for your seat, end your turn/u);
-  assert.equal(successfulNext('submit', {}), 'pullboard next');
+  assert.equal(successfulNext('submit', {}), 'pullboard next --take');
   assert.equal(successfulNext('next', {}), 'nothing for this seat: end your turn');
   assert.throws(() => requireManualLanding({}), error => {
     assert.equal(error.code, 'BOARD_LANDS_ACCEPTED');
