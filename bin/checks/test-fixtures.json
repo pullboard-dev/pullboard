@@ -1,5 +1,5 @@
 {
-  "apps/cli/tests/exit-rules.test.js": {
+  "test/exit-rules-journey.test.js": {
     "model": 5,
     "raw-board": 7
   },
@@ -1525,7 +1525,7 @@
   "test/fixture-copier.test.js": {
     "tempdir": 2
   },
-  "test/fixture-copiers.test.js": {
+  "packages/runners/tests/fixture-copiers.test.js": {
     "tempdir": 1
   },
   "test/fixture-env-isolated.test.js": {
@@ -3031,7 +3031,7 @@
   "packages/runners/tests/run-tests-reporter.test.js": {
     "tempdir": 3
   },
-  "test/run-tests-timeout.test.js": {
+  "packages/gate/tests/run-tests-timeout.test.js": {
     "tempdir": 3
   },
   "packages/runners/tests/run-tests-worker-identity.test.js": {

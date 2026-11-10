@@ -65,7 +65,11 @@
     "test/verdict-check.test.js": "drives the real CLI in a project checkout and checks its verdict check output, exit codes and board rows end to end",
     "test/verify.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end",
     "test/runner-slots-cli.test.js": "drives the real CLI (runner add, list and measure, settings gate.measuredSlots) with an SSH stand-in and checks the listed slot counts against the runner's measured size end to end",
-    "test/milestone-text.test.js": "drives the real CLI (milestone add, edit, pin, order and ship, roadmap) in a project checkout and checks the landed counts, target, limit, foreign references and kept pins it prints end to end"
+    "test/milestone-text.test.js": "drives the real CLI (milestone add, edit, pin, order and ship, roadmap) in a project checkout and checks the landed counts, target, limit, foreign references and kept pins it prints end to end",
+    "test/exit-rules-journey.test.js": "drives the real CLI (claim, status, check, release --reason BUDGET) in a project checkout with a native session transcript and checks the exit decisions, exit codes and board rows end to end",
+    "test/item-folder-reuse-journey.test.js": "drives the real CLI (claim) in a project checkout and checks that a seat's idle item folder switches to the new item instead of creating a worktree end to end",
+    "test/submit-no-plan-journey.test.js": "drives the real CLI (claim, submit --wait) in a private generic project and checks that it submits without provisioning a cells inventory end to end",
+    "test/worktree-maintenance-scheduler-journey.test.js": "drives the real CLI (status, maintenance, health --json) in a project checkout and checks the maintenance timer diagnostics, exit codes and health output end to end"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -193,15 +197,11 @@
     "test/worker-git-observer.mjs": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "test/worker-git-witness.fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "test/worker-inbox-scale-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
-    "test/worker-scale-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks"
+    "test/worker-scale-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "test/remote-analysis-refusal-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks"
   },
   "leaves": [],
   "findings": {
-    "apps/cli/tests/exit-rules.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/cli/tests/item-folder-reuse.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/cli/tests/submit-cells-runner-produces.test.js": "imports test/remote-analysis-refusal-fixture.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/cli/tests/submit-no-plan.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "apps/cli/tests/worktree-maintenance-scheduler.test.js": "imports test/e2e-helpers.js, outside its own cell apps/cli; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/add-check-baseline-runner.test.js": "imports packages/gate/src/shell/check-baseline-worker.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "apps/lib/tests/commit-message.test.js": "imports packages/commits/src/core/landing-rows.js, outside its own cell apps/lib; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/gate/tests/cells-port-quarantine-landing.test.js": "imports bin/cells-plan.js, outside its own cell gate; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -502,7 +502,6 @@
     "test/engine-folder.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/engine.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/fixture-copier.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/fixture-copiers.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/fixture-env-isolated.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/fixture-machine-isolation.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/fixture-source-edits.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -639,7 +638,6 @@
     "test/lane-check-merged-main.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/lane-generated-tier-row.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/lane-lead.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/lane-owns-baseline-rows.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/lease-holds-during-gate.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/lease-lapse.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/line-settings.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -850,10 +848,8 @@
     "test/row-decision-guidance.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/rule-proof-counts.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/ruling-owner.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/run-tests-kill.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests-lazy-graph.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests-lazy.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/run-tests-timeout.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-timing-receipts.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runner-add-keeps-settings.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
@@ -1051,6 +1047,7 @@
   "sealed": [
     "activity",
     "api",
+    "apps/cli",
     "apps/relay",
     "apps/runner",
     "apps/view",
