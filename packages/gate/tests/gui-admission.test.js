@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { checkNeedsGui } from '../src/shell/gui-admission.js';
 import { testsNeedGui } from '../src/shell/gui-admission.js';
 import { guiSession } from '../src/shell/gui-session.js';
-import { cleanGitEnvironment } from '../../../src/git.js';
+import { cleanGitEnvironment } from '../../git/index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 test('GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {

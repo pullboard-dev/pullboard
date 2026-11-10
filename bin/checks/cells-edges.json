@@ -2728,6 +2728,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/runners/src/shell/runner-probe.js": {
+      "cells": 2,
+      "deep": 1
+    },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
       "deep": 1
@@ -2749,8 +2753,8 @@
       "deep": 0
     },
     "packages/runners/src/shell/runner-transport.js": {
-      "cells": 3,
-      "deep": 2
+      "cells": 2,
+      "deep": 1
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -5377,6 +5381,7 @@
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15,
     "packages/config/core.js": 9,
-    "packages/seats/core.js": 27
+    "packages/seats/core.js": 27,
+    "packages/runners/core.js": 40
   }
 }
