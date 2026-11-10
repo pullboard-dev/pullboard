@@ -86,7 +86,7 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   box.put('docs/guide.md', 'See src/stats.js.\n');
   const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
-  assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/light.js';\nconsole.log(pure);\n");
+  assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
   assert.match(read(box, 'src/reader.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/src\/shell\/shell\.js'\)/u, 'a resolved path names the exact moved file');
   assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u);
   assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/src/shell/shell.js package.json */');
@@ -229,28 +229,28 @@ test('(b) with lane view, a view importer needing a binding absent from a core-o
 
 test('(c) with lane core, a door addition and the shim deletion proceed; a plan shard owned elsewhere holds the deletion [C7,D3]', t => {
   const box = shimmed(t);
-  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS, lane: 'core', planFiles: ['bin/cells-plan.json', 'bin/cells-plan/02-stats.json'] });
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS, lane: 'core', planFiles: ['packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan/02-stats.json'] });
   assert.match(read(box, 'packages/stats/index.js'), /export \{ extra \} from "\.\/src\/shell\/shell\.js";/u, 'core adds to its own door');
   assert.deepEqual(result.deleted, ['src/stats.js'], 'core deletes its own shim');
   const config = JSON.parse(read(box, 'pullboard.json'));
-  config.lanes.view.owns.push('bin/cells-plan/02-stats.json');
+  config.lanes.view.owns.push('packages/codemap/data/plan/02-stats.json');
   const other = shimmed(t);
   other.put('pullboard.json', JSON.stringify(config));
   git(other.root, 'add', '-A');
   git(other.root, 'commit', '-q', '-m', 'view owns the stats shard');
-  const shard = read(other, 'bin/cells-plan/02-stats.json'), index = read(other, 'bin/cells-plan.json');
+  const shard = read(other, 'packages/codemap/data/plan/02-stats.json'), index = read(other, 'packages/codemap/data/plan/cells.json');
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats'], { cwd: other.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/02-stats\.json \(view lane\), outside the core lane/u);
   assert.equal(existsSync(join(other.root, 'src/stats.js')), true);
-  assert.equal(read(other, 'bin/cells-plan/02-stats.json'), shard, 'the view-owned shard is never written');
-  assert.equal(read(other, 'bin/cells-plan.json'), index);
+  assert.equal(read(other, 'packages/codemap/data/plan/02-stats.json'), shard, 'the view-owned shard is never written');
+  assert.equal(read(other, 'packages/codemap/data/plan/cells.json'), index);
 });
 
 /** Give the shimmed fixture a runner worker, a shipped-file manifest and one move declaration, then commit. */
 function withClosures(box, { core = 'export * from "./src/core/pure.js";\n', extra = {} } = {}) {
-  box.put('package.json', JSON.stringify({ type: 'module', files: ['src', 'packages', 'bin'] }));
-  box.put('src/runner-worker.js', "import { step } from './worker-step.js';\nexport const worker = step;\n");
+  box.put('package.json', JSON.stringify({ type: 'module', files: ['src', 'packages', 'bin', 'apps'] }));
+  box.put('apps/runner/src/io/scripts/worker.js', "import { step } from '../../../../../src/worker-step.js';\nexport const worker = step;\n");
   box.put('src/stats-pure.js', 'export { pure } from "../packages/stats/src/core/pure.js";\n');
   box.put('src/moves/seed.js', "import { pure } from '../stats-pure.js';\nexport const seed = pure;\n");
   box.put('packages/stats/core.js', core);
@@ -268,15 +268,15 @@ function withClosures(box, { core = 'export * from "./src/core/pure.js";\n', ext
 test('a plan file another lane owns that writing the plan would prune holds every deletion, and stays [C7,D3]', t => {
   const box = shimmed(t);
   const config = JSON.parse(read(box, 'pullboard.json'));
-  config.lanes.view.owns.push('bin/cells-plan/99-view-retired.json');
+  config.lanes.view.owns.push('packages/codemap/data/plan/99-view-retired.json');
   box.put('pullboard.json', JSON.stringify(config));
-  box.put('bin/cells-plan/99-view-retired.json', '{"retired": true}\n');
+  box.put('packages/codemap/data/plan/99-view-retired.json', '{"retired": true}\n');
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'view owns a retired plan file');
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--lane', 'core'], { cwd: box.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(read(box, 'bin/cells-plan/99-view-retired.json'), '{"retired": true}\n', 'the view-owned plan file is never pruned');
-  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/99-view-retired\.json \(view lane\), outside the core lane/u);
+  assert.equal(read(box, 'packages/codemap/data/plan/99-view-retired.json'), '{"retired": true}\n', 'the view-owned plan file is never pruned');
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites packages\/codemap\/data\/plan\/99-view-retired\.json \(view lane\), outside the core lane/u);
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
 });
 
@@ -285,7 +285,7 @@ test('a runner-closure importer reads core.js while a shell importer of the same
   box.put('src/worker-step.js', "import { pure } from './stats.js';\nexport const step = pure;\n");
   const plan = withClosures(box);
   const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
-  assert.equal(read(box, 'src/worker-step.js'), "import { pure } from '../packages/stats/light.js';\nexport const step = pure;\n");
+  assert.equal(read(box, 'src/worker-step.js'), "import { pure } from '../packages/stats/core.js';\nexport const step = pure;\n");
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
   assert.equal(read(box, 'src/moves/seed.js'), "import { pure } from '../../packages/stats/core.js';\nexport const seed = pure;\n", 'a move declaration reads core.js');
   assert.ok(result.deleted.includes('src/stats.js') && result.deleted.includes('src/stats-pure.js'));
