@@ -11,6 +11,7 @@ test('clause 1: diagnose runs one file and prints its full failure and repositor
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  delete box.env.NODE_TEST_CONTEXT; // The fixture starts an independent Node test runner.
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }));
