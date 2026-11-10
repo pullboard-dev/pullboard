@@ -10,7 +10,7 @@ const NON_RELAY = new Map([
 ]);
 const ADAPTERS = new Set([
   'packages/person/src/shell/relay-adapter.js',
-  'relay/browser-adapter.js',
+  'apps/relay/src/shell/browser-adapter.js',
 ]);
 
 /** Return direct fetch calls in production source outside the approved adapters and non-relay paths. */

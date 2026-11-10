@@ -754,10 +754,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "relay/browser-adapter.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/move-history/211.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -2182,6 +2178,7 @@
     "github->items",
     "link->kernel",
     "apps/relay->link",
+    "apps/relay->kernel",
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
