@@ -33,8 +33,9 @@ export function explainObservations(root, file, observations, closureReader = te
   const redEvidence = byCommit.get(red);
   const stable = redEvidence.stable ?? null;
   const frame = stable && / @ (.+)#([^#]+)$/u.exec(stable);
-  let closure = null;
-  try { closure = closureReader(root, red).closures.get(file)?.files ?? null; } catch { /* Unknown closure cannot establish suspects. */ }
+  let closure = null, closureReason = null;
+  try { const found = closureReader(root, red).closures.get(file); closure = found?.files ?? null; closureReason = found?.reason || (!found ? 'test is absent from the import graph' : null); }
+  catch (error) { closureReason = `import graph unavailable: ${error.message}`; }
   const suspects = [];
   if (green && closure) for (const commit of commits.slice(firstRedIndex, greenIndex).reverse()) {
     const names = git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--first-parent', commit);
@@ -46,7 +47,7 @@ export function explainObservations(root, file, observations, closureReader = te
     suspects.push({ commit, item, diff: diff || null });
   }
   return { file, green, red, stable, frame: frame?.[1] ?? null, function: frame?.[2] ?? null,
-    closureKnown: Boolean(closure), suspects: green && closure ? suspects : null };
+    closureKnown: Boolean(closure), closureReason, suspects: green && closure ? suspects : null };
 }
 
 /** Read only validated gate receipts that prove this file's outcome at a committed source [C7]. */
@@ -83,7 +84,7 @@ export async function run(io, { first, second }) {
   io.say(`Signature: ${result.stable ?? 'unknown'}`);
   io.say(`Cluster: ${result.stable ?? 'unknown'}`);
   if (result.unavailable) io.say(`History: ${result.unavailable}`);
-  if (result.suspects === null || result.suspects === undefined) io.say('Suspects: unknown (missing green or test closure)');
+  if (result.suspects === null || result.suspects === undefined) io.say(`Suspects: unknown (${result.closureReason ?? 'missing green or test closure'})`);
   else if (!result.suspects.length) io.say('Suspects: none in the observed interval touch the known test closure');
   else for (const suspect of result.suspects) {
     io.say(`Suspect: ${suspect.commit}${suspect.item ? ` #${suspect.item}` : ''}`);
