@@ -112,7 +112,9 @@ test('a local developer, a runner developer and a pull-request developer share o
     const landed = await cli(box, box.repo, box.env, 'merged', String(id), box.git(box.repo, 'rev-parse', 'HEAD'), '--json');
     assert.equal(landed.code, 0, landed.out + landed.err);
   }
-  assert.deepEqual(Object.keys(accepted[0].receipt).sort(), Object.keys(accepted[1].receipt).sort(),
+  // runnerDispatch records the remote dispatch only a runner run has; every other field must match.
+  const shape = receipt => Object.keys(receipt).filter(key => key !== 'runnerDispatch').sort();
+  assert.deepEqual(shape(accepted[0].receipt), shape(accepted[1].receipt),
     'local and runner proofs use the same native receipt format');
   const provider = await bridgeProvider(t, box);
   box.git(box.outside, 'switch', '-q', '-c', 'outside/contribution');
