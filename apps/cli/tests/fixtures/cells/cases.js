@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { copyFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -100,7 +101,8 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     }
     const box = board(t);
     // Preserve the real aliases and mapped bodies, so entry claims inspect the same source as the real plan.
-    const map = readPathMap(join(import.meta.dirname, '../../../../..'));
+    const checkout = join(import.meta.dirname, '../../../../..');
+    const map = readPathMap(checkout);
     const entryMap = {};
     const entryFiles = new Set();
     for (const { path } of PLAN.entries ?? []) {
@@ -110,7 +112,8 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
         entryFiles.add(file);
         const destination = join(box.repo, file);
         mkdirSync(join(destination, '..'), { recursive: true });
-        copyFileSync(new URL(`../${file}`, import.meta.url), destination);
+        // The move retired the old entry path from the checkout; its alias keeps the moved body, as the mapped path does.
+        copyFileSync(join(checkout, existsSync(join(checkout, file)) ? file : target), destination);
       }
     }
     writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify(entryMap));
@@ -148,7 +151,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     /** Invoke the production plan CLI with the private real board and unchanged joined CLI shim. */
     const file = () => runFixtureChild(process.execPath, [BIN, '--file-cuts', '--yes'], { cwd: box.repo, env: box.env, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     const first = file();
-    assert.equal(first.status, 0, first.stdout + first.stderr);
+    assert.equal(first.status, 0, 'PROBE ' + first.stderr.split('\n').filter(line => /Refused|failed/u.test(line)).join(' ').slice(0, 600)); // PROBE
     const before = JSON.parse(box.run(box.repo, 'list', 'core', '--all', '--json').out).items;
     assert.equal(before.length, 1);
     assert.equal(before[0].item_after, '', 'the actual filed item can start before move tooling');
