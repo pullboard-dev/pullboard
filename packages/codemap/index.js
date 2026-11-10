@@ -47,3 +47,12 @@ export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/io/m
 export { narrowedTo, readText, TEST_FILE, walk } from './src/io/check-walk.js';
 export { assumptionCounts, assumptionProblems, assumptionsIn, writeAssumptionBaseline } from './src/io/no-runtime-assumptions.js';
 export { leasedModules, syncCallsIn, syncSpawnConfig, syncSpawnProblems, syncSpawnReport, writeSyncSpawnBaseline } from './src/io/sync-spawn-in-leases.js';
+
+export { git as cellGit, tryGit as cellTryGit, withCellGitObjects } from './src/io/cells/git.js';
+export { cellsObjectSnapshots, landingPlanProblems } from './src/io/cells/snapshots.js';
+export { cellsCacheDirectory, inventoryCache, inventoryPending, observationCache } from './src/io/cells/scripts/cache.js';
+export { checkMoved, stalePlanRows, unplanned } from './src/io/cells/scripts/plan.js';
+export { addedPlacementProblems, checkCuts, entryPlacementProblems, frontDoorBypasses, onlyForwards, withDeclaredLoads } from './src/io/cells/plan/cuts.js';
+export { lightFrontDoorProblems, pureDoorProblems, pureFrontDoorProblems } from './src/io/cells/door.js';
+export { scriptMentions } from './src/io/cells/shims.js';
+export { cellsBacklogCollector } from './src/io/cells/backlog.js';
