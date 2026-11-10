@@ -11,7 +11,7 @@ import { CONFIRM_PROBE_RETRIES } from '../packages/resources/index.js';
 import { initializeRunnerRecovery } from '../packages/resources/index.js';
 import { recordRunnerFailure } from '../packages/resources/index.js';
 import { recoverUnavailableRunners } from '../packages/resources/index.js';
-import { probeRunnerTransport } from '../packages/runners/src/shell/runner-transport.js';
+import { probeRunnerTransport } from '../packages/runners/src/shell/runner-probe.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const HOST = 'loaded-runner';

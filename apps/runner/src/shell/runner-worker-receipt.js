@@ -9,8 +9,8 @@ import { loadavg } from 'node:os';
 import { userInfo } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
-import { readRunnerSigningKey } from '../../../../packages/runners/src/core/runner-signature.js';
-import { signRunnerReceipt } from '../../../../packages/runners/src/core/runner-signature.js';
+import { readRunnerSigningKey } from '../../../../packages/runners/core.js';
+import { signRunnerReceipt } from '../../../../packages/runners/core.js';
 
 const RECEIPT = 'PULLBOARD_RUNNER_RESULT';
 
