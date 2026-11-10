@@ -37,7 +37,7 @@ const SOURCE = join(import.meta.dirname, '../../../..');
 const PLAN = join(SOURCE, 'packages/codemap/src/io/cells/scripts/plan.js');
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */
-async function plannedProject(t, { companionLanes = false } = {}) {
+async function plannedProject(t, { companionLanes = false, submitReady = true } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
@@ -64,8 +64,10 @@ async function plannedProject(t, { companionLanes = false } = {}) {
   box.git(box.repo, 'add', 'packages/codemap/data/baselines/lints');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  await publishAcceptedInventory(box);
-  enforcePlacementTrial(box);
+  if (submitReady) {
+    await publishAcceptedInventory(box);
+    enforcePlacementTrial(box);
+  }
   return { ...box, marker };
 }
 
@@ -217,7 +219,7 @@ test('native view submit validates its core companion placement on the composed 
 });
 
 test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scope paths without rewriting the plan [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   writeFileSync(join(box.repo, 'src/plan-place-negative.js'), 'export const value = 2;\n');
   box.git(box.repo, 'add', 'src/plan-place-negative.js');
@@ -240,7 +242,7 @@ test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scop
 });
 
 test('committed plan deletion and malformed shards refuse; an unstaged placement cannot authorize source [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   assert.throws(() => requirePlannedSource(box.repo, '0'.repeat(40), base), /presence could not be read from Git/);
   mkdirSync(join(box.repo, 'src'), { recursive: true });
@@ -262,7 +264,7 @@ test('committed plan deletion and malformed shards refuse; an unstaged placement
 });
 
 test('removing an existing placement cannot strand its retained committed source [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   const file = 'src/plan-retained-source.js';
   writeFileSync(join(box.repo, file), 'export const retained = true;\n');
