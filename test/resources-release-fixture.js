@@ -126,12 +126,12 @@ export async function releaseQueueProof({ fixture, poolWorker, privateList, even
   const landing = await queue(on, on.first, 'A-landing', 3, 'landing', true);
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'landing stays first and each board retains its opportunity positions');
-  assert.equal(machineSettings(off, 'loadMachineSettings').value.gate.queue.currentReleaseFirst, false);
+  assert.equal(machineSettings(off, 'gateQueueSettings').value.currentReleaseFirst, false);
   moveBefore(on.first, 'later', 'current');
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'queued ranks remain captured despite a roadmap reorder');
   await drain(on, onHolders, [landing, current, foreign, later, unplanned]);
-  assert.equal(machineSettings(on, 'loadMachineSettings').value.gate.queue.currentReleaseFirst, true);
+  assert.equal(machineSettings(on, 'gateQueueSettings').value.currentReleaseFirst, true);
 
   const aging = fixture();
   board(aging, aging.first);
