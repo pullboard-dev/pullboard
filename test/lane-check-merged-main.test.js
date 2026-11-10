@@ -63,7 +63,7 @@ function mergedPlacement(t) {
     'the merged main source is unchanged');
   const paths = readPlan(view).cells.find(cell => cell.name === 'app:view').paths;
   assert.ok(paths.findIndex(row => row[0] === ownFile) < paths.findIndex(row => row[0] === mainFile));
-  rmSync(box.marker);
+  rmSync(box.marker, { force: true });
   return { ...box, view, id, main, mainFile };
 }
 
