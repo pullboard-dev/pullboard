@@ -56,7 +56,7 @@ export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, s
     const builder = item.item_built_by;
     const detail = JSON.parse(episode.event_detail);
     const reservation = detail.reopenFirstRefusal;
-    const reservedForBuilder = reservation?.builder === builder && now < Date.parse(reservation.until);
+    const reservedForBuilder = !openRejections && reservation?.builder === builder && now < Date.parse(reservation.until); // #2779: a window an older engine sealed lapses on upgrade
     const beforeDeadline = reservedForBuilder || (!openRejections && now < Date.parse(episode.event_at) + 30 * 60_000);
     const verdict = board.db.prepare("SELECT verdict_note FROM verdict WHERE item_id=? ORDER BY verdict_id DESC LIMIT 1").get(item.item_id);
     return { applies: true, mode: beforeDeadline ? 'builder' : 'rejected-open', builder, episode: episode.event_id,

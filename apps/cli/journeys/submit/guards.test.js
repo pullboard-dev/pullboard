@@ -29,7 +29,7 @@ function commit(box, root, message) {
 function registryBox({ deferred = true } = {}) {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('src/', 'test/', 'pullboard.json');
+  config.lanes.web.owns.push('src/', 'test/', 'pullboard.json', 'apps/cli/journeys/relay/credential.test.js');
   config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
   config.submitGate = 'landing';
   config.submitDeferAbove = 1;
@@ -44,7 +44,7 @@ function registryBox({ deferred = true } = {}) {
     "import { test } from 'node:test';",
     "test('each move has an actor credential [G1]', () => {",
     "  const credentials = new Set(['known.js']);",
-    "  for (const move of readdirSync(new URL('../src/moves/', import.meta.url)))",
+    "  for (const move of readdirSync(new URL('../../../../src/moves/', import.meta.url)))",
     "    assert.ok(credentials.has(move), 'missing actor credential for ' + move);",
     '});',
   ].join('\n'));
@@ -69,7 +69,7 @@ test('submit runs the move registry guard for an item that adds a move and refus
   commit(box, box.web, 'feat(core): add fixture move [G1]');
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 1, 'a green item check cannot defer a touched registry guard: ' + submitted.out);
-  assert.match(submitted.err + submitted.out, /test\/relay-credential\.test\.js/u, 'the refusal names the guard');
+  assert.match(submitted.err + submitted.out, /apps\/cli\/journeys\/relay\/credential\.test\.js/u, 'the refusal names the guard');
   assert.match(submitted.err + submitted.out, /missing actor credential for newMove\.js/u, 'the refusal retains the missing entry');
   const state = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(state.code, 0, state.err);
@@ -99,7 +99,7 @@ test('full fallback and candidate policy edits cannot omit an accepted registry 
   commit(box, box.web, 'feat(core): add a move with candidate policy edits [G1]');
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 1, submitted.out);
-  assert.match(submitted.err, /registry guards: test\/relay-credential\.test\.js/u);
+  assert.match(submitted.err, /registry guards: apps\/cli\/journeys\/relay\/credential\.test\.js/u);
   assert.match(submitted.err, /missing actor credential for newMove\.js/u);
 });
 
