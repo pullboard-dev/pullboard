@@ -2,9 +2,8 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateRepo } from '../../../test/submit-gate-fixture.js';
+import { cellRepo } from '../../../test/cell-fixture.js';
 import { appendDeferredNotice } from '../src/shell/deferred-notices.js';
 import { deferredNoticesFile } from '../src/shell/deferred-notices.js';
 import { refreshLandedMain } from '../src/shell/deferred-notices.js';
@@ -17,7 +16,7 @@ import { replayDeferredNotices } from '../src/shell/deferred-notices.js';
  * @returns {string}
  */
 function scratch(t) {
-  return privateRepo(t).root;
+  return cellRepo(t).root;
 }
 
 /**
