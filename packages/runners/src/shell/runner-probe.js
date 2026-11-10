@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { spawnSsh } from '../../../transport/index.js';
-import { guiSession } from '../../../gate/src/shell/gui-session.js';
+import { guiSession } from '../../../gate/core.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
 function environment() {

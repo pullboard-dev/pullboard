@@ -139,3 +139,13 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
   return failures;
 }
 
+
+// What the runner worker uses from gate, re-exported so apps/runner imports the light door and never gate's src.
+export { RunnerDropped } from './src/core/runner-source.js';
+export { runnerSource } from './src/core/runner-source.js';
+export { guiSession } from './src/shell/gui-session.js';
+export { gateStages } from './src/shell/gate-stages.js';
+export { readStages } from './src/shell/gate-stages.js';
+export { retainTestResultCompletion } from './src/shell/test-result-store.js';
+export { importTestResults } from './src/shell/test-result-store.js';
+export { runnerPhaseFields } from './src/shell/timing.js';
