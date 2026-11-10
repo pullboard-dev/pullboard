@@ -69,7 +69,9 @@ test('the view fixture refuses to launch Chrome from an undeclared test file [C7
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
-  cpSync(resolve(import.meta.dirname, '..'), join(root, 'test'), { recursive: true });
+  // The tests under test import the cockpit harness from its place in the layout, so that folder comes along [C7].
+  mkdirSync(join(root, 'test'));
+  cpSync(resolve(import.meta.dirname, '../../tests/fixtures'), join(root, 'apps/cli/tests/fixtures'), { recursive: true });
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */
   const body = (name, binding) => `
@@ -83,13 +85,13 @@ test('${name} view launch', async () => {
   mkdirSync(profile);
   let stop;
   try {
-    const view = ${name === 'held' ? '{ startSnapshotChrome }' : "await import(['.', 'cockpit', 'fixture.js'].join('/'))"};
+    const view = ${name === 'held' ? '{ startSnapshotChrome }' : "await import(['..', 'apps', 'cli', 'tests', 'fixtures', 'cockpit', 'harness.js'].join('/'))"};
     const browser = await view.startSnapshotChrome(process.env.FIXTURE_BROWSER, profile, { onOwned: owned => { stop = owned; } });
     await browser.stop();
   } finally { await stop?.(); }
 });
 `;
-  writeFileSync(join(root, 'test/classified-view.test.js'), `// pullboard: browser${body('held', "import { startSnapshotChrome } from './cockpit/fixture.js';")}`);
+  writeFileSync(join(root, 'test/classified-view.test.js'), `// pullboard: browser${body('held', "import { startSnapshotChrome } from '../apps/cli/tests/fixtures/cockpit/harness.js';")}`);
   writeFileSync(join(root, 'test/hidden-view.test.js'), body('none', ''));
   const browser = join(root, 'view-browser-stand-in');
   writeFileSync(browser, `#!/usr/bin/env node
