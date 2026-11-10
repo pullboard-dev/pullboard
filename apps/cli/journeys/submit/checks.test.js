@@ -1,11 +1,11 @@
 /** @pullboard-test-input source-tree */
-import { inventoryCache } from '../../../../../../packages/codemap/src/io/cells/scripts/cache.js';
-import { observationCache } from '../../../../../../packages/codemap/src/io/cells/scripts/cache.js';
-import { inventoryCacheFile } from '../../../../../../packages/codemap/src/io/cells/scripts/cache.js';
-import { cellInventory } from '../../../../../../packages/codemap/index.js';
-import { acceptedCutItems } from '../../../../../../packages/landing/tests/fixtures/plan.js';
-import { cachedSubmitSourceStep } from '../../../../src/io/submit/cache.js';
-import { withImportParseCache } from '../../../../../../packages/gate/index.js';
+import { inventoryCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { observationCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { inventoryCacheFile } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { cellInventory } from '../../../../packages/codemap/index.js';
+import { acceptedCutItems } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { cachedSubmitSourceStep } from '../../src/io/submit/cache.js';
+import { withImportParseCache } from '../../../../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import {
@@ -20,10 +20,10 @@ import {
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import { checkCuts } from '../../../../../../packages/codemap/src/io/cells/plan/cuts.js';
-import { computePlan } from '../../../../../../packages/codemap/index.js';
-import { fixture } from '../../../../../../packages/landing/tests/fixtures/plan.js';
-import { git } from '../../../../../../packages/landing/tests/fixtures/plan.js';
+import { checkCuts } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
+import { computePlan } from '../../../../packages/codemap/index.js';
+import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 
 test('submit cut mode catches a new target even when a cell has no historical cuts [C7,D3,CD64]', t => {
   const { root, put } = fixture(t), plan = computePlan(root);
@@ -68,19 +68,19 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
     .some(problem => problem.includes('cannot prove cut through bin/bridge.js')), 'an unknown root-tool loader also refuses');
 });
 
-import { requireSubmitCells as inspectSubmit } from '../../../../index.js';
-import { touchedCells } from '../../../../index.js';
-import { withMainCheckout } from '../../../../../../packages/landing/index.js';
-import { writePlan } from '../../../../../../packages/codemap/index.js';
-import { readPlan } from '../../../../../../packages/codemap/index.js';
-import { cellLintReport } from '../../../../../../packages/codemap/index.js';
-import { cellLintBaseline } from '../../../../../../packages/codemap/index.js';
-import { writeCellLintBaseline } from '../../../../../../packages/codemap/index.js';
-import { importsIn } from '../../../../../../packages/gate/index.js';
-import { commonJsIn } from '../../../../../../packages/gate/index.js';
-import { warmAcceptedCells } from '../../../../../../packages/gate/index.js';
-import { withFileLock } from '../../../../../../packages/outbox/index.js';
-import { privateFixtureFiles } from '../../../fixtures/child.js';
+import { requireSubmitCells as inspectSubmit } from '../../index.js';
+import { touchedCells } from '../../index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { writePlan } from '../../../../packages/codemap/index.js';
+import { readPlan } from '../../../../packages/codemap/index.js';
+import { cellLintReport } from '../../../../packages/codemap/index.js';
+import { cellLintBaseline } from '../../../../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../packages/gate/index.js';
+import { warmAcceptedCells } from '../../../../packages/gate/index.js';
+import { withFileLock } from '../../../../packages/outbox/index.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
 // The accepted inventory is produced off-path by a background producer (#3533), so this file publishes each fixture
 // main's inventory into one private machine home and hands it to the submit check as the producer's result would be.
@@ -241,13 +241,13 @@ test('submit requires real controller services before reading any input [C7,D3]'
 
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { lex } from '../../../../../../packages/kernel/index.js';
-import { bindingReadsForModules } from '../../../../../../packages/codemap/index.js';
-import { fixtureSourceEdits } from '../../../../../../packages/codemap/index.js';
-import { cachedBindingMetadata } from '../../../../../../packages/codemap/index.js';
-import { exportReachability } from '../../../../../../packages/codemap/src/io/cell/lint/exports.js';
-import { withBindingReadCache } from '../../../../../../packages/codemap/index.js';
-import { foreignNodeOptions } from '../../../../../../packages/gate/index.js';
+import { lex } from '../../../../packages/kernel/index.js';
+import { bindingReadsForModules } from '../../../../packages/codemap/index.js';
+import { fixtureSourceEdits } from '../../../../packages/codemap/index.js';
+import { cachedBindingMetadata } from '../../../../packages/codemap/index.js';
+import { exportReachability } from '../../../../packages/codemap/src/io/cell/lint/exports.js';
+import { withBindingReadCache } from '../../../../packages/codemap/index.js';
+import { foreignNodeOptions } from '../../../../packages/gate/index.js';
 
 /** Count actual compiler children, preserving every successful V8 observation. */
 function bindingCompilerCalls(t, observed = {}) {
@@ -328,7 +328,7 @@ test('a newly reachable unchanged module reuses its cold census observation [C7,
 test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
   const { root } = fixture(t), calls = bindingCompilerCalls(t);
   // The checker's identity is the bytes of its code files (#2601), so the key names real files of this tool.
-  const tool = path => fileURLToPath(new URL(`../${path}`, import.meta.url));
+  const tool = path => fileURLToPath(new URL(`../../tests/io/submit/${path}`, import.meta.url));
   const key = { code: [tool('packages/codemap/src/io/cells/scripts/cache.js')], config: { acceptedMain: 'main', preloads: [] } };
   const cache = observationCache(root, key, () => true), modules = bindingModules();
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
@@ -407,7 +407,7 @@ test('accessor arrays and generator callers retain ordinary real binding computa
 
 test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
   const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
-  const owned = new URL('../../../../../../packages/gate/src/io/browser/guard.js', import.meta.url).href;
+  const owned = new URL('../../../../packages/gate/src/io/browser/guard.js', import.meta.url).href;
   const next = `${before ?? ''} --import=${owned}`.trim();
   try {
     withBindingReadCache(() => {
@@ -744,7 +744,7 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
 
 test('controller source steps cache only exact green source and base [C7,D3]', async t => {
   const box = await plannedFixture(t);
-  const code = [fileURLToPath(new URL('../../../../src/io/submit/cache.js', import.meta.url))];
+  const code = [fileURLToPath(new URL('../../src/io/submit/cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
   let calls = 0;
   const first = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
