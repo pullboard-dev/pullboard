@@ -155,3 +155,8 @@ export { importTestResults } from './src/shell/test-result-store.js';
 export { packTestResults } from './src/shell/test-result-store.js';
 export { selectedTestResults } from './src/shell/test-result-store.js';
 export { startRunnerPhases } from './src/shell/timing.js';
+export { RunnerDropped } from './src/core/runner-source.js';
+export { runnerSource } from './src/core/runner-source.js';
+export { readStages } from './src/shell/gate-stages.js';
+export { retainTestResultCompletion } from './src/shell/test-result-store.js';
+export { runnerPhaseFields } from './src/shell/timing.js';

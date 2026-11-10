@@ -1,4 +1,4 @@
-/** @pullboard-test-loads bin/run-tests.js packages/gate/src/shell/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js packages/config/src/shell/settings.js packages/resources/index.js packages/config/src/shell/config.js */
+/** @pullboard-test-loads bin/run-tests.js packages/gate/src/shell/run-tests.js packages/gate/src/shell/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js packages/config/src/shell/settings.js packages/resources/index.js packages/config/src/shell/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
 import { awaitNestedRun } from '../index.js';
 import assert from 'node:assert/strict';
