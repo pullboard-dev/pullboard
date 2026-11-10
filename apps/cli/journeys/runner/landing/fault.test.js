@@ -150,7 +150,7 @@ test('clause 1: a real landing gate red only on runner refusals is retried as a 
 test('clause 2: a real landing gate with a failing case beside runner refusals still diagnoses the case [C7,#3693]', { timeout: 300_000 }, // budget: one real submit and accept, one real landing; hang ceiling only.
 () => {
   const box = refusingProject();
-  const entry = acceptedItem(box, 1, 'RED NAME:batch-red-case\n');
+  const entry = acceptedItem(box, 1, '// RED NAME:batch-red-case\n');
   box.env.LAND_RUNNER_REFUSAL = '1';
   const result = landBatch(box, entry.item);
   const why = JSON.stringify({ error: result.error, batch: result.batch, lines: result.lines });
