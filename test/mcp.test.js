@@ -59,7 +59,8 @@ function shellWord(value) {
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Detached comparison cleanup can still be removing its own files.
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 }));
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
