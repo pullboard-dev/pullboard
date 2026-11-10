@@ -42,7 +42,7 @@ test('clause 1: when the dispatcher that launched a gate worker exits, the worke
   const resources = join(REPO, 'packages/resources/index.js');
   const pids = join(files.root, 'pids.json');
   // The captured tools' driver: it spawns a child that stays up, records both pids, and stops on the real lifeline.
-  files.write('tools/bin/gate-drive-worker.js', [
+  files.write('tools/apps/cli/src/io/gate/drive.js', [
     "import { spawn } from 'node:child_process';",
     "import { writeFileSync } from 'node:fs';",
     `import { onDispatcherLifelineEnd } from ${JSON.stringify(resources)};`,
