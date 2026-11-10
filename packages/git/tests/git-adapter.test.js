@@ -39,12 +39,25 @@ import { patchId } from '../index.js';
 import { tryGit } from '../index.js';
 import { withGitFacts } from '../index.js';
 import { withGitReadFacts } from '../index.js';
+import { trunkRef } from '../core.js';
 import { runFixtureExecFile } from '../../../test/fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/shell/git.js
 const BEFORE = { 'stable.txt': 'same\n', 'changed.txt': 'before\n', 'old.txt': 'removed\n' };
 const AFTER = { 'stable.txt': 'same\n', 'changed.txt': 'after\n', 'new space.txt': 'added\n', 'line\nbreak.txt': 'framed\n', 'bytes.bin': Buffer.from([0, 255, 10, 13]) };
+
+test('plain retained trunk reads avoid Git; ambiguous configuration still asks Git [C7]', t => {
+  const box = fixture(t, 'real');
+  const calls = [];
+  const adapter = { ...realGitAdapter, spawnSync(args, options) { calls.push(args); return realGitAdapter.spawnSync(args, options); } };
+  assert.equal(withGitAdapter(adapter, () => trunkRef(box.root)), 'main');
+  assert.equal(calls.length, 0);
+  const config = join(box.root, '.git', 'config');
+  writeFileSync(config, `${readFileSync(config, 'utf8')}\n[pullboard]\n  trunk = "other"\n`);
+  assert.equal(withGitAdapter(adapter, () => trunkRef(box.root)), 'other');
+  assert.equal(calls.length, 1, 'quoted or repeated values retain Git semantics');
+});
 
 /** Build equivalent repository states; only the real contract creates files and runs setup Git. */
 function fixture(t, implementation) {

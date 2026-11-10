@@ -5,6 +5,7 @@ import {
   gitConfig,
   invalidateGitFacts,
   localConfigIs,
+  plainLocalConfigValue,
 } from './git.js';
 import { Refused } from '../../../kernel/core.js';
 
@@ -12,6 +13,8 @@ import { Refused } from '../../../kernel/core.js';
 export function trunkRef(root, branch) {
   // A trunk already recorded as this branch needs no Git process to confirm and nothing written.
   if (branch !== undefined && localConfigIs(root, 'pullboard', 'trunk', branch)) return branch;
+  const plain = plainLocalConfigValue(root, 'pullboard', 'trunk');
+  if (plain !== undefined && (branch === undefined || branch === plain)) return plain;
   const read = gitConfig(root, 'pullboard.trunk', { local: true, clean: true, flags: false, noReplace: true });
   if (read.status !== 0 && read.status !== 1) throw new Refused('NO_POLICY', 'the retained trunk cannot be read; restore the local Git configuration and retry');
   const current = read.status === 0 ? read.stdout.trim() : null;
