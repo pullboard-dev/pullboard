@@ -8,7 +8,7 @@ import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const FIXTURE_KEYS = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
+const FIXTURE_KEYS = ['PULLBOARD_HOME', 'PULLBOARD_INFRA_RETRY_BACKOFF_MS', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
 
 test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fixture model [C7]', () => {
   const saved = { ...process.env };
@@ -20,6 +20,7 @@ test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fix
     const pullboardKeys = Object.keys(box.env).filter(key => key.startsWith('PULLBOARD_')).sort();
     assert.deepEqual(pullboardKeys, FIXTURE_KEYS);
     assert.equal(box.env.PULLBOARD_MODEL, FIXTURE_MODEL);
+    assert.equal(box.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS, '0');
     assert.notEqual(box.env.PULLBOARD_HOME, '/junk/agent/home');
     assert.ok(box.env.PULLBOARD_HOME.startsWith(box.dir));
   } finally {

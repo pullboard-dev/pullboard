@@ -28,7 +28,7 @@
   ["src/config-forward-compat.js","packages/config/src/shell/config-forward-compat.js","rule"],
   ["test/config-forward-compat.test.js","packages/config/tests/config-forward-compat.test.js","rule"]
  ],
- "reexports": ["src/config.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
   {"cell":"git","imports":1,"before":true},

@@ -33,7 +33,7 @@ import {
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { relayServerFixture } from './relay-server-fixture.js';
+import { relayServerFixture } from '../apps/relay/tests/fixtures/relay-server-fixture.js';
 import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');

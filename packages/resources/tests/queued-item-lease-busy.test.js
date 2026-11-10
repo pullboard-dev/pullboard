@@ -97,9 +97,10 @@ test('clause 1: a queued gate keeps its queue entry and item lease while its ren
 });
 
 test('clause 2: a queued gate whose process is gone is still cleaned up, though its renewal thread was beating [C7]', async (t) => {
+  let held;
+  t.after(() => held?.release());
   const home = machineHome(t);
-  const held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'holder-a', repo: home });
-  t.after(() => held.release());
+  held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'holder-a', repo: home });
   // The child queues behind the held slot and blocks in its renewal, so its beat thread is running when it dies.
   const script = `import { takeResource } from ${JSON.stringify(RESOURCES)};
 await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'dead-gate', repo: ${JSON.stringify(home)},
