@@ -11,6 +11,7 @@ export { AGENT_GRANT_ENGINE } from './src/core/engines/agent-grant-engine.js';
 export { AUTOMATIC_DISPATCH_ENGINE } from './src/core/engines/automatic-dispatch-engine.js';
 export { AUTO_ESCALATE_ENGINE } from './src/core/engines/auto-escalate-engine.js';
 export { AUTO_SUBMIT_QUARANTINE_ENGINE } from './src/core/engines/auto-submit-quarantine-engine.js';
+export { BAR_ENGINE } from './src/core/engines/bar-engine.js';
 export { BAR_CHECK_ENGINE } from './src/core/engines/bar-check-engine.js';
 export { BAR_READY_ENGINE } from './src/core/engines/bar-ready-engine.js';
 export { BLOCKED_DEPENDENCIES_ENGINE } from './src/core/engines/blocked-dependencies-engine.js';

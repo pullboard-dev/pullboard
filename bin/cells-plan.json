@@ -620,10 +620,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/bar-corrections.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "bin/cells-remove-shims.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1965,14 +1961,6 @@
         "packages/state/src/shell/move-history/186.json",
         "rule"
       ]
-    },
-    {
-      "cell": "verify",
-      "row": [
-        "src/bar-corrections.js",
-        "packages/verify/src/core/bar-corrections.js",
-        "seed"
-      ]
     }
   ],
   "allowedEdges": [
@@ -1987,6 +1975,8 @@
     "runners->config",
     "runners->verify",
     "landing->verify",
+    "verify->kernel",
+    "verify->state",
     "runners->kernel",
     "runners->resources",
     "runners->transport",
