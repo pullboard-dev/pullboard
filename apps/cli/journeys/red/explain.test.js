@@ -37,6 +37,7 @@ test('red explain reads receipt history through the real CLI [C7]', () => {
   const box = emptyRepo();
   box.git = (...args) => runFixtureGit(args, { cwd: box.repo, env: box.env });
   fixtureProjectPolicy(box.repo);
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }) + '\n');
   const file = 'test/sample.test.js', source = 'src/logic.js';
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
