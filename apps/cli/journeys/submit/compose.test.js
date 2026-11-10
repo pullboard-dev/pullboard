@@ -9,7 +9,11 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import {
   readPlan,
@@ -20,7 +24,63 @@ import { planRowChange } from '../../../../packages/commits/light.js';
 import { requirePlannedSource } from '../../../../packages/items/index.js';
 import { plannedProject } from '../../tests/fixtures/placement.js';
 import { success } from '../../tests/fixtures/placement.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import {
+  runFixtureChild,
+  runFixtureChildAsync,
+} from '../../tests/fixtures/child.js';
+import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
+import { awaitNestedRun } from '../../../../packages/gate/index.js';
+
+/** Complete the placement rule's trial with native gates and their actual receipts. */
+async function completePlacementTrial(t, box) {
+  const probe = join(box.dir, 'placement-trial-probe');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
+  success(box, probe, 'join', 'view', '--route', 'strong');
+  const seat = success(box, probe, 'whoami').id;
+  const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: placement trial probe', '--specs', 'G1',
+    '--criterion', 'The placement trial observes an unplaced source.', '--check', 'node check.cjs', '--wait').item.item_id;
+  const claim = success(box, probe, 'claim', String(id));
+  const file = 'src/view/placement-trial-probe.js';
+  mkdirSync(join(probe, 'src/view'), { recursive: true });
+  writeFileSync(join(probe, file), 'export const probe = true;\n');
+  box.git(probe, 'add', file);
+  box.git(probe, 'commit', '-q', '-m', 'feat(view): observe placement trial [G1]');
+  assert.equal(success(box, probe, 'submit', String(id), '--wait').gate.green, true);
+  const head = box.git(probe, 'rev-parse', 'HEAD');
+  const main = box.git(box.repo, 'rev-parse', 'main');
+  const tool = relative => pathToFileURL(resolve(import.meta.dirname, '../../../..', relative)).href;
+  const gate = tool('packages/gate/index.js');
+  const driver = join(box.dir, 'placement-trial-gates.mjs');
+  writeFileSync(driver, `import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runSubmitGate, refusalTrialFile, readGateReceipt, receiptStore } from ${JSON.stringify(gate)};
+import { loadConfig } from ${JSON.stringify(tool('packages/config/index.js'))};
+${executionServicesSource(gate)}
+const root=${JSON.stringify(probe)},head=${JSON.stringify(head)},main=${JSON.stringify(main)},item=${id},seat=${JSON.stringify(seat)};
+const ledger=()=>JSON.parse(readFileSync(refusalTrialFile(root),'utf8'));
+const entry=Object.entries(ledger().codes).find(([key])=>key.startsWith('CELLS_PLAN_UNPLACED@'));
+assert.ok(entry, 'the real submit observed the placement rule');
+const [key,row]=entry, ids=[];
+while(ledger().gates-row.start<20){
+  const before=ledger().gates;
+  const proof=await runSubmitGate(root,loadConfig(root),{executionServices,base:head,trunk:main,check:'node check.cjs',agent:seat,item:String(item),
+    proofContext:{item,seat,frozenDigest:${JSON.stringify(claim.digest)}}});
+  assert.equal(proof.isGreen,true);
+  assert.ok(proof.proofReceiptIds.length>0);
+  for(const receiptId of proof.proofReceiptIds){
+    const receipt=readGateReceipt(receiptStore(root),receiptId);
+    assert.equal(receipt.head,head); assert.equal(receipt.green,true); ids.push(receiptId);
+  }
+  assert.equal(ledger().gates,before+1);
+  assert.ok(ledger().codes[key]);
+}
+assert.equal(new Set(ids).size,ids.length);
+`);
+  const env = Object.fromEntries(Object.entries(box.env).filter(([key]) => !key.startsWith('PULLBOARD_') && !['NODE_OPTIONS', 'NODE_TEST_CONTEXT'].includes(key)));
+  Object.assign(env, { PULLBOARD_HOME: box.env.PULLBOARD_HOME, PULLBOARD_MACHINE_HOME: box.env.PULLBOARD_MACHINE_HOME });
+  const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [driver], { cwd: probe, env, encoding: 'utf8', signal: t.signal }));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+}
 
 /** Join a real view seat and claim a completed-baseline item through the native CLI. */
 async function ownPlacementFixture(t) {
@@ -71,6 +131,7 @@ test('adding an owned new-file row cannot lend authority to editing an existing 
 
 test('native view submit validates its core companion placement on the composed source [C7,V4]', async t => {
   const box = await plannedProject(t, { companionLanes: true });
+  await completePlacementTrial(t, box);
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
