@@ -1051,6 +1051,13 @@ catalogCase('[A1,B26] slice creates a frozen child of a claimed item through rea
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', () =>
   exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots }));
 
+catalogCase('[A1,C7] red explain reports absent evidence through the catalog', async () => {
+  const box = await project();
+  const result = await json(box, box.repo, 'red', ['explain', 'test/catalog.test.js']);
+  assert.equal(result.file, 'test/catalog.test.js');
+  assert.equal(result.unavailable, 'no recorded red on main history');
+});
+
 test('[A1] every catalog command and subcommand has a real CLI exercise', { concurrency: true }, async (t) => {
   // Every private scenario finishes before the final catalog and root coverage assertions.
   const completed = await Promise.allSettled(catalogCases.map(({ name, run }) => t.test(name, run)));
