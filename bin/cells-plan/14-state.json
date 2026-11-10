@@ -27,7 +27,6 @@
   ["test/exchange.test.js","packages/state/tests/exchange.test.js","seed"],
   ["test/merged.test.js","packages/state/tests/merged.test.js","seed"],
   ["test/relay-activation.test.js","packages/state/tests/relay-activation.test.js","seed"],
-  ["test/relay-approval-delivery.test.js","packages/state/tests/relay-approval-delivery.test.js","seed"],
   ["test/relay-browser-fixture.test.js","packages/state/tests/relay-browser-fixture.test.js","seed"],
   ["test/relay-client-fixture.test.js","packages/state/tests/relay-client-fixture.test.js","seed"],
   ["test/relay-key-file.test.js","packages/state/tests/relay-key-file.test.js","seed"],

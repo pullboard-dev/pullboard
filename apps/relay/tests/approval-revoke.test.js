@@ -1,93 +1,23 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** Real native approvals survive page work and keep refusal identity [H15,H12]. */
+/** Real native approvals survive page work and keep refusal identity, with every revocation run in process [H15,H12,C7]. */
 import assert from 'node:assert/strict';
-import {
-  spawn,
-  spawnSync,
-} from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-} from 'node:fs';
-import {
-  dirname,
-  resolve,
-  join,
-} from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { enrollProtocolPhone } from '../../../test/relay-device-enrollment-fixture.js';
+import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
 import {
-  findChromeExecutable,
-  startChrome,
-} from '../../../test/relay-browser-fixture.js';
-import { ENGINE_VERSION } from '../src/shell/machine.js';
-
-const CLI = resolve(import.meta.dirname, '../../../bin/pullboard.js');
-const APPROVAL_TIMEOUT_MS = 90_000;
-
-/** Poll an actual fixture state transition without retrying the operation under test. */
-async function waitFor(read, message, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = read();
-    if (value) return value;
-    await new Promise(resolveWait => setTimeout(resolveWait, 25));
-  }
-  assert.fail(message);
-}
-
-/** Run the production CLI in the isolated project, preserving JSON for precise refusal checks. */
-function cliCommand(root, env, args, timeoutMs = APPROVAL_TIMEOUT_MS, { json = true } = {}) {
-  const child = spawn(process.execPath, [CLI, ...args, ...(json ? ['--json'] : [])], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let stdout = '';
-  let stderr = '';
-  child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
-  child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
-  const done = new Promise((resolveResult, reject) => {
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-    child.once('error', error => { clearTimeout(timer); reject(error); });
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (signal) return reject(new Error('A private native approval command exceeded its finite fixture bound.'));
-      try { resolveResult({ code, document: json ? JSON.parse(stdout) : null, stdout, stderr }); }
-      catch { reject(new Error('The private approval command did not return JSON.')); }
-    });
-  });
-  return { child, done };
-}
-
-/** Start foreground machine setup and pair one real Chrome device through the real relay. */
-async function pairPhone(box, t) {
-  const setup = cliCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 120_000);
-  let chrome;
-  const native = [setup];
-  t.after(async () => {
-    for (const command of native) if (command.child.exitCode === null) command.child.kill('SIGTERM');
-    for (const command of native) await command.done.catch(() => {});
-    await chrome?.close();
-  });
-  const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  const pending = await waitFor(() => {
-    if (!existsSync(machineFile)) return null;
-    return JSON.parse(readFileSync(machineFile, 'utf8')).pending;
-  }, 'foreground setup publishes a real one-use phone enrollment');
-  chrome = await startChrome();
-  const session = await box.phoneSession();
-  assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: session.token, url: box.origin,
-    httpOnly: true, sameSite: 'Lax' })).success, true);
-  await chrome.navigate(box.origin + '/#device=' + pending.locator + '.' + pending.secret);
-  const paired = await setup.done;
-  assert.equal(paired.code, 0, 'the real phone enrollment completes native setup');
-  await chrome.waitFor("document.querySelector('#phone-approvals') !== null");
-  return { chrome, native, machineFile };
-}
+  enrollProtocolPhone,
+  nativeRevocations,
+  pairChromePhone,
+  waitFor,
+} from './fixtures/relay-phone-fixture.js';
+import { findChromeExecutable } from '../../../test/relay-browser-fixture.js';
+import { ENGINE_VERSION } from '../../../packages/state/index.js';
 
 /** Issue a real board-scoped token through the fixture's persistent relay-auth database. */
 async function issueToken(box, label) {
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const link = box.readLink();
   const response = await fetch(box.origin + '/auth/tokens', { method: 'POST',
     headers: { authorization: 'Bearer ' + link.token, 'content-type': 'application/json' },
     body: JSON.stringify({ board: link.board, agent: label }) });
@@ -96,16 +26,15 @@ async function issueToken(box, label) {
 }
 
 /** Start a native revocation and recover only the immutable request identity from actual HTTP. */
-async function startRevocation(box, native, id) {
-  const before = box.transit.length;
-  const command = cliCommand(box.root, box.env, ['relay', 'revoke', id]);
-  native.push(command);
-  const posted = await waitFor(() => box.transit.slice(before).find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'),
-    'the production CLI posts its sealed request to the real relay');
+async function startRevocation(box, revocations, id) {
+  const before = box.server.transit.length;
+  const done = revocations.start(id);
+  const posted = await waitFor(() => box.server.transit.slice(before).find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'),
+    'the native revocation posts its sealed request to the real relay');
   const context = JSON.parse(posted.request.toString('utf8')).context;
   assert.equal(context.target, id);
   assert.ok(context.id, 'the actual HTTP request has its own approval id');
-  return { command, context };
+  return { command: { done }, context };
 }
 
 /** Capture approval inbox responses in Chrome while returning every genuine response unchanged. */
@@ -276,8 +205,9 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
 test('an approval delivered while the page is busy still becomes a card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const { chrome, native } = await pairPhone(box, t);
+  const box = await relayDirectFixture(t);
+  const { chrome } = await pairChromePhone(box, t);
+  const native = nativeRevocations(box, t);
   await observeApprovals(chrome);
 
   // Hold the actual wrapped-key HTTP response during reload. A native approval is enqueued while
@@ -337,7 +267,7 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   await chrome.waitFor('window.__keyLoadGate?.started === true', 20_000, 'the real browser is loading its wrapped board key'); // budget: hang ceiling for the deliberately held key-load stage handshake; no throughput claim.
   const firstToken = await issueToken(box, 'approval-key-load');
   const keyLoad = await startRevocation(box, native, firstToken.id);
-  const deviceId = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).devices[0].deviceId;
+  const deviceId = JSON.parse(readFileSync(join(process.env.PULLBOARD_HOME, 'relay-machine/state.json'), 'utf8')).devices[0].deviceId;
   const deliveredDuringKeyLoad = await chrome.evaluate(`fetch('/api/v1/devices/${deviceId}/approvals', {
     credentials: 'same-origin', cache: 'no-store', headers: { 'x-pullboard-engine': '${ENGINE_VERSION}' }
   }).then(response => response.json()).then(document => ({ status: document.version,
@@ -402,8 +332,9 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
 
   // A separate paired phone keeps the actual prior-action control independent of device revocation.
   {
-    const box = await relayClientFixture(t);
-    const { chrome, native } = await pairPhone(box, t);
+    const box = await relayDirectFixture(t);
+    const { chrome } = await pairChromePhone(box, t);
+    const native = nativeRevocations(box, t);
     await observeApprovals(chrome);
     const deviceId = await enrollProtocolPhone(box);
     // While one real approval click waits on its authorize response, publish a different action.
@@ -429,8 +360,9 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
 test('a completed approval keeps its visible refusal in the retained card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const { chrome, native } = await pairPhone(box, t);
+  const box = await relayDirectFixture(t);
+  const { chrome } = await pairChromePhone(box, t);
+  const native = nativeRevocations(box, t);
   await observeApprovals(chrome);
   const token = await issueToken(box, 'approval-completion-response-refused');
   const approval = await startRevocation(box, native, token.id);
@@ -447,7 +379,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
   try {
     await chrome.waitFor('window.__approvalInboxHold?.started === true', undefined,
       'a real inbox response is held before the completion changes the card lifetime');
-    box.refuseNextAcceptedApprovalCompletionResponse();
+    box.server.refuseNextAcceptedApprovalCompletionResponse();
     await chrome.evaluate(`document.querySelector('#phone-approve-${approval.context.id}').click()`);
     const nativeResult = await approval.command.done;
     assert.equal(nativeResult.code, 0, 'the native command receives and executes the sealed completion before the phone gets its refusal');
@@ -475,7 +407,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
           'the same captured failure retains the matched completion 403 witness');
         return true;
     }, 'the retained card keeps its visible refusal after the real completion response');
-    const completed = box.transit.findLast(record => record.method === 'POST'
+    const completed = box.server.transit.findLast(record => record.method === 'POST'
       && record.path === '/api/v1/devices/approvals/' + approval.context.id + '/complete');
     assert.ok(completed, 'the real relay received the phone completion POST');
     assert.equal(JSON.parse(completed.response.toString('utf8')).error?.code, 'REVIEWER_COMPLETE_REFUSED',
@@ -488,270 +420,67 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
 test('an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  await pairPhone(box, t);
+  const box = await relayDirectFixture(t);
+  await pairChromePhone(box, t);
+  const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-clock-refusal');
-  const before = box.transit.length;
-  const callsBefore = box.calls.length;
-  box.advance(-31 / 86400);
+  const before = box.server.transit.length;
+  const callsBefore = box.server.calls.length;
+  box.server.advance(-31 / 86400);
   let refused;
-  try { refused = await box.cli('relay', 'revoke', token.id); }
-  finally { box.advance(0); }
+  try { refused = await native.start(token.id); }
+  finally { box.server.advance(0); }
 
-  const post = box.transit.slice(before).find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals');
-  assert.ok(post, 'the real native CLI attempted to publish its sealed request');
+  const post = box.server.transit.slice(before).find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals');
+  assert.ok(post, 'the native revocation attempted to publish its sealed request');
   const context = JSON.parse(post.request.toString('utf8')).context;
   const reply = JSON.parse(post.response.toString('utf8'));
   assert.equal(reply.error?.code, 'PHONE_APPROVAL_CONTEXT', 'the real relay refused the skewed expiry bound');
   assert.equal(refused.code, 1, 'the native command reports the publication refusal');
-  assert.equal(refused.document.error.code, 'PHONE_APPROVAL_CONTEXT', 'the original relay refusal code reaches the Mac');
-  assert.match(refused.document.error.message, new RegExp(context.id), 'the failure identifies the exact request that was refused');
-  assert.match(JSON.stringify(refused.document), /PHONE_APPROVAL_CONTEXT/u);
-  assert.match(JSON.stringify(refused.document), /bounded ten-minute sealed approval/u, 'the relay reason survives the CLI refusal');
-  assert.equal(box.calls.slice(callsBefore).some(call => call.method === 'GET' && call.path === '/api/v1/devices/approvals/' + context.id), false,
+  assert.equal(refused.error.code, 'PHONE_APPROVAL_CONTEXT', 'the original relay refusal code reaches the Mac');
+  assert.match(refused.error.message, new RegExp(context.id), 'the failure identifies the exact request that was refused');
+  const refusal = JSON.stringify({ code: refused.error.code, message: refused.error.message });
+  assert.match(refusal, /PHONE_APPROVAL_CONTEXT/u);
+  assert.match(refusal, /bounded ten-minute sealed approval/u, 'the relay reason survives the native refusal');
+  assert.equal(box.server.calls.slice(callsBefore).some(call => call.method === 'GET' && call.path === '/api/v1/devices/approvals/' + context.id), false,
     'the native command reports the failed publish without entering a misleading poll loop');
-});
-
-
-/** Create a real independent Git project before invoking its public registration command. */
-function unregisteredProject(box, name) {
-  const root = join(dirname(box.root), name);
-  mkdirSync(root);
-  for (const args of [['init', '-q', '-b', 'main'],
-    ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git']]) {
-    assert.equal(spawnSync('git', args, { cwd: root, env: box.env }).status, 0);
-  }
-  return root;
-}
-
-/** Match a real publication refusal to its native partial failure and preserved local outcome. */
-function assertRemoteFailure(box, before, result, action, completed) {
-  const post = box.transit.slice(before).find(record => record.method === 'POST'
-    && record.path === '/api/v1/devices/approvals');
-  assert.ok(post, 'the operation attempted its real remote approval');
-  const context = JSON.parse(post.request.toString('utf8')).context;
-  const response = JSON.parse(post.response.toString('utf8'));
-  assert.equal(context.action, action);
-  assert.equal(response.error.code, 'PHONE_APPROVAL_CONTEXT', 'the actual relay refused the proposal');
-  assert.equal(result.code, 1, 'a remote publication refusal makes the native command fail');
-  if (result.document) {
-    assert.deepEqual(result.document.remote, { code: 'PHONE_APPROVAL_CONTEXT',
-      reason: 'the relay ' + box.origin + ': ' + response.error.message, requestId: context.id }, 'JSON preserves the original remote refusal separately');
-    assert.ok(Array.isArray(result.document.diagnostics), 'the partial failure carries its named diagnostic');
-  }
-  const lines = result.document?.diagnostics ?? result.stderr.split('\n');
-  const refusals = lines.filter(line => line.includes('Remote approval request'));
-  assert.equal(refusals.length, 1, 'exactly one line names the partial failure');
-  assert.ok(refusals[0].includes(context.id), 'the refusal identifies the exact request');
-  assert.ok(refusals[0].includes(response.error.message), 'the refusal retains the relay reason');
-  assert.ok(refusals[0].includes(completed), 'the same line names the completed local action');
-  assert.match(refusals[0], /\[PHONE_APPROVAL_CONTEXT\]/u);
-  assert.match(refusals[0], /explicitly/u, 'the refusal gives an explicit recovery step');
-  assert.equal(box.transit.slice(before).some(record => record.method === 'GET'
-    && record.path === '/api/v1/devices/approvals/' + context.id), false, 'refused publication never waits for an approval');
-}
-
-test('local unlink and registration fail on a remote refusal while retaining local work [H15,H12]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  for (const json of [true, false]) await t.test(json ? 'JSON partial failures' : 'text partial failures', async t => {
-    const box = await relayClientFixture(t);
-    const { native, machineFile } = await pairPhone(box, t);
-    const project = unregisteredProject(box, 'remote-refused-registration');
-    box.advance(-31 / 86400);
-    const registerBefore = box.transit.length;
-    const registration = cliCommand(project, box.env, ['init'], APPROVAL_TIMEOUT_MS, { json });
-    native.push(registration);
-    const registered = await registration.done;
-    const offBefore = box.transit.length;
-    const unlink = cliCommand(box.root, box.env, ['relay', 'off'], APPROVAL_TIMEOUT_MS, { json });
-    native.push(unlink);
-    const off = await unlink.done;
-    assert.deepEqual([registered.code, off.code], [1, 1], 'both real native publication-refusal paths fail immediately');
-    assertRemoteFailure(box, registerBefore, registered, 'link', 'Local registration is complete');
-    assertRemoteFailure(box, offBefore, off, 'delete-board', 'Local link removed');
-    assert.equal(existsSync(join(project, '.git/pullboard/board.sqlite')), true, 'registration persists the local board');
-    assert.equal(existsSync(join(project, '.git/pullboard/relay.json')), false, 'refused linking does not invent a linked board');
-    if (json) assert.equal(off.document.linked, false);
-    assert.equal(existsSync(box.linkFile), false, 'local unlink is durable despite the remote publication refusal');
-    assert.ok(JSON.parse(readFileSync(machineFile, 'utf8')).excluded.includes(box.root), 'the local opt-out remains durable');
-  });
 });
 
 test('expired and unreachable approvals fail with their exact request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const { native } = await pairPhone(box, t);
+  const box = await relayDirectFixture(t);
+  await pairChromePhone(box, t);
+  const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-expired');
   const expiry = await startRevocation(box, native, token.id);
-  box.advance(1);
+  box.server.advance(1);
   const expired = await expiry.command.done;
-  box.advance(0);
+  box.server.advance(0);
   assert.equal(expired.code, 1);
-  assert.equal(expired.document.error.code, 'PHONE_APPROVAL_EXPIRED');
-  assert.ok(expired.document.error.message.includes(expiry.context.id), 'expiry retains the original approval identity');
+  assert.equal(expired.error.code, 'PHONE_APPROVAL_EXPIRED');
+  assert.ok(expired.error.message.includes(expiry.context.id), 'expiry retains the original approval identity');
   const unreachable = await startRevocation(box, native, token.id);
-  await box.stopRelay();
+  await box.server.stopRelay();
   const offline = await unreachable.command.done;
   assert.equal(offline.code, 1);
-  assert.equal(offline.document.error.code, 'RELAY_UNAVAILABLE');
-  assert.ok(offline.document.error.message.includes(unreachable.context.id), 'unreachable polling retains the approval identity');
+  assert.equal(offline.error.code, 'RELAY_UNAVAILABLE');
+  assert.ok(offline.error.message.includes(unreachable.context.id), 'unreachable polling retains the approval identity');
 });
 
 test('elapsed fixture wall time never manufactures an approval expiry refusal [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayClientFixture(t);
-  const { chrome, native } = await pairPhone(box, t);
+  const box = await relayDirectFixture(t);
+  const { chrome } = await pairChromePhone(box, t);
+  const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-elapsed-clock');
   // The old frozen relay clock refuses a real native expiry after thirty seconds of elapsed work.
   await new Promise(resolveWait => setTimeout(resolveWait, 31_000));
   const request = await startRevocation(box, native, token.id);
-  const posted = box.transit.find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'
+  const posted = box.server.transit.find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'
     && JSON.parse(record.request.toString('utf8')).context.id === request.context.id);
   assert.equal(JSON.parse(posted.response.toString('utf8')).approval?.context.id, request.context.id,
     'the live fixture clock accepts the actual native ten-minute expiry after elapsed work');
   await approve(chrome, request.context.id, request.command);
-});
-
-/** Register one more committed project; its real init publishes a sealed link card to the phone. */
-async function registerProject(box, name) {
-  const root = join(dirname(box.root), name);
-  mkdirSync(root);
-  for (const args of [['init', '-q', '-b', 'main'], ['-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-q', '-m', 'fixture base'],
-    ['remote', 'add', 'origin', `git@github.com:fixture/${name}.git`]]) {
-    assert.equal(spawnSync('git', args, { cwd: root, env: box.env }).status, 0);
-  }
-  const initialized = await cliCommand(root, box.env, ['init']).done;
-  assert.equal(initialized.code, 0, 'the new project registers through the actual init command');
-  return root;
-}
-
-let approvedLinkRun;
-
-/**
- * Walkthrough-090 issue 15 once, shared by the two tests below: a paired phone, a new board
- * "notes" whose link card waits on it, relay on --all running, one tap. The snapshot upload is
- * held until the phone has rendered its notice, so the phone is observed before its key arrives.
- */
-function approvedLinkScenario(t) {
-  approvedLinkRun ??= (async () => {
-    const box = await relayClientFixture(t);
-    const { chrome, native, machineFile } = await pairPhone(box, t);
-    box.providerState.repositories.push('notes');
-    const notes = await registerProject(box, 'notes');
-    const notesTitle = 'an item only on the newly approved notes board';
-    const note = cliCommand(notes, box.env, ['add', box.lane, notesTitle]);
-    native.push(note);
-    const added = await note.done;
-    assert.equal(added.code, 0, `the approved board has its own visible item: ${added.stderr}`);
-    const proposal = JSON.parse(readFileSync(machineFile, 'utf8')).approvals.find(entry => entry.root === notes);
-    assert.ok(proposal?.published, 'init publishes one sealed link card for notes');
-    const board = proposal.context.board;
-    const button = '#phone-approve-' + proposal.context.id;
-    await chrome.waitFor(`document.querySelector(${JSON.stringify(button)}) !== null`);
-
-    const run = cliCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 120_000, { json: false });
-    native.push(run);
-    let live = '';
-    run.child.stdout.on('data', chunk => { live += chunk; });
-    await waitFor(() => live.includes('waiting for phone approval: notes') || run.child.exitCode !== null,
-      'relay on --all reaches its wait for the phone or exits');
-    const waited = live.includes('waiting for phone approval: notes');
-    if (!waited) {
-      const early = await run.done;
-      return { waited, stdout: early.stdout, stderr: early.stderr, code: early.code };
-    }
-
-    await chrome.evaluate(`(() => {
-      const notice = document.querySelector('#relay-notice');
-      window.__noticeLog = [notice?.textContent ?? ''];
-      new MutationObserver(() => window.__noticeLog.push(notice.textContent))
-        .observe(notice, { childList: true, subtree: true, characterData: true });
-    })()`);
-    let held = false;
-    let release;
-    const released = new Promise(resolveRelease => { release = resolveRelease; });
-    box.beforeNextSnapshot(async () => { held = true; await released; });
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await chrome.evaluate(`document.querySelector('[data-tab="shouts"]').click()`);
-    await chrome.waitFor(`view.tab === "shouts" && document.querySelector('[data-pane="items"]').hidden`);
-    const documentOrigin = await chrome.evaluate('performance.timeOrigin');
-    const authorizeBefore = box.calls.filter(call => call.path.endsWith('/authorize')).length;
-    await chrome.evaluate(`document.querySelector(${JSON.stringify(button)}).click()`);
-    await waitFor(() => held, 'the computer starts linking notes in the same run once the phone approves');
-    let noticeBeforeKey = null;
-    try {
-      await chrome.waitFor(`(document.querySelector('#relay-notice')?.textContent ?? '').includes(${JSON.stringify(board.slice(0, 8))})
-        || (document.querySelector('#relay-notice')?.textContent ?? '').includes('pair this browser')`);
-      noticeBeforeKey = await chrome.evaluate(`document.querySelector('#relay-notice').textContent`);
-    } finally { release(); }
-    const finished = await run.done;
-    const linkedAtExit = existsSync(join(notes, '.git/pullboard/relay.json'));
-    let opened = true;
-    try {
-      await chrome.waitFor(`document.querySelectorAll('#proj-list .proj.repo').length === 2
-        && Object.hasOwn(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') ?? '{}'), ${JSON.stringify(board)})`);
-    } catch { opened = false; }
-    try { /* budget: hang ceiling for the bounded navigation transition the mobile counter observes; no approval retry. */ await chrome.waitFor(`data?.root === ${JSON.stringify(board)} && document.querySelector('#proj-name')?.textContent === 'notes'
-      && document.body.innerText.includes(${JSON.stringify(notesTitle)})`, 6_000); } catch { /* The assertion below names a missed selection directly. */ }
-    const displayed = await chrome.evaluate(`({ root: data?.root, name: document.querySelector('#proj-name')?.textContent,
-      text: document.body.innerText })`);
-    const visibleItems = [];
-    for (const width of [390, 1280]) {
-      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 });
-      visibleItems.push(await chrome.evaluate(`(() => {
-        const pane = document.querySelector('[data-pane="items"]');
-        const row = [...document.querySelectorAll('#chain [data-item]')].find(node => node.textContent.includes(${JSON.stringify(notesTitle)}));
-        const rect = row?.getBoundingClientRect();
-        return { width: innerWidth, tab: view.tab, visible: !pane.hidden && Boolean(rect && row.getClientRects().length && rect.height > 0 && rect.top < innerHeight && rect.bottom > 0) };
-      })()`));
-    }
-    const sameDocument = await chrome.evaluate('performance.timeOrigin') === documentOrigin;
-    const rawKey = readFileSync(join(box.env.PULLBOARD_HOME, 'relay-keys', board + '.key'), 'utf8').trim();
-    return {
-      waited, code: finished.code, stdout: finished.stdout, stderr: finished.stderr, linkedAtExit, opened, noticeBeforeKey,
-      noticeLog: await chrome.evaluate('window.__noticeLog'), rawKey, targetBoard: board, notesTitle, displayed, visibleItems, sameDocument,
-      taps: box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizeBefore,
-    };
-  })();
-  return approvedLinkRun;
-}
-
-test('an approved link opens on the phone without another command [H17,E16]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  const run = await approvedLinkScenario(t);
-  assert.equal(run.waited, true, `relay on --all waits for the phone's link card: ${run.stdout}`);
-  assert.equal(run.taps, 1, 'one phone tap authorizes the link');
-  assert.equal(run.code, 0, `the waiting run finishes cleanly: ${run.stderr}`);
-  assert.equal(run.linkedAtExit, true, 'the same run links notes; no later command is needed');
-  assert.equal(run.opened, true, 'the phone unwraps the notes key and lists the board with no other command');
-  assert.equal(run.displayed.root, run.targetBoard, 'the phone selects the newly approved board, rather than only listing it');
-  assert.equal(run.displayed.name, 'notes', 'the visible project heading names the approved notes board');
-  assert.ok(run.displayed.text.includes(run.notesTitle), "the approved board's own item is visible");
-  assert.equal(run.sameDocument, true, 'approval keeps the same browser document');
-  for (const result of run.visibleItems) {
-    assert.equal(result.tab, 'items', `${result.width}px approval opens Items after Shouts`);
-    assert.equal(result.visible, true, `${result.width}px approved item is visible on screen`);
-  }
-  assert.equal(run.displayed.text.includes('private cleanup fixture item'), false, "the previously open board's item is not left on screen");
-  assert.match(run.noticeBeforeKey, /approved; waiting for the computer to send this phone its key\./u,
-    'before the key arrives the phone says it is on the way');
-  assert.equal(run.noticeLog.some(text => text.includes('pair this browser')), false,
-    `the phone that approved is never told to pair again: ${JSON.stringify(run.noticeLog)}`);
-});
-
-test('the computer prints linked with the board name [H17,E16]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  const run = await approvedLinkScenario(t);
-  const lines = run.stdout.split('\n');
-  const waiting = lines.findIndex(line => line.startsWith('waiting for phone approval: notes; '));
-  assert.ok(waiting >= 0, `the run says which board waits for the phone: ${run.stdout}`);
-  assert.equal(lines.filter(line => line === 'linked: notes').length, 1, `the run prints linked: notes once: ${run.stdout}`);
-  assert.ok(lines.indexOf('linked: notes') > waiting, 'linked: notes follows the phone tap in the same run');
-  assert.equal(run.stdout.includes(run.rawKey) || run.stderr.includes(run.rawKey), false, 'the board key is never printed');
 });
