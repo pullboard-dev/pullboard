@@ -19,7 +19,7 @@ const helpers = createE2eHelpers();
 after(() => helpers.cleanup());
 
 const REPO = join(import.meta.dirname, '..');
-const CHECKS = join(REPO, 'bin', 'checks');
+const CHECKS = join(REPO, 'bin/checks');
 const NODE_FLAGS = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
 
 /** The four static reds that cost the most gates on 7 Nov, each alone in its own test file. */
@@ -36,12 +36,12 @@ const CASES = [
  */
 function hookedProject() {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
   mkdirSync(join(box.repo, '.githooks'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  copyFileSync(join(CHECKS, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
-  writeFileSync(join(box.repo, 'bin', 'checks', 'test-fixtures.json'), '{}\n');
-  writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
+  copyFileSync(join(CHECKS, 'test-waits-baseline.json'), join(box.repo, 'bin/checks/test-waits-baseline.json'));
+  writeFileSync(join(box.repo, 'bin/checks/test-fixtures.json'), '{}\n');
+  writeFileSync(join(box.repo, 'bin/checks/changed-static.js'), [
     `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(CHECKS, 'changed-static.js')).href)};`,
     'const failures = stagedHookFailures(process.cwd());',
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
@@ -55,14 +55,14 @@ function hookedProject() {
 
 /** Run the staged checker the hook runs, without committing. */
 function stagedCheck(box) {
-  return spawnSync(process.execPath, [...NODE_FLAGS, join(box.repo, 'bin', 'checks', 'changed-static.js')], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  return spawnSync(process.execPath, [...NODE_FLAGS, join(box.repo, 'bin/checks/changed-static.js')], { cwd: box.repo, env: box.env, encoding: 'utf8' });
 }
 
 test('the real pre-commit hook refuses a temp dir, a model literal, a raw board and an unnamed test with the gate static stage messages, clause 1 [C7]', () => {
   const box = hookedProject();
   for (const [file, source] of CASES) writeFileSync(join(box.repo, file), source);
   const gate = [
-    ...fixtureProblems(box.repo, join(box.repo, 'bin', 'checks', 'test-fixtures.json'), { base: null }),
+    ...fixtureProblems(box.repo, join(box.repo, 'bin/checks/test-fixtures.json'), { base: null }),
     ...testNameProblems(box.repo),
   ].map(row => `${row.path}:${row.line}: ${row.text}`);
   for (const [file, , message] of CASES) {
@@ -81,7 +81,7 @@ test('the real pre-commit hook refuses a temp dir, a model literal, a raw board 
 
 test('the staged checker accepts a test file whose names cite rows and whose fixtures come from the kit [C7]', () => {
   const box = hookedProject();
-  writeFileSync(join(box.repo, 'test', 'clean.test.js'), "import { test } from 'node:test';\ntest('adds two numbers [C7]', () => {});\n");
+  writeFileSync(join(box.repo, 'test/clean.test.js'), "import { test } from 'node:test';\ntest('adds two numbers [C7]', () => {});\n");
   box.git(box.repo, 'add', 'test/clean.test.js');
   const done = stagedCheck(box);
   assert.equal(done.status, 0, done.stderr);
@@ -100,8 +100,8 @@ test('the staged checker judges a 20-file commit under 2 s, clause 2 [C7]', () =
   const box = hookedProject();
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   for (let index = 0; index < 10; index++) {
-    writeFileSync(join(box.repo, 'src', `module-${index}.js`), `/** Module ${index}. */\nexport const value${index} = ${index};\n`);
-    writeFileSync(join(box.repo, 'test', `module-${index}.test.js`), `import { test } from 'node:test';\ntest('module ${index} loads [C7]', () => {});\n`);
+    writeFileSync(join(box.repo, `src/module-${index}.js`), `/** Module ${index}. */\nexport const value${index} = ${index};\n`);
+    writeFileSync(join(box.repo, `test/module-${index}.test.js`), `import { test } from 'node:test';\ntest('module ${index} loads [C7]', () => {});\n`);
   }
   box.git(box.repo, 'add', '-A');
   assert.equal(box.git(box.repo, 'diff', '--cached', '--name-only').split('\n').filter(Boolean).length, 20);

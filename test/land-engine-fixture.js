@@ -37,7 +37,7 @@ export function landEnginesInOrder({ landProject, itemWorktree, submitItem, acce
   writeFileSync(join(box.repo, 'packages/state/src/core/engines', 'base-engine.js'), '/** The landed base engine. */\nexport const BASE_ENGINE = 80;\n');
   // The project's own engine file, which is not Pullboard's: landing must neither fail on it nor change it.
   const game = '/** The project\'s game engine. */\nexport class GameEngine {}\nexport const SPEED = 3;\n';
-  writeFileSync(join(box.repo, 'src', 'game-engine.js'), game);
+  writeFileSync(join(box.repo, 'src/game-engine.js'), game);
   writeFileSync(join(box.repo, 'docs', 'formats.md'), '| Format | Version |\n| --- | --- |\n| `move engine` | `80` | the fixture |\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: a landed engine and its documented number');

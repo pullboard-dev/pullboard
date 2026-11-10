@@ -20,7 +20,7 @@ import { PHASES } from '../../drive/index.js';
 import { FINISH_STEPS } from '../../land/index.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
-const MAP = JSON.parse(readFileSync(join(ROOT, 'test', 'state-machines.json'), 'utf8'));
+const MAP = JSON.parse(readFileSync(join(ROOT, 'test/state-machines.json'), 'utf8'));
 const HEADING = '## State machines';
 
 /**

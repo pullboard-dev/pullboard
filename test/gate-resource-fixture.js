@@ -111,7 +111,7 @@ export function launchTestRunner(box, root, args, marker, release, extraEnv = {}
 export function shortProbeSuite(box, name) {
   const root = join(box.dir, name);
   mkdirSync(join(root, 'test'), { recursive: true });
-  writeFileSync(join(root, 'test', 'short-probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';
+  writeFileSync(join(root, 'test/short-probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 test(${JSON.stringify(PROBE_NAME)}, async () => {
   const marker = process.env.${PROBE_PATH_ENV};

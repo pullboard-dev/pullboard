@@ -18,7 +18,7 @@ function repo(t, { lander }) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const main = join(root, 'main');
   mkdirSync(join(main, 'bin'), { recursive: true });
-  if (lander) writeFileSync(join(main, 'bin', 'automatic-landing.js'), '');
+  if (lander) writeFileSync(join(main, 'bin/automatic-landing.js'), '');
   else writeFileSync(join(main, 'README'), '');
   const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd, encoding: 'utf8' });
   git(main, 'init', '-q', '-b', 'main');
@@ -31,8 +31,8 @@ function repo(t, { lander }) {
 
 test('a seat worktree wakes the main checkout lander, never its own copy [C7]', t => {
   const { main, seat } = repo(t, { lander: true });
-  const own = pathToFileURL(join(seat, 'bin', 'automatic-landing.js'));
-  assert.equal(mainLandingWorker(seat, own).href, pathToFileURL(join(main, 'bin', 'automatic-landing.js')).href);
+  const own = pathToFileURL(join(seat, 'bin/automatic-landing.js'));
+  assert.equal(mainLandingWorker(seat, own).href, pathToFileURL(join(main, 'bin/automatic-landing.js')).href);
 });
 
 test('a project with no lander in its main checkout keeps the installed CLI entry [C7]', t => {

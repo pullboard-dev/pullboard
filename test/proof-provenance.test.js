@@ -66,7 +66,7 @@ test('native receipts carry each child reported runtime instead of borrowing the
   const programs = paths.map(path => `require('node:fs').writeFileSync(${JSON.stringify(path)},JSON.stringify({pid:process.pid,node:process.versions.node,platform:process.platform,arch:process.arch,argv:process.argv,execArgv:process.execArgv,nodeOptions:process.env.NODE_OPTIONS??'',hasNodeOptions:Object.hasOwn(process.env,'NODE_OPTIONS')}));`);
   // Separate actual processes must remain distinct even when they happen to run the same Node version.
   // Approved MIN/current runner images have both versions; a single-runtime install still exercises two real children.
-  const alternate = ['24.21.0', '22.13.1'].map(version => join(dirname(process.execPath), '..', '..', 'v' + version, 'bin', 'node'))
+  const alternate = ['24.21.0', '22.13.1'].map(version => join(dirname(process.execPath), '..', '..', 'v' + version, 'bin/node'))
     .find(path => path !== process.execPath && existsSync(path)) ?? process.execPath;
   const executables = [process.execPath, alternate];
   const bare = programs.map((program, index) => {
@@ -136,7 +136,7 @@ test('an unobserved custom nested Node child never borrows its launcher runtime 
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-nested-runtime-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const actualPath = join(directory, 'child.json');
-  const alternate = ['24.21.0', '22.13.1'].map(version => join(dirname(process.execPath), '..', '..', 'v' + version, 'bin', 'node'))
+  const alternate = ['24.21.0', '22.13.1'].map(version => join(dirname(process.execPath), '..', '..', 'v' + version, 'bin/node'))
     .find(path => path !== process.execPath && existsSync(path)) ?? process.execPath;
   const childProgram = `require('node:fs').writeFileSync(${JSON.stringify(actualPath)},JSON.stringify({pid:process.pid,node:process.versions.node}));`;
   const launcher = `require('node:child_process').execFileSync(${JSON.stringify(alternate)},['-e',${JSON.stringify(childProgram)}]);`;

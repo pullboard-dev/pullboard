@@ -34,7 +34,7 @@ test('legacy numeric outboxes remain readable and an old reader refuses new resu
   runFixtureGit(['archive', '-o', archive, OLD, 'src'], { cwd: ROOT });
   runFixtureExecFile('tar', ['-xf', archive, '-C', directory]);
   writeFileSync(join(directory, 'package.json'), '{"type":"module"}');
-  const oldModule = join(directory, 'src', 'relay-outbox.js');
+  const oldModule = join(directory, 'src/relay-outbox.js');
   const old = await import(pathToFileURL(oldModule).href);
   const file = join(directory, 'outbox.sealed');
   const key = randomBytes(32);

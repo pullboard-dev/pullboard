@@ -469,7 +469,7 @@ export function repeatingSweep(sweep, everyMs) {
 const NO_ADMISSION = Object.freeze({ admit() {}, spawned() {}, unstarted() {}, entry: null });
 
 /** The driver entry inside a captured tools tree: the drive cell's gate driver. */
-function driverEntry(tools) { return join(realpathSync(tools), 'bin', 'gate-drive-worker.js'); }
+function driverEntry(tools) { return join(realpathSync(tools), 'bin/gate-drive-worker.js'); }
 
 /**
  * Start one captured gate's driver detached from the dispatcher's terminal: admit the gate to a fresh driver id on its
@@ -760,8 +760,8 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', 
     const queue = handoffQueueDirectory();
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
-    const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
-    const detachedLauncher = join(realpathSync(tools), 'bin', 'handoff-worker-detach.js');
+    const entry = join(realpathSync(tools), 'bin/handoff-worker-dispatcher.js');
+    const detachedLauncher = join(realpathSync(tools), 'bin/handoff-worker-detach.js');
     const env = handoffDispatcherEnvironment(process.env);
     if (owner) env[HANDOFF_DISPATCHER_OWNER_ENV] = owner;
     const launcher = spawn(process.execPath, [detachedLauncher, JSON.stringify({ entry, cwd, env, log: handoffDispatcherLog() })], {

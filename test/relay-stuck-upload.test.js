@@ -66,7 +66,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   assertPaused(claimed.document);
 
   mkdirSync(join(agentRoot, 'src'), { recursive: true });
-  writeFileSync(join(agentRoot, 'src', 'relay-pause-fixture.js'), 'export const relayPauseFixture = true;\n');
+  writeFileSync(join(agentRoot, 'src/relay-pause-fixture.js'), 'export const relayPauseFixture = true;\n');
   const stagedChange = spawnSync('git', ['add', 'src/relay-pause-fixture.js'], { cwd: agentRoot, env: box.env, encoding: 'utf8' });
   assert.equal(stagedChange.status, 0, stagedChange.stderr);
   const committed = spawnSync('git', ['commit', '-m', 'feat(fixture-build): complete relay pause fixture [G1]'], { cwd: agentRoot, env: box.env, encoding: 'utf8' });

@@ -21,6 +21,7 @@ import {
 } from '../../../test/fixture-child.js';
 import { copyPackageSubset } from '../../../test/package-copy-fixture.js';
 import { copyPackageFiles } from '../index.js';
+import { repoPath } from '../../kernel/core.js';
 
 const SOURCE = new URL('../../../src/', import.meta.url);
 
@@ -47,7 +48,7 @@ function mergeTwo(t, { files, additions, complete = false }) {
   const repo = registryRepo(t, files, complete);
   for (const [index, addition] of additions.entries()) {
     repo.git('checkout', '-q', '-b', `item-${index}`, 'main');
-    for (const [file, text] of Object.entries(addition.files)) writeFileSync(join(repo.root, 'src', file), text);
+    for (const [file, text] of Object.entries(addition.files)) writeFileSync(repoPath(repo.root, `src/${file}`), text);
     repo.git('add', 'src');
     repo.git('commit', '-q', '-m', `feat: independent addition ${index}`);
   }

@@ -38,8 +38,8 @@ function timingProject(t) {
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...JSON.parse(config), landingShards: 2,
     affectedTests: 'node bin/run-tests.js', flakes: { rerun: false } }));
   writeFileSync(join(box.repo, 'SPEC.md'), spec);
-  writeFileSync(join(box.repo, 'test', 'one.test.js'), "import {test} from 'node:test'; import assert from 'node:assert/strict'; test('first actual timing case [C7]',t=>{t.diagnostic('timing-leaf-node '+process.versions.node);assert.equal(process.env.PULLBOARD_TIMING_FIXTURE_RED,'0');});\n");
-  writeFileSync(join(box.repo, 'test', 'two.test.js'), "import {test} from 'node:test'; test('second actual timing case [C7]',()=>{});\n");
+  writeFileSync(join(box.repo, 'test/one.test.js'), "import {test} from 'node:test'; import assert from 'node:assert/strict'; test('first actual timing case [C7]',t=>{t.diagnostic('timing-leaf-node '+process.versions.node);assert.equal(process.env.PULLBOARD_TIMING_FIXTURE_RED,'0');});\n");
+  writeFileSync(join(box.repo, 'test/two.test.js'), "import {test} from 'node:test'; test('second actual timing case [C7]',()=>{});\n");
   commitFixtureFiles(box, box.git(box.repo, 'ls-files', '-z', '--modified', '--deleted', '--others', '--exclude-standard')
     .split('\0').filter(Boolean));
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '0', PULLBOARD_TIMING_FIXTURE_RED: '0' };

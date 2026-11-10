@@ -31,7 +31,7 @@ export async function fleetTestResultReuse(t, { composition = false } = {}) {
   const shippedManifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 1;\n');
-  writeFileSync(join(repo, 'test', 'probe.test.js'), `import assert from 'node:assert/strict';
+  writeFileSync(join(repo, 'test/probe.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { value } from '../lib/value.js';
 test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(value > 0); });
@@ -39,7 +39,7 @@ test('fleet cache probe [C7]', () => { console.log('${EXECUTED}'); assert.ok(val
   if (composition) {
     writeFileSync(join(repo, 'reporter.mjs'), "export { tap as default } from 'node:test/reporters';\n");
     writeFileSync(join(repo, 'lib', 'stable.js'), 'export const stable = 1;\n');
-    writeFileSync(join(repo, 'test', 'stable.test.js'), `import assert from 'node:assert/strict';
+    writeFileSync(join(repo, 'test/stable.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { stable } from '../lib/stable.js';
 test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE'); assert.equal(stable, 1); });
@@ -145,7 +145,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
     assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
     if (composition) {
-      const harnessPath = join(repo, 'packages', 'gate', 'src', 'shell', 'test-action-reporter.js');
+      const harnessPath = join(repo, 'packages/gate/src/shell/test-action-reporter.js');
       writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
       git('add', 'packages/gate/src/shell/test-action-reporter.js');
       git('commit', '-q', '-m', 'test: change actual harness bytes');

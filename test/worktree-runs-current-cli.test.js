@@ -43,11 +43,11 @@ async function project(t, { predates = false } = {}) {
   for (const file of [...ENTRY_FILES, '.githooks/pre-commit', 'package.json']) copyFileSync(join(SOURCE, file), join(root, file));
   if (predates) {
     // The first commit is the entry as it was before the handover existed.
-    const entry = join(root, 'bin', 'pullboard.js'), source = readFileSync(entry, 'utf8');
+    const entry = join(root, 'bin/pullboard.js'), source = readFileSync(entry, 'utf8');
     const old = source.replace(/^\/\/ A worktree behind the main checkout[^\n]*\n[^\n]*runCurrentCli[^\n]*\n[^\n]*handed[^\n]*\n/mu, '');
     assert.notEqual(old, source, 'the fixture strips the handover from the entry');
     writeFileSync(entry, old);
-    rmSync(join(root, 'bin', 'current-cli.js'));
+    rmSync(join(root, 'bin/current-cli.js'));
   }
   // The hook launcher runs the staged static checks before the entry, so their folder is linked too.
   for (const folder of ['src', 'packages', 'apps', 'bin/checks']) symlinkSync(join(SOURCE, folder), join(root, folder));
@@ -75,7 +75,7 @@ async function project(t, { predates = false } = {}) {
   closeBoard(board);
   /** Main moves one commit ahead: its entry gains a start marker. */
   const advance = () => {
-    mark(join(root, 'bin', 'pullboard.js'), MAIN_MARK);
+    mark(join(root, 'bin/pullboard.js'), MAIN_MARK);
     git(root, 'commit', '-q', '-am', 'chore: main moves one commit ahead');
   };
   if (predates) {
@@ -89,8 +89,8 @@ async function project(t, { predates = false } = {}) {
 
 test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
   const box = await project(t);
-  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
-  const entry = join(box.worktree, 'bin', 'pullboard.js');
+  markDispatch(join(box.worktree, 'bin/pullboard.js'), OWN_MARK);
+  const entry = join(box.worktree, 'bin/pullboard.js');
 
   const behind = box.run(box.worktree, process.execPath, [entry, 'whoami']);
   assert.equal(behind.status, 0, behind.context);
@@ -120,17 +120,17 @@ test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; ho
 
 test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
   const box = await project(t);
-  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
-  const fromMain = box.run(box.root, process.execPath, [join(box.root, 'bin', 'pullboard.js'), 'whoami']);
+  markDispatch(join(box.worktree, 'bin/pullboard.js'), OWN_MARK);
+  const fromMain = box.run(box.root, process.execPath, [join(box.root, 'bin/pullboard.js'), 'whoami']);
   assert.equal(fromMain.stderr.split(MAIN_MARK).length - 1, 1, `the main checkout runs its entry once\n${fromMain.context}`);
   // An item folder run with its seat's stale entry: the cwd is another checkout of the same repository.
-  const sameRepo = box.run(box.root, process.execPath, [join(box.worktree, 'bin', 'pullboard.js'), 'whoami']);
+  const sameRepo = box.run(box.root, process.execPath, [join(box.worktree, 'bin/pullboard.js'), 'whoami']);
   assert.equal(sameRepo.stderr.split(MAIN_MARK).length - 1, 1, `a stale entry run from another checkout of its repo hands off to main's code\n${sameRepo.context}`);
   assert.doesNotMatch(sameRepo.stderr, new RegExp(OWN_MARK, 'u'), 'the stale code never runs the command');
   const other = join(box.root, '..', 'other-repo');
   mkdirSync(other);
   box.git(other, 'init', '-q', '-b', 'main');
-  const elsewhere = box.run(other, process.execPath, [join(box.worktree, 'bin', 'pullboard.js'), '--help']);
+  const elsewhere = box.run(other, process.execPath, [join(box.worktree, 'bin/pullboard.js'), '--help']);
   assert.match(elsewhere.stderr, new RegExp(OWN_MARK, 'u'), 'a stale entry run against another repository keeps its own code, as test fixtures do');
   assert.doesNotMatch(elsewhere.stderr, new RegExp(MAIN_MARK, 'u'));
   assert.doesNotMatch(fromMain.stderr + sameRepo.stderr + elsewhere.stderr, /main checkout CLI not found/u, 'no case is a fallback worth a line');
@@ -138,9 +138,9 @@ test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo
 
 test('[B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
   const box = await project(t);
-  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
-  renameSync(join(box.root, 'bin', 'pullboard.js'), join(box.root, 'bin', 'pullboard.js.gone'));
-  const missing = box.run(box.worktree, process.execPath, [join(box.worktree, 'bin', 'pullboard.js'), 'whoami']);
+  markDispatch(join(box.worktree, 'bin/pullboard.js'), OWN_MARK);
+  renameSync(join(box.root, 'bin/pullboard.js'), join(box.root, 'bin/pullboard.js.gone'));
+  const missing = box.run(box.worktree, process.execPath, [join(box.worktree, 'bin/pullboard.js'), 'whoami']);
   assert.equal(missing.status, 0, `the command never fails because the handover could not happen\n${missing.context}`);
   assert.match(missing.stderr, new RegExp(OWN_MARK, 'u'), 'the worktree\'s own code ran the command');
   assert.equal(missing.stderr.split('\n').filter(line => line.includes('main checkout CLI not found; running this worktree\'s code')).length, 1, missing.context);
@@ -150,7 +150,7 @@ test('[B17] a worktree whose main checkout CLI is missing runs its own code and 
 
 test('[B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
   const box = await project(t, { predates: true });
-  const entry = join(box.worktree, 'bin', 'pullboard.js');
+  const entry = join(box.worktree, 'bin/pullboard.js');
   markDispatch(entry, OWN_MARK);
   const old = box.run(box.worktree, process.execPath, [entry, 'whoami']);
   assert.equal(old.status, 0, old.context);

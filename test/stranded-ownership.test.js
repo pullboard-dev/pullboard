@@ -9,7 +9,7 @@ import { runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture
 import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { closeBoard, getItem, ownershipWaiting, submitHandoff, deferOwnership } from '../packages/store/index.js';
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 /** Require actual native command success before interpreting its document. */
 function document(result) {

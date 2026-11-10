@@ -20,7 +20,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const HARNESSES = join(ROOT, 'test', 'harnesses', 'pipeline');
+const HARNESSES = join(ROOT, 'test/harnesses/pipeline');
 
 /** Board command latency target per command, from the 2 Nov speed rule. */
 const COMMAND_TARGET_MS = 200;
@@ -234,12 +234,12 @@ export function renderMatrix(rows, meta) {
  * @returns {{ report: object | null, statusMs: number | undefined }}
  */
 function liveReceipts(since) {
-  const health = spawnSync(process.execPath, [join(ROOT, 'bin', 'pullboard.js'), 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
+  const health = spawnSync(process.execPath, [join(ROOT, 'bin/pullboard.js'), 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
   let report = null;
   try { report = health.status === 0 ? JSON.parse(health.stdout).report : null; }
   catch (error) { process.stderr.write(`gate-health answered unreadable JSON: ${error.message}\n`); }
   const started = performance.now();
-  const status = spawnSync(process.execPath, [join(ROOT, 'bin', 'pullboard.js'), 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
+  const status = spawnSync(process.execPath, [join(ROOT, 'bin/pullboard.js'), 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
   return { report, statusMs: status.status === 0 ? performance.now() - started : undefined };
 }
 

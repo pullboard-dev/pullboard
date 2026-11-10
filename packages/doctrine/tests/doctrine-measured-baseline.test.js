@@ -53,10 +53,10 @@ function repo({ mainRules } = {}) {
   mkdirSync(join(root, 'src'), { recursive: true });
   git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'DOCTRINE.md'), `## C · Code\n${RULE}\n`);
-  writeFileSync(join(root, 'src', 'view.css'), CSS);
-  writeFileSync(join(root, 'src', 'app.js'), 'export const app = 1;\n');
+  writeFileSync(join(root, 'src/view.css'), CSS);
+  writeFileSync(join(root, 'src/app.js'), 'export const app = 1;\n');
   const frozen = commitAll(root, 'chore: frozen base');
-  writeFileSync(join(root, 'src', 'view.css'), `${CSS}/* OVER the cap */\n`);
+  writeFileSync(join(root, 'src/view.css'), `${CSS}/* OVER the cap */\n`);
   if (mainRules) writeFileSync(join(root, 'DOCTRINE.md'), `## C · Code\n${mainRules.join('\n')}\n`);
   const main = commitAll(root, 'feat: main grows the stylesheet over the cap');
   const item = join(dir, 'item');
@@ -71,7 +71,7 @@ function hold(box, commit) {
 
 test('an item that keeps main\'s over-cap file unchanged is held against current main\'s measured count [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   commitAll(box.item, 'feat: change the app');
   git(box.item, 'merge', '-q', '--no-edit', 'main');
   const [result] = hold(box, git(box.item, 'rev-parse', 'HEAD'));
@@ -82,7 +82,7 @@ test('an item that keeps main\'s over-cap file unchanged is held against current
 
 test('an item that moves main\'s over-cap file is not refused RATCHET_ROSE [C7]', () => {
   const box = repo();
-  mkdirSync(join(box.item, 'src', 'view'));
+  mkdirSync(join(box.item, 'src/view'));
   git(box.item, 'mv', 'src/view.css', 'src/view/view.css');
   commitAll(box.item, 'refactor: move the stylesheet into its cell');
   git(box.item, 'merge', '-q', '--no-edit', 'main');
@@ -95,7 +95,7 @@ test('an item that moves main\'s over-cap file is not refused RATCHET_ROSE [C7]'
 test('an item that adds a second problem to that file is refused RATCHET_ROSE [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', 'main');
-  writeFileSync(join(box.item, 'src', 'view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
+  writeFileSync(join(box.item, 'src/view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
   const commit = commitAll(box.item, 'feat: grow the stylesheet further');
   assert.throws(() => hold(box, commit), (error) => error.code === 'RATCHET_ROSE'
     && error.message.includes('rose to 2, was 1') && error.message.includes('src/view.css:4:/* OVER again */'));
@@ -104,7 +104,7 @@ test('an item that adds a second problem to that file is refused RATCHET_ROSE [C
 test('a second hold on the same main commit reads main\'s measured count from the machine-wide cache [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', 'main');
-  writeFileSync(join(box.item, 'src', 'view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
+  writeFileSync(join(box.item, 'src/view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
   const commit = commitAll(box.item, 'feat: grow the stylesheet further');
   assert.throws(() => hold(box, commit), { code: 'RATCHET_ROSE' });
   const folder = join(home, 'doctrine-main');
@@ -122,14 +122,14 @@ test('a second hold on the same main commit reads main\'s measured count from th
 test('a rule added on main after the frozen base holds the item [C7]', () => {
   const box = repo({ mainRules: [RULE, '- C10 [approved, must] Scripts carry no TODO markers. | gate: check grep -rn TODO src || true | count: 0'] });
   git(box.item, 'merge', '-q', '--no-edit', 'main');
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2; // TODO\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2; // TODO\n');
   const commit = commitAll(box.item, 'feat: change the app');
   assert.throws(() => hold(box, commit), (error) => error.code === 'RATCHET_ROSE' && error.message.includes('C10 Scripts carry no TODO markers. rose to 1, was 0'));
 });
 
 test('a declared count above main\'s measured total never loosens the baseline [C7]', () => {
   const box = repo({ mainRules: [RULE.replace('count: 0', 'count: 2')] });
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   commitAll(box.item, 'feat: change the app');
   git(box.item, 'merge', '-q', '--no-edit', 'main');
   const [result] = hold(box, git(box.item, 'rev-parse', 'HEAD'));
@@ -149,7 +149,7 @@ test('a candidate that is exactly current main is measured against current main,
 
 test('a candidate that does not contain current main is composed with it, never refused for that alone [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app without main');
   const [result] = hold(box, commit);
   assert.equal(result.count, 1, 'the composed tree carries main\'s problem');

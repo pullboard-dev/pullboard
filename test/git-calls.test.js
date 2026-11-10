@@ -85,7 +85,7 @@ function fixture(t, { ruleProof = false } = {}) {
       '- C7 [approved, must] Current trunk proof stays cheap to read. | gate: test/proven.test.js\n' +
       '- C8 [approved, must] Recent red remains visible. | gate: test/red.test.js\n');
     mkdirSync(join(repo, 'test'));
-    for (const name of ['proven', 'red']) writeFileSync(join(repo, 'test', `${name}.test.js`),
+    for (const name of ['proven', 'red']) writeFileSync(join(repo, `test/${name}.test.js`),
       `import { test } from 'node:test';\ntest('${name}', () => {});\n`);
   }
   const git = (cwd, ...args) => {
@@ -346,7 +346,7 @@ test('the runner invalidates cached HEAD immediately after its own commit [C7]',
   const box = fixture(t);
   const before = box.git(box.worker, 'rev-parse', 'HEAD');
   mkdirSync(join(box.worker, 'src'));
-  writeFileSync(join(box.worker, 'src', 'runner-result.txt'), 'built\n');
+  writeFileSync(join(box.worker, 'src/runner-result.txt'), 'built\n');
   const item = { item_id: 1, item_title: 'runner commit refreshes HEAD', item_lane: 'core', item_spec_ids: 'C7' };
   const script = `import { commitWork } from ${JSON.stringify(RUN_MODULE)};
 import { loadConfig } from ${JSON.stringify(CONFIG_MODULE)};

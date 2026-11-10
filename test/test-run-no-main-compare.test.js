@@ -29,7 +29,7 @@ function redProject() {
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'red.test.js'),
+  writeFileSync(join(box.repo, 'test/red.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('red case', () => assert.fail('deliberate'));\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: one red file');

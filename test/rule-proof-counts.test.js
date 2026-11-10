@@ -50,7 +50,7 @@ function fixture(spec = SPEC) {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: GATE }));
   mkdirSync(join(root, 'test'), { recursive: true });
   for (const file of ['proven', 'unproven', 'contradicted', 'both', 'draft']) {
-    writeFileSync(join(root, 'test', `${file}.test.js`), `import { test } from 'node:test';\ntest('${file}', () => {});\n`);
+    writeFileSync(join(root, `test/${file}.test.js`), `import { test } from 'node:test';\ntest('${file}', () => {});\n`);
   }
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore(fixture): initialize rule proof fixture');

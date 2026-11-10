@@ -53,7 +53,7 @@ test('a real baseline worker completes during claim preparation without strandin
     e2e.cleanup();
   });
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'baseline.cjs'), [
+  writeFileSync(join(box.repo, 'test/baseline.cjs'), [
     "const fs = require('node:fs');",
     `fs.writeFileSync(${JSON.stringify(entered)}, String(process.pid));`,
     'const deadline = Date.now() + 20000;',

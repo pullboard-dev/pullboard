@@ -217,7 +217,7 @@ test('a fixture copy includes added packages entries and nothing outside package
 test('package copies refuse escaping patterns, selected symlinks and recursive destinations [C7,P3]', t => {
   const f = fixture(t);
   assert.throws(() => copyPackageFiles(f.root, join(f.root, 'copy')), /outside its source/u);
-  symlinkSync(join(f.root, 'outside-secret.txt'), join(f.root, 'src', 'linked.js'));
+  symlinkSync(join(f.root, 'outside-secret.txt'), join(f.root, 'src/linked.js'));
   assert.throws(() => packageFiles(f.root), /not a regular file/u);
   f.write('package.json', JSON.stringify({ files: ['../outside'] }));
   assert.throws(() => packageFiles(f.root), /unsafe package files entry/u);
@@ -398,7 +398,7 @@ test('a warmed derived snapshot still refuses newly selected symlinks outside it
   const loaded = captureRunnerTooling(f.root);
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
-  symlinkSync(join(f.root, 'outside-secret.txt'), join(f.root, 'src', 'new-selected-link.js'));
+  symlinkSync(join(f.root, 'outside-secret.txt'), join(f.root, 'src/new-selected-link.js'));
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_FILES'
     && error.message.includes('not a regular file'), 'warm analysis never grants authority to newly selected filesystem bytes');
 });

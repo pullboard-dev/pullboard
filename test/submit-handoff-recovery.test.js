@@ -56,7 +56,7 @@ function resumeDriver(box, job, { now = Date.now() } = {}) {
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   // The entry runs only under its real path, as the dispatcher starts it (the OS temp dir may be a symlink).
   // budget: the existing owned-driver hang ceiling; assertions concern exit and native results, not elapsed time.
-  return runFixtureChildAsync(process.execPath, [join(realpathSync(request.tools), 'bin', 'gate-drive-worker.js'), join(directory, 'request.json'), owner],
+  return runFixtureChildAsync(process.execPath, [join(realpathSync(request.tools), 'bin/gate-drive-worker.js'), join(directory, 'request.json'), owner],
     { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8', timeout: 120_000 });
 }
 

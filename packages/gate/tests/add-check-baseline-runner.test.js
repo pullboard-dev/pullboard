@@ -49,12 +49,12 @@ function runnerFixture(t) {
   policyRepository(paths.repo);
   writeFileSync(join(paths.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   fixtureProjectPolicy(paths.repo, { config: { gate: 'node test/runner.js', affectedTests: 'node test/runner.js' } });
-  writeFileSync(join(paths.repo, 'test', 'failing.test.js'), [
+  writeFileSync(join(paths.repo, 'test/failing.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "test('the baseline failure is named [V2]', () => assert.equal(1, 2));",
   ].join('\n') + '\n');
-  writeFileSync(join(paths.repo, 'test', 'runner.js'), [
+  writeFileSync(join(paths.repo, 'test/runner.js'), [
     "import { spawnSync } from 'node:child_process';",
     "const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...process.argv.slice(2)], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });",
     "if (result.stdout) process.stdout.write(result.stdout);",

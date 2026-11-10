@@ -45,10 +45,10 @@ function fixture() {
   mkdirSync(join(tools, 'bin'), { recursive: true });
   // The captured tools are ES modules, and the dispatcher is started through the real detached launcher the production code runs.
   writeFileSync(join(tools, 'package.json'), '{"type":"module"}\n');
-  writeFileSync(join(tools, 'bin', 'handoff-worker-detach.js'), readFileSync(new URL('../../../bin/handoff-worker-detach.js', import.meta.url), 'utf8'));
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+  writeFileSync(join(tools, 'bin/handoff-worker-detach.js'), readFileSync(new URL('../../../bin/handoff-worker-detach.js', import.meta.url), 'utf8'));
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
   const log = join(dir, 'log');
-  writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), dispatcherSource(log));
+  writeFileSync(join(tools, 'bin/handoff-worker-dispatcher.js'), dispatcherSource(log));
   writeFileSync(log, '');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, log: process.env.HANDOFF_TEST_LOG };
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');

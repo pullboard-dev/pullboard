@@ -22,6 +22,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { repoPath } from '../../kernel/core.js';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -221,8 +222,8 @@ test('the import scan finds a package however it is imported, and nothing that i
  */
 function packageSource(file, source) {
   const loaders = {
-    [join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
-    [join(ROOT, 'src', 'commands', 'index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
+    [join(ROOT, 'packages/moves/src/shell/move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
+    [join(ROOT, 'src/commands/index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
   };
   const loader = loaders[file];
   return loader ? source.replace(loader[0], loader[1]) : source;
@@ -233,10 +234,10 @@ function importsForPackageFile(file, source) { return importsIn([packageSource(f
 
 test('every import is a node: built-in or a relative file [P3]', () => {
   const files = [
-    ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => join(ROOT, 'src', name)),
-    join(ROOT, 'bin', 'pullboard.js'),
+    ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => repoPath(ROOT, `src/${name}`)),
+    join(ROOT, 'bin/pullboard.js'),
   ];
-  const moveDirectory = join(ROOT, 'packages', 'moves', 'src', 'core', 'moves');
+  const moveDirectory = join(ROOT, 'packages/moves/src/core/moves');
   const moveFiles = readdirSync(moveDirectory).filter(name => name.endsWith('.js'));
   files.push(...moveFiles.map(name => join(moveDirectory, name)));
   assert.ok(moveFiles.length > 0, 'all discovered move modules remain inside the no-dependencies scan');
@@ -249,14 +250,14 @@ test('every import is a node: built-in or a relative file [P3]', () => {
 });
 
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
-  const file = join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js');
+  const file = join(ROOT, 'packages/moves/src/shell/move-registry.js');
   const source = readFileSync(file, 'utf8');
   const site = 'import(new URL(file, directory).href)';
   assert.ok(source.includes(site), 'the constrained discovery site is present');
   assert.ok(importsForPackageFile(file, source.replace(site, "import('left-pad')")).includes('left-pad'));
   assert.ok(importsForPackageFile(file, source.replace(site, 'import(otherTarget)')).includes(COMPUTED));
   assert.ok(importsForPackageFile(file, source + '\nvoid import(otherTarget);').includes(COMPUTED), 'a second computed import has no exemption');
-  assert.ok(importsForPackageFile(join(ROOT, 'src', 'moves', 'seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
+  assert.ok(importsForPackageFile(join(ROOT, 'src/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
 test('the installable package includes the single inherited doctrine file [D1]', () => {

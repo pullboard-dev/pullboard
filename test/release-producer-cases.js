@@ -95,7 +95,7 @@ else process.exitCode=child.status??1;
 `);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 1 }));
-  for (const name of NAMES) writeFileSync(join(box.repo, 'test', `${name}.test.js`), tinyTest(name, box, red));
+  for (const name of NAMES) writeFileSync(join(box.repo, `test/${name}.test.js`), tinyTest(name, box, red));
   git(box, 'init', '-q', '-b', 'main');
   git(box, 'add', '.');
   git(box, 'commit', '-q', '-m', 'test: commit private native release fixture');

@@ -37,7 +37,7 @@ function fixture(t, root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'
   mkdirSync(join(root, 'packages', 'sample', 'src'), { recursive: true });
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, E, 'sample-engine.js'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
-  writeFileSync(join(root, 'src', 'move.js'), "import { SAMPLE_ENGINE } from '../packages/state/src/core/engines/sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
+  writeFileSync(join(root, 'src/move.js'), "import { SAMPLE_ENGINE } from '../packages/state/src/core/engines/sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
   copyPackageSubset(resolve(import.meta.dirname, '..'), root,
     [...['engine-numbers.js', 'discovery.js'].map(file => ({ path: `src/${file}`, as: `src/${file}` })), { path: `${E}/engine-next.js`, as: `${E}/engine-next.js` }]);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
@@ -60,7 +60,7 @@ test('moving a fixture package keeps its move engine number and marker in the on
   const before = moveAt(root, 'src/move.js');
   const registry = readEngineLeaves(join(root, E));
   runFixtureGit(['mv', 'src/move.js', 'packages/sample/src/move.js'], { cwd: root });
-  writeFileSync(join(root, 'packages', 'sample', 'src', 'move.js'), "import { SAMPLE_ENGINE } from '../../state/src/core/engines/sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
+  writeFileSync(join(root, 'packages/sample/src/move.js'), "import { SAMPLE_ENGINE } from '../../state/src/core/engines/sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
   assert.deepEqual(moveAt(root, 'packages/sample/src/move.js'), before);
   assert.deepEqual(before, { operation: 'sample', engine: 17 });
   assert.deepEqual(readFileSync(engine), bytes, 'the engine marker declaration retains every byte');
@@ -73,7 +73,7 @@ test('moving a fixture package keeps its move engine number and marker in the on
 test('a moved or duplicated engine leaf is refused while fixture strings and imports remain allowed [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-private-engine-copy-'));
   fixture(t, root);
-  const misplaced = join(root, 'packages', 'sample', 'src', 'sample-engine.js');
+  const misplaced = join(root, 'packages/sample/src/sample-engine.js');
   cpSync(join(root, E, 'sample-engine.js'), misplaced);
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must be declared in its own leaf/u);
   rmSync(misplaced);
@@ -81,10 +81,10 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
   assert.equal(readEngineLeaves(join(root, E)).length, 0, 'the broken move really removes the canonical registry entry');
   assert.equal(engineFolderProblems(root)[0].file, 'packages/sample/src/sample-engine.js');
   rmSync(misplaced);
-  writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'const SAMPLE_ENGINE = 17; export { SAMPLE_ENGINE };\n');
+  writeFileSync(join(root, 'packages/sample/src/numbers.js'), 'const SAMPLE_ENGINE = 17; export { SAMPLE_ENGINE };\n');
   assert.equal(engineFolderProblems(root)[0].file, 'packages/sample/src/numbers.js', 'renaming the leaf and separating its export cannot hide the moved marker');
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must be declared in its own leaf/u);
-  writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'const value = 17; export { value as SAMPLE_ENGINE };\n');
+  writeFileSync(join(root, 'packages/sample/src/numbers.js'), 'const value = 17; export { value as SAMPLE_ENGINE };\n');
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must be declared in its own leaf/u, 'an exported marker alias cannot hide a relocated engine');
   assert.deepEqual(engineFolderViolations([{ file: 'packages/sample/tests/fixture.js',
     source: "// export const COMMENT_ENGINE = 1;\nconst fixture = 'export const STRING_ENGINE = 2;';\nexport { SAMPLE_ENGINE } from '../../state/src/core/engines/sample-engine.js';\n" }]), []);
@@ -104,8 +104,8 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
 
 test('named engine reexports come only from the canonical engine folder [C7]', t => {
   const root = fixture(t);
-  const consumer = join(root, 'packages', 'sample', 'src', 'forward.js');
-  writeFileSync(join(root, 'packages', 'sample', 'src', 'numbers.js'), 'export const value = 17;\n');
+  const consumer = join(root, 'packages/sample/src/forward.js');
+  writeFileSync(join(root, 'packages/sample/src/numbers.js'), 'export const value = 17;\n');
   writeFileSync(consumer, "export { value as SAMPLE_ENGINE } from './numbers.js';\n");
   assert.equal(engineFolderProblems(root)[0].file, 'packages/sample/src/forward.js');
   assert.match(engineFolderProblems(root)[0].text, /SAMPLE_ENGINE must be declared in its own leaf/u);
@@ -121,14 +121,14 @@ test('named engine reexports come only from the canonical engine folder [C7]', t
 function stateExitFixture(t) {
   const root = fixture(t);
   const canonical = join(root, E, 'exit-rules-engine.js');
-  const directory = join(root, 'packages', 'state', 'src', 'core');
+  const directory = join(root, 'packages/state/src/core');
   mkdirSync(directory, { recursive: true });
   writeFileSync(canonical, 'export const EXIT_RULES_ENGINE = 183;\n');
   const metadata = join(directory, 'engine-metadata.js');
   writeFileSync(metadata, 'export { EXIT_RULES_ENGINE } from "./engines/exit-rules-engine.js";\n');
   writeFileSync(join(root, 'packages', 'state', 'core.js'), 'export { EXIT_RULES_ENGINE } from "./src/core/engine-metadata.js";\n');
   writeFileSync(join(root, 'packages', 'state', 'index.js'), 'export { EXIT_RULES_ENGINE } from "./core.js";\n');
-  const consumer = join(root, 'packages', 'sample', 'src', 'exit-rules.js');
+  const consumer = join(root, 'packages/sample/src/exit-rules.js');
   writeFileSync(consumer, 'export { EXIT_RULES_ENGINE } from "../../state/core.js";\n');
   return { root, canonical, metadata, consumer, original: readFileSync(canonical) };
 }

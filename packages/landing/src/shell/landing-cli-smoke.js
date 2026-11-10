@@ -76,7 +76,7 @@ function scratchEnvironment(home) {
  * @returns {{ ran: string[] }} The commands that exited 0, in order.
  */
 export function runLandingCliSmoke(candidate, { record = false, git: launch = gitSpawnSync } = {}) {
-  const entry = join(candidate, 'bin', 'pullboard.js');
+  const entry = join(candidate, 'bin/pullboard.js');
   if (!existsSync(entry)) return { ran: [] };
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-smoke-')));
   try {
@@ -164,7 +164,7 @@ const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } 
  */
 export async function smokeCandidate(candidate, { admission = gateRunnerAdmission(), record = false } = {}) {
   if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate, { record });
-  if (!existsSync(join(candidate, 'bin', 'pullboard.js'))) return { ran: [] };
+  if (!existsSync(join(candidate, 'bin/pullboard.js'))) return { ran: [] };
   const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', admission });
   if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
   if (record) recordSmokeReceipt(candidate);

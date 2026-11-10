@@ -121,7 +121,7 @@ export function ruleCell(file) {
 
 /**
  * Map each src/ asset to the modules that read it by listing or opening a directory the code names with
- * join(root, 'src', ...), the path form the discovery and declaration readers use [#1778]. Only a direct child of
+ * a repository path under src/, the path form the discovery and declaration readers use [#1778]. Only a direct child of
  * the listed directory counts, so a reader never claims a deeper tree it does not enumerate.
  */
 export function assetReaders(sources, assets) {

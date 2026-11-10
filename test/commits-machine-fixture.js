@@ -12,7 +12,7 @@ const GENERATED_HOOKS_SHIM = 'export { HOOKS, HOOKS_DIR, HOOK_MARK, FIX_NOTE, co
 
 /** Follow only this moved cell's committed exact aliases through whole generated shims, preserving other cells' readers. */
 export function machineSourceModule(file, read) {
-  const source = read(file), original = posix.normalize(posix.join('src', file));
+  const source = read(file), original = posix.normalize(`src/${file}`);
   const target = mappedPath(SOURCE_MAP, original);
   if (target === original) return { sourceFile: file, source };
   const shim = /^\s*export\s*(\*|\{[^}]*\})\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\2;\s*$/u.exec(source);

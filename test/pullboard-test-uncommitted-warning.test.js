@@ -29,7 +29,7 @@ function greenProject() {
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'green.test.js'),
+  writeFileSync(join(box.repo, 'test/green.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('green case', () => assert.ok(true));\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: one green file');
@@ -40,7 +40,7 @@ function greenProject() {
 test('clause 1: pullboard test from a checkout with an uncommitted tracked edit names the file and the committed commit before admission [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
   const box = greenProject();
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
-  writeFileSync(join(box.web, 'test', 'green.test.js'),
+  writeFileSync(join(box.web, 'test/green.test.js'),
     "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('green case', () => assert.ok(true));\n// uncommitted edit\n");
   const ran = box.run(box.web, 'test', 'test/green.test.js');
   assert.equal(ran.code, 0, ran.err);

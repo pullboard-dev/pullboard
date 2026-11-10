@@ -89,7 +89,7 @@ export async function runComposedHook(entry, args, { cwd, env }) {
   if (args[0] !== 'hook' || !HOOKS.includes(args[1]) || env.PULLBOARD_HOOK_COMPOSED) return null;
   const top = git(cwd, ['rev-parse', '--show-toplevel'], env);
   const root = top.status === 0 ? real(top.stdout.trim()) : null;
-  if (!root || real(entry) !== join(root, 'bin', 'pullboard.js')) return null;
+  if (!root || real(entry) !== join(root, 'bin/pullboard.js')) return null;
   const path = git(root, ['rev-parse', '--path-format=absolute', '--git-path', 'index'], env).stdout.trim();
   const indexFile = env.GIT_INDEX_FILE ? resolve(root, env.GIT_INDEX_FILE) : path;
   const patches = await hookCompanionPatches(root, env);
@@ -106,13 +106,13 @@ export async function runComposedHook(entry, args, { cwd, env }) {
     if ('refusal' in composed) return blocked(composed.refusal);
     // Fixers rewrite and stage files: they run against the real index, so the checked bytes are the committed bytes.
     if (stagedFixers(root, { ...env, GIT_INDEX_FILE: indexFile })) {
-      const fixed = spawnSync(process.execPath, [join(composed.tree, 'bin', 'pullboard.js'), ...args], { cwd, stdio: 'inherit',
+      const fixed = spawnSync(process.execPath, [join(composed.tree, 'bin/pullboard.js'), ...args], { cwd, stdio: 'inherit',
         env: { ...env, GIT_INDEX_FILE: indexFile, PULLBOARD_HOOK_COMPOSED: 'fix' } });
       if (fixed.status !== 0) return fixed.status ?? 1;
       composed = compose();
       if ('refusal' in composed) return blocked(composed.refusal);
     }
-    const run = spawnSync(process.execPath, [join(composed.tree, 'bin', 'pullboard.js'), ...args], { cwd, stdio: 'inherit',
+    const run = spawnSync(process.execPath, [join(composed.tree, 'bin/pullboard.js'), ...args], { cwd, stdio: 'inherit',
       env: { ...env, GIT_INDEX_FILE: composed.index, PULLBOARD_HOOK_COMPOSED: '1', PULLBOARD_HOOK_COMPANION_PATHS: JSON.stringify(composed.companionPaths) } });
     return run.status ?? 1;
   } finally { for (const directory of directories) rmSync(directory, { recursive: true, force: true }); }

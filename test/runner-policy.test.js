@@ -56,7 +56,7 @@ function fixture(t) {
   mkdirSync(join(repo, 'test'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'candidate gate', landingShards: 2, protect: { allowed: ['*.example'] } }));
   writeFileSync(join(repo, '.env.example'), 'harmless allowed example\n');
-  writeFileSync(join(repo, 'test', 'nested.test.js'), `import assert from 'node:assert/strict';
+  writeFileSync(join(repo, 'test/nested.test.js'), `import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';

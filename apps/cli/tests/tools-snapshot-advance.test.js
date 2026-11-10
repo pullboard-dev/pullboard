@@ -43,8 +43,8 @@ function idle(path) { const past = new Date(Date.now() - 3600_000); utimesSync(p
 
 /** Commit a tooling change: src/a.js edited, bin/a.js removed, apps/b.js added. */
 function toolingChange(repo) {
-  writeFileSync(join(repo, 'src', 'a.js'), 'export const src = 2;\n');
-  rmSync(join(repo, 'bin', 'a.js'));
+  writeFileSync(join(repo, 'src/a.js'), 'export const src = 2;\n');
+  rmSync(join(repo, 'bin/a.js'));
   writeFileSync(join(repo, 'apps', 'b.js'), 'export const b = 1;\n');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'tooling change');
@@ -66,8 +66,8 @@ test('clause 1: a tooling change moves the idle kept snapshot, writing only the 
   assert.equal(existsSync(first), false, 'the idle snapshot was moved, not copied');
   assert.equal(indexTree(repo, second), git(repo, 'rev-parse', 'HEAD^{tree}'), 'the moved snapshot is exactly the commit tree');
   assert.equal(statSync(join(second, 'packages', 'a.js')).ino, untouched, 'an unchanged file is not written again');
-  assert.equal(readFileSync(join(second, 'src', 'a.js'), 'utf8'), 'export const src = 2;\n');
-  assert.equal(existsSync(join(second, 'bin', 'a.js')), false, 'a removed file is removed');
+  assert.equal(readFileSync(join(second, 'src/a.js'), 'utf8'), 'export const src = 2;\n');
+  assert.equal(existsSync(join(second, 'bin/a.js')), false, 'a removed file is removed');
   assert.equal(existsSync(join(second, 'apps', 'b.js')), true, 'an added file is written');
 });
 

@@ -37,7 +37,7 @@ test('clause 1: selectedToolEntry reads the toolBuild policy with one git show p
     chmodSync(join(bin, 'git'), 0o755);
     const path = process.env.PATH;
     process.env.PATH = `${bin}:${path}`;
-    try { await selectedToolEntry(repo, join(repo, 'bin', 'pullboard.js')); } catch { /* no build is published: only the policy reads matter */ }
+    try { await selectedToolEntry(repo, join(repo, 'bin/pullboard.js')); } catch { /* no build is published: only the policy reads matter */ }
     finally { process.env.PATH = path; }
     const shows = readFileSync(log, 'utf8').split('\n').filter((line) => line.includes('show') && line.includes('pullboard.json'));
     assert.equal(shows.length, 1);

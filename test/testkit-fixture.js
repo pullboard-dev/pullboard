@@ -141,7 +141,7 @@ export function fixtureMachineSettings(machineHome, settings) {
  * @returns {void}
  */
 export function fixtureCellsPlan(repo, text) {
-  writeFileSync(join(repo, 'bin', 'cells-plan.json'), text);
+  writeFileSync(join(repo, 'bin/cells-plan.json'), text);
 }
 
 /**

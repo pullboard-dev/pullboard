@@ -181,7 +181,7 @@ export async function scheduleWorktreeMaintenance(ctx) {
         const state = fstatSync(logFd);
         if (!state.isFile() || state.mode & 0o077) throw new Error('maintenance scheduler log is not private');
         stage = 'launch';
-        child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance', '--watch', '--key', token],
+        child = spawn(process.execPath, [join(accepted.root, 'bin/pullboard.js'), 'maintenance', '--watch', '--key', token],
           { cwd: accepted.root, env: workerEnvironment(accepted.root), detached: true, stdio: ['ignore', logFd, logFd] });
         await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
         const identity = processIdentity(child.pid);
@@ -237,7 +237,7 @@ export async function runScheduledMaintenance(ctx, key) {
   });
   if (!accepted) return { ran: false, reason: 'disabled-or-registration-changed' };
   try {
-    const child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance'],
+    const child = spawn(process.execPath, [join(accepted.root, 'bin/pullboard.js'), 'maintenance'],
       { cwd: accepted.root, env: workerEnvironment(accepted.root), stdio: ['ignore', 'inherit', 'inherit'] });
     const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (status, signal) => resolve(signal ? 1 : status ?? 1)); });
     return { ran: true, code };

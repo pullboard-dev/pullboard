@@ -37,11 +37,11 @@ function sandbox(t) {
 
 test('clause 1: a tool root with an uncommitted bin edit gets the shared snapshot, whose copy of that file is the committed one, and no private copy [C7]', t => {
   const { temp, repo } = sandbox(t);
-  writeFileSync(join(repo, 'bin', 'a.js'), 'export const bin = "uncommitted";\n');
-  writeFileSync(join(repo, 'bin', 'untracked.js'), 'export const stray = 1;\n');
+  writeFileSync(join(repo, 'bin/a.js'), 'export const bin = "uncommitted";\n');
+  writeFileSync(join(repo, 'bin/untracked.js'), 'export const stray = 1;\n');
   const folder = toolsSnapshot(repo, 'job-dirty');
   assert.match(folder, /pullboard-handoff-tools-[0-9a-f]{40}$/u, 'the folder is the shared one, not a per-job one');
-  assert.equal(readFileSync(join(folder, 'bin', 'a.js'), 'utf8'), 'export const bin = 1;\n', 'the committed content, never the edit');
+  assert.equal(readFileSync(join(folder, 'bin/a.js'), 'utf8'), 'export const bin = 1;\n', 'the committed content, never the edit');
   assert.deepEqual(readdirSync(join(folder, 'bin')), ['a.js'], 'an untracked file does not leak in');
   assert.deepEqual(readdirSync(temp).filter(name => name.includes('job-dirty')), [], 'no private per-job copy is made');
   assert.equal(toolsSnapshot(repo, 'job-again'), folder, 'a second dirty submit reuses the same folder');

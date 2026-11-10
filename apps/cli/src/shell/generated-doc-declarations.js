@@ -11,7 +11,7 @@ import { parseSpec } from '../../../../packages/spec/index.js';
 
 /** Read data-only source declarations, never Markdown output as generator input. */
 function declaration(root, name) {
-  const path = join(root, 'apps', 'cli', 'src', 'shell', 'documentation', `${name}.json`);
+  const path = join(root, `apps/cli/src/shell/documentation/${name}.json`);
   if (!lstatSync(path).isFile()) throw new Error(`${name} documentation must be a regular source declaration`);
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -30,7 +30,7 @@ function namedTable(root, name, heading, names) {
 
 /** Render event descriptions from independent per-kind files, retaining historical version annotations. */
 function eventTable(root) {
-  const directory = join(root, 'apps', 'cli', 'src', 'shell', 'documentation', 'events');
+  const directory = join(root, 'apps/cli/src/shell/documentation/events');
   const entries = readdirSync(directory).filter(file => file.endsWith('.json')).sort().flatMap(file => {
     if (!/^[a-z][a-z0-9_-]*\.json$/u.test(file) || !lstatSync(join(directory, file)).isFile()) throw new Error(`invalid event declaration ${file}`);
     const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));

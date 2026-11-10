@@ -80,7 +80,7 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     assert.match(validator, /address\.port\s*!==\s*''/u);
     assert.match(validator, /address\.origin\s*===\s*value\.origin/u, 'origin equality rejects credentials and non-canonical origins');
   }
-  const localFetchPath = join(ROOT, 'packages', 'sync', 'src', 'shell', 'local-fetch.js');
+  const localFetchPath = join(ROOT, 'packages/sync/src/shell/local-fetch.js');
   const localFetchSource = readFileSync(localFetchPath, 'utf8');
   const httpImport = "import { request as httpRequest } from 'node:http';";
   assert.equal(localFetchSource.split(httpImport).length - 1, 1, 'the local fetch has one exact HTTP request import');

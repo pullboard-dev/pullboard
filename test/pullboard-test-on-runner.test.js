@@ -47,8 +47,8 @@ function runnerProject() {
   const configFile = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'timed.test.js'), TIMED);
-  writeFileSync(join(box.repo, 'test', 'mixed.test.js'), MIXED);
+  writeFileSync(join(box.repo, 'test/timed.test.js'), TIMED);
+  writeFileSync(join(box.repo, 'test/mixed.test.js'), MIXED);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner, a timed file and a failing case');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');

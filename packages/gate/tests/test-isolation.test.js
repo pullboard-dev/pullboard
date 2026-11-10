@@ -36,7 +36,7 @@ function probeSuite(dir) {
   const module = (path) => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../..', path)).href);
   const root = join(dir, 'probe');
   mkdirSync(join(root, 'test'), { recursive: true });
-  writeFileSync(join(root, 'test', 'probe.test.js'), `import assert from 'node:assert/strict';
+  writeFileSync(join(root, 'test/probe.test.js'), `import assert from 'node:assert/strict';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';

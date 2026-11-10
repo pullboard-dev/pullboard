@@ -285,7 +285,7 @@ test('opening an older board names and logs its genuine index-building write [C7
   const installed = join(box.dir, 'installed-maintenance-cli');
   mkdirSync(installed);
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const privateBin = join(installed, 'bin', 'pullboard.js');
+  const privateBin = join(installed, 'bin/pullboard.js');
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));

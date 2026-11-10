@@ -18,6 +18,7 @@ import { unpackRelease } from './release-archive.js';
 import { historyProblems } from './move-registry-history.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { assignEngineNumbers } from '../src/engine-numbers.js';
+import { repoPath } from '../packages/kernel/core.js';
 
 /** Run real Git or a real registry child and preserve its diagnostics. */
 function run(root, command, args, extraEnv = {}) {
@@ -54,31 +55,31 @@ export function installRegistryMergeCase() {
   test('history allocation reads source bytes without executing code or following source symlinks [C7,V4]', t => {
     const root = mkdtempSync(join(tmpdir(), 'pullboard-registry-source-only-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
-    mkdirSync(join(root, 'src', 'moves'), { recursive: true });
-    mkdirSync(join(root, 'src', 'move-history'));
-    writeFileSync(join(root, 'src', 'move-history', 'legacy.json'), '{}');
-    const engines = join(root, 'packages', 'state', 'src', 'core', 'engines');
+    mkdirSync(join(root, 'src/moves'), { recursive: true });
+    mkdirSync(join(root, 'src/move-history'));
+    writeFileSync(join(root, 'src/move-history/legacy.json'), '{}');
+    const engines = join(root, 'packages/state/src/core/engines');
     mkdirSync(engines, { recursive: true });
     writeFileSync(join(engines, 'base-engine.js'), 'export const BASE_ENGINE = 148;\n');
     /** Build a leaf placeholder without importing any candidate module. */
     const pending = name => `import { unassignedEngine } from './engine-next.js';\nexport const ${name}_ENGINE = unassignedEngine();\n`;
     writeFileSync(join(engines, 'alpha-engine.js'), pending('ALPHA'));
     const source = "throw new Error('CANDIDATE_SOURCE_MUST_NEVER_EXECUTE');\n";
-    writeFileSync(join(root, 'src', 'moves', 'sample.js'), source);
+    writeFileSync(join(root, 'src/moves/sample.js'), source);
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'ALPHA_ENGINE', number: 149 }]);
-    const frozen = readFileSync(join(root, 'src', 'move-history', '149.json'), 'utf8');
+    const frozen = readFileSync(join(root, 'src/move-history/149.json'), 'utf8');
     assert.equal(JSON.parse(frozen).declarations['sample.js'], source, 'the producer freezes bytes without evaluating declarations');
     writeFileSync(join(root, 'outside.txt'), 'PRIVATE_FIXTURE_CONTENT');
-    symlinkSync(join(root, 'outside.txt'), join(root, 'src', 'moves', 'external.js'));
+    symlinkSync(join(root, 'outside.txt'), join(root, 'src/moves/external.js'));
     writeFileSync(join(engines, 'beta-engine.js'), pending('BETA'));
     assert.throws(() => assignEngineNumbers(root), /regular move declaration/u, 'a candidate symlink cannot copy unrelated local bytes into history');
-    assert.equal(existsSync(join(root, 'src', 'move-history', '150.json')), false, 'the refused source is never persisted in a record');
+    assert.equal(existsSync(join(root, 'src/move-history/150.json')), false, 'the refused source is never persisted in a record');
     assert.equal(readFileSync(join(engines, 'beta-engine.js'), 'utf8'), pending('BETA'), 'source refusal restores the exact placeholder bytes');
-    unlinkSync(join(root, 'src', 'moves', 'external.js'));
+    unlinkSync(join(root, 'src/moves/external.js'));
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'BETA_ENGINE', number: 150 }], 'fixing the source permits an ordinary retry');
-    assert.equal(JSON.parse(readFileSync(join(root, 'src', 'move-history', '150.json'), 'utf8')).engine, 150);
+    assert.equal(JSON.parse(readFileSync(join(root, 'src/move-history/150.json'), 'utf8')).engine, 150);
     writeFileSync(join(engines, 'gamma-engine.js'), pending('GAMMA'));
-    const collision = join(root, 'src', 'move-history', '151.json');
+    const collision = join(root, 'src/move-history/151.json');
     writeFileSync(collision, 'EXISTING_RECORD_BYTES');
     assert.throws(() => assignEngineNumbers(root), { code: 'EEXIST' }, 'allocation never overwrites an existing record');
     assert.equal(readFileSync(collision, 'utf8'), 'EXISTING_RECORD_BYTES');
@@ -86,7 +87,7 @@ export function installRegistryMergeCase() {
     unlinkSync(collision);
     assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'GAMMA_ENGINE', number: 151 }], 'resolving the collision permits an ordinary retry');
 
-    assert.equal(readFileSync(join(root, 'src', 'move-history', '149.json'), 'utf8'), frozen, 'allocation never rewrites the preceding frozen record');
+    assert.equal(readFileSync(join(root, 'src/move-history/149.json'), 'utf8'), frozen, 'allocation never rewrites the preceding frozen record');
   });
 
   test('two move items from one main merge without a snapshot conflict [C7,V4]', t => {
@@ -124,7 +125,7 @@ export function installRegistryMergeCase() {
     assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
     const allocatedOutput = run(root, process.execPath, ['--test', '--test-reporter=tap', 'test/move-registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
     assert.match(allocatedOutput, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
-    const leaves = readEngineLeaves(join(root, 'packages', 'state', 'src', 'core', 'engines'));
+    const leaves = readEngineLeaves(join(root, 'packages/state/src/core/engines'));
     const git = (...args) => run(root, 'git', args);
     const frozen = `src/move-history/${numbers[0]}.json`;
     const bytes = readFileSync(join(root, frozen), 'utf8');
@@ -143,11 +144,11 @@ export function installRegistryMergeCase() {
     const legacy = 'src/move-history/legacy.json';
     const legacyBytes = readFileSync(join(root, legacy), 'utf8');
     const historical = JSON.parse(legacyBytes).engines.slice(0, 2);
-    const originalLeaves = historical.map(entry => readFileSync(join(root, 'src', entry.file), 'utf8'));
-    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'src', entry.file),
+    const originalLeaves = historical.map(entry => readFileSync(repoPath(root, `src/${entry.file}`), 'utf8'));
+    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `src/${entry.file}`),
       originalLeaves[index].replace(`= ${entry.number};`, `= ${historical[1 - index].number};`));
     assert.ok(historyProblems(root, readEngineLeaves(join(root, 'src')), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
-    for (const [index, entry] of historical.entries()) writeFileSync(join(root, 'src', entry.file), originalLeaves[index]);
+    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `src/${entry.file}`), originalLeaves[index]);
     assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'src')), git), []);
 
     writeFileSync(join(root, legacy), `${legacyBytes} `);

@@ -20,7 +20,7 @@ import { stopGroup } from './runner-process-group.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const SOURCE = resolve(import.meta.dirname, '..');
-const BIN = join(SOURCE, 'bin', 'pullboard.js');
+const BIN = join(SOURCE, 'bin/pullboard.js');
 const HOST = 'fixture-host';
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
@@ -286,7 +286,7 @@ function fixture({ runner = true, repoNames = ['repo'] } = {}) {
   }
   for (const path of repos) {
     copyPackageFiles(SOURCE, path);
-    for (const name of NAMES) writeFileSync(join(path, 'test', `${name}.test.js`), fixtureTestFile(name, { markers, mode }));
+    for (const name of NAMES) writeFileSync(join(path, `test/${name}.test.js`), fixtureTestFile(name, { markers, mode }));
     writeFileSync(join(path, 'pullboard.json'), JSON.stringify({ gate: fixtureGate(), landingShards: 3 }));
     git(path, env, 'init', '-q', '-b', 'main');
     git(path, env, 'add', '.');
@@ -320,7 +320,7 @@ async function landingGate(box, label, deadlineMs, repo = box.repo) {
 /** Start a landing immediately; callers may start several before lending their one place serially. */
 function startLandingGate(box, label, deadlineMs, repo = box.repo) {
   const gateUrl = pathToFileURL(join(repo, 'packages', 'gate', 'index.js')).href;
-  const configUrl = pathToFileURL(join(repo, 'src', 'config.js')).href;
+  const configUrl = pathToFileURL(join(repo, 'src/config.js')).href;
   const script = `const { runGate } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
 const { loadConfig } = await import(${JSON.stringify(configUrl)});
@@ -473,7 +473,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
  * every runner call with `answer` (a refusal code, or DROPPED for a lost transport).
  */
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
-  const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
+  const url = name => JSON.stringify(pathToFileURL(repoPath(SOURCE, `src/${name}`)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
   const script = `const { runLandingShards } = await import(${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)});
 const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
@@ -488,13 +488,13 @@ const remoteRun = async (_root, _command, options) => {
   if (answer === 'DROPPED') throw new RunnerDropped(options.runner.host);
   if (answer === 'DROPPED_AFTER_EDIT') {
     // The checkout moves on while the landing runs: a rerun must not test this source instead.
-    appendFileSync(${JSON.stringify(join(box.repo, 'test', 'f.test.js'))}, '\\n// edited while the landing ran\\n');
+    appendFileSync(${JSON.stringify(join(box.repo, 'test/f.test.js'))}, '\\n// edited while the landing ran\\n');
     throw new RunnerDropped(options.runner.host);
   }
   throw new Refused(answer, 'runner ' + options.runner.host + ' answered ' + answer + '; inspect job fixture-job under its runner namespace before another run');
 };
 const chunks = [];
-const result = await runLandingShards({ parseProcessCensus, root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'bin', 'run-tests.js'))},
+const result = await runLandingShards({ parseProcessCensus, root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
   files: ${JSON.stringify(files)}, count: ${count}, remoteRun, write: text => chunks.push(text) });
 const output = chunks.join('');
 process.stdout.write(JSON.stringify({ isGreen: result.isGreen, output, calls, profile: landingShardProfile(output) }));`;
@@ -577,7 +577,7 @@ test('a runner refusal in a sharded landing is handled by its class [C7,V4]', { 
 
   // 6. A transport-loss rerun runs only the landing's pinned source: when the checkout changed
   // under the landing, the rerun refuses by name instead of testing other code.
-  const edited = join(box.repo, 'test', 'f.test.js');
+  const edited = join(box.repo, 'test/f.test.js');
   const original = readFileSync(edited, 'utf8');
   try {
     const moved = await landingWithRunnerAnswer(box, 'DROPPED_AFTER_EDIT', 3, 120_000);
@@ -624,9 +624,9 @@ test('own a detached child', async () => {
 });
 `;
   // Two shards: a.test.js alone fails, b.test.js owns the detached grandchild.
-  for (const name of NAMES.slice(2)) rmSync(join(box.repo, 'test', `${name}.test.js`));
-  writeFileSync(join(box.repo, 'test', 'a.test.js'), failing);
-  writeFileSync(join(box.repo, 'test', 'b.test.js'), owner);
+  for (const name of NAMES.slice(2)) rmSync(join(box.repo, `test/${name}.test.js`));
+  writeFileSync(join(box.repo, 'test/a.test.js'), failing);
+  writeFileSync(join(box.repo, 'test/b.test.js'), owner);
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: fixtureGate(NAMES.slice(0, 2)), landingShards: 2 }));
   git(box.repo, box.env, 'add', '-A');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: a shard owns a detached descendant');
@@ -678,7 +678,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   const ready=join(box.dir,'collect-cancel-ready');
   const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('cancelled collection body',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');await new Promise(r=>setTimeout(r,60000));});\n`;
   writeFileSync(join(box.repo,'test/a.test.js'),source);
-  for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
+  for(const name of NAMES.slice(1))rmSync(repoPath(box.repo, `test/${name}.test.js`));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
   const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
@@ -724,12 +724,13 @@ test('a shard the landing stops blames none of its aborted in-flight files [C7,V
   const ready=join(box.dir,'stop-ready');
   const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('in-flight body [C7]',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000);await new Promise(()=>{});});\n`;
   writeFileSync(join(box.repo,'test/a.test.js'),source);
-  for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
+  for(const name of NAMES.slice(1))rmSync(repoPath(box.repo, `test/${name}.test.js`));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: a shard stopped mid-file');
   const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
 import {withGateSlot} from ${JSON.stringify(gateUrl)};
+import { repoPath } from '../packages/kernel/core.js';
 ${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
 await withGateSlot(process.cwd(),async lease=>{
  const child=spawn(process.execPath,['bin/run-tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});

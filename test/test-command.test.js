@@ -45,12 +45,12 @@ test('pullboard test runs files on the runner pool with a per-file timeout [C7]'
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  for (const [name, text] of [['ok', PASSES], ['hang', HANGS], ['changed', PASSES]]) writeFileSync(join(box.repo, 'test', `${name}.test.js`), text);
+  for (const [name, text] of [['ok', PASSES], ['hang', HANGS], ['changed', PASSES]]) writeFileSync(join(box.repo, `test/${name}.test.js`), text);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and three test files');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   // The agent's change is not committed: the runner still runs exactly what is in its worktree.
-  writeFileSync(join(box.web, 'test', 'changed.test.js'), FAILS);
+  writeFileSync(join(box.web, 'test/changed.test.js'), FAILS);
 
   const started = Date.now();
   const ran = box.run(box.web, 'test', 'test/ok.test.js', 'test/hang.test.js', 'test/changed.test.js', '--json');
@@ -82,7 +82,7 @@ test('pullboard test names why it ran on this machine, and every installed hook 
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'ok.test.js'), PASSES);
+  writeFileSync(join(box.repo, 'test/ok.test.js'), PASSES);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: focused runner and one test file');
   const ran = box.run(box.repo, 'test', 'test/ok.test.js', '--json');

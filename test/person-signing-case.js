@@ -261,7 +261,7 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
   writeFileSync(join(box.root, 'SPEC.md'), readFileSync(join(box.root, 'SPEC.md'), 'utf8')
     + '\n- G5 [approved, must] An optional sign-off row. | gate: review\n- G6 [approved, must] A named-signature row. | gate: review | signers: alice@example.com\n');
   mkdirSync(join(box.root, 'test'), { recursive: true });
-  writeFileSync(join(box.root, 'test', 'signed-evidence.test.js'), '/** [G5] Cited evidence fixture; no test run is implied by optional sign-off. */\n');
+  writeFileSync(join(box.root, 'test/signed-evidence.test.js'), '/** [G5] Cited evidence fixture; no test run is implied by optional sign-off. */\n');
   runFixtureGit(['add', 'test/signed-evidence.test.js'], { cwd: box.root, env: box.env });
   const sshFile = join(box.root, '.pullboard', 'signoffs.jsonl');
   const beforeSsh = existsSync(sshFile) ? readFileSync(sshFile, 'utf8') : null;

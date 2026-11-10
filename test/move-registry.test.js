@@ -313,7 +313,7 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
-  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages', 'state', 'src', 'core', 'engines')), git), []);
+  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages/state/src/core/engines')), git), []);
 });
 
 installRegistryMergeCase();

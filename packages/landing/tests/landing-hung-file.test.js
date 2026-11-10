@@ -32,11 +32,11 @@ function project(t, shards) {
   copyPackageFiles(SOURCE, repo);
   // test/e.test.js passes slowly and keeps writing, so it is still running, and never idle, when the hung file times out.
   for (const name of PASSING) {
-    writeFileSync(join(repo, 'test', `${name}.test.js`), `import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => { const tick = setInterval(() => process.stdout.write("# still running\\n"), 200); setTimeout(() => { clearInterval(tick); done(); }, 6000); })' : '() => {}'});\n`);
+    writeFileSync(join(repo, `test/${name}.test.js`), `import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => { const tick = setInterval(() => process.stdout.write("# still running\\n"), 200); setTimeout(() => { clearInterval(tick); done(); }, 6000); })' : '() => {}'});\n`);
   }
   // Busy enough never to look idle, and never done, in file setup where no case runs: an active case keeps its own
   // per-test budget past the wall (250bc82d2c, #2827), so only the whole-file wall can stop a file stuck outside a case.
-  writeFileSync(join(repo, 'test', 'c.test.js'), "setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5);\nawait new Promise(() => {});\n");
+  writeFileSync(join(repo, 'test/c.test.js'), "setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5);\nawait new Promise(() => {});\n");
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: shards }));
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',

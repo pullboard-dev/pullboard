@@ -27,7 +27,7 @@ function project(t, redFile = null, slowFile = null) {
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
   for (const name of NAMES) {
-    writeFileSync(join(repo, 'test', `${name}.test.js`), `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n`
+    writeFileSync(join(repo, `test/${name}.test.js`), `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n`
       + (name === slowFile ? `test('target ${name} [C7]', () => new Promise(done => setTimeout(done, 6_000)));\n`
         : `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`)
       + `test('unrelated ${name} [C7]', () => assert.fail('the name filter must skip this case'));\n`);

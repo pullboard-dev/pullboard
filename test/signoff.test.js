@@ -81,7 +81,7 @@ function fixture(t) {
   writeFileSync(join(root, 'SPEC.md'), SPEC);
   writeFileSync(join(root, 'DOCTRINE.md'), '# Doctrine\n');
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
+  writeFileSync(join(root, 'test/proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize sign-off fixture');
   return { dir, root, keys, co, ab, env, git, run };

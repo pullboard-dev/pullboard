@@ -127,10 +127,10 @@ function history(file, { freeze: suppliedFreeze } = {}) {
 /** Two real commits for a proof, including the exact failing source noticed on the board. */
 function noticeProof(box) {
   mkdirSync(join(box.repo, 'src'), { recursive: true });
-  writeFileSync(join(box.repo, 'src', 'notice.js'), '// TODO: keep the rule\n');
+  writeFileSync(join(box.repo, 'src/notice.js'), '// TODO: keep the rule\n');
   box.git('add', 'src/notice.js'); box.git('commit', '-q', '-m', 'chore: record noticed failure');
   const red = box.git('rev-parse', 'HEAD');
-  writeFileSync(join(box.repo, 'src', 'notice.js'), '// The rule holds.\n');
+  writeFileSync(join(box.repo, 'src/notice.js'), '// The rule holds.\n');
   writeFileSync(join(box.repo, 'fixed.txt'), 'fixed\n');
   box.git('add', 'src/notice.js', 'fixed.txt'); box.git('commit', '-q', '-m', 'chore: fix noticed failure');
   return { red, green: box.git('rev-parse', 'HEAD') };
@@ -556,9 +556,9 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   const box = freshBoard();
   // Two real commits: the bad one has a TODO and no fixed file; the fix removes the TODO and adds it.
   mkdirSync(join(box.repo, 'src'), { recursive: true });
-  writeFileSync(join(box.repo, 'src', 'page.js'), '// TODO: escape the title\nexport const page = 1;\n');
+  writeFileSync(join(box.repo, 'src/page.js'), '// TODO: escape the title\nexport const page = 1;\n');
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test', 'page.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { page } from '../src/page.js';\ntest('[G1] the page::title is escaped', () => assert.equal(page, 2));\n");
+  writeFileSync(join(box.repo, 'test/page.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { page } from '../src/page.js';\ntest('[G1] the page::title is escaped', () => assert.equal(page, 2));\n");
   box.git('add', 'src/page.js', 'test/page.test.js');
   box.git('commit', '-q', '-m', 'chore: add the page');
   const bad = box.git('rev-parse', 'HEAD');
@@ -566,12 +566,12 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   box.git('add', 'unrelated-note.txt');
   box.git('commit', '-q', '-m', 'chore: record an unrelated note');
   const unrelatedBad = box.git('rev-parse', 'HEAD');
-  writeFileSync(join(box.repo, 'src', 'page.js'), 'export const page = 2;\n');
+  writeFileSync(join(box.repo, 'src/page.js'), 'export const page = 2;\n');
   writeFileSync(join(box.repo, 'fixed.txt'), 'fixed\n');
   box.git('add', 'src/page.js', 'fixed.txt');
   box.git('commit', '-q', '-m', 'chore: escape the title');
   const fix = box.git('rev-parse', 'HEAD');
-  const testFile = join(box.repo, 'test', 'page.test.js');
+  const testFile = join(box.repo, 'test/page.test.js');
   const testSource = readFileSync(testFile, 'utf8');
   writeFileSync(testFile, testSource.replace("', () =>", "', { skip: true }, () =>"));
   box.git('add', 'test/page.test.js');
@@ -645,12 +645,12 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   const scanned = runFixtureChild('/bin/sh', ['-c', scanner], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(scanned.status, 0, 'the derived count scanner succeeds on the fixed test');
   assert.equal(scanned.stdout, '', 'a passing test really has zero problem lines in its doctrine scanner');
-  writeFileSync(join(box.repo, 'src', 'page.js'), 'export const page = 1;\n');
+  writeFileSync(join(box.repo, 'src/page.js'), 'export const page = 1;\n');
   try {
     const redScan = runFixtureChild('/bin/sh', ['-c', scanner], { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(redScan.status, 1, 'the derived scanner really executes the failing target instead of inheriting a recursive-test skip');
     assert.equal(redScan.stdout, 'The noticed test failed.\n', 'a failing target produces exactly one doctrine problem line');
-  } finally { writeFileSync(join(box.repo, 'src', 'page.js'), 'export const page = 2;\n'); }
+  } finally { writeFileSync(join(box.repo, 'src/page.js'), 'export const page = 2;\n'); }
   assert.equal(both.drafts.find(draft => draft.file === 'SPEC.md').row.gate, 'node --test test/page.test.js', 'the product row keeps the actual test command');
 
   // Drafting is any agent's; approving stays the person's, however an agent tries to reach it (P6).

@@ -29,7 +29,7 @@ export function prepareSubmitToolingRetry(snapshot, { env = process.env, cwd = p
   if (!snapshot || env[RETRIED] === JSON.stringify([resolve(cwd), argv])) return null;
   const current = captureSubmitTooling(snapshot.root);
   if (!current || current.commit === snapshot.commit || sourceGit(snapshot.root, ['ls-files', '--error-unmatch', 'bin/pullboard.js']) === null || sourceGit(snapshot.root, ['status', '--porcelain', '--untracked-files=all']) !== '') return null;
-  return { ...current, entry: join(current.root, 'bin', 'pullboard.js') };
+  return { ...current, entry: join(current.root, 'bin/pullboard.js') };
 }
 
 /** Run the fresh CLI after its predecessor has released its checkout lease; preserve arguments and final output. */

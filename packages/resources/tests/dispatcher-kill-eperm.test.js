@@ -57,7 +57,7 @@ for (const code of ['EPERM', 'ESRCH']) {
     const dir = realpathSync(temporaryDirectory('pullboard-dispatcher-eperm-'));
     const tools = join(dir, 'tools');
     mkdirSync(join(tools, 'bin'), { recursive: true });
-    writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+    writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
     const saved = process.env.PULLBOARD_MACHINE_HOME;
     const home = join(dir, 'home');
     mkdirSync(home);

@@ -18,6 +18,7 @@ import { fixtureProblems } from './test-fixtures.js';
 import { cellsEdgeProblems } from './cells-edges.js';
 import { testCellsProblems } from './test-cells.js';
 import { STATIC_CHECKS } from '../../packages/gate/index.js';
+import { repoPath } from '../../packages/kernel/core.js';
 
 /**
  * Read the declared prose commands and the CLI catalog from the tree being checked, in a child process started in that tree.
@@ -47,7 +48,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-fixtures', run: root => fixtureProblems(root, join(root, 'bin/checks/test-fixtures.json')).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'relay-boundary', run: (root, sources) => {
     const relay = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
-      .map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
+      .map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(repoPath(root, `relay/${entry.name}`), 'utf8') }));
     return relayBoundaryProblems([...sources, ...relay]).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },

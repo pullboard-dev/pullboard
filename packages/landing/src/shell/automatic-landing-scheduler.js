@@ -57,7 +57,7 @@ function withPending(directory, work) { return withFileLock(join(directory, 'pen
 export function mainLandingWorker(root, workerUrl) {
   const commonDir = repoInfo(root).commonDir;
   if (basename(commonDir) !== '.git') return workerUrl;
-  const main = join(dirname(commonDir), 'bin', 'automatic-landing.js');
+  const main = join(dirname(commonDir), 'bin/automatic-landing.js');
   return existsSync(main) ? pathToFileURL(main) : workerUrl;
 }
 

@@ -29,13 +29,13 @@ function fixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-red-gate-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'test', 'check.test.js'), [
+  writeFileSync(join(root, 'test/check.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "test('the check case that holds', () => assert.equal(1, 1));",
     "test('the check case that breaks', () => assert.equal(2 + 2, 5, 'sum drifted from the bar'));",
   ].join('\n'));
-  for (const name of ['unit-one', 'unit-two']) writeFileSync(join(root, 'test', `${name}.test.js`), [
+  for (const name of ['unit-one', 'unit-two']) writeFileSync(join(root, `test/${name}.test.js`), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     `test('${name} stays green', () => assert.ok(true));`,

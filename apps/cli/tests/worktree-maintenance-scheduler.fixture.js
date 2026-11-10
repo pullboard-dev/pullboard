@@ -125,7 +125,7 @@ export function registerMaintenanceSchedulerTests() {
       helpers.cleanup();
     });
     policy(true);
-    const scheduler = pathToFileURL(join(box.repo, 'apps', 'cli', 'src', 'shell', 'worktree-maintenance-scheduler.js')).href;
+    const scheduler = pathToFileURL(join(box.repo, 'apps/cli/src/shell/worktree-maintenance-scheduler.js')).href;
     const ctx = { info: { root: box.repo, commonDir: common }, config: { worktreeMaintenance: { enabled: true } } };
     const program = `import {scheduleWorktreeMaintenance} from ${JSON.stringify(scheduler)};
 `

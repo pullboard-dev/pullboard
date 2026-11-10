@@ -63,7 +63,7 @@ test('clause 1: the dispatcher runs each gate through a drive-cell driver under 
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   // A gate driver that records the owner it was admitted under and its result, then exits.
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), `const { writeFileSync } = require('node:fs');
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), `const { writeFileSync } = require('node:fs');
 const { dirname, join } = require('node:path');
 writeFileSync(join(dirname(process.argv[2]), 'driver.txt'), process.argv[3]);
 writeFileSync(join(dirname(process.argv[2]), 'submission.json'), '{}');

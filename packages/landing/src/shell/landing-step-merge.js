@@ -175,7 +175,7 @@ export async function mergeGroup(state, items) {
 /** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
 export function amendLandingEngines(root, hooks = []) {
   const engines = assignEngineNumbers(root);
-  if (existsSync(join(root, 'src', 'formats')) && existsSync(join(root, 'docs', 'formats.md'))
+  if (existsSync(join(root, 'src/formats')) && existsSync(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
   refreshLandingDocs(root);
   const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);

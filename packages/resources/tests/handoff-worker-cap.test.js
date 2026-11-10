@@ -49,7 +49,7 @@ function fixture(count) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-cap-')));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');
   const jobs = Array.from({ length: count }, (_, index) => {

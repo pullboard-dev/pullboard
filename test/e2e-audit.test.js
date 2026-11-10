@@ -67,7 +67,7 @@ test('in-process CLI dispatch and source references are contracts while actual C
   assert.equal(journeyReason(closure, new Map([['test/contract.test.js', source]])), '');
   assert.equal(journeyReason(closure, new Map([['test/contract.test.js', "readFileSync('../bin/pullboard.js');"]])), '');
   assert.match(journeyReason(closure, new Map([['test/contract.test.js', "spawnSync(process.execPath, ['bin/pullboard.js']);"]])), /CLI-spawning/u);
-  assert.match(journeyReason(closure, new Map([['test/contract.test.js', "const BIN = join(root, 'bin', 'pullboard.js'); runFixtureChild(process.execPath, [BIN]);"]])), /CLI-spawning/u);
+  assert.match(journeyReason(closure, new Map([['test/contract.test.js', "const BIN = join(root, 'bin/pullboard.js'); runFixtureChild(process.execPath, [BIN]);"]])), /CLI-spawning/u);
   assert.equal(journeyReason({ files: null, reason: 'undeclared reach' }, new Map()), 'undeclared reach');
 });
 

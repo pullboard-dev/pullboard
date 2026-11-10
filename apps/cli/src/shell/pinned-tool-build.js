@@ -78,7 +78,7 @@ export function installToolBuild(location, build) {
     }
     const archive = git(location.root, ['archive', '--format=tar', build.commit], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', temporary], { input: archive, encoding: 'utf8' });
-    if (unpacked.status !== 0 || !existsSync(join(temporary, 'bin', 'pullboard.js'))) {
+    if (unpacked.status !== 0 || !existsSync(join(temporary, 'bin/pullboard.js'))) {
       throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the gated commit is not an installable Pullboard build; promote a Pullboard commit');
     }
     try { renameSync(temporary, target); }
@@ -110,7 +110,7 @@ export async function selectedToolEntry(cwd, entry, { now = Date.now() } = {}) {
     build = refreshToolBuild(location, { now }) ?? build;
   }
   if (!build) throw new Refused('TOOL_BUILD_REQUIRED', 'pinned tools are enabled but no gated build is published; coordinator: run pullboard tool-build promote <commit> --gate-receipt <gate-id>');
-  const selected = join(installToolBuild(location, build), 'bin', 'pullboard.js');
+  const selected = join(installToolBuild(location, build), 'bin/pullboard.js');
   return resolve(selected) === resolve(entry) ? null : selected;
 }
 

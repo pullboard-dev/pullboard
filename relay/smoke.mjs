@@ -12,7 +12,7 @@ import { relayFetch } from '../packages/person/index.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = join(REPOSITORY, 'bin', 'pullboard.js');
+const CLI = join(REPOSITORY, 'bin/pullboard.js');
 
 /** Run one production CLI command in the current repository and parse only its JSON document. */
 function cli(root, args) {

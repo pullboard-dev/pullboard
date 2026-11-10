@@ -83,11 +83,11 @@ function makeFixture(t) {
   writeFileSync(join(root, 'lib', 'a.js'), "import { shared } from './shared.js';\nexport const value = shared;\n");
   writeFileSync(join(root, 'lib', 'b.js'), "export const value = 'green';\n");
   writeFileSync(join(root, 'lib', 'c.js'), "export const value = 'red';\n");
-  for (const name of ['a', 'b', 'c']) writeFileSync(join(root, 'test', `${name}.test.js`), fixtureTest(name, name));
-  writeFileSync(join(root, 'test', 'd.test.js'), SCAN_TEST);
-  writeFileSync(join(root, 'test', 'e.test.js'), NOTES_TEST);
+  for (const name of ['a', 'b', 'c']) writeFileSync(join(root, `test/${name}.test.js`), fixtureTest(name, name));
+  writeFileSync(join(root, 'test/d.test.js'), SCAN_TEST);
+  writeFileSync(join(root, 'test/e.test.js'), NOTES_TEST);
   writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
-  writeFileSync(join(root, 'src', 'probe.js'), "// A probe source file.\nexport const probe = 1;\n");
+  writeFileSync(join(root, 'src/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
   const capture = join(root, 'machine', 'ran.txt');
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Action Fixture', GIT_AUTHOR_EMAIL: 'action@example.test', GIT_COMMITTER_NAME: 'Action Fixture', GIT_COMMITTER_EMAIL: 'action@example.test' };
@@ -238,14 +238,14 @@ test('nested proof', async t => { await t.test('child proof', () => {}); });
 
 test('a test that reads its own checkout history is never keyed [C7]', async (t) => {
   const fixture = makeFixture(t);
-  writeFileSync(join(fixture.root, 'test', 'h.test.js'), `/** @pullboard-test-input source-tree */
+  writeFileSync(join(fixture.root, 'test/h.test.js'), `/** @pullboard-test-input source-tree */
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 /** Read this checkout's commit subjects. */
 function history() { execFileSync('git', ['log', '--format=%s'], { cwd: new URL('..', import.meta.url) }); }
 test('h [C7]', history);
 `);
-  fixture.change('test/h.test.js', readFileSync(join(fixture.root, 'test', 'h.test.js'), 'utf8'));
+  fixture.change('test/h.test.js', readFileSync(join(fixture.root, 'test/h.test.js'), 'utf8'));
   const keys = await testActionKeys(fixture.root);
   assert.equal(keys.get('test/h.test.js').key, null, 'commits are not in any tree a key hashes');
   assert.match(keys.get('test/h.test.js').reason, /git history/u);

@@ -266,7 +266,7 @@ test('a bounded single-entry write derives index and shard counts from the same 
 test('an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
   const { root, put } = fixture(t);
   put('src/stats-docs/heartbeat.json', '{}\n');
-  put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src', 'stats-docs')), readFileSync];\n");
+  put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src/stats-docs')), readFileSync];\n");
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'directory reader');
   const plan = computePlan(root);

@@ -12,6 +12,7 @@ import {
   join,
 } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { repoPath } from '../packages/kernel/core.js';
 
 /** Quote an owned fixture path for the tiny executable shim. */
 function word(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
@@ -20,7 +21,7 @@ function word(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
 function executable(box, name, source) {
   const script = join(box.dir, name + '.cjs');
   writeFileSync(script, source);
-  const path = join(box.dir, 'bin', name);
+  const path = repoPath(box.dir, `bin/${name}`);
   writeFileSync(path, `#!/bin/sh\nexec ${word(process.execPath)} ${word(script)} "$@"\n`, { mode: 0o755 });
   return path;
 }
@@ -58,8 +59,8 @@ export function intakeFixture(t, { baseFiles = {} } = {}) {
   box.git(box.dir, 'clone', '-q', '--no-hardlinks', made.repo, fork);
   mkdirSync(join(fork, 'relay'), { recursive: true });
   mkdirSync(join(fork, 'test'), { recursive: true });
-  writeFileSync(join(fork, 'relay', 'outside.js'), 'export const outside = true;\n');
-  writeFileSync(join(fork, 'test', 'contribution.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { outside } from '../relay/outside.js'; test('outside change [V2]',()=>assert.equal(outside,true));\n");
+  writeFileSync(join(fork, 'relay/outside.js'), 'export const outside = true;\n');
+  writeFileSync(join(fork, 'test/contribution.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { outside } from '../relay/outside.js'; test('outside change [V2]',()=>assert.equal(outside,true));\n");
   box.git(fork, 'add', '-A');
   box.git(fork, 'commit', '-q', '--author', 'Outside Contributor <outside@example.test>', '-m', 'feat: outside fixture\n\nSigned-off-by: Outside Contributor <outside@example.test>');
   const commit = box.git(fork, 'rev-parse', 'HEAD');
