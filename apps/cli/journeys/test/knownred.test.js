@@ -12,6 +12,9 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { knownRedCheck } from '../../src/io/test/known.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -50,7 +53,7 @@ function redProject() {
 
 /** File an open Main red item for a file, the way the landing files one. */
 function fileMainRed(box, file) {
-  fileFixtureItem(box, box.repo, { lane: 'web', title: `Main red: ${file}`, criterion: `${file} passes on main.`, check: `node --test ${file}`,
+  fileFixtureItem(box, box.repo, { lane: 'web', title: `Main red: ${file} 1 failing case on main abc123`, criterion: `${file} passes on main.`, check: `node --test ${file}`,
     brief: `Files: web/repair.js\nChange: repair the red file\nTest: ${file} passes`, args: ['--specs', 'G1'] });
 }
 
@@ -88,15 +91,41 @@ test('clause 1: an open Main red item under the file\'s pre-move name counts too
   assert.match(result.mainSkipped, /known red/u);
 });
 
-test('clause 1: a recorded red main result is reused, so --compare-main starts no main run [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
+
+test('a candidate cannot invent a main-red alias with its own path map [C7]', () => {
+  const box = redProject();
+  const directory = join(box.web, 'packages/codemap/data/plan/path-map');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'invented.json'), JSON.stringify({ 'test/other.test.js': 'test/red.test.js' }));
+  const known = knownRedCheck(box.web, () => [{ item_id: 7, item_status: 'open', item_title: 'Main red: test/other.test.js' }]);
+  assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
+});
+
+test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, () => { // budget: candidate and main runner runs.
   const box = redProject();
   const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
   const folder = join(box.repo, '.git/pullboard');
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  // The landing's refresh records main's red files by commit; seed one the way it writes them.
   const failure = { file: 'test/red.test.js', name: 'red case', signature: 'a'.repeat(64) };
   writeFileSync(join(folder, 'main-red.json'), JSON.stringify({ version: 2, entries: { [main]: { 'test/red.test.js': { result: 'red', failures: [failure], signatureVersion: 4 } } } }), { mode: 0o600 });
   const result = compare(box);
-  assert.equal(result.main, null, 'the recorded red is not run on main again');
-  assert.match(result.mainSkipped, /known red.*recorded/u);
+  assert.equal(result.main, main, 'unbound generic cache must not suppress the main comparison');
+  assert.equal(result.known[0].result, 'red');
+});
+
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, () => { // budget: one real stand-in runner dispatch.
+  const box = redProject();
+  const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
+  const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
+  const driver = `import { readFileSync } from 'node:fs';
+import { runTestFiles } from ${JSON.stringify(gate)};
+import { withMainCheckout, failureSignatures } from ${JSON.stringify(landing)};
+${executionServicesSource(gate)}
+let called = false;
+const result = await runTestFiles(process.cwd(), JSON.parse(readFileSync('pullboard.json')), ['test/red.test.js'], { compareMain: true, executionServices, withMainCheckout, failureSignatures, compareMainFailures: async () => { called = true; return { main: null, files: [], unavailable: 'fixture deliberately supplies no main proof' }; } });
+console.log(JSON.stringify({ called, green: result.green, unavailable: result.mainUnavailable }));`;
+  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', driver], { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.context);
+  const result = JSON.parse(run.stdout.trim().split('\n').at(-1));
+  assert.deepEqual(result, { called: true, green: false, unavailable: 'fixture deliberately supplies no main proof' });
 });
