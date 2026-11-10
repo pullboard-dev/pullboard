@@ -49,7 +49,7 @@ test('actual module syntax is checked without counting quoted examples or commen
 });
 
 test('only the exact finite temporary edge named by the frozen bar passes [C7,CD64]', () => {
-  const metadata = edge => new Map([['bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [edge] })]]);
+  const metadata = edge => new Map([['packages/codemap/data/plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [edge] })]]);
   const edge = { importer: 'src/use.js', target: 'src/git.js', contractItem: 123, expires: '2099-01-01' };
   const after = "import { git } from './git.js';\n";
   assert.equal(problems({ after, extra: metadata(edge) }).length, 1, 'candidate metadata alone grants no exception');
@@ -61,9 +61,9 @@ test('only the exact finite temporary edge named by the frozen bar passes [C7,CD
 test('the staged reader ignores unstaged fixes and retains imports already accepted on main [C7,CD64]', () => {
   const old = "import { git } from './git.js';\n";
   const snapshots = new Map([
-    ['HEAD', new Map([...FILES, ['bin/cells-plan.json', JSON.stringify(PLAN)]])],
-    [':index', new Map([...FILES, ['bin/cells-plan.json', JSON.stringify(PLAN)], ['src/use.js', old]])],
-    ['accepted', new Map([...FILES, ['bin/cells-plan.json', JSON.stringify(PLAN)], ['src/use.js', old]])],
+    ['HEAD', new Map([...FILES, ['packages/codemap/data/plan/cells.json', JSON.stringify(PLAN)]])],
+    [':index', new Map([...FILES, ['packages/codemap/data/plan/cells.json', JSON.stringify(PLAN)], ['src/use.js', old]])],
+    ['accepted', new Map([...FILES, ['packages/codemap/data/plan/cells.json', JSON.stringify(PLAN)], ['src/use.js', old]])],
   ]);
   const read = (revision, name) => snapshots.get(revision)?.get(name);
   assert.equal(stagedShimImportProblems({ paths: ['src/use.js'], read, parseImports: importsIn }).length, 1);
@@ -81,11 +81,12 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   writeFileSync(join(box.repo, 'src/use.js'), "import { git } from './git.js';\n");
   box.git(box.repo, 'add', 'src', 'packages');
   box.git(box.repo, 'commit', '-q', '-m', 'test: preserve pre-migration dependency [G1]');
-  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
-  writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify({ cells: [
-    { order: 1, name: 'git', file: 'bin/cells-plan/00-git.json' }] }));
-  writeFileSync(join(box.repo, 'bin/cells-plan/00-git.json'), JSON.stringify(PLAN.cells[0]));
-  box.git(box.repo, 'add', 'bin/cells-plan.json', 'bin/cells-plan/00-git.json');
+  mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
+  const shard = 'packages/codemap/data/plan/00-git.json';
+  writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ cells: [
+    { order: 1, name: 'git', file: shard }] }));
+  writeFileSync(join(box.repo, shard), JSON.stringify(PLAN.cells[0]));
+  box.git(box.repo, 'add', 'packages/codemap/data/plan/cells.json', shard);
   box.git(box.repo, 'commit', '-q', '-m', 'test: declare existing cell migration [G1]');
   writeFileSync(join(box.repo, 'src/new.js'), "import { git } from './git.js';\n");
   box.git(box.repo, 'add', 'src/new.js');
@@ -97,10 +98,10 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   box.git(box.repo, 'add', 'src/new.js');
   const accepted = box.run(box.repo, 'hook', 'pre-commit');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
-  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
-  writeFileSync(join(box.repo, 'bin/cells-plan/temporary-edges.json'), JSON.stringify({ version: 1,
+  mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/codemap/data/plan/temporary-edges.json'), JSON.stringify({ version: 1,
     edges: [{ importer: 'web/new.js', target: 'src/git.js', contractItem: 123, expires: '2099-01-01' }] }));
-  box.git(box.repo, 'add', 'src/new.js', 'bin/cells-plan/temporary-edges.json');
+  box.git(box.repo, 'add', 'src/new.js', 'packages/codemap/data/plan/temporary-edges.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: retain a bounded temporary edge [G1]');
   // The bars name src/git.js, so the web lane owns src/ and claim's cross-ownership guard stays out of the way.
   const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));

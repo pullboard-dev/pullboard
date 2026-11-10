@@ -146,14 +146,16 @@ function installTestWatchdog() {
   });
 
   afterEach((context) => {
-    const id = activeTests.get(context);
-    if (id !== undefined) {
-      reportFileTest(id, null);
-      watchdog.postMessage({ type: 'stop', id });
-      runningTests.delete(id);
-    }
-    // A suite's after hooks run before root after; start the idle ceiling here.
-    if (runningTests.size === 0) armFileExitWatchdog();
+    // Test-owned after hooks run after afterEach; keep the case watchdog until cleanup ends.
+    context.after(() => {
+      const id = activeTests.get(context);
+      if (id !== undefined) {
+        reportFileTest(id, null);
+        watchdog.postMessage({ type: 'stop', id });
+        runningTests.delete(id);
+      }
+      if (runningTests.size === 0) armFileExitWatchdog();
+    });
   });
 
   /** Bound cleanup between completed tests, cancelling the ceiling when another test starts. */
@@ -1010,7 +1012,13 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
         if (data.file && error && !['testAborted', 'subtestsFailed'].includes(error.failureType)
             && !failureDiagnostics.has(data.file)) failureDiagnostics.set(data.file, data);
       }
-      for (const reporter of reporters) reporter.write(event);
+      for (const [index, reporter] of reporters.entries()) {
+        // Node 22's human coverage tree reserves `file` as a key and crashes on a directory with that name.
+        // The independent audit reporter and every custom reporter still receive the complete native event.
+        if (env.PULLBOARD_AUDIT_COVERAGE_REPORTER && event.type === 'test:coverage'
+          && ['tap', 'spec'].includes(reporterEntries[index].reporter)) continue;
+        reporter.write(event);
+      }
     });
     stream.on('end', endReporters);
     let streamClosed = false;
@@ -1184,7 +1192,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
     ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
-  process.stdout.write(formatTestOutcomes(timing.id, result.testOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, result.testOutcomes));
   timing.complete(result, explicitTestFiles(selectedArgs), performance.now() - attemptAt);
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
 }
@@ -1237,7 +1245,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
-  process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;

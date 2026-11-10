@@ -180,6 +180,8 @@ function boardFixture() {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('docs/', 'test/');
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
@@ -270,10 +272,13 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
 test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', () => {
   const box = boardFixture();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('bin/');
+  config.lanes.web.owns.push('apps/');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  mkdirSync(join(box.repo, 'bin'));
-  writeFileSync(join(box.repo, 'apps/cli/pullboard.js'), 'process.exit(7);\n');
+  // Landing runs docs/tools/update-docs.js only where the generated-docs boundary exists.
+  mkdirSync(join(box.repo, 'apps/cli/src/io/generated'), { recursive: true });
+  mkdirSync(join(box.repo, 'docs/tools'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/src/io/generated/docs.js'), '// generated-docs boundary\n');
+  writeFileSync(join(box.repo, 'docs/tools/update-docs.js'), 'process.exit(7);\n');
   writeFileSync(join(box.repo, 'docs/lifecycle.md'), 'base\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure failing private generator');
@@ -284,7 +289,8 @@ test('a failing lifecycle generator blocks landing without reopening accepted wo
   assert.equal(result.code, 1, `${result.out}\n${result.err}`);
   const error = JSON.parse(result.out).error;
   assert.equal(error.code, 'LAND_MERGE');
-  assert.match(error.message, new RegExp(`#${right}.*bin/pullboard\\.js.*docs/lifecycle\\.md|bin/pullboard\\.js.*docs/lifecycle\\.md.*#${right}`, 'u'));
+  // The generator refusal names the generator command; it is the one landing step that runs it (packages/landing/src/io/docs.js).
+  assert.match(error.message, /node docs\/tools\/update-docs\.js failed in the merged tree/u);
   for (const id of [left, right]) assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'verified');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'generator failure publishes nothing');
 });

@@ -55,6 +55,23 @@ function hung(reason, wall = false) {
   void killTree();
 }
 
+/** Keep the last few output lines so a budget timeout can show where the file stopped. */
+const lastLines = [];
+function remember(text) {
+  for (const line of String(text).split(/\r?\n/u)) if (line.trim()) lastLines.push(line.slice(0, 300));
+  if (lastLines.length > 10) lastLines.splice(0, lastLines.length - 10);
+}
+
+/** Past the per-file budget the file dies whatever it is doing, so a hung slot frees at the policy time, not the runner ceiling. */
+function overBudget() {
+  if (killed) return;
+  killed = true;
+  const running = [...tests.values()].join('; ') || '<file setup or cleanup>';
+  writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} exceeded the per-file budget ${workerData.budgetMs}ms; running ${JSON.stringify(running)}; finished cases ${finishedSummary()}; last output: ${JSON.stringify(lastLines)}\n`);
+  void killTree();
+}
+if (workerData.budgetMs) setTimeout(overBudget, workerData.budgetMs);
+
 /** Output begins a fresh quiet/CPU window; a lifecycle name alone is not output. */
 function activity() {
   quietAt = performance.now();
@@ -62,7 +79,7 @@ function activity() {
 }
 
 parentPort.on('message', message => {
-  if (message.type === 'output') activity();
+  if (message.type === 'output') { activity(); if (message.text) remember(message.text); }
   if (message.type === 'test') {
     if (message.name === null) {
       lastFinishAt = performance.now();

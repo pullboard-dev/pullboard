@@ -24,8 +24,8 @@ function accepted(t, declared = false) {
   const box = fixture(t), plan = computePlan(box.root), cell = plan.cells.find(row => row.name === 'kernel');
   box.put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  box.put('packages/kernel/light.js', "export { Refused } from './src/core/refused.js';\n");
-  box.put('packages/kernel/index.js', "export * from './core.js';\n");
+  box.put('packages/kernel/light.js', "export { Refused } from './src/logic/refused.js';\n");
+  box.put('packages/kernel/index.js', "export * from './light.js';\n");
   box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   box.put('bin/tool.js', "import '../packages/kernel/index.js';\nimport '../src/cli.js';\n");
