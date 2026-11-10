@@ -13,13 +13,13 @@ import { parseImplies } from '../../state/index.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { takeDecisionNotices } from '../../state/index.js';
 import { whyLine } from '../../state/index.js';
-import { cellBoard } from '../../../test/cell-fixture.js';
-import { cellItem } from '../../../test/cell-fixture.js';
-import { cellProject } from '../../../test/cell-fixture.js';
-import { cellSeat } from '../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../test/cell-fixture.js';
-import { closeCellBoard } from '../../../test/cell-fixture.js';
-import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { cellBoard } from './fixtures/cell.js';
+import { cellItem } from './fixtures/cell.js';
+import { cellProject } from './fixtures/cell.js';
+import { cellSeat } from './fixtures/cell.js';
+import { openCellBoard } from './fixtures/cell.js';
+import { closeCellBoard } from './fixtures/cell.js';
+import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
 
 const HOUR = 3_600_000;
 
