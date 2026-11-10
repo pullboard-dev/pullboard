@@ -88,14 +88,15 @@ test('clause 1: an open Main red item under the file\'s pre-move name counts too
   assert.match(result.mainSkipped, /known red/u);
 });
 
-test('clause 1: a recorded red main result is reused, so the second --compare-main starts no main run [C7]', { timeout: 480_000 }, () => { // budget: hang ceiling for two stand-in runner runs plus one main run.
+test('clause 1: a recorded red main result is reused, so --compare-main starts no main run [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for one stand-in runner run.
   const box = redProject();
-  const first = compare(box);
-  assert.ok(first.main, 'with no item and no record, main is compared once');
-  assert.equal(first.known[0]?.result, 'red');
-  const second = compare(box);
-  let cache = 'none';
-  try { cache = readFileSync(join(box.repo, '.git/pullboard/main-red.json'), 'utf8'); } catch (error) { cache = String(error); }
-  assert.equal(second.main, null, `the recorded red is not run on main again: ${cache.slice(0, 1500)}`);
-  assert.match(second.mainSkipped, /known red.*recorded/u);
+  const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
+  const folder = join(box.repo, '.git/pullboard');
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  // The landing's refresh records main's red files by commit; seed one the way it writes them.
+  const failure = { file: 'test/red.test.js', name: 'red case', signature: 'a'.repeat(64) };
+  writeFileSync(join(folder, 'main-red.json'), JSON.stringify({ version: 2, entries: { [main]: { 'test/red.test.js': { result: 'red', failures: [failure], signatureVersion: 4 } } } }), { mode: 0o600 });
+  const result = compare(box);
+  assert.equal(result.main, null, 'the recorded red is not run on main again');
+  assert.match(result.mainSkipped, /known red.*recorded/u);
 });
