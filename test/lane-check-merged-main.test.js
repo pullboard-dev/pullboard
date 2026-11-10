@@ -13,7 +13,7 @@ import { placePath } from '../bin/cells-plan.js';
 import { plannedProject } from './placement-project.fixture.js';
 import { success } from './placement-project.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
 function mergedPlacement(t) {

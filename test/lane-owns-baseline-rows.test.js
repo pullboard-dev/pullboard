@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { outOfLane } from '../packages/seats/index.js';
-import { baselineRowChange } from '../src/tier-row-change.js';
+import { baselineRowChange } from '../packages/commits/core.js';
 
 const config = { shared: [], lanes: { core: { owns: ['test/'] }, view: { owns: ['test/cockpit/'] } } };
 const TABLES = ['bin/checks/test-fixtures.json', 'bin/checks/test-waits-baseline.json'];
