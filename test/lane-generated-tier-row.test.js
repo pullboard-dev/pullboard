@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { outOfLane } from '../packages/seats/index.js';
-import { TIER_TABLE, tierRowChange } from '../src/tier-row-change.js';
+import { TIER_TABLE, tierRowChange } from '../packages/commits/core.js';
 
 const config = { shared: [], lanes: { core: { owns: ['test/'] }, view: { owns: ['test/cockpit/'] } } };
 const row = file => ({ file, tier: 'T3', packages: ['.'] });
