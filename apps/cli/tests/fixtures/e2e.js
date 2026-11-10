@@ -58,6 +58,10 @@ export function createE2eHelpers() {
     for (const dir of sandboxes) {
       try { rmSync(dir, { recursive: true, force: true, maxRetries: 17, retryDelay: 200 }); }
       catch (error) {
+        for (const file of ['repo/.git/pullboard/seat-timing.jsonl', 'machine-home/board-writes.jsonl']) {
+          try { process.stderr.write(`DIAG log ${file} ${readFileSync(join(dir, file), 'utf8').slice(-8000)}\n`); }
+          catch { /* Logs may not exist after removal. */ }
+        }
         try { process.stderr.write(`DIAG residual ${JSON.stringify(diagRead(dir, { recursive: true }).slice(0, 80))}\n`); } catch (diag) { process.stderr.write(`DIAG residual error ${diag.message}\n`); }
         try { process.stderr.write(`DIAG ps ${diagExec('ps', ['-axo', 'pid,ppid,command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(dir)).join('\n')}\n`); } catch { /* Optional process inventory can be unavailable. */ }
         try { process.stderr.write(`DIAG lsof ${dir}\n${diagExec('lsof', ['-n', '+D', dir], { encoding: 'utf8', timeout: 5000 })}\n`); }
