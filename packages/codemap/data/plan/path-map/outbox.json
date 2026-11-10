@@ -1,0 +1,16 @@
+{
+  "src/relay-baseline-settle.js": "packages/outbox/src/io/relay/settle.js",
+  "src/relay-checkpoint-publish.js": "packages/outbox/src/io/relay/checkpoint/publish.js",
+  "src/relay-checkpoint.js": "packages/outbox/src/io/relay/checkpoint.js",
+  "src/relay-conflict-record.js": "packages/outbox/src/io/relay/conflict.js",
+  "src/relay-conflicts.js": "packages/outbox/src/io/relay/conflicts.js",
+  "src/relay-ordering.js": "packages/outbox/src/io/relay/ordering.js",
+  "src/relay-outbox-guard.js": "packages/outbox/src/io/relay/guard.js",
+  "src/relay-outbox-undo.js": "packages/outbox/src/logic/undo.js",
+  "src/relay-outbox.js": "packages/outbox/src/io/relay.js",
+  "src/relay-sender-worker.js": "packages/outbox/src/io/relay/worker.js",
+  "test/relay-checkpoint.test.js": "apps/cli/journeys/relay/checkpoint.test.js",
+  "test/relay-outbox-format.test.js": "packages/outbox/tests/io/relay.test.js",
+  "test/relay-outbox-guard.test.js": "packages/outbox/tests/io/relay/guard.test.js",
+  "test/relay-outbox-undo.test.js": "packages/outbox/tests/io/relay/undo.test.js"
+}

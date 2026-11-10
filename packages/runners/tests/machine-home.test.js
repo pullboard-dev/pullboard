@@ -28,8 +28,10 @@ import {
   boardNotWritable,
   requireBoardWriteAccess,
 } from '../../store/index.js';
-import { cellBoard } from '../../../test/cell-fixture.js';
-import { cellProject } from '../../../test/cell-fixture.js';
+import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../store/tests/fixtures/cell.js';
 
 /** Run work with the machine home pointed at a directory, then restore the environment and release the pool. */
 async function withMachineHome(home, work) {
@@ -178,5 +180,48 @@ test('the write check covers both board-file and journal-folder capability witho
     } finally { chmodSync(blocked === 'file' ? file : folder, blocked === 'file' ? 0o644 : 0o755); }
     assert.doesNotThrow(() => requireBoardWriteAccess(file), 'the named permission repair restores readiness');
     assert.deepEqual(readdirSync(folder).filter(name => name.startsWith('.write-access-')), [], 'successful and refused checks leave no probe');
+  }
+});
+
+/**
+ * The three contexts a command opens the shared board from. The installed CLI runs from outside any worktree and the main
+ * checkout from the main one, so both open the board directly; a lane worktree is told it is not main and first probes
+ * the board read-only. Each hint is the one the command derives from where it runs, so both paths meet the locked folder.
+ */
+const OPEN_CONTEXTS = [['installed pullboard', undefined], ['main checkout', true], ['lane worktree', false]];
+
+test('a read-only board is refused by name in the installed, main-checkout and lane-worktree contexts [I1,L3,P4]', (t) => {
+  const p = cellProject(t, { gate: 'true' });
+  // A board folder that is not a repository's own, so the context hint alone decides how the board is opened.
+  const folder = join(p.dir, 'pullboard');
+  const file = join(folder, 'board.sqlite');
+  mkdirSync(folder);
+  const created = openCellBoard(file, undefined, { isMain: true });
+  created.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  closeCellBoard(created);
+  for (const [label, isMain] of OPEN_CONTEXTS) {
+    assert.doesNotThrow(() => closeCellBoard(openCellBoard(file, undefined, { isMain })), `${label} opens the board before it is locked`);
+  }
+  lockBoard(folder);
+  try {
+    assert.throws(() => writeFileSync(join(folder, 'permission-sentinel'), ''), { code: 'EACCES' });
+    for (const [label, isMain] of OPEN_CONTEXTS) {
+      assert.throws(() => closeCellBoard(openCellBoard(file, undefined, { isMain })), error => {
+        const output = `${error.code} ${error.message}`;
+        assert.equal(error.code, 'BOARD_NOT_WRITABLE', `${label} names the refusal: ${output}`);
+        assert.ok(output.includes(folder), `${label} names the board folder: ${output}`);
+        assert.doesNotMatch(output, /readonly database|at Module\.|ERR_SQLITE_ERROR/iu, `${label} prints no raw database trace`);
+        // The versioned result carries the code and the step, as `resume --json` printed them.
+        const recorded = recordedRefusal(error);
+        assert.equal(recorded.code, 'BOARD_NOT_WRITABLE', `${label} --json carries the code`);
+        assert.match(recorded.next, /write access to .*\.git\/pullboard.*outside the sandbox/u, `${label} --json next names the step`);
+        assert.doesNotMatch(recorded.next, /service owner/u, `${label} --json next is not the unknown-code footer`);
+        assert.notEqual(recorded.next, RECORDED_GENERIC_NEXT, `${label} --json next is not the generic footer`);
+        return true;
+      });
+    }
+  } finally { unlockBoard(folder); }
+  for (const [label, isMain] of OPEN_CONTEXTS) {
+    assert.doesNotThrow(() => closeCellBoard(openCellBoard(file, undefined, { isMain })), `${label}: restoring write access, the step it names, lets the board open`);
   }
 });

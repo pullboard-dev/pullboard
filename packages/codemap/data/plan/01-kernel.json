@@ -1,0 +1,42 @@
+{
+ "order": 1,
+ "name": "kernel",
+ "kind": "package",
+ "root": "packages/kernel",
+ "frontDoor": "packages/kernel/index.js",
+ "pureDoor": "packages/kernel/browser.js",
+ "lightFrontDoor": "packages/kernel/light.js",
+ "paths": [
+  ["src/discovery.js","packages/kernel/src/logic/discovery.js","seed"],
+  ["src/js-lex.js","packages/kernel/src/logic/lex.js","seed"],
+  ["src/literal-shell-words.js","packages/kernel/src/logic/words.js","seed"],
+  ["src/refused.js","packages/kernel/src/logic/refused.js","seed"],
+  ["src/registry-guards.js","packages/kernel/src/logic/registry.js","seed"],
+  ["test/seal.test.js","packages/kernel/tests/logic/seal.test.js","seed"],
+  ["src/seal.js","packages/kernel/src/logic/seal.js","seed"],
+  ["src/process-census.js","packages/kernel/src/logic/census.js","seed"],
+  ["src/pipeline-cause.js","packages/kernel/src/logic/cause.js","rule"]
+ ],
+ "reexports": [],
+ "imports": [
+  {"cell":"git","imports":1,"before":false}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 5,
+  "boundaries": 4,
+  "strays": -1,
+  "documents": 0,
+  "cyclesIfUncut": 0,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 1/43: kernel moves into packages/kernel behind shims",
+  "criterion": "Cells move 1 of 43 (RFC 0006; plan entry 1 in packages/codemap/data/plan/cells.json): the 6 paths the entry lists for package kernel move with git mv to their planned targets under packages/kernel, and packages/kernel/index.js is the front door, re-exporting the 5 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. The cell lint counts change as the entry states (legacySource 0, shims +5, boundaries +4) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved kernel passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved kernel",
+  "after": []
+ }
+}

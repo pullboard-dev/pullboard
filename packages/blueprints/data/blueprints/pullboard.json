@@ -1,0 +1,18 @@
+{
+  "blueprint": 1,
+  "name": "pullboard",
+  "title": "Pullboard, built on Pullboard",
+  "version": 1,
+  "kind": "practice",
+  "by": "Pullboard",
+  "summary": "The rules we build Pullboard with: a frozen bar on every item, a second agent on every change, and a landing gate that runs every test.",
+  "prefix": "PB",
+  "rules": [
+    { "key": "PB1", "text": "A builder never verifies their own work.", "why": "the agent that wrote a change is the one least likely to see what it missed." },
+    { "key": "PB2", "text": "Every item's check fails before the change and passes after it.", "why": "a check that passes either way proves nothing." },
+    { "key": "PB3", "text": "Main only moves when the whole test suite passes.", "why": "two changes can each pass alone and still break each other." }
+  ],
+  "items": [
+    { "key": "1", "title": "The gate runs every test in the project", "cites": ["PB3"], "criterion": "pullboard.json names a gate, and that gate runs every test file in the project. apps/cli/journeys/gate/main.test.js lists the test files, checks the gate reaches each one, and fails before the change.", "brief": "Files:\n- pullboard.json (its gate)\n- apps/cli/journeys/gate/main.test.js\nTest:\n- apps/cli/journeys/gate/main.test.js lists every test file and fails on one the gate command does not run", "check": "node --test apps/cli/journeys/gate/main.test.js" }
+  ]
+}

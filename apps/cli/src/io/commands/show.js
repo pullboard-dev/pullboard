@@ -1,0 +1,220 @@
+import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
+import { machineVerification } from '../../../../../packages/verify/index.js';
+import { itemProgress } from '../../../../../packages/roadmap/index.js';
+import { progressLine } from '../../../../../packages/roadmap/index.js';
+import { submitHandoff } from '../../../../../packages/store/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { localUsage } from '../../../../../packages/config/index.js';
+import { dollarText } from '../../../../../packages/config/index.js';
+import { trunkRef } from '../../../../../packages/sandbox/index.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
+import { reviewEligibility } from '../../../../../packages/verify/index.js';
+import { showReviewPacket } from '../../../../../packages/verify/index.js';
+import { handoffWorkerAlive } from '../alive.js';
+import { gatePanel } from '../../../../../packages/jobs/index.js';
+import { withBoardRead } from '../board/read.js';
+import {
+  testRuntimeEnvironment,
+  testRuntimeRows,
+} from '../../../../../packages/verify/light.js';
+/** The pullboard show command, in its own module so an item adding another command never edits these lines. */
+import {
+  displayAgentName,
+} from '../../../../../packages/seats/index.js';
+import {
+  barCorrectionLine,
+  barCorrections,
+} from '../../../../../packages/verify/index.js';
+import * as store from '../../../../../packages/store/index.js';
+import {
+  agentApprovalLine,
+  itemAgentApprovals,
+  itemSpecIds,
+  specApprovalState,
+} from '../../../../../packages/spec/index.js';
+import {
+  retainedGateAssertions,
+  sayCheckBaseline,
+} from '../../../../../packages/gate/index.js';
+import {
+  mainMergeFor,
+  mainMergeLines,
+} from '../../../../../packages/merge/index.js';
+import {
+  staleVerdictRefusal,
+  verdictProjector,
+} from '../../../../../packages/verify/index.js';
+import {
+  agentDisplayName,
+  context,
+  firstLineOf,
+  identifyCaller,
+  idArg,
+  itemLine,
+  sayBrief,
+} from '../read.js';
+import { relayStateExists } from '../../../../../packages/store/index.js';
+import { itemCost } from '../../../../../packages/stats/index.js';
+import { publicUsage } from '../../../../../packages/stats/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { itemFolderPath } from '../item/folder.js';
+
+/** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
+export const nativeBoardRequired = false;
+
+/** Run `pullboard show` and return its exit code. */
+export async function run(io, { first, values }) {
+  const ctx = context(io);
+  const id = idArg(first);
+  // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
+  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
+  const prices = loadMachineSettings().costPrices;
+  const { item, queuedSubmit, queuedJobId, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, (board) => {
+    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
+    const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
+    if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
+    const job = submitHandoff(board, id);
+    const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
+    // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
+    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
+      proofReceipts: store.proofReceipts(board, id),
+      approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
+    // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
+    if (values.json) return result;
+    const history = store.events(board, { itemId: id });
+    return { ...result, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+      related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
+      agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
+  });
+
+  // The commits front door also carries the hook machinery, so an item that was never submitted never loads it.
+  const infra = submits?.length ? (await import('../../../../../packages/commits/index.js')).infraNoteOf(submits) : null;
+  const comparison = recordedVerificationComparison(thread, item);
+  const agentApproved = itemAgentApprovals(item, approval);
+  const approvalQualification = agentApprovalLine(agentApproved);
+  // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
+  // Without a relay link or deleted-copy notice there is no outbox to read, so the relay client never loads.
+  if (relayStateExists(ctx.info.commonDir)) await io.prepareProcessPorts?.();
+  const outbox = relayStateExists(ctx.info.commonDir) ? (await import('../../../../../packages/link/index.js')).relayStatus(ctx.info.root, io).outbox : undefined;
+  const relayPending = (outbox ?? []).filter((move) => move.item === id);
+  const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
+  const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
+  if (values.json) {
+    io.result({ ...item, progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    return 0;
+  }
+  // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
+  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
+  const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
+    try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
+      relayLinked: () => false }, readers).id; }
+    catch (error) {
+      if (error instanceof Refused && error.code === 'NOT_JOINED') return null;
+      throw error;
+    }
+  });
+  const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
+  io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  if (item.item_status === 'claimed' && item.item_owner === callerId) {
+    // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
+    const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
+    io.say(seatPath
+      ? `you hold #${item.item_id}; build and commit in its item folder ${itemFolderPath(seatPath, item.item_id)}, then run pullboard submit ${item.item_id} there`
+      : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
+  }
+  io.say(progressLine(progress));
+  if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
+  if (comparison) io.say(renderVerificationComparison(comparison));
+  io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
+  if (queuedSubmit) io.say(`queued gate: ${gateText ?? queuedSubmit.state} at ${queuedSubmit.executionCommit}${queuedSubmit.requeuedFor ? `; requeued on the same source after ${queuedSubmit.requeuedFor}` : ''}`);
+  if (queuedSubmit?.error) io.say(`${queuedSubmit.error.code}: ${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
+  // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
+  if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
+    for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
+  }
+  if (item.item_rehome_import) {
+    const imported = item.item_rehome_import;
+    io.say(`${imported.sourceStatus === 'verified' ? 'verified' : 'imported'} on ${imported.sourceHandle}, moved by ${agentName(imported.attestedBy)}; source verdicts are imported references, not reviews on this board`);
+    if (values.history) for (const verdict of imported.sourceVerdicts ?? []) {
+      io.say(`  source ${verdict.verdict_decision} ${verdict.verdict_reason} by ${verdict.verdict_by} at ${verdict.verdict_commit}: ${verdict.verdict_note}`);
+    }
+  }
+  if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
+  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
+  io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
+  if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
+  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}${dollarText(cost)}; --detail`);
+  if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+  if (checkText) {
+    io.say(`check: ${checkText}`);
+    if (item.item_frozen_digest) io.say(`check digest: ${item.item_frozen_digest}`);
+  }
+  for (const receipt of proofReceipts) {
+    const hasTestRuntimes = Object.hasOwn(receipt, 'testRuntimes');
+    const testRuntimes = hasTestRuntimes ? testRuntimeRows(receipt.testRuntimes) : null;
+    const environment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : receipt.environment;
+    const runtime = environment ? `Node ${environment.node} ${environment.platform}/${environment.arch}` : 'runtime unknown';
+    const counts = Object.values(receipt.counts).some(value => value === null) ? 'test counts unknown'
+      : `${receipt.counts.passed} pass, ${receipt.counts.failed} fail, ${receipt.counts.skipped} skip`;
+    io.say(`receipt ${receipt.id}: ${receipt.kind}, item #${receipt.item}`);
+    io.say(`  commit ${receipt.commit ?? 'unknown'}; tree ${receipt.tree ?? 'unknown'}; frozen ${receipt.frozenDigest ?? 'unknown'}`);
+    io.say(`  ${runtime}; runner ${receipt.runner ?? 'unknown'}; seat ${receipt.seat}; parent ${receipt.parentSession ?? 'unknown'}`);
+    io.say(`  exit ${receipt.exitCode ?? 'unknown'}; ${counts}; ${receipt.durationMs}ms${receipt.sourceClean ? '' : '; source unproven'}`);
+    if (hasTestRuntimes && !testRuntimes) io.say('  test child runtimes unknown');
+    for (const child of testRuntimes ?? []) {
+      io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
+    }
+  }
+  sayCheckBaseline(io, item);
+  for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
+  sayBrief(io, item.item_brief);
+  for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
+  for (const { item: other, shared } of related) {
+    io.say(`related: #${other.item_id} ${other.item_title}: ${shared.slice(0, 4).join(', ')}${shared.length > 4 ? ', ...' : ''} (git log -p -1 ${other.item_commit.slice(0, 12)} -- ${shared[0]})`);
+  }
+  const attempts = moves.filter((event) => event.event_kind === 'attempt').map((event) => JSON.parse(event.event_detail).result);
+  if (attempts.length) io.say(`unattended attempts: ${attempts.join(', ')}`);
+  for (const event of moves.filter((entry) => entry.event_kind === 'escalate')) {
+    const detail = JSON.parse(event.event_detail);
+    io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
+  }
+  if (frozen) {
+    io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
+    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${row.text}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+  }
+  if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
+  if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
+  if (infra) io.say(`infra note: ${infra.note} (files: ${infra.files.join(', ') || 'none'})`);
+  if (reviewer) io.say(`under review by ${agentName(reviewer)} until ${item.item_review_until}`);
+  // Earlier verdicts as one line each, so an item sent back several times stays short to read
+  // (N30); --history prints every note in full.
+  const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${agentName(verdict.verdict_by)}${verdict.verdict_verifier_family ? ` [family ${verdict.verdict_verifier_family}]` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
+  const notes = verdicts.map((verdict, index) => (values.history || index === verdicts.length - 1 ? verdict.verdict_note : firstLineOf(verdict.verdict_note)));
+  verdicts.forEach((verdict, index) => {
+    io.say(`${verdictLine(verdict)}${notes[index] ? `: ${notes[index]}` : ''}`);
+    io.say(`  check: ${verdict.check ?? 'unknown'}`);
+    io.say(`  assurance: ${verdict.assurance}`);
+  });
+  if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
+  for (const correction of barCorrections(thread)) io.say(barCorrectionLine(correction));
+  for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
+  if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
+  if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
+  io.say('thread:');
+  for (const entry of thread) {
+    if (entry.kind === 'proof-run') continue;
+    const stamp = `  ${entry.at}  ${agentDisplayName(agents, ctx.config, entry.by)}  `;
+    if (entry.type === 'fact') {
+      io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.answers ? ' (answers ' + entry.answers + ')' : entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
+      if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
+    } else {
+      const detail = entry.detail;
+      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
+    }
+  }
+  return 0;
+}

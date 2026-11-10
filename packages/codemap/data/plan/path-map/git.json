@@ -1,0 +1,20 @@
+{
+  "src/committed-file-reader.js": "packages/git/src/io/committed.js",
+  "src/git-adapter.js": "packages/git/src/io/adapter.js",
+  "src/git-launch-baseline.json": "packages/git/src/io/launch/baseline.json",
+  "src/git-launch-ratchet.js": "packages/git/src/io/launch/ratchet.js",
+  "src/git-memory.js": "packages/git/src/io/memory.js",
+  "src/git.js": "packages/git/src/io/main.js",
+  "src/pre-push-receipts.js": "packages/git/src/io/receipts.js",
+  "src/push-native-evidence.js": "packages/git/src/io/evidence.js",
+  "src/queued-item-lease.js": "packages/git/src/io/lease.js",
+  "src/source-advance-nudge.js": "packages/git/src/io/nudge.js",
+  "src/trunk-revision.js": "packages/git/src/io/trunk/revision.js",
+  "src/worktree.js": "packages/git/src/io/worktree.js",
+  "test/git-provenance.test.js": "packages/git/tests/io/main.test.js",
+  "src/git-child-selectors.js": "packages/git/src/logic/selectors.js",
+  "src/git-landing-batches.js": "packages/git/src/logic/batches.js",
+  "src/git-trunk-ref.js": "packages/git/src/io/trunk/ref.js",
+  "test/flakes-fixture.js": "packages/git/tests/fixtures/flakes.js",
+  "test/flakes-fixture.test.js": "packages/git/tests/flakes.test.js"
+}
