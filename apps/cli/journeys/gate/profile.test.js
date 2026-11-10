@@ -44,7 +44,7 @@ const CALLER_REPORTER = resolve(import.meta.dirname, '../../tests/fixtures/repor
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
-const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
+const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/', '.timed/', 'timed/', 'packages/gate/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
 // budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
