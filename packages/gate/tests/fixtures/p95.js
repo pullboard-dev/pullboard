@@ -58,10 +58,16 @@ function observations(path) {
 export async function measureFileInflation(t, mode) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-dispatch-p95-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = runFixtureChild('git', ['init', '-q'], { cwd: root });
+  const git = runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root });
   assert.equal(git.status, 0, git.failure);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ testConcurrency: { files: 8, browser: 1 } }));
+  for (const args of [['config', 'user.name', 'Pool Fixture'], ['config', 'user.email', 'pool@example.invalid'],
+    ['config', 'pullboard.trunk', 'refs/heads/main'], ['add', 'package.json', 'pullboard.json'],
+    ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'fixture']]) {
+    const result = runFixtureChild('git', args, { cwd: root });
+    assert.equal(result.status, 0, result.failure ?? result.stderr);
+  }
   const machine = join(root, '.machine');
   mkdirSync(machine);
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 4, browserSlots: 1,

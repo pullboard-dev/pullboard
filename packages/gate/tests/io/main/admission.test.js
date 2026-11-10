@@ -136,8 +136,14 @@ test(${JSON.stringify(name)}, async () => {
 function fixture(t, cores) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-file-pool-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  runFixtureChild('git', ['init', '-q'], { cwd: root });
+  assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root }).status, 0);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
+  for (const args of [['config', 'user.name', 'Pool Fixture'], ['config', 'user.email', 'pool@example.invalid'],
+    ['config', 'pullboard.trunk', 'refs/heads/main'], ['add', 'package.json'],
+    ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'fixture']]) {
+    const result = runFixtureChild('git', args, { cwd: root });
+    assert.equal(result.status, 0, result.failure ?? result.stderr);
+  }
   const machine = join(root, '.machine');
   mkdirSync(machine);
   // Four gate slots, so the four runs overlap and only the file pool can hold them to the cores.
