@@ -92,7 +92,7 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const profiles = readdirSync(directory).filter(file => file.endsWith('.profile.json'))
     .map(file => JSON.parse(readFileSync(join(directory, file), 'utf8')));
   const checked = profiles.find(profile => profile.tests.length === 0 && profile.testOutcomes?.length === files.length);
-  assert.ok(checked, 'private review persists its structured account even with no TAP/JUnit case timings');
+  assert.ok(checked, `private review persists its structured account even with no TAP/JUnit case timings: ${JSON.stringify(profiles)}`);
   assert.deepEqual([...new Set(checked.testOutcomes.map(row => row.file))].sort(), files);
   assert.throws(() => requireTestTierAccount({ green: true, profile: { ...checked,
     testOutcomes: checked.testOutcomes.filter(row => row.file === files[0]) } }, files),
