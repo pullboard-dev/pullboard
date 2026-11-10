@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { secretsIn } from '../../../../commits/index.js';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from '../land.js';
+import { failureSignature } from '../../../../gate/index.js';
 import { classifyMainRed } from '../../../../receipt/index.js';
 import { comparisonStatus } from '../../../../receipt/index.js';
 import {
@@ -24,20 +25,44 @@ function diagnostics(output, root) {
     // nested run's TAP; it is part of that failure, never a second failure or the end of this one (#2064).
     const embedded = active && !active.done && line.startsWith(' '.repeat(active.indent));
     if (start && !embedded) {
-      active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [] };
+      active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [], all: [] };
       rows.push(active); omitted = false; continue;
     }
     if (!embedded && /^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
     if (!active || !line.startsWith(' '.repeat(active.indent))) continue;
     const value = line.slice(active.indent);
+    active.all.push(value);
     if (value === '...') active.done = true;
     if (/^(?:duration_ms|location|stack):/u.test(value)) { omitted = true; continue; }
     if (/^[\w-]+:/u.test(value)) omitted = false;
     if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
   }
-  return rows.map(row => ({ ...row,
+  return rows.map(row => ({ ...row, stable: stableFailure(row.all, root),
     signature: row.lines.some(line => line.startsWith('error:')) && row.lines.some(line => line.startsWith('failureType:'))
       ? createHash('sha256').update(JSON.stringify([MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics(row.lines, root)])).digest('hex') : null }));
+}
+
+/** Read one failure's `key: value` and `key: |-` fields from its diagnostics, before any are dropped as noise. */
+function diagnosticFields(all) {
+  const fields = {};
+  for (let index = 0; index < all.length; index += 1) {
+    const field = /^([\w-]+):\s?(.*)$/u.exec(all[index]);
+    if (!field) continue;
+    let value = field[2];
+    if (/^[|>][-+]?$/u.test(value)) {
+      const block = [];
+      while (index + 1 < all.length && /^\s/u.test(all[index + 1])) block.push(all[++index].replace(/^ {2}/u, ''));
+      value = block.join('\n');
+    } else value = value.replace(/^(['"])(.*)\1$/u, '$2');
+    fields[field[1]] = value;
+  }
+  return fields;
+}
+
+/** The stable failure signature of one failure's diagnostics, or null when no repository frame names it [C7]. */
+function stableFailure(all, root) {
+  const { error, stack, name, code, operator } = diagnosticFields(all);
+  return failureSignature({ error, stack, name, code, operator, root });
 }
 
 /** Extract the first safe diagnostic line without changing the failure signature. */
@@ -79,7 +104,7 @@ export function failureSignatures(run, root, { raw = false, allowCancelled = fal
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => {
       const error = firstError(details[index].lines, executionRoot);
-      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}) };
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}), ...(details[index].stable ? { stable: details[index].stable } : {}) };
     }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
