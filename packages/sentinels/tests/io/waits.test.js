@@ -308,7 +308,7 @@ test('waits record files a mid item add accepts: Files: naming the holder\'s sou
   assert.equal(recorded.filed.length, 1, 'the real add validation accepts the item');
   const [item] = m.items();
   assert.equal(item.item_route, 'mid', 'routed so a Sonnet builds it cold');
-  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent-session\.js$/mu, 'the holder\'s source and the surface code');
+  assert.match(item.item_brief, /^Files:\n- apps\/cli\/src\/io\/commands\/merged\.js\n- packages\/seats\/src\/io\/agent\/session\.js$/mu, 'the holder\'s source and the surface code');
   assert.match(item.item_brief, /^Test: /mu);
   assert.equal(item.item_check, "node apps/cli/pullboard.js waits check 'checkout-lease:repo:checkout-session:abc:coordinator'", 'its check is the audit for this one cause');
   const bare = { by: 'coordinator', lane: 'core', title: 'bare', criterion: '1. It holds. [test]', brief: 'no sections', route: 'mid', check: item.item_check };
