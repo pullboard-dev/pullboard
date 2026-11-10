@@ -107,7 +107,7 @@ async function seedPatchFollow({ board, box, store, exercise, claim, commit, pat
     // The builder then proposes an automatic companion; the real submit opens its owning lane's objection window,
     // and the owner's objection inside it reopens the item. Synthetic state-only submission, no gate claimed [C7,H16,A2].
     const proposed = store.attachItemPatch(board, item, { agentId: builder, key: 'reader-parity-objection',
-      commit: moved, patch: patch.replace('parity-companion', 'parity-objection'), author: 'coordinator', autoAttach: true });
+      commit: moved, patch: patch.replaceAll('parity-companion', 'parity-objection'), author: 'coordinator', autoAttach: true });
     assert.equal(proposed?.changed, true, 'a refused setup never counts as objection parity');
     const submittedTree = git(root, ['rev-parse', '--verify', `${moved}^{tree}`]);
     submitFixture(board, item, { agentId: builder, commit: moved, tree: submittedTree });
