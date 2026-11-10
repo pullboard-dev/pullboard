@@ -409,8 +409,20 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
-  const facts = recorded.filter(event => event.event_kind === 'fact');
-  assert.equal(facts.length, 4, `each submission records exactly pending and completed comparison facts: ${JSON.stringify(facts)}`);
+  const allFacts = recorded.filter(event => event.event_kind === 'fact');
+  const facts = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith(VERIFICATION_COMPARISON_PREFIX));
+  const shadows = allFacts.filter(event => JSON.parse(event.event_detail).text.startsWith('Tier-1 shadow for gate receipt '));
+  assert.equal(allFacts.length, 8, 'only comparison and tier-1 shadow facts are recorded');
+  assert.equal(shadows.length, 4, 'each gate proof has a tier-1 shadow fact');
+  assert.equal(new Set(shadows.map(event => JSON.parse(event.event_detail).ref?.id)).size, 4, 'shadow references are distinct');
+  for (const event of shadows) {
+    const fact = JSON.parse(event.event_detail);
+    assert.equal(fact.kind, 'measurement');
+    assert.equal(fact.ref?.kind, 'proof-run');
+    assert.ok(recorded.some(proof => proof.event_kind === 'proof-run' && proof.item_id === event.item_id
+      && JSON.parse(proof.event_detail).receipt?.id === fact.ref.id), 'the shadow names a real proof on its item');
+  }
+  assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
   for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
     const comparisons = facts.filter(event => event.item_id === item).map(event => {
       const fact = JSON.parse(event.event_detail);
