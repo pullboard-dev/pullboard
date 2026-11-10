@@ -51,7 +51,7 @@ test('next offers new work while the gate is queued or running, and the red item
   startSubmitHandoff(box.board, first, { agentId: seat.id, job: job.id });
   const offered = await cli(box, seat.path, ['next', '--build']);
   assert.equal(offered.code, 0, offered.out + offered.err);
-  assert.equal(offered.document.item.item_id, second, 'a running gate does not hold the seat idle');
+  assert.equal(offered.document.item.item_id, second, `a running gate does not hold the seat idle: ${JSON.stringify({ held: offered.document.held, item: store.getItem(box.board, first).item_stage, job: store.submitHandoff(box.board, first) })}`);
   assert.equal(store.getItem(box.board, first).item_status, 'claimed');
   assert.equal(store.getItem(box.board, first).item_owner, seat.id, 'the queued item stays the seat\'s own');
   const release = await cli(box, seat.path, ['release', String(second), '--reason', 'ROUTED_ELSEWHERE', '--no-next']);
