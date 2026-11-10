@@ -88,6 +88,7 @@ export function successfulNext(command, result) {
   const item = following?.item ?? (command === 'next' ? result?.item : null);
   if (item?.item_id) return `pullboard show ${item.item_id}`;
   if (command === 'claim') return 'git status';
+  if (command === 'submit') return 'pullboard next --take';
   if (command === 'tour') return 'pullboard view';
   if (['help', 'version'].includes(command)) return 'pullboard status';
   return command === 'next' ? 'nothing for this seat: end your turn' : 'pullboard next';
