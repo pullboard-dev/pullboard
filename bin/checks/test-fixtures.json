@@ -298,7 +298,7 @@
   "packages/runners/tests/hang-resolves-at-cap.test.js": {
     "tempdir": 1
   },
-  "packages/runners/tests/runner-slots-measured.test.js": {
+  "test/runner-slots-cli.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -3273,7 +3273,7 @@
     "hand-policy": 4,
     "env-spread": 2
   },
-  "test/runners-capsule.test.js": {
+  "packages/runners/tests/runners-capsule.test.js": {
     "tempdir": 1
   },
   "packages/gate/tests/runners-check-failover.test.js": {

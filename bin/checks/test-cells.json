@@ -63,7 +63,8 @@
     "test/shout-readable.test.js": "drives the real CLI in a project checkout and checks its refusals and sent shouts end to end",
     "test/stacked-submit.test.js": "drives the real CLI in a project checkout and checks its submit output, stacking refusals and board rows end to end",
     "test/verdict-check.test.js": "drives the real CLI in a project checkout and checks its verdict check output, exit codes and board rows end to end",
-    "test/verify.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end"
+    "test/verify.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end",
+    "test/runner-slots-cli.test.js": "drives the real CLI (runner add, list and measure, settings gate.measuredSlots) with an SSH stand-in and checks the listed slot counts against the runner's measured size end to end"
   },
   "pureHelpers": {
     "test/badge-fixture.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -234,7 +235,6 @@
     "packages/landing/tests/submit-cells-stays.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/submit-cells-wildcard.test.js": "imports bin/cells-plan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/landing/tests/test-file-budget.test.js": "imports packages/gate/src/shell/test-file-budget-policy.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/runners/tests/runner-slots-measured.test.js": "imports test/runner-tooling-fixture.js, outside its own cell runners; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/bar-corrections.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/check-baseline-worker.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/decision-queue.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
@@ -896,7 +896,6 @@
     "test/runner-worker-restart-fail-closed.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-browser-policy.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-cache-compatibility.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/runners-capsule.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-cpu-classification.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-git-setup.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/runners-health-recovery.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
