@@ -22,7 +22,7 @@ const helpers = createE2eHelpers();
 after(() => helpers.cleanup());
 
 const REPO = join(import.meta.dirname, '../../../..');
-const CHECKS = join(REPO, 'bin/checks');
+const CHECKS = join(REPO, 'packages/gate/src/io/changed');
 const NODE_FLAGS = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
 
 /** The four static reds that cost the most gates on 7 Nov, each alone in its own test file. */
@@ -39,19 +39,21 @@ const CASES = [
  */
 function hookedProject() {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/data/tests'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/src/io/changed/scripts'), { recursive: true });
   mkdirSync(join(box.repo, '.githooks'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  copyFileSync(join(CHECKS, 'test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
+  copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/data/tests/test-fixtures.json'), '{}\n');
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
-    `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(CHECKS, 'changed-static.js')).href)};`,
+    `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(CHECKS, 'static.js')).href)};`,
     'const failures = stagedHookFailures(process.cwd());',
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
   copyFileSync(join(REPO, '.githooks', 'pre-commit'), join(box.repo, '.githooks', 'pre-commit'));
   chmodSync(join(box.repo, '.githooks', 'pre-commit'), 0o755);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '--no-verify', '-m', 'chore: record the static ceilings and the repository hook');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: record the static ceilings and the repository hook');
   box.git(box.repo, 'config', 'core.hooksPath', '.githooks');
   return box;
 }
@@ -77,7 +79,7 @@ test('the real pre-commit hook refuses a temp dir, a model literal, a raw board 
     const output = `${commit.stderr ?? commit.err ?? ''}${commit.stdout ?? commit.out ?? ''}`;
     assert.notEqual(commit.status ?? commit.code, 0, `the hook refuses ${file}`);
     assert.ok(output.includes(printed[0]), `the hook prints the gate line ${printed[0]}, got:\n${output}`);
-    box.git(box.repo, 'reset', '-q');
+    box.git(box.repo, 'restore', '--staged', '--', file);
   }
   assert.match(box.git(box.repo, 'log', '-1', '--format=%s'), /record the static ceilings/u, 'no refused case was committed');
 });
