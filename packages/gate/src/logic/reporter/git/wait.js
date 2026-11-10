@@ -32,7 +32,7 @@ export function gateWaitReporter(io) {
     const hosts = new Map();
     for (const { host } of runnerHolders) hosts.set(host, (hosts.get(host) ?? 0) + 1);
     const remote = [...hosts].map(([host, count]) => `${host}: ${count}`).join(', ');
-    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}${remote ? `; runners ${remote}` : ''}; place ${position}`;
+    const message = `gate waiting: ${holders.length + runnerHolders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}${remote ? `; runners ${remote}` : ''}; place ${position}`;
     if (message !== last) {
       io.say(message);
       last = message;

@@ -55,6 +55,6 @@ test('a runner-only gate wait reports two runner holders by host [C7]', async t 
   const stop = new Error('observed wait');
   try {
     await assert.rejects(takeResource({ ...options, agent: 'waiting', onWait: state => { report(state); throw stop; } }), error => error === stop);
-    assert.match(lines.join('\n'), /runners \.51: 2/);
+    assert.match(lines.join('\n'), /2 running; runners \.51: 2/);
   } finally { first.release(); second.release(); }
 });
