@@ -44,7 +44,7 @@ function refreshBoard(root, signal, words = ['sentinel', 'run', '--health-only',
 
 /** Run the configured ordinary canary command; a failed round trip is a recorded observation. */
 function refreshCanary(root, signal) {
-  return refreshBoard(root, signal, ['apps', 'relay', 'src', 'io', 'deploy', 'canary', 'run', '--json'], true);
+  return refreshBoard(root, signal, ['relay', 'canary', 'run', '--json'], true);
 }
 
 /** Start after the view listens; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */

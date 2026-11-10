@@ -135,14 +135,14 @@ test("a removed person's agent cannot move on the board [H2,H9]", async (t) => {
   assert.equal((await cli('init')).code, 0);
   git('remote', 'add', 'origin', 'git@github.com:fixture/repository.git');
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
-  assert.equal((await cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin)).code, 0);
+  assert.equal((await cli('relay', 'on', '--url', origin)).code, 0);
   assert.equal((await cli('add', lane, 'Alice before account change')).code, 0);
   const alice = linkState(root);
   assert.ok(alice.agentTokens.coordinator, 'the original account has a real cached agent credential');
   assert.equal((await auth.authenticate(alice.agentTokens.coordinator.token, { board: alice.board, write: true })).user.id, '7');
 
   signer = 'bob';
-  assert.equal((await cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', origin)).code, 0, 'the same linked checkout signs in as Bob');
+  assert.equal((await cli('relay', 'on', '--url', origin)).code, 0, 'the same linked checkout signs in as Bob');
   assert.equal(linkState(root).account, '8', 'the saved machine account actually changes');
   assert.equal((await cli('add', lane, 'Bob before removal')).code, 0);
   const bob = linkState(root);

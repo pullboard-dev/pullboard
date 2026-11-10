@@ -87,7 +87,10 @@ test('the private closure compiler preserves V8 edges and refusals without execu
     'a caller cannot poison the next trusted compile result by mutating an earlier reply');
   const runtime = String.raw`new URL('./\u0066ile.js', import.meta.url); new URL('../second.json', import.meta.url); new URL('./file.js', import.meta.url);`;
   assert.deepEqual(runtimeUrls(runtime, parser.parse), ['./file.js', '../second.json', './file.js']);
-  assert.deepEqual(runtimeUrls(runtime, parser.parse), runtimeUrls(runtime));
+  const independentParser = createRunnerModuleParser();
+  try {
+    assert.deepEqual(runtimeUrls(runtime, parser.parse), runtimeUrls(runtime, independentParser.parse));
+  } finally { independentParser.close(); }
   assert.equal(runtimeUrls('new URL(name, import.meta.url);', parser.parse), null);
   assert.throws(() => importsIn(['import {'], parser.parse), /does not compile/u);
   assert.throws(() => readFileSync(marker), { code: 'ENOENT' }, 'compile-only source never executes its filesystem effect');
@@ -240,7 +243,7 @@ test('a computed runner copy follows a new packages import without a hand-kept l
   f.write('apps/runner/src/io/scripts/worker.js', "import {value} from '../../../../../packages/leaf/src/value.js'; console.log(value);\n");
   f.write('packages/leaf/src/unused.js', 'export const unused = true;\n');
   const capsule = runnerPackage(f.root);
-  assert.deepEqual(Object.keys(capsule.files), ['package.json', 'packages/leaf/src/value.js', 'apps/runner/src/io/scripts/worker.js']);
+  assert.deepEqual(Object.keys(capsule.files), ['apps/runner/src/io/scripts/worker.js', 'package.json', 'packages/leaf/src/value.js']);
   const bytes = Buffer.from(JSON.stringify(capsule.files));
   const digest = createHash('sha256').update(bytes).digest('hex');
   const runner = join(f.directory, 'runner');
@@ -305,7 +308,7 @@ test('an installed worker executes a prefix-only Node builtin without copying it
   const f = fixture(t);
   f.write('apps/runner/src/io/scripts/worker.js', "import {DatabaseSync} from 'node:sqlite'; const db=new DatabaseSync(':memory:'); console.log(db.prepare('SELECT 42 AS value').get().value); db.close();\n");
   const capsule = runnerPackage(f.root);
-  assert.deepEqual(Object.keys(capsule.files), ['package.json', 'apps/runner/src/io/scripts/worker.js']);
+  assert.deepEqual(Object.keys(capsule.files), ['apps/runner/src/io/scripts/worker.js', 'package.json']);
   const bytes = Buffer.from(JSON.stringify(capsule.files));
   const digest = createHash('sha256').update(bytes).digest('hex');
   const runner = join(f.directory, 'runner');
@@ -317,11 +320,11 @@ test('an installed worker executes a prefix-only Node builtin without copying it
 
 test('an installed worker executes coverage with its source-relative reporter dependency [C7,P3]', t => {
   const f = fixture(t);
-  f.write('src/reporter.js', "export default async function* report(events) { for await (const event of events) if(event.type==='test:coverage') yield 'REAL_COVERAGE\\n'; }\n");
+  f.write('apps/runner/src/io/scripts/reporter.js', "export default async function* report(events) { for await (const event of events) if(event.type==='test:coverage') yield 'REAL_COVERAGE\\n'; }\n");
   const bodyMarker = join(f.directory, 'coverage-body.json');
   f.write('apps/runner/src/io/scripts/worker.js', `import {test} from 'node:test'; import {writeFileSync} from 'node:fs'; const reporter = new URL('./reporter.js', import.meta.url); test('private coverage',()=>writeFileSync(${JSON.stringify(bodyMarker)},JSON.stringify({executed:true,node:process.version}))); console.log(reporter.pathname);\n`);
   const capsule = runnerPackage(f.root);
-  assert.ok(Object.hasOwn(capsule.files, 'src/reporter.js'));
+  assert.ok(Object.hasOwn(capsule.files, 'apps/runner/src/io/scripts/reporter.js'));
   const bytes = Buffer.from(JSON.stringify(capsule.files));
   const digest = createHash('sha256').update(bytes).digest('hex');
   const runner = join(f.directory, 'runner');
@@ -331,7 +334,7 @@ test('an installed worker executes coverage with its source-relative reporter de
   // This independent Node test command must not inherit its parent's test harness context (#1390).
   delete env.NODE_TEST_CONTEXT;
   const result = runFixtureChild(process.execPath, ['--test', '--experimental-test-coverage',
-    `--test-reporter=${join(installed, 'src/reporter.js')}`, join(installed, capsule.entry)], { env, encoding: 'utf8' });
+    `--test-reporter=${join(installed, 'apps/runner/src/io/scripts/reporter.js')}`, join(installed, capsule.entry)], { env, encoding: 'utf8' });
   const diagnostic = `${result.context}\nstdout: ${(result.stdout ?? '').slice(-4096)}`;
   assert.equal(result.status, 0, diagnostic);
   assert.match(result.stdout, /REAL_COVERAGE/u, `the installed reporter consumes real native coverage events\n${diagnostic}`);
@@ -349,7 +352,7 @@ test('runtime URL closure rejects missing unsafe and opaque paths while generate
     assert.throws(() => runnerPackage(f.root), error => error.code === 'RUNNER_TOOLING_FILES');
   }
   f.write('apps/runner/src/io/scripts/worker.js', `// new URL('./missing.js', import.meta.url)\nconst generated = "new URL('./missing.js', import.meta.url)";\n`);
-  assert.deepEqual(Object.keys(runnerPackage(f.root).files), ['package.json', 'apps/runner/src/io/scripts/worker.js']);
+  assert.deepEqual(Object.keys(runnerPackage(f.root).files), ['apps/runner/src/io/scripts/worker.js', 'package.json']);
 });
 
 
@@ -431,7 +434,7 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   mkdirSync(project);
   writeFileSync(join(project, 'README.md'), 'Private committed source.\n');
-  writeFileSync(join(installed, 'src/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
+  writeFileSync(join(installed, 'apps/runner/src/io/scripts/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
   const worker = join(installed, 'apps/runner/src/io/scripts/worker.js');
   writeFileSync(worker, readFileSync(worker, 'utf8') + '\nimport "./[literal]*.js";\n');
   for (const root of [installed, project]) {

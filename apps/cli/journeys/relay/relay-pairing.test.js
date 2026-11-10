@@ -52,7 +52,7 @@ test('clause 1: a second browser pairs with the command the page names after the
     for (const outcome of outcomes) if (outcome.status === 'rejected') throw outcome.reason;
   });
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  const firstCommand = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const firstCommand = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   const firstPending = await pendingEnrollment(machineFile, firstCommand);
   assert.ok(firstPending, 'real on --all publishes the first browser enrollment');
   const first = await startChrome({ profileDirectory: join(box.env.HOME, 'first-browser') });

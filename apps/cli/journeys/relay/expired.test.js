@@ -114,13 +114,13 @@ test('a revoked agent token is never reminted from the machine credential; the p
   assert.deepEqual((await box.cli('export')).document.tables, before, 'the refused move changes no local board state');
 
   // The person's own relay on reissues the coordinator token and records it.
-  const relink = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const relink = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(relink.code, 0, relink.failure ?? 'relay on reissues the coordinator token from the person sign-in');
   const reissued = JSON.parse(readFileSync(box.linkFile, 'utf8')).agentTokens.coordinator;
   assert.notEqual(reissued.id, agent.id, 'a new coordinator token replaces the revoked one');
   const moved = await box.cli('add', box.lane, 'move after person reissue');
   assert.equal(moved.code, 0, moved.failure ?? 'the reissued coordinator token sends moves again');
-  const tokens = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'tokens');
+  const tokens = await box.cli('relay', 'tokens');
   assert.equal(tokens.code, 0, tokens.failure ?? 'the token inventory lists the coordinator audit');
   assert.deepEqual(tokens.document.coordinatorEvents.map(row => row.reason), ['bootstrap', 'reissue']);
   assert.equal(tokens.document.coordinatorEvents[1].issued, reissued.id);
@@ -241,7 +241,7 @@ test('moves stay local while the machine credential expires, then replay after s
   assert.equal(beforeRelink.event.filter(event => event.item_id === queuedId && event.event_kind === 'add').length, 1);
   assert.equal(beforeRelink.event.filter(event => event.item_id === claimId && event.event_kind === 'claim').length, 1);
   box.env.PULLBOARD_RELAY_SENDER_BACKGROUND = '1';
-  const relink = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const relink = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(relink.code, 0, relink.failure ?? 'fresh person sign-in restores the machine credential and drains local work');
   const afterRelink = (await box.cli('export')).document.tables;
   assert.equal(afterRelink.event.filter(event => event.item_id === queuedId && event.event_kind === 'add').length, 1,
@@ -309,7 +309,7 @@ async function enrollDeletionPhone(box) {
 async function joinedDeletionFixture(t) {
   const box = await relayClientFixture(t);
   await box.link();
-  const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const printed = await box.cli('relay', 'pair');
   assert.equal(printed.code, 0, 'the owner publishes a real one-use computer pairing code');
   const joined = await box.otherDeviceJoin(printed.document.code);
   const phone = await enrollDeletionPhone(box);

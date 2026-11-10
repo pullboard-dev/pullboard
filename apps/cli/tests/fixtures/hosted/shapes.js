@@ -386,7 +386,7 @@ export async function relayOnAll(box, openLink) {
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
   // A pairing an earlier run left behind is not this run's; only a new locator is.
   const earlier = existsSync(machineFile) ? JSON.parse(readFileSync(machineFile, 'utf8')).pending?.locator ?? null : null;
-  const run = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const run = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   if (openLink) {
     const end = Date.now() + 60_000;
     let pending = null;
@@ -416,7 +416,7 @@ export async function revokeDevice(box, deviceId) {
   const authorized = box.providerState.deviceAuthorized;
   box.providerState.deviceAuthorized = false;
   try {
-    const revoke = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', deviceId]);
+    const revoke = box.startCli(['relay', 'revoke', deviceId]);
     await revoke.waitForOutput('Sign in with GitHub: open ');
     box.providerState.deviceAuthorized = true;
     const result = await revoke.closed;
@@ -444,7 +444,7 @@ export function boardView(box) {
  * @param {string} session
  */
 export async function relayPairClears(box, engine, front, session) {
-  const result = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const result = await box.cli('relay', 'pair');
   // A step that fails to run clears nothing.
   if (result.code !== 0) return false;
   const printed = new URL(result.document.link);

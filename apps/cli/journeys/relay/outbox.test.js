@@ -62,7 +62,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
   await beforeLink?.(box);
   await box.link();
   const contested = (await box.cli('add', box.lane, title)).document.item.item_id;
-  const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const printed = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true, 'the relay accepted this board before the outage');
   return { box, other, contested };

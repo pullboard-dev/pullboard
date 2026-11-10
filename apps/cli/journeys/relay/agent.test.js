@@ -248,7 +248,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
   const personEnv = { ...box.env };
   for (const key of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete personEnv[key];
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  const setup = startCli(box.root, personEnv, cli, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = startCli(box.root, personEnv, cli, ['relay', 'on', '--all', '--url', box.origin]);
   t.after(async () => {
     if (setup.child.exitCode === null) setup.child.kill('SIGTERM');
     await setup.done.catch(() => {});
@@ -291,7 +291,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const firstToken = scopedToken(box.linkFile, firstAgent);
   const secondToken = scopedToken(box.linkFile, secondAgent);
-  const list = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'tokens');
+  const list = await box.cli('relay', 'tokens');
   assert.equal(list.code, 0, list.failure ?? list.stderr);
   assert.deepEqual(list.document.tokens.map((row) => row.agent).sort(), ['coordinator', firstAgent, secondAgent].sort());
   const personState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -336,7 +336,7 @@ test('ordered agent joins mint scoped tokens and retain authenticated native act
 
   const firstApprovalCount = box.calls.filter((call) => call.path.endsWith('/authorize')).length;
   const nativeRevokeStart = box.transit.length;
-  const nativeRevoke = startCli(box.root, personEnv, cli, ['apps', 'relay', 'src', 'io', 'deploy', 'revoke', firstTokenRow.id]);
+  const nativeRevoke = startCli(box.root, personEnv, cli, ['relay', 'revoke', firstTokenRow.id]);
   t.after(async () => { if (nativeRevoke.child.exitCode === null) nativeRevoke.child.kill('SIGTERM'); await nativeRevoke.done.catch(() => {}); });
   const nativeProposal = await waitForPhoneProposal(box, nativeRevokeStart, firstTokenRow.id);
   assert.equal(box.calls.filter((call) => call.path.endsWith('/authorize')).length, firstApprovalCount,
@@ -485,7 +485,7 @@ test('a token mint failure after registration preserves the agent for one clean 
   const linkState = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.deepEqual(Object.keys(linkState.agentTokens).sort(), ['coordinator', agent].sort(), 'the private link cache holds one usable token for the registered agent beside the coordinator');
   const token = scopedToken(box.linkFile, agent);
-  const listed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'tokens');
+  const listed = await box.cli('relay', 'tokens');
   assert.equal(listed.code, 0, listed.failure ?? listed.stderr);
   assert.deepEqual(listed.document.tokens.map((row) => row.agent).sort(), ['coordinator', agent].sort());
   assertMetadataOnly(listed.document, [token, linkState.token], 'retry inventory exposes metadata only');

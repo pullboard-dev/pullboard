@@ -60,8 +60,8 @@ await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'pack
   assert.equal(result.status, 0, result.context);
   const reader = toolSourcePath(installed, 'packages/runners/src/io/package.js');
   const source = readFileSync(reader, 'utf8');
-  assert.ok(source.includes("from './runner-module-parser.js'"));
-  writeFileSync(reader, source.replace("from './runner-module-parser.js'", "from '../../index.js'"));
+  assert.ok(source.includes("from './module/parser.js'"));
+  writeFileSync(reader, source.replace("from './module/parser.js'", "from '../../index.js'"));
   const backEdge = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
   assert.notEqual(backEdge.status, 0, 'the former private-to-barrel back edge triggers the planted facade');
   assert.match(backEdge.stderr, /FACADE_EAGER_MARKER/);
