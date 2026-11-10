@@ -189,11 +189,11 @@ export async function localLoadStart({ read = loadavg, cores = availableParallel
  * Run named test files through a gate slot, which deals them to the registered runners first (#1054); the focused
  * runner (pullboard.json affectedTests) gives each file its timeout. A red file is compared with main's recorded
  * result for that file, so a failure main already has reads as known. A single named file skips that comparison
- * unless compareMain is set.
+ * unless compareMain is set. Even then, a failing file that `knownRed(file)` gives a reason for starts no main run.
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures, knownRed } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -237,7 +237,12 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
   const skipMain = !affected && paths.length === 1 && !compareMain;
   if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
-  if (!run.isGreen && !skipMain) {
+  // A known red needs no main run: "is it red" is enough, and the candidate's own result is the proof [C7].
+  const redFiles = !run.isGreen && compareMain && typeof knownRed === 'function' ? [...new Set((typeof failureSignatures === 'function' ? failureSignatures(run, run.executionRoot ?? root) : null)?.map(row => row.file) ?? paths)] : [];
+  const reasons = redFiles.map(knownRed);
+  const knownReds = redFiles.length > 0 && reasons.every(Boolean);
+  if (knownReds) result.mainSkipped = reasons[0];
+  if (!run.isGreen && !skipMain && !knownReds) {
     const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
       execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
