@@ -93,7 +93,7 @@ function refuseModule(path, text, why) {
 export function browserModules(root, { named, standins = {}, generated = {} }) {
   const served = new Map(), urlOf = new Map(), pending = [];
   // The kernel's light and index doors carry Node-only pieces (the process census imports node:crypto), so every browser graph reads the browser-safe door.
-  const stand = Object.fromEntries(Object.entries({ ...KERNEL_BROWSER_DOORS, ...standins }).map(([path, value]) => [path, repositoryPath(root, value)]));
+  const stand = Object.fromEntries(Object.entries({ ...Object.fromEntries(Object.entries(KERNEL_BROWSER_DOORS).filter(([, door]) => existsSync(join(root, door)))), ...standins }).map(([path, value]) => [path, repositoryPath(root, value)]));
   for (const [url, value] of Object.entries(named)) { urlOf.set(repositoryPath(root, value), url); pending.push([url, repositoryPath(root, value)]); }
   const publicUrls = new Set([...Object.keys(named), ...Object.keys(generated)]);
   /** The URL a repository path is served at, queuing its module the first time. */
