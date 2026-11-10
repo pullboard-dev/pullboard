@@ -146,17 +146,13 @@
     "hand-policy": 1
   },
   "packages/gate/tests/gate-timing-output.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1
+    "tempdir": 2
   },
   "packages/gate/tests/gui-admission.test.js": {
     "tempdir": 3
   },
   "packages/gate/tests/gui-marker-guard.test.js": {
     "tempdir": 2
-  },
-  "packages/gate/tests/land-affected.test.js": {
-    "model": 1
   },
   "packages/landing/tests/landing-no-nested-shards.test.js": {
     "tempdir": 1,
@@ -3934,5 +3930,11 @@
   },
   "test/resources-pool-fixture.js": {
     "tempdir": 1
+  },
+  "test/gate-receipt-timing.test.js": {
+    "hand-policy": 1
+  },
+  "test/land-affected.test.js": {
+    "model": 1
   }
 }
