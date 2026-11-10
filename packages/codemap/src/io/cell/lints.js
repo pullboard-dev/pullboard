@@ -60,7 +60,7 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
   const graph = new Map(), reachable = new Set(), pending = [...rootInfo.roots];
   for (const file of files.keys()) {
     const pathMapMetadata = /^packages\/codemap\/data\/plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file);
-    const cellBaselineMetadata = /^packages\/codemap\/data\/baselines\/lints\/cells\/[a-z][a-z0-9-]*\.json$/u.test(file);
+    const cellBaselineMetadata = /^packages\/codemap\/data\/baselines\/lints\/(?:cells\/[a-z][a-z0-9-]*|index|[a-zA-Z]+-\d{3})\.json$/u.test(file);
     const transitionMetadata = file === TRANSITION_FILE;
     const shimBaselineMetadata = file === 'packages/codemap/data/baselines/lints/shim-counts.json';
     const cell = cellOf(file), tail = cell ? file.slice(cell.length + 1) : null;
