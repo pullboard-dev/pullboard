@@ -1,16 +1,16 @@
-import { flakeLedger as nativeFlakeLedger } from '../../flakes/index.js';
-import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../flakes/index.js';
+import { flakeLedger as nativeFlakeLedger } from '../index.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../index.js';
 /** Synthetic public-store/replay fixtures: these receipt inputs do not claim a gate was executed [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
 import {
   applyEngineMove,
   appliedSequence,
   prepareEngineMove,
-} from '../src/shell/engine.js';
+} from '../../state/index.js';
 import {
   exportBoard,
   importBoard,

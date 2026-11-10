@@ -1,9 +1,9 @@
 /** A recorded companion objection replays through the declared lifecycle, so the projected chart counts it [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lifecycleEvent } from '../../items/index.js';
-import { lifecycleSteps } from '../../items/index.js';
-import { MACHINE } from '../core.js';
+import { lifecycleEvent } from '../index.js';
+import { lifecycleSteps } from '../index.js';
+import { MACHINE } from '../../state/core.js';
 
 /** One board event row as the store records it. */
 function row(kind, at, detail = {}) {

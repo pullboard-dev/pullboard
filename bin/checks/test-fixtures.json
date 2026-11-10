@@ -347,7 +347,7 @@
   "packages/state/tests/file-growth-notice.test.js": {
     "raw-board": 6
   },
-  "packages/state/tests/flakes-ledger.test.js": {
+  "packages/flakes/tests/flakes-ledger.test.js": {
     "raw-board": 5
   },
   "packages/state/tests/flow-submit-size.test.js": {
@@ -1989,7 +1989,7 @@
   "test/landing-known-main.test.js": {
     "model": 1
   },
-  "packages/state/tests/landing-lease.test.js": {
+  "packages/link/tests/landing-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
