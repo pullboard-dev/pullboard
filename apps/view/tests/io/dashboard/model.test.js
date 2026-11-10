@@ -70,6 +70,7 @@ test('Dashboard counts matching merged records regardless of status [N26]', () =
   const events = [...input.events];
   const add = (id, value) => events.push({ event_id: events.length + 1, event_kind: 'merged', item_id: id,
     event_by: 'coordinator', event_at: new Date(input.now - 1000).toISOString(), event_detail: JSON.stringify(value) });
+  input.project.items.find(item => item.id === 3).status = 'withdrawn'; // no merge record or event
   input.project.items.find(item => item.id === 4).status = 'withdrawn';
   input.project.items.find(item => item.id === 5).status = 'claimed';
   input.project.dashboardLanded.push({ id: 4, commit }, { id: 5, commit }, { id: 6, commit });
