@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads apps/relay/src/io/deploy/client.js packages/config/src/io/headlines.js */
+/** @pullboard-test-loads apps/relay/src/io/browser/client.js packages/config/src/io/headlines.js */
 /** Exercise the deploy smoke script against a private loopback relay [H5,H18]. */
 import assert from 'node:assert/strict';
 import {
@@ -830,7 +830,7 @@ async function servedRelayClient(t) {
     }
   }
   t.diagnostic(`served ${written.size} modules`);
-  return { written, module: await import(pathToFileURL(join(folder, 'apps/relay/src/io/deploy/client.js')).href) };
+  return { written, module: await import(pathToFileURL(join(folder, 'relay/client.js')).href) };
 }
 
 /** Install a browser page whose storage refuses every write and whose relay serves one sealed board. */
