@@ -69,13 +69,10 @@ const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destina
 // lists and reads them itself has no key at all (listsOwnCheckout).
 const PROSE = new Set(['CHANGELOG.md']);
 // Whole trees are inputs only by declaration (`@pullboard-test-input`), never because a fixture names `src`.
-// Tests live in each cell's tests/ and, for an app, journeys/ folder; the source tree is everything else under apps/ and packages/.
-const TEST_SIDE_PATH = /^(?:packages\/[^/]+\/tests|apps\/[^/]+\/(?:tests|journeys))\//u;
-const TREE_DECLARATIONS = [['test-tree', path => TEST_SIDE_PATH.test(path)],
-  ['source-tree', path => /^(?:apps|packages)\//u.test(path) && !TEST_SIDE_PATH.test(path)], ['docs-tree', path => path.startsWith('docs/')]];
+const TREE_DECLARATIONS = [['test-tree', ['test/']], ['source-tree', ['src/', 'bin/']], ['docs-tree', ['docs/']]];
 // Git commands that read history; a test that declares it reads its own checkout and names one reads that history.
 const HISTORY = new Set(['log', 'rev-list', 'shortlog', 'blame', 'reflog', 'whatchanged', 'describe']);
-const TOP_TREES = new Set(['', '.', 'apps', 'packages', 'docs']);
+const TOP_TREES = new Set(['', '.', 'src', 'bin', 'test', 'docs']);
 const URL_LITERAL = /new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu;
 const STRING = /(['"])(?:\\[\s\S]|(?!\1)[^\\\r\n])*\1|`(?:\\[\s\S]|[^`\\])*`/uy;
 
@@ -188,15 +185,14 @@ function declaredReads(test, files, modules, index, helpers = [test]) {
   const inputs = new Set();
   const header = (modules.get(test) ?? '').split(/\r?\n/u);
   let declared = false;
-  for (const [name, inTree] of TREE_DECLARATIONS) {
+  for (const [name, prefixes] of TREE_DECLARATIONS) {
     if (!header.includes(`/** @pullboard-test-input ${name} */`)) continue;
     declared = true;
-    if (!index.trees.has(name)) index.trees.set(name, index.sorted.filter(inTree));
-    for (const path of index.trees.get(name)) inputs.add(path);
+    for (const prefix of prefixes) for (const path of index.under(prefix)) inputs.add(path);
   }
   let listing = false, history = false, undeclaredListing = false;
   for (const file of files) {
-    const testSide = TEST_SIDE_PATH.test(file) || file === test;
+    const testSide = file.startsWith('test/') || file === test;
     const memo = `${testSide ? 't' : 's'}:${file}`;
     if (!index.named.has(memo)) index.named.set(memo, namedFiles(file, modules.get(file) ?? '', testSide, index));
     for (const path of index.named.get(memo)) inputs.add(path);
@@ -235,7 +231,7 @@ function treeIndex(blobs) {
     if (!cache.has(prefix)) cache.set(prefix, sorted.filter(path => path.startsWith(prefix)));
     return cache.get(prefix);
   };
-  return { files, folders, byName, under, sorted, named: new Map(), trees: new Map(), literals: new Map(), listers: new Map() };
+  return { files, folders, byName, under, sorted, named: new Map(), literals: new Map(), listers: new Map() };
 }
 
 /**
@@ -261,7 +257,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   const context = executionContext(env);
   // Hash the executing analyzer as well as the committed tree: fixture and installed tooling
   // can live outside that tree, and a new analyzer must not read an older algorithm's memo.
-  const analyzer = ['cache.js', 'memo.js', '../store.js', '../../affected/tests.js', '../../affected/graph/cache.js', '../../../../../codemap/src/io/main-facts-cache.js', '../../../../../codemap/src/logic/imports.js', '../../../../../codemap/src/io/module/imports.js']
+  const analyzer = ['test-action-cache.js', 'test-action-key-memo.js', 'test-result-store.js', 'affected-tests.js', 'affected-graph-cache.js', '../../../../../codemap/src/io/main-facts-cache.js', '../../../../../codemap/src/logic/imports.js', 'module-imports.js']
     .map(file => [file, readFileSync(new URL(file, import.meta.url), 'utf8')]);
   shared.policy = digest(analyzer);
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
@@ -275,7 +271,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
   // Test files and docs the graph links through declared tree reads are never harness code, so they stay out.
-  const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !TEST_SIDE_PATH.test(path) && !path.startsWith('docs/'));
+  const harness = reach(RUNNER_INPUTS, { withoutSelectedRunnerModules: true }).filter(path => !path.startsWith('test/') && !path.startsWith('docs/'));
   const runner = [...new Set([...RUNNER_INPUTS, ...harness])].sort().map(path => [path, blobs.get(path) ?? null]);
   const keys = new Map();
   for (const [test, closure] of closures) {
