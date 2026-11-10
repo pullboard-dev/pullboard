@@ -3,21 +3,21 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixture } from '../fixtures/plan.js';
-import { git } from '../fixtures/plan.js';
-import { computePlan } from '../../../codemap/index.js';
-import { writePlan } from '../../../codemap/index.js';
-import { requireSubmitCells } from '../../../../apps/cli/index.js';
-import { cellLintReport } from '../../../codemap/index.js';
-import { cellLintBaseline } from '../../../codemap/index.js';
-import { writeCellLintBaseline } from '../../../codemap/index.js';
-import { withMainCheckout } from '../../index.js';
-import { warmAcceptedCells } from '../../../gate/index.js';
-import { withFileLock } from '../../../outbox/index.js';
-import { importsIn } from '../../../gate/index.js';
-import { commonJsIn } from '../../../gate/index.js';
-import { withImportParseCache } from '../../../gate/index.js';
-import { foreignNodeOptions } from '../../../gate/index.js';
+import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { computePlan } from '../../../../packages/codemap/index.js';
+import { writePlan } from '../../../../packages/codemap/index.js';
+import { requireSubmitCells } from '../../index.js';
+import { cellLintReport } from '../../../../packages/codemap/index.js';
+import { cellLintBaseline } from '../../../../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { warmAcceptedCells } from '../../../../packages/gate/index.js';
+import { withFileLock } from '../../../../packages/outbox/index.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../packages/gate/index.js';
+import { withImportParseCache } from '../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../packages/gate/index.js';
 
 /** Pin an actual moved package and its accepted baseline before adding entry metadata. */
 function accepted(t, declared = false) {

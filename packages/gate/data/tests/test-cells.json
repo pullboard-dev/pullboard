@@ -211,19 +211,7 @@
     "packages/gate/tests/fixtures/resources/release.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks"
   },
   "leaves": [],
-  "findings": {
-    "packages/landing/tests/cells/door.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/cells/incremental.test.js": "imports packages/codemap/src/io/cells/scripts/cache.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/cells/stays.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/closure.test.js": "imports packages/gate/src/io/scan.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/io/main/audit/against.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/io/reuse/verdict.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/logic/hold/span.test.js": "imports apps/cli/tests/fixtures/e2e.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/submit/cells/composed.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/submit/cells/incremental.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/submit/cells/stays.test.js": "imports apps/cli/index.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/landing/tests/submit/cells/wildcard.test.js": "imports packages/codemap/src/io/cells/plan/cuts.js, outside its own cell landing; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper"
-  },
+  "findings": {},
   "rootTests": 0,
   "sealed": [
     "activity",
@@ -249,6 +237,7 @@
     "kernel",
     "keys",
     "land",
+    "landing",
     "link",
     "mcp",
     "merge",

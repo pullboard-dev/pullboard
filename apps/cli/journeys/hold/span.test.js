@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
-import { makeLandProjectFixtures } from '../../../../../apps/cli/tests/fixtures/land/project.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
+import { temporaryDirectory } from '../../tests/fixtures/board.js';
+import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -25,17 +25,17 @@ function landOnce(box, { defect }) {
   const home = temporaryDirectory('hold-span-');
   const url = path => JSON.stringify(pathToFileURL(join(import.meta.dirname, path)).href);
   const source = [
-    `import { openBoard } from ${url('../../../../../apps/lib/index.js')};`,
-    `import * as store from ${url('../../../../store/index.js')};`,
-    `import { writeBoardCommand } from ${url('../../../../store/index.js')};`,
-    `import { loadConfig } from ${url('../../../../config/index.js')};`,
-    `import { runLandingBatch } from ${url('../../../index.js')};`,
-    `import { landingPorts } from ${url('../../../../../apps/cli/tests/fixtures/landing/ports.js')};`,
-    `import { checkAtCommit } from ${url('../../../../../apps/runner/index.js')};`,
+    `import { openBoard } from ${url('../../../lib/index.js')};`,
+    `import * as store from ${url('../../../../packages/store/index.js')};`,
+    `import { writeBoardCommand } from ${url('../../../../packages/store/index.js')};`,
+    `import { loadConfig } from ${url('../../../../packages/config/index.js')};`,
+    `import { runLandingBatch } from ${url('../../../../packages/landing/index.js')};`,
+    `import { landingPorts } from ${url('../../tests/fixtures/landing/ports.js')};`,
+    `import { checkAtCommit } from ${url('../../../runner/index.js')};`,
     "import { readFileSync, existsSync } from 'node:fs';",
     "import { join } from 'node:path';",
-    `import { testBlob } from ${url('../../../src/io/step/selection.js')};`,
-    `import { mainCheckout } from ${url('../../../../git/index.js')};`,
+    `import { testBlob } from ${url('../../../../packages/landing/src/io/step/selection.js')};`,
+    `import { mainCheckout } from ${url('../../../../packages/git/index.js')};`,
     'const [root, home, defect] = process.argv.slice(1);',
     'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"), undefined, { writeContext: { command: "api", seat: "coordinator" } });',
     'const log = join(home, "board-writes.jsonl");',
@@ -54,7 +54,7 @@ function landOnce(box, { defect }) {
     '  console.log(JSON.stringify({ error, lines, spans, writes: rows().slice(before) }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, home, defect ? '1' : '0', join(import.meta.dirname, '../../../../../apps/lib/src/io/landing/candidate.js')],
+  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, home, defect ? '1' : '0', join(import.meta.dirname, '../../../lib/src/io/landing/candidate.js')],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_MACHINE_HOME: home }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
   return JSON.parse(run.stdout.trim().split('\n').at(-1));

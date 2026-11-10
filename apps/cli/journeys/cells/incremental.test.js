@@ -11,20 +11,20 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { inventoryCache } from '../../../codemap/src/io/cells/scripts/cache.js';
-import { inventoryCacheFile } from '../../../codemap/src/io/cells/scripts/cache.js';
-import { cellInventory } from '../../../codemap/index.js';
-import { updateCellInventory } from '../../../codemap/index.js';
-import { importsIn } from '../../../gate/index.js';
-import { commonJsIn } from '../../../gate/index.js';
-import { withImportParseCache } from '../../../gate/index.js';
-import { foreignNodeOptions } from '../../../gate/index.js';
-import { withMainCheckout } from '../../index.js';
-import { warmAcceptedCells } from '../../../gate/index.js';
-import { withFileLock } from '../../../outbox/index.js';
-import { requireSubmitCells } from '../../../../apps/cli/index.js';
-import { fixture } from '../fixtures/plan.js';
-import { git } from '../fixtures/plan.js';
+import { inventoryCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { inventoryCacheFile } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { cellInventory } from '../../../../packages/codemap/index.js';
+import { updateCellInventory } from '../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../packages/gate/index.js';
+import { withImportParseCache } from '../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../packages/gate/index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { warmAcceptedCells } from '../../../../packages/gate/index.js';
+import { withFileLock } from '../../../../packages/outbox/index.js';
+import { requireSubmitCells } from '../../index.js';
+import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 
 /** Order unknown rows canonically; an incremental update appends where a census walks files in order. */
 function canonical(inventory) {

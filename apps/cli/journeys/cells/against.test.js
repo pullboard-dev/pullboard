@@ -13,28 +13,28 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fixture as planFixture } from '../../../fixtures/plan.js';
-import { git } from '../../../fixtures/plan.js';
-import { publishAcceptedCells } from '../../../fixtures/plan.js';
-import { acceptedCutItems } from '../../../fixtures/plan.js';
-import { importsIn } from '../../../../../gate/index.js';
-import { commonJsIn } from '../../../../../gate/index.js';
-import { withImportParseCache } from '../../../../../gate/index.js';
-import { foreignNodeOptions } from '../../../../../gate/index.js';
-import { cellLintReport } from '../../../../../codemap/index.js';
-import { cellLintBaseline } from '../../../../../codemap/index.js';
-import { writeCellLintBaseline } from '../../../../../codemap/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../../../../../codemap/index.js';
-import { withMainCheckout } from '../../../../index.js';
-import { computePlan } from '../../../../../codemap/index.js';
-import { writePlan } from '../../../../../codemap/index.js';
-import { requireSubmitCells } from '../../../../../../apps/cli/index.js';
-import { cellsMove } from '../../../../../codemap/src/io/cells/move/tool.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { fixture as planFixture } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { acceptedCutItems } from '../../../../packages/landing/tests/fixtures/plan.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../packages/gate/index.js';
+import { withImportParseCache } from '../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../packages/gate/index.js';
+import { cellLintReport } from '../../../../packages/codemap/index.js';
+import { cellLintBaseline } from '../../../../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../../../../packages/codemap/index.js';
+import { withMainCheckout } from '../../../../packages/landing/index.js';
+import { computePlan } from '../../../../packages/codemap/index.js';
+import { writePlan } from '../../../../packages/codemap/index.js';
+import { requireSubmitCells } from '../../index.js';
+import { cellsMove } from '../../../../packages/codemap/src/io/cells/move/tool.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
 
 const parsers = { importsIn, commonJsIn };
-const LINTS = fileURLToPath(new URL('../../../../../codemap/src/io/cell/scripts/lints.js', import.meta.url));
+const LINTS = fileURLToPath(new URL('../../../../packages/codemap/src/io/cell/scripts/lints.js', import.meta.url));
 
 /**
  * Build a real repo whose main records a cell-lint baseline, then lands a cells move that adds a shim

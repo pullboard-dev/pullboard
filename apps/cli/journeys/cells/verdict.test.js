@@ -1,7 +1,7 @@
 /** A cell's verdict is reused unless its own closure or policy row changed [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { touchedCells } from '../../../../../apps/cli/index.js';
+import { touchedCells } from '../../index.js';
 
 /** Build a plan cell with a shard-ordered identity and one placed path. */
 function cell(order, name, extra = {}) {
