@@ -217,6 +217,23 @@ test('materialized Rigor advice uses the existing person decision and a decline 
   } finally { box.close(); }
 });
 
+test('rigor.autoDraft false stops unproved auto-drafts and a bad value is refused (GH #26) [D1,S1]', () => {
+  const box = fixture();
+  try {
+    const file = join(box.root, 'pullboard.json');
+    const config = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: false } }));
+    for (const title of ['First', 'Second', 'Third']) { const id = box.submit(title); box.failure(id); box.reject(id); }
+    assert.equal(store.rowDrafts(box.board).length, 0, 'repeated failures draft nothing while autoDraft is false');
+    assert.equal(store.events(box.board).some(event => event.event_kind === 'rigor-draft'), false);
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: true } }));
+    const again = box.submit('Fourth'); box.failure(again); box.reject(again);
+    assert.ok(store.rowDrafts(box.board).length > 0, 'turning it back on drafts again');
+    writeFileSync(file, JSON.stringify({ ...config, rigor: { autoDraft: 'no' } }));
+    assert.throws(() => loadConfig(box.root), error => error.code === 'BAD_CONFIG' && /autoDraft/u.test(error.message));
+  } finally { box.close(); }
+});
+
 test('a cross-file row collision stays visible and refuses before any automatic proposal is materialized [D1,S1]', () => {
   const box = fixture();
   try {
