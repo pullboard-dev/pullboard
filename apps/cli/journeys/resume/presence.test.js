@@ -90,6 +90,18 @@ test('changing the eligible item does not repeat an idle-seat warning until a cl
   assert.match(warnings()[1].shout_text, new RegExp(`#${second}\\b`, 'u'));
 });
 
+test('work becoming ready beside an already idle seat warns without another five-minute wait [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  box.advance(300001);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  const ready = box.add('Work becomes ready after the idle limit');
+  box.scan();
+  const warnings = store.allShouts(box.board).filter(row => row.shout_to === 'coordinator'
+    && row.shout_text.startsWith(`Stuck: ${box.seats.actor.id} beside #${ready} `)
+    && row.shout_text.includes('UNPAIRED_WORK'));
+  assert.equal(warnings.length, 1, 'a seat already idle past the limit is reported when work becomes ready');
+});
+
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 

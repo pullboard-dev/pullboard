@@ -55,7 +55,7 @@ export function dispatchHealth(board, config = {}) {
     const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
     const lastWork = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE event_by=? AND event_kind IN ('claim','reserve','release','submit')").get(seat.agent_id)?.at ?? seat.agent_created_at;
     const idleMinutes = Math.floor(Math.max(0, at.getTime() - Date.parse(lastWork)) / 60000);
-    const observedSince = new Date(Math.min(at.getTime(), Math.max(...[lastChange, seat.agent_created_at, seat.heartbeatAt].filter(Boolean).map(Date.parse)))).toISOString();
+    const observedSince = new Date(Math.min(at.getTime(), Date.parse(lastWork))).toISOString();
     const since = before && (!lastChange || lastChange <= before.since) ? before.since : observedSince;
     dispatch.push({ seat: seat.agent_id, item, review: selected.review, since });
     if (at.getTime() - Date.parse(since) < 300000) continue;
