@@ -1,6 +1,6 @@
 /** Read-only native companion inputs stay outside the writer and person import graphs [C7,V4,H16]. */
 import { createHash } from 'node:crypto';
-import { ENGINE_VERSION } from "../../../../state/src/io/engine/metadata.js";
+import { ENGINE_VERSION } from "../../../../state/light.js";
 import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 const PREFIX = 'item_patches:';

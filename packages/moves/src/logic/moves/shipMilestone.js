@@ -3,7 +3,7 @@ import { COORDINATOR_ACTIONS_ENGINE } from '../../../../state/light.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by shipMilestone, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
-import { MILESTONE_SHIP_ENGINE } from "../../../../state/src/logic/move/constants.js";
+import { MILESTONE_SHIP_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

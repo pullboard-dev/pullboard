@@ -19,7 +19,7 @@ import { produceAcceptedCells } from '../../../../lib/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { isAbsolute } from 'node:path';
 import { cellsBacklogCollector } from '../../../../../packages/codemap/index.js';
-import { boardCommandBudgetCheck } from '../../../../../packages/gate/src/io/board/budget.js';
+import { boardCommandBudgetCheck } from './budget.js';
 
 const [root, token, ...args] = process.argv.slice(2);
 const scheduled = args[0] === '--scheduled';
