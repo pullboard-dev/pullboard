@@ -9,9 +9,9 @@ import { test } from 'node:test';
 import {
   FIXTURE_HELPERS,
   fixtureSites,
-} from '../../../packages/gate/src/io/test/fixtures.js';
-import { privateFixtureFiles } from '../../cli/tests/fixtures/child.js';
-import { fixtureProjectPolicy } from '../../cli/tests/fixtures/testkit.js';
+} from '../../../../packages/gate/src/io/test/fixtures.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 
 test('clause 1: the kit helper writes exactly the policy a test declares and forces no other setting [C7]', () => {
   const box = privateFixtureFiles('pullboard-kit-policy-');

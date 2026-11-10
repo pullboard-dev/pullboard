@@ -602,14 +602,14 @@
     "tempdir": 3,
     "raw-board": 1
   },
-  "apps/relay/tests/io/board/inbox.test.js": {
+  "apps/cli/journeys/relay/inbox.test.js": {
     "tempdir": 1
   },
   "apps/lib/tests/logic/native/hold.test.js": {
     "tempdir": 1,
     "raw-board": 7
   },
-  "apps/lib/tests/logic/native/no.test.js": {
+  "apps/cli/journeys/status/writer.test.js": {
     "raw-board": 4,
     "repo-read": 1
   },
@@ -632,7 +632,7 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "apps/lib/tests/logic/native/latency.test.js": {
+  "apps/cli/journeys/claim/latency.test.js": {
     "tempdir": 1,
     "raw-board": 3,
     "model": 1
@@ -690,7 +690,7 @@
   "apps/cli/journeys/submit/advisory.test.js": {
     "hand-policy": 2
   },
-  "apps/lib/tests/cells/ratchet.test.js": {
+  "apps/cli/journeys/submit/ratchet.test.js": {
     "raw-board": 1
   },
   "packages/gate/tests/io/edges/reads.test.js": {
@@ -720,11 +720,11 @@
   "packages/items/tests/io/criterion.test.js": {
     "tempdir": 1
   },
-  "apps/lib/tests/logic/native/query.test.js": {
+  "apps/cli/journeys/status/query.test.js": {
     "tempdir": 2,
     "raw-board": 5
   },
-  "apps/lib/tests/cells/cache.test.js": {
+  "apps/cli/journeys/submit/cache.test.js": {
     "tempdir": 1
   },
   "apps/cli/tests/fixtures/cells/shims.js": {
@@ -736,7 +736,7 @@
   "packages/codemap/tests/io/cells/backlog.test.js": {
     "tempdir": 2
   },
-  "apps/lib/tests/cells/shims.test.js": {
+  "apps/cli/journeys/move/shims.test.js": {
     "tempdir": 1
   },
   "packages/gate/tests/io/edges/temporary.test.js": {
@@ -1396,7 +1396,7 @@
   "apps/cli/journeys/handoff/a1.test.js": {
     "raw-board": 3
   },
-  "apps/lib/tests/logic/native/gate.test.js": {
+  "apps/cli/journeys/handoff/sections.test.js": {
     "raw-board": 1
   },
   "apps/lib/tests/durable/drive.test.js": {
@@ -1420,7 +1420,7 @@
   "apps/lib/tests/durable/land/done.test.js": {
     "raw-board": 1
   },
-  "apps/lib/tests/logic/native/mainred.test.js": {
+  "apps/cli/journeys/gate/mainred.test.js": {
     "raw-board": 2,
     "hand-policy": 1
   },
@@ -1430,7 +1430,7 @@
   "apps/cli/journeys/land/switch.test.js": {
     "raw-board": 1
   },
-  "apps/lib/tests/logic/native/wire.test.js": {
+  "apps/cli/journeys/submit/wire.test.js": {
     "raw-board": 7
   },
   "apps/cli/journeys/resume/e2e.test.js": {
@@ -1470,7 +1470,7 @@
     "hand-policy": 5,
     "repo-read": 1
   },
-  "packages/runners/tests/folder.test.js": {
+  "packages/state/tests/io/engine/folder.test.js": {
     "tempdir": 3
   },
   "packages/moves/tests/engine.test.js": {
@@ -1490,7 +1490,7 @@
   "apps/cli/tests/fixtures/child.js": {
     "tempdir": 1
   },
-  "packages/runners/tests/copier.test.js": {
+  "apps/cli/journeys/move/copier.test.js": {
     "tempdir": 2
   },
   "packages/runners/tests/fixture-copiers.test.js": {
@@ -1763,7 +1763,7 @@
   "apps/cli/journeys/fact/item/seat.test.js": {
     "raw-board": 1
   },
-  "apps/lib/tests/logic/native/once.test.js": {
+  "apps/cli/journeys/claim/once.test.js": {
     "tempdir": 3,
     "raw-board": 4
   },
@@ -1973,7 +1973,7 @@
   "packages/landing/tests/io/main/red/refresh/detached.test.js": {
     "tempdir": 2
   },
-  "apps/lib/tests/landing/unplaced.test.js": {
+  "apps/cli/journeys/land/unplaced.test.js": {
     "raw-board": 2
   },
   "packages/landing/tests/io/docs.test.js": {
@@ -2177,7 +2177,7 @@
     "hand-policy": 2,
     "raw-board": 1
   },
-  "packages/runners/tests/closure/move/merge.test.js": {
+  "apps/cli/journeys/move/merge.test.js": {
     "repo-read": 2,
     "hex64": 1
   },
@@ -2511,7 +2511,7 @@
   "apps/cli/journeys/fact/timing.test.js": {
     "raw-board": 2
   },
-  "apps/lib/tests/logic/native/seat.test.js": {
+  "apps/cli/journeys/heartbeat/seat.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -3526,7 +3526,7 @@
     "raw-board": 1,
     "model": 1
   },
-  "apps/lib/tests/io/submit/requeue/gate.test.js": {
+  "apps/cli/journeys/submit/analysis.test.js": {
     "tempdir": 2
   },
   "apps/cli/journeys/submit/replaces.test.js": {
@@ -3612,7 +3612,7 @@
     "hand-policy": 1,
     "env-spread": 1
   },
-  "apps/lib/tests/logic/native/heartbeat.test.js": {
+  "apps/cli/journeys/test/heartbeat.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/test/run/binding.test.js": {
@@ -3721,7 +3721,7 @@
   "apps/cli/tests/io/verify.test.js": {
     "tempdir": 2
   },
-  "packages/runners/tests/closure/move/verify.test.js": {
+  "apps/cli/journeys/move/verify.test.js": {
     "repo-read": 1
   },
   "apps/cli/journeys/verify/trunk/moved.test.js": {
@@ -3800,7 +3800,7 @@
   "apps/cli/tests/worker-scale.test.js": {
     "tempdir": 1
   },
-  "apps/lib/tests/workflows.test.js": {
+  "apps/cli/journeys/gate/workflows.test.js": {
     "repo-read": 2,
     "hand-policy": 3,
     "tempdir": 1

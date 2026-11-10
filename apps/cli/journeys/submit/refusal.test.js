@@ -4,11 +4,11 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixture } from '../../../../../cli/tests/fixtures/analysis.js';
-import { remoteSubmitCells } from '../../../../../cli/src/io/submit/remote.js';
-import { submitCellsRemoteCommand } from '../../../../../cli/src/io/submit/remote.js';
-import { submitUntilSettled } from '../../../../src/io/submit/requeue.js';
-import { infrastructureFailure } from '../../../../src/io/submit/requeue.js';
+import { fixture } from '../../tests/fixtures/analysis.js';
+import { remoteSubmitCells } from '../../src/io/submit/remote.js';
+import { submitCellsRemoteCommand } from '../../src/io/submit/remote.js';
+import { submitUntilSettled } from '../../../lib/src/io/submit/requeue.js';
+import { infrastructureFailure } from '../../../lib/src/io/submit/requeue.js';
 
 test('clause 1: a retryable refusal line from the remote step requeues the same candidate, never RUNNER_RESULT_INVALID [C7]', async () => {
   const line = 'PULLBOARD_TRUSTED_RESULT ' + JSON.stringify({ refusal: { code: 'CELLS_INVENTORY_PENDING', message: 'accepted inventory is warming', retryable: true } }) + '\n';

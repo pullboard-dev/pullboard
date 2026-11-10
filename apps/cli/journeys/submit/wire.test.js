@@ -19,41 +19,41 @@ import { fileURLToPath } from 'node:url';
 import {
   closeBoard,
   openBoard,
-} from '../../../src/logic/native.js';
-import * as store from '../../../../../packages/store/index.js';
+} from '../../../lib/src/logic/native.js';
+import * as store from '../../../../packages/store/index.js';
 import {
   recordSubmitHandoff,
   jobView,
   takeJob,
-} from '../../../../../packages/jobs/index.js';
+} from '../../../../packages/jobs/index.js';
 import {
   DISPATCHER_JOB,
   driveLanding,
   ensureDispatcher,
   gateDriveJobId,
   readGateDrive,
-} from '../../../../../packages/drive/index.js';
+} from '../../../../packages/drive/index.js';
 import {
   drainHandoffQueue,
   queueHandoffLaunch,
   reserveHandoffTicket,
-} from '../../../../../packages/resources/index.js';
+} from '../../../../packages/resources/index.js';
 import {
   inProcessLandingBatch,
   landingProgress,
-} from '../../../../../packages/landing/index.js';
+} from '../../../../packages/landing/index.js';
 import {
   dispatcherRow,
   gateAdmission,
-} from '../../../src/io/handoff/dispatcher.js';
+} from '../../../lib/src/io/handoff/dispatcher.js';
 import {
   fixtureBoard,
   temporaryDirectory,
-} from '../../../../cli/tests/fixtures/board.js';
-import { runFixtureChildAsync } from '../../../../cli/tests/fixtures/child.js';
-import { readText } from '../../../../../packages/gate/src/io/scan.js';
+} from '../../tests/fixtures/board.js';
+import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { readText } from '../../../../packages/gate/src/io/scan.js';
 
-const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
 /** Point the machine home at a private directory for one test. */
 function machineHome(t, home) {

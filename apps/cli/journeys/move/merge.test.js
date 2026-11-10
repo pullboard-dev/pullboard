@@ -12,13 +12,13 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { importsIn } from '../../../../gate/index.js';
-import { readPathMap } from '../../../../codemap/index.js';
-import { workingSourceInventory } from '../../../../gate/src/io/scan.js';
-import { packageFiles } from '../../../index.js';
-import { sourceDirectories } from '../../../../gate/tests/fixtures/functions.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { readPathMap } from '../../../../packages/codemap/index.js';
+import { workingSourceInventory } from '../../../../packages/gate/src/io/scan.js';
+import { packageFiles } from '../../../../packages/runners/index.js';
+import { sourceDirectories } from '../../../../packages/gate/tests/fixtures/functions.js';
 
-const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
 // The reopen move reads the conflict predicate through the merge core door, which re-exports this body.
 const REOPEN = 'packages/moves/src/core/moves/reopen.js';
@@ -53,7 +53,7 @@ function closure(read, identities) {
 test('the conflict predicate stays on the light core door in the accepted main move closure [C7,CD60,H16]', () => {
   const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
     .map(({ file, body }) => [file, body.toString('utf8')]));
-  const manifest = readFileSync(new URL('../../../../../package.json', import.meta.url), 'utf8');
+  const manifest = readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8');
   /** Read only exact finite inventory bytes, with the one explicit JSON data input retained. */
   const read = file => {
     if (file === 'package.json') return manifest;

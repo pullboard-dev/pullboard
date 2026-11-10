@@ -7,13 +7,13 @@ import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
-import { writeBoardCommand } from '../../../../../packages/store/index.js';
-import { exportBoard } from '../../../../../packages/store/index.js';
-import { boardWriteIoProblems } from '../../../../../packages/gate/src/io/board/write.js';
-import { styleSources } from '../../../../../packages/codemap/index.js';
-import { fixtureBoard } from '../../../../cli/tests/fixtures/board.js';
-import { afterBoardWrite } from '../../../../../packages/store/src/io/board/event/log.js';
+import * as store from '../../../../packages/store/index.js';
+import { writeBoardCommand } from '../../../../packages/store/index.js';
+import { exportBoard } from '../../../../packages/store/index.js';
+import { boardWriteIoProblems } from '../../../../packages/gate/src/io/board/write.js';
+import { styleSources } from '../../../../packages/codemap/index.js';
+import { fixtureBoard } from '../../tests/fixtures/board.js';
+import { afterBoardWrite } from '../../../../packages/store/src/io/board/event/log.js';
 
 /** Set up only native fixture operations; file storage is necessary to observe the writer lock. */
 function setup(t) {
@@ -21,7 +21,7 @@ function setup(t) {
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   const agentId = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Prepared outside the writer',
-    criterion: 'The actual fixture check passes', check: 'node packages/gate/src/io/run/tests.js apps/lib/tests/logic/native/no.test.js',
+    criterion: 'The actual fixture check passes', check: 'node packages/gate/src/io/run/tests.js apps/cli/journeys/status/writer.test.js',
     brief: 'Files: src/board.js\nTest: observes the actual private SQLite writer', route: 'strong' });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
   const peer = new DatabaseSync(file);
@@ -33,7 +33,7 @@ function setup(t) {
 /** Prepare a real source read and prove a separate connection can acquire and release the actual lock. */
 function unlockedFreeze(peer, observed) {
   return item => {
-    assert.ok(readFileSync(new URL('../../../../../SPEC.md', import.meta.url), 'utf8').length > 0);
+    assert.ok(readFileSync(new URL('../../../../SPEC.md', import.meta.url), 'utf8').length > 0);
     peer.exec('BEGIN IMMEDIATE');
     try { observed.calls++; }
     finally { peer.exec('ROLLBACK'); }
@@ -243,7 +243,7 @@ test('the transaction implementation is audited after acquisition, keeping prepa
 });
 
 test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
-  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../../..', import.meta.url)))), []);
+  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../..', import.meta.url)))), []);
 });
 
 test('exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {

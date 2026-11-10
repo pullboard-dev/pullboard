@@ -1,8 +1,8 @@
 import * as store from '../../../../packages/store/index.js';
-import { registerPreGrant } from '../../../cli/tests/fixtures/seats.js';
-import { submitFixture } from '../../../cli/tests/fixtures/board/submit.js';
-import { fixtureBoard } from '../../../cli/tests/fixtures/board.js';
-import { landedCutItemRows } from '../../../cli/index.js';
+import { registerPreGrant } from '../../tests/fixtures/seats.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { fixtureBoard } from '../../tests/fixtures/board.js';
+import { landedCutItemRows } from '../../index.js';
 import { acceptedCutItems } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { withImportParseCache } from '../../../../packages/gate/index.js';
 /** A cell's landed import cut is a ratchet: new upward or front-door-skipping imports refuse at submit, old ones do not [C7,D3]. */
@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { computePlan } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
-import { requireSubmitCells as preflight } from '../../../cli/index.js';
+import { requireSubmitCells as preflight } from '../../index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';

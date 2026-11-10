@@ -15,7 +15,7 @@ import {
   git,
   acceptedCutItems,
 } from '../../../../packages/landing/tests/fixtures/plan.js';
-import { fixtureBoard } from '../../../cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../tests/fixtures/board.js';
 import { addItem } from '../../../../packages/store/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import {
@@ -45,12 +45,12 @@ import {
   computePlan,
   writePlan,
 } from '../../../../packages/codemap/index.js';
-import { requireSubmitCells } from '../../../cli/index.js';
+import { requireSubmitCells } from '../../index.js';
 import { cellsMove } from '../../../../packages/codemap/src/io/cells/move/tool.js';
 import {
   runFixtureGit,
   privateFixtureFiles,
-} from '../../../cli/tests/fixtures/child.js';
+} from '../../tests/fixtures/child.js';
 
 const parsers = { importsIn, commonJsIn };
 

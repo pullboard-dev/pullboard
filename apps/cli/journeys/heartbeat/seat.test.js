@@ -10,13 +10,13 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../src/logic/native.js';
-import { captureLapsedClaims } from '../../../../../packages/health/index.js';
-import { heartbeatCommand } from '../../../../cli/index.js';
-import { stopSeatKeepalive } from '../../../../cli/src/io/presence.js';
-import { seatKeepalive } from '../../../../cli/src/io/presence.js';
-import { itemFolderPath } from '../../../../cli/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/src/logic/native.js';
+import { captureLapsedClaims } from '../../../../packages/health/index.js';
+import { heartbeatCommand } from '../../index.js';
+import { stopSeatKeepalive } from '../../src/io/presence.js';
+import { seatKeepalive } from '../../src/io/presence.js';
+import { itemFolderPath } from '../../index.js';
 
 /** Run Git in a fixture repository without inheriting a hook's GIT_* variables. */
 function git(cwd, ...args) {
@@ -99,9 +99,9 @@ test('[C7,#2960] the keepalive heartbeat never keeps a finished command\'s proce
   stopSeatKeepalive();
   const f = fixture(t);
   const script = `
-    const { openBoard } = await import(${JSON.stringify(new URL('../../../src/logic/native.js', import.meta.url).href)});
-    const store = await import(${JSON.stringify(new URL('../../../../../packages/store/index.js', import.meta.url).href)});
-    const { heartbeatCommand } = await import(${JSON.stringify(new URL('../../../../cli/src/io/presence.js', import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)});
+    const store = await import(${JSON.stringify(new URL('../../../../packages/store/index.js', import.meta.url).href)});
+    const { heartbeatCommand } = await import(${JSON.stringify(new URL('../../src/io/presence.js', import.meta.url).href)});
     const board = openBoard(${JSON.stringify(f.file)});
     const ctx = { info: { root: ${JSON.stringify(f.folder)} }, file: ${JSON.stringify(f.file)}, clock: { now: () => new Date() } };
     heartbeatCommand({ err: () => {} }, { ctx, board, keepaliveMs: 50 });

@@ -11,11 +11,11 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../src/logic/native.js';
-import { cleanItemFolders } from '../../../../cli/src/io/item/folder.js';
-import { realGitAdapter } from '../../../../../packages/git/index.js';
-import { withGitContractAdapter } from '../../../../../packages/git/index.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/src/logic/native.js';
+import { cleanItemFolders } from '../../src/io/item/folder.js';
+import { realGitAdapter } from '../../../../packages/git/index.js';
+import { withGitContractAdapter } from '../../../../packages/git/index.js';
 
 const ITEMS = 600;
 

@@ -11,7 +11,7 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../index.js';
+import { openBoard } from '../../../lib/index.js';
 import { placedMerge } from '../../../../packages/landing/index.js';
 import { addedPlacementProblems } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
 import {

@@ -17,9 +17,9 @@ import { tmpdir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { remoteSubmitAnalysis } from '../../../../../cli/src/io/submit/gate.js';
-import { remoteGateWanted } from '../../../../../cli/src/io/submit/gate.js';
-import { submitUntilSettled } from '../../../../src/io/submit/requeue.js';
+import { remoteSubmitAnalysis } from '../../src/io/submit/gate.js';
+import { remoteGateWanted } from '../../src/io/submit/gate.js';
+import { submitUntilSettled } from '../../../lib/src/io/submit/requeue.js';
 
 // Captured before any patching, so the fake runner's own processes never count as the controller's.
 const unpatchedExecFileSync = childProcess.execFileSync;
@@ -105,7 +105,7 @@ export async function requireSubmitCells(root, main, source, item, services) {
 `);
   put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('apps/cli/src/io/static/checks.js', `import { existsSync } from 'node:fs';
-import { record } from './record.js';
+import { record } from '../../../lib/tests/io/submit/requeue/record.js';
 record(process.cwd(), 'static', import.meta.url);
 if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per line'); process.exitCode = 1; }
 `);

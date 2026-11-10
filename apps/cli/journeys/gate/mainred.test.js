@@ -19,30 +19,30 @@ import {
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../cli/tests/fixtures/child.js';
-import { policyRepository } from '../../../../cli/tests/fixtures/board/submit.js';
+} from '../../tests/fixtures/child.js';
+import { policyRepository } from '../../tests/fixtures/board/submit.js';
 import {
   openBoard,
   closeBoard,
-} from '../../../src/logic/native.js';
-import { jobView } from '../../../../../packages/jobs/index.js';
+} from '../../../lib/src/logic/native.js';
+import { jobView } from '../../../../packages/jobs/index.js';
 import {
   mainRedLookup,
   classifyGateRed,
   MAIN_TEST_JOB,
-} from '../../../../../packages/drive/index.js';
+} from '../../../../packages/drive/index.js';
 import {
   mainRedKey,
   mainRedStatus,
-} from '../../../../../packages/receipt/index.js';
+} from '../../../../packages/receipt/index.js';
 import {
   cacheFile,
   matchingMainFailures,
   receiptComparison,
   MAIN_FAILURE_SIGNATURE_VERSION,
-} from '../../../../../packages/landing/index.js';
-import { splitBaseRed } from '../../../../../packages/landing/index.js';
-import { criterionMainReceipts } from '../../../../cli/src/io/submit/receipt.js';
+} from '../../../../packages/landing/index.js';
+import { splitBaseRed } from '../../../../packages/landing/index.js';
+import { criterionMainReceipts } from '../../src/io/submit/receipt.js';
 
 const files = privateFixtureFiles('pullboard-durable-mainred-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -169,7 +169,7 @@ test('the submit gate counts a red as main\'s own only when main\'s receipt name
 
 /** The submit command's criterion-red block: from the red frozen check's cases to the Main red repair fallback. */
 function criterionBlock() {
-  const source = readFileSync(join(import.meta.dirname, '../../../../cli/src/io/commands/submit.js'), 'utf8');
+  const source = readFileSync(join(import.meta.dirname, '../../src/io/commands/submit.js'), 'utf8');
   const start = source.indexOf('if (criterionCases) {');
   const end = source.indexOf('// A case an open Main red repair', start);
   assert.ok(start > 0 && end > start, 'the submit gate still has its criterion-red block');
@@ -180,7 +180,7 @@ test('clause 1: the submit gate reads main-red status from the keyed receipt [C7
   const { block } = criterionBlock();
   assert.match(block, /criterionMainReceipts\(\{ root, db: board\.db, main: mainFailureBase, cases: criterionCases \}\)/u, 'submit classifies criterion reds through the receipt lookup');
   assert.doesNotMatch(block, /compareMainFailures/u, 'submit no longer runs the refresh comparison for criterion reds');
-  const helper = readFileSync(join(import.meta.dirname, '../../../../cli/src/io/submit/receipt.js'), 'utf8');
+  const helper = readFileSync(join(import.meta.dirname, '../../src/io/submit/receipt.js'), 'utf8');
   assert.match(helper, /import \{ classifyGateRed \} from '..\/..\/..\/..\/packages\/drive\/index.js'/u, 'the lookup is the drive cell\'s classifyGateRed');
   assert.deepEqual([...helper.matchAll(/^import \{ (\w+) \}/gmu)].map((match) => match[1]), ['classifyGateRed', 'mainReceipts'], 'the lookup imports no measuring or process code');
 

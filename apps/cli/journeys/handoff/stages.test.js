@@ -13,15 +13,15 @@ import {
   HANDOFF_STAGES,
   failureAccount,
   runHandoffStages,
-} from '../../../../runner/index.js';
-import { runHandoffJob } from '../../../../runner/src/io/worker/handoff.js';
-import { SPEC_RULES } from '../../../../runner/src/io/spec.js';
-import { handoffStageServices } from '../../../../cli/src/io/runner/handoff/services.js';
+} from '../../../runner/index.js';
+import { runHandoffJob } from '../../../runner/src/io/worker/handoff.js';
+import { SPEC_RULES } from '../../../runner/src/io/spec.js';
+import { handoffStageServices } from '../../src/io/runner/handoff/services.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../cli/tests/fixtures/child.js';
-import { temporaryRepository } from '../../../../cli/tests/fixtures/board/submit.js';
+} from '../../tests/fixtures/child.js';
+import { temporaryRepository } from '../../tests/fixtures/board/submit.js';
 
 const IDENTITY = ['-c', 'user.name=Stage Test', '-c', 'user.email=stage@example.test', '-c', 'commit.gpgsign=false'];
 const SERVICES = handoffStageServices();
@@ -92,7 +92,7 @@ test('clause 2: a red criterion or proof ends the job with the failing file, cas
 
 test('clause 1: the worker job path runs a spec ticket through runHandoffJob, with the real authorization and command stages and its lines only in the runner root [C7]', async t => {
   const box = fixtureRunner(t);
-  const entry = join(import.meta.dirname, '../../../../cli/src/io/runner/handoff/child.js');
+  const entry = join(import.meta.dirname, '../../src/io/runner/handoff/child.js');
   const spec = { id: JOB, commit: box.commit, tree: box.tree, main: box.commit, handoff: { check: 'echo criterion-line', proofCommand: 'echo proof-line' } };
   const job = await runHandoffJob(spec, box.root, box.dir, { entry });
   assert.equal(job.code, 0);
@@ -113,7 +113,7 @@ test('clause 1: the runner worker calls runHandoffJob for a spec that carries a 
   const read = name => readFileSync(join(import.meta.dirname, '../apps/runner/src/shell', name), 'utf8');
   assert.match(read('runner-worker-main.js'), /spec\.handoff \? await runHandoffJob\(spec, root, runnerRoot\)/u);
   assert.match(read('runner-worker-handoff.js'), /runStageEntry\(entry \?\? mainEntry/u);
-  assert.match(readFileSync(join(import.meta.dirname, '../../../../cli/src/io/runner/handoff/child.js'), 'utf8'), /runHandoffStages\(root, input/u);
+  assert.match(readFileSync(join(import.meta.dirname, '../../src/io/runner/handoff/child.js'), 'utf8'), /runHandoffStages\(root, input/u);
   assert.match(read('runner-worker-spec.js'), /throw new Error\('invalid hand-off ticket'\)/u);
   assert.ok(SPEC_RULES.has('invalid hand-off ticket'));
   assert.match(read('runner-worker-receipt.js'), /fields\.handoff \? \{ handoff: fields\.handoff \}/u);
