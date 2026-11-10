@@ -417,11 +417,14 @@ test('the store move preserves every accepted production body except relocation 
   const root = resolve(import.meta.dirname, '../../../..');
   const map = JSON.parse(readFileSync(join(root, 'packages/codemap/data/plan/path-map/store.json'), 'utf8'));
   const identities = new Map(Object.entries(map).map(([old, moved]) => [moved, old]));
+  const mismatches = [];
   for (const [old, digest] of Object.entries(STORE_BODY_HASHES)) {
     assert.equal(typeof map[old], 'string', 'every accepted body retains its exact move identity: ' + old);
     const source = readFileSync(join(root, map[old]), 'utf8');
-    assert.equal(createHash('sha256').update(normalized(map[old], source, identities)).digest('hex'), digest, old + ' changes only source-location operands');
+    const actual = createHash('sha256').update(normalized(map[old], source, identities)).digest('hex');
+    if (actual !== digest) mismatches.push({ file: old, expected: digest, actual });
   }
+  assert.deepEqual(mismatches, [], 'each accepted body changes only source-location operands');
 });
 
 test('store moved judgment paths retain Strict without widening adjacent files [V4,C7]', () => {
