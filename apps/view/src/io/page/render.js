@@ -340,8 +340,8 @@ function render() {
     /** Turn the check into the approved sentence without inventing an unnamed case. */
     const checkSentence = (() => {
       const command = String(item.check || '');
-      const testPath = /(?:^|\\s)(test\\/[\\w./-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
-      if (testPath && /(?:^|\\s)bin\\/run-tests\\.js(?:\\s|$)/u.test(command)) {
+      const testPath = /(?:^|\\s)((?:[\\w.-]+\\/)*[\\w.-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
+      if (testPath && /(?:^|\\s)(?:bin\\/run-tests\\.js|packages\\/gate\\/src\\/io\\/run\\/tests\\.js)(?:\\s|$)/u.test(command)) {
         return 'Passes when <span class="file"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4"/></svg>' + esc(testPath) + '</span> runs with no failures' + (namedCase ? ' and its case <i>"' + esc(namedCase) + '"</i> passes' : '') + '.';
       }
       return command ? 'Runs: <code>' + esc(command) + '</code>' : 'No check is recorded.';

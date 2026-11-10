@@ -144,7 +144,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
         && title === fullCommit && label === `Copy full hash ${fullCommit}`), 'the short SHA retains its full hover and copy value');
       assert.match(shown.counts, /Passed 1 time · sent back 1/u);
       assert.match(shown.baseline, /Red on main[\s\S]*as it should be: the check fails before the change/u);
-      assert.match(shown.sentence, /Passes when test\/cockpit\/item-panel\.test\.js runs with no failures/u);
+      assert.match(shown.sentence, /Passes when apps\/cli\/journeys\/verify\/item\/panel\.test\.js runs with no failures/u);
       assert.match(shown.sentence, /its case "the item panel presents native verdicts, checks, files and newest-first history at desktop and phone widths \[N26,B23\]" passes/u,
         'the single recorded baseline case is named exactly as recorded');
       assert.equal(shown.brief.includes('Files:'), false, 'the paths are shown once as chips');
