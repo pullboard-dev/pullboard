@@ -3,6 +3,7 @@
 import { viewApiPorts } from '../../../view/index.js';
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import { apiBoardOpeners } from '../../tests/fixtures/board.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 
 import assert from 'node:assert/strict';
 import {
@@ -66,7 +67,7 @@ after(cleanupFixtureChildren);
 
 /** Invoke one real CLI command and retain only redacted child diagnostics on failure. */
 function runCli(root, env, cli, args) {
-  return runFixtureChildAsync(process.execPath, [cli, ...args, '--json'], { cwd: root, env }).then((result) => {
+  return runFixtureChildAsync(process.execPath, [cli, ...fixtureJoinRoute(args, env.PULLBOARD_MODEL), '--json'], { cwd: root, env }).then((result) => {
     if (result.error) throw new Error(result.failure);
     try { return { code: result.status, document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, failure: result.failure }; }
     catch { throw new Error(result.failure ?? result.context); }
