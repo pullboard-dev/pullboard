@@ -462,6 +462,7 @@ function stageFlowBoard(box, alpha) {
   const digest = 'a'.repeat(64);
   /** Apply one native move at a known minute offset in this fixture's private board. */
   const at = (minute, write) => earlier(alpha.repo, base + minute * 60_000, write);
+  for (const n of [2, 3]) box.git(alpha.repo, 'worktree', 'add', '-q', join(box.dir, 'flow-builder-' + n), '-b', 'web/flow-builder-' + n);
   at(0, board => store.register(board, { lane: 'tests', path: join(box.dir, 'flow-reviewer') }));
   for (const n of [2, 3]) at(0, board => store.register(board, { lane: 'web', path: join(box.dir, 'flow-builder-' + n) }));
   at(0, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item 1', specIds: ['G1'], criterion: 'Known flow' }));
@@ -481,6 +482,7 @@ function stageFlowBoard(box, alpha) {
   for (const id of [2, 3, 4, 5]) at(100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
   claim(3, 110); claim(4, 110); claim(5, 110);
   submit(4, 115); submit(5, 115); review(5, 117, 119);
+  for (const n of [2, 3]) box.run(join(box.dir, 'flow-builder-' + n), 'heartbeat');
 }
 
 test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { timeout: 90_000 }, async t => {
