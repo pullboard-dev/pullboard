@@ -232,6 +232,11 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
+  const fixtures = resolve(import.meta.dirname, '../../tests/fixtures');
+  for (const helper of ['chrome.js', 'chrome/args.js', 'chrome/shutdown.js', 'child.js']) {
+    mkdirSync(dirname(repoPath(root, `apps/cli/tests/fixtures/${helper}`)), { recursive: true });
+    copyFileSync(join(fixtures, helper), repoPath(root, `apps/cli/tests/fixtures/${helper}`));
+  }
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
   writeFileSync(chrome, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$PULLBOARD_FIXTURE_LAUNCHES"\n');
