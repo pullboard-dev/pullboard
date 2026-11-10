@@ -1,8 +1,0 @@
-{
-  "src/discovery.js": "packages/kernel/src/core/discovery.js",
-  "src/js-lex.js": "packages/kernel/src/core/js-lex.js",
-  "src/literal-shell-words.js": "packages/kernel/src/core/literal-shell-words.js",
-  "src/refused.js": "packages/kernel/src/core/refused.js",
-  "src/registry-guards.js": "packages/kernel/src/core/registry-guards.js",
-  "test/seal.test.js": "packages/kernel/tests/seal.test.js"
-}

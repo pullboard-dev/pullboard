@@ -1,6 +1,6 @@
 # The item lifecycle
 
-Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node bin/update-docs.js` to refresh all generated documents.
+Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node docs/tools/update-docs.js` to refresh all generated documents.
 
 An item starts open. Its final states, withdrawn, cannot be left. Every move into a guarded state passes the same guards, whatever command gets there. The board file refuses any move not declared here.
 
@@ -169,7 +169,7 @@ Each move checks its guards in this order and refuses with the first that fails;
 | ITEM_PATCH | the criterion and the rows it cites read as they did at claim | replace the unsafe or conflicting patch with a source-bound correction |
 | ITEM_PATCH_AUTHOR | the criterion and the rows it cites read as they did at claim | restore the native author before reviewing the patch |
 | DIRTY | the worktree has no uncommitted changes | commit your changes, then submit |
-| CELLS_PLAN_UNPLACED | when accepted main carries the cells plan, every in-scope committed source path has a placement | run node bin/cells-plan.js --place <path> --cell <cell> (or --stay), commit the source and plan, then submit |
+| CELLS_PLAN_UNPLACED | when accepted main carries the cells plan, every in-scope committed source path has a placement | run node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), commit the source and plan, then submit |
 | UNTRACKED | the worktree has no untracked files | commit or ignore them, then submit |
 | WRONG_BRANCH | the worktree has no untracked files | submit the item the commits name, or switch to the branch built for this item |
 | LANE_CHECK_FOREIGN | the worktree has no untracked files | point the check at a file in your own lane |
@@ -513,13 +513,13 @@ Each move checks its guards in this order and refuses with the first that fails;
 | AGENT_GRANT_ITEM | an item mutation belongs to the current claim or review grant (submit result) | finish or release the claim, then claim the intended item; use shout for coordination |
 | AGENT_GRANT_LANE | an item mutation stays inside the unclaimed seat lane (submit result) | join a seat in the intended lane or ask its owner to make the item change |
 | LINE_SETTING_RANGE | the recorded board line setting has a valid registry value (submit result) | restore the recorded board line setting from its ordered event history, then retry submit |
-| CELLS_PLAN_SHARD | each immutable cell plan shard is present, regular and canonically named (submit result) | regenerate the plan and its shards with node bin/cells-plan.js --write |
-| CELLS_UNPLACED | every composed source path has a valid explicit cell placement (submit result) | add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node bin/cells-plan.js --write |
+| CELLS_PLAN_SHARD | each immutable cell plan shard is present, regular and canonically named (submit result) | regenerate the plan and its shards with node packages/codemap/src/io/cells/scripts/plan.js --write |
+| CELLS_UNPLACED | every composed source path has a valid explicit cell placement (submit result) | add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write |
 | CELLS_PLAN_COUNTS | cell placement sources and cut counts are valid inputs to derived plan counters (submit result) | repair the named placement source or cut count, commit, then submit again |
 | CELLS_PLAN_RETIRED | retired paths satisfy their canonical retirement contracts (submit result) | repair the named retirement contract or retain its original placement, commit, then submit again |
-| CELLS_PLAN_GIT | the immutable cell snapshots can be inspected through Git (submit result) | run node bin/cells-plan.js inside a Git checkout of this repository |
-| CELL_BASELINE | accepted main has a complete valid cell lint baseline (submit result) | run node bin/cell-lints.js --report; restore the complete accepted bin/cell-lint-baselines descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node bin/cell-lints.js --check; initialize with --init only when no accepted baseline exists after explicit review |
-| CELLS_PLAN_CELL | each compared cell exists in the immutable plan (submit result) | use a cell name listed in bin/cells-plan.json, as in node bin/cells-plan.js --moved kernel |
+| CELLS_PLAN_GIT | the immutable cell snapshots can be inspected through Git (submit result) | run node packages/codemap/src/io/cells/scripts/plan.js inside a Git checkout of this repository |
+| CELL_BASELINE | accepted main has a complete valid cell lint baseline (submit result) | run node packages/codemap/src/io/cell/scripts/lints.js --report; restore the complete accepted packages/codemap/data/baselines/lints descriptor and hash-bound shards, resolve reported inventory or ownership conflicts, then run node packages/codemap/src/io/cell/scripts/lints.js --check; initialize with --init only when no accepted baseline exists after explicit review |
+| CELLS_PLAN_CELL | each compared cell exists in the immutable plan (submit result) | use a cell name listed in packages/codemap/data/plan/cells.json, as in node packages/codemap/src/io/cells/scripts/plan.js --moved kernel |
 | CELLS_ENTRY | explicit process ownership is bound to a regular compiled process entry in the declared app cell (submit result) | restore the named process entry source or correct its explicit app placement, commit, then submit again |
 | CELLS_SUBMIT | the immutable composition has no unplaced source, new touched-cell diagnostic or lint growth over accepted authority (submit result) | repair the named cell diagnostic or placement, commit, then submit again |
 | UNDECLARED_BUILDER_FAMILY | a strict item is submitted by a builder with a declared vendor family (submit result) | rejoin with: pullboard join <lane> --family <vendor> --model "<model name>", then submit again |
