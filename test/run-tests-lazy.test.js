@@ -19,6 +19,8 @@ const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
+/** The engine the launcher starts; the source guards below read this file, where the code lives. */
+const ENGINE = join(ROOT, 'packages/gate/src/shell/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'packages/store/index.js', 'packages/store/src/shell/board.js', 'packages/state/src/shell/machine.js'];
 const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'packages/store/src/shell/board.js', 'packages/state/index.js'];
 
@@ -55,14 +57,21 @@ test('clause 2: every named run prints one per-phase timing line, successful or 
   }
 });
 
-/** The package front doors bin/run-tests.js imports statically; #3056 trimmed the closure to this set and main holds it. */
-const MAIN_STATIC_FRONT_DOORS = ['../packages/git/index.js'];
+/** The package front doors the run-tests engine imports statically; #3056 trimmed the closure to this set and main holds it. */
+const MAIN_STATIC_FRONT_DOORS = ['../../../git/index.js'];
 
 test('clause 3: bin/run-tests.js adds no static front-door import that main lacks [C7,V4]', () => {
-  const source = readFileSync(RUNNER, 'utf8');
+  const source = readFileSync(ENGINE, 'utf8');
   const doors = [...source.matchAll(/^import\s[^;]*?\sfrom\s+['"]([^'"]+\/index\.js)['"]/gmu)].map(match => match[1]).sort();
   assert.deepEqual(doors, MAIN_STATIC_FRONT_DOORS, 'a static package front door pulls its whole barrel into every run-tests start');
-  assert.doesNotMatch(source, /^import\s[^;]*?from\s+['"]\.\.\/packages\/gate\/index\.js['"]/mu, 'the gate front door stays a dynamic import');
+  assert.doesNotMatch(source, /^import\s[^;]*?from\s+['"]\.\.\/\.\.\/index\.js['"]/mu, 'the gate front door stays a dynamic import');
+});
+
+test('clause 1: bin/run-tests.js is a launcher whose only static import of the repository is the gate entry [C7,V4]', () => {
+  const source = readFileSync(RUNNER, 'utf8');
+  const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+['"]([^'"]+)['"]/gmu)].map(match => match[1]).filter(name => !name.startsWith('node:'));
+  assert.deepEqual(specifiers, ['../packages/gate/bin/run-tests.js'], 'the launcher reaches the engine through one gate entry and nothing else statically');
+  assert.ok(source.split('\n').length < 30, 'the engine lives in gate, not in the launcher');
 });
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
