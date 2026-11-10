@@ -15,7 +15,7 @@ import { sshControlPath } from '../../index.js';
 
 const files = privateFixtureFiles('pullboard-ssh-multiplex-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 // A stand-in ssh: `-O check` answers from the control file, a ControlMaster=yes call is one TCP connection that
 // creates the control file, and a session logs `mux` when it rides an existing master or `tcp` when it dials itself.

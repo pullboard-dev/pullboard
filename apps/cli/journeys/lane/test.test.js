@@ -102,7 +102,7 @@ test('clause 2: growth in any of the three new kinds past its ceiling is refused
 });
 
 /** The repository root this test file lives in. */
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../../..', import.meta.url));
 
 test('clause 1: the fixture check finds no site past its ceilings in this repository [C7]', () => {
   assert.deepEqual(fixtureProblems(REPO), []);

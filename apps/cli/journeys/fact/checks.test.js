@@ -21,7 +21,7 @@ import { STAGED_TEST_CHECKS } from '../../../../packages/gate/src/io/changed/scr
 const helpers = createE2eHelpers();
 after(() => helpers.cleanup());
 
-const REPO = join(import.meta.dirname, '..');
+const REPO = join(import.meta.dirname, '../../../..');
 const CHECKS = join(REPO, 'bin/checks');
 const NODE_FLAGS = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
 

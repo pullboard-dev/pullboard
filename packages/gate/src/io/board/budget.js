@@ -34,7 +34,7 @@ import {
 } from 'node:url';
 
 /** This checkout: the code measured when the script runs on its own. */
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 /** The audit's record of the last passing check and the lowered ceilings, beside the other main-audit state. */
 export const RECORD_NAME = 'board-command-budget.json';
 /** The wall-time bar for every seat command, from the 2 Nov speed rule. */

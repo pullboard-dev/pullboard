@@ -63,7 +63,7 @@ export function committedCopy(root, into, commit = 'HEAD') {
 }
 
 /** The checkout these harness files live in. */
-const CHECKOUT = resolve(import.meta.dirname, '../../..');
+const CHECKOUT = resolve(import.meta.dirname, '../../../../..');
 
 /**
  * Extract an older commit of the checkout into a scratch folder this harness watches and removes.

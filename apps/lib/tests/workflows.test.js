@@ -27,7 +27,7 @@ import {
   runFixtureChild,
 } from '../../cli/tests/fixtures/child.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });

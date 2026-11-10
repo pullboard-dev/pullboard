@@ -55,7 +55,7 @@ import {
 } from '../../child.js';
 import { executionServices } from '../../gate/execution.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../../..');
 const BIN = join(ROOT, 'apps', 'cli', 'pullboard.js');
 const ACTION_TIMEOUT_MS = 60_000;
 const VIEW_START_TIMEOUT_MS = 30_000;

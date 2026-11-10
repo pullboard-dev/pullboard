@@ -41,7 +41,7 @@ function projectWithCommittedRuntime(sandbox) {
   fs.mkdirSync(repo);
   sandbox.git(repo, 'init', '-q', '-b', 'main');
   const box = { ...sandbox, repo };
-  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
+  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../../../../..'));
   const inheritedModel = sandbox.env.PULLBOARD_MODEL;
   delete sandbox.env.PULLBOARD_MODEL;
   const initialized = sandbox.run(repo, 'init');

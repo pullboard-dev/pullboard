@@ -10,7 +10,7 @@ import { testWaitGrowth } from '../../../src/io/test/waits.js';
 import { testWaitCounts } from '../../../src/io/test/waits.js';
 import { tightenTestWaitBaseline } from '../../../src/io/test/waits.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 
 /** Retain the actual diagnostic location and category while avoiding incidental wording coupling. */
 function sites(source) {

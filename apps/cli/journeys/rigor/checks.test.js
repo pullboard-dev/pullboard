@@ -57,7 +57,7 @@ import {
 const conflictE2e = createE2eHelpers();
 after(conflictE2e.cleanup);
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const CHECKS = ['file-size', 'test-names', 'empty-catch', 'test-inputs'];
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-rigor-')));
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -407,7 +407,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
     const queuedWalk = [
       "import { readFileSync } from 'node:fs';",
       "import { resolve } from 'node:path';",
-      "const ROOT = resolve(import.meta.dirname, '..');",
+      "const ROOT = resolve(import.meta.dirname, '../../../..');",
       "const pending = [[resolve(ROOT, 'src/queued-walk-target.js')]];",
       'for (const file of pending.pop()) readFileSync(file, \'utf8\');',
       '',

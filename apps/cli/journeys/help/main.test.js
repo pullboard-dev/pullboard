@@ -15,7 +15,7 @@ import { HELP } from '../../src/logic/help.js';
 import { commandPhrases } from '../../src/logic/help.js';
 import { HELP_SECTIONS } from '../../src/logic/help/sections.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 
 /** Read inspectable local module edges without initializing the module under inspection. */
 function localImports(source) {

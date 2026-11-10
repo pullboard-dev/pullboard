@@ -27,7 +27,7 @@ import {
   installSshStandIn,
 } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
 
 /** Prove the production request/worker/result path, without contacting a host or changing real runner settings. */

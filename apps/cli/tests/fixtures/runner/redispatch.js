@@ -23,7 +23,7 @@ const FIRST = { host: HOST, slots: 1, browser: 0 };
 const SECOND = { host: `${HOST}-setup`, slots: 1, browser: 0 };
 
 /** Resolve the implementation loaded by the real private controller. */
-const sourceURL = file => pathToFileURL(join(import.meta.dirname, '..', file)).href;
+const sourceURL = file => pathToFileURL(join(import.meta.dirname, '../../../../..', file)).href;
 
 /** Run the actual gate/controller against two private SSH stand-ins and one private resources DB. */
 function fixture(t) {

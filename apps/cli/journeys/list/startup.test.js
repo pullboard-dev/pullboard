@@ -27,7 +27,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { assertStartupBudgets } from '../../tests/fixtures/budget.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
-const REPO = resolve(import.meta.dirname, '..');
+const REPO = resolve(import.meta.dirname, '../../../..');
 const BIN = join(REPO, 'apps/cli/pullboard.js');
 /** Modules a read must never load: the gate runner, the relay client and the landing machinery. */
 const HEAVY = ['src/gate.js', 'src/land.js', 'apps/cli/src/io/commands/gate.js', 'apps/cli/src/io/commands/relay.js', 'src/commands/land.js',

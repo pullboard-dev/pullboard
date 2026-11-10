@@ -118,7 +118,7 @@ function assertUnprovenFixture(body) {
 
 test('closed local helper calls classify real repository YAML without trusting the parameter name [C7]', () => {
   const source = FLOW_PREFIX + `
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../../../..');
 function workflowText(path) { return readFileSync(path, 'utf8'); }
 const first = workflowText(resolve(ROOT, '.github/workflows/cla.yml'));
 const second = workflowText(resolve(ROOT, '.github/workflows/ci.yml'));

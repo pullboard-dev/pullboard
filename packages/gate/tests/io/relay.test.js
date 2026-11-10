@@ -9,7 +9,7 @@ import { relayBoundaryProblems } from '../../src/io/relay.js';
 import { styleSources } from '../../../codemap/index.js';
 import { repoPath } from '../../../kernel/light.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const GITHUB_FETCH = "      try { response = await fetch(url, { method: form || json ? 'POST' : 'GET', headers, body, redirect: 'manual', signal }); }";
 
 test('the moved GitHub client fetch is allowed at apps/relay/src/io/github.js [C7]', () => {

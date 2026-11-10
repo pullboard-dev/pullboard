@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../runners/index.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 
-const SOURCE = resolve(import.meta.dirname, '../../..');
+const SOURCE = resolve(import.meta.dirname, '../../../../..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 /** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6. */

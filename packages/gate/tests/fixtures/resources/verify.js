@@ -37,7 +37,7 @@ export function checkProject(box) {
   writeFileSync(join(repo, 'SPEC.md'), '# CPU check fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n');
   writeFileSync(join(repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(repo, 'bin'), { recursive: true });
-  copyFixtureRunner(resolve(import.meta.dirname, '..'), repo);
+  copyFixtureRunner(resolve(import.meta.dirname, '../../../../..'), repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/unrelated.test.js'), "import { test } from 'node:test'; test('unrelated test', () => {});\n");
   runFixtureGit(['add', '-A'], { cwd: repo, env: box.env });

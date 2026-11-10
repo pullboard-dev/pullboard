@@ -54,7 +54,7 @@ function timingProject(t) {
   const box = helpers.project('node packages/gate/src/io/run/tests.js', helpers.sandbox(), { withWorktree: false });
   const config = readFileSync(join(box.repo, 'pullboard.json'), 'utf8');
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  const copied = copyPackageFiles(join(import.meta.dirname, '..'), box.repo);
+  const copied = copyPackageFiles(join(import.meta.dirname, '../../../..'), box.repo);
   // Selective fixture: the installed runtime is real; shipped documentation tests are a different test universe.
   for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });

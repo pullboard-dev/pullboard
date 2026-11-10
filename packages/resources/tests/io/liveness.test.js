@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
 import { PINNED_HEARTBEAT } from '../../src/io/liveness.js';
 
-const REPO = resolve(import.meta.dirname, '../../..');
+const REPO = resolve(import.meta.dirname, '../../../..');
 const RESOURCES = pathToFileURL(join(REPO, 'packages/resources/index.js')).href;
 
 /** A holder that takes one machine slot, writes its pid, then idles until killed. */

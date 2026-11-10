@@ -10,7 +10,7 @@ import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { syncSpawnReport } from '../../../../../codemap/index.js';
 import { STATIC_CHECKS } from '../../../../index.js';
 
-const REPO = join(import.meta.dirname, '..', '..', '..');
+const REPO = join(import.meta.dirname, '../../../../../..');
 const made = [];
 after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }); });
 

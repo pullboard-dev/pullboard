@@ -13,7 +13,7 @@ import { finishRunningWorkers } from '../../../../resources/index.js';
 import { handoffQueueDirectory } from '../../../../resources/index.js';
 
 /** The tools folder a dispatcher in this tree runs from. */
-const OWN_TOOLS = fileURLToPath(new URL('../../../..', import.meta.url));
+const OWN_TOOLS = fileURLToPath(new URL('../../../../..', import.meta.url));
 
 /** How often a dispatcher checks that it runs its tool root's current tooling; the check runs git, so not every pass. */
 const TOOLS_CHECK_MS = 30_000;

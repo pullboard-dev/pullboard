@@ -34,7 +34,7 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
     for (const board of [alpha, beta]) box.run(board.repo, 'add', 'web', 'First visible item', '--specs', 'G1');
     const cli = join(box.dir, 'upgrade-cli');
     mkdirSync(cli);
-    copyPackageFiles(resolve(import.meta.dirname, '../..'), cli);
+    copyPackageFiles(resolve(import.meta.dirname, '../../../..'), cli);
     const packagePath = join(cli, 'package.json');
     const packageData = JSON.parse(readFileSync(packagePath, 'utf8'));
     const releases = ['0.8.10', '0.8.9', '0.8.8', '0.8.7', '0.8.4'];

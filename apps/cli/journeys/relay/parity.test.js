@@ -44,7 +44,7 @@ test('local relay health and its Needs stay outside sealed state without hiding 
 
 
 test('relay pages and presentation browser entries reach no Node built-ins [C7,H5,H15]', () => {
-  const modules = browserModules(fileURLToPath(new URL('..', import.meta.url)), { named: {
+  const modules = browserModules(fileURLToPath(new URL('../../../..', import.meta.url)), { named: {
     '/relay/pages.js': 'apps/relay/src/logic/browser/pages.js',
     '/relay/presentation.js': 'packages/pages/src/logic/relay/presentation.js',
   } });

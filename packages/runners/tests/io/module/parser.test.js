@@ -49,7 +49,7 @@ test('clause 1: a second parser in one process parses nothing again and a change
 });
 
 test('clause 1 and clause 2: the production importsIn call sites pass real paths, so a second pass over the real tree parses nothing [C7]', () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '../../../../..');
   const first = runnerPackage(root);
   const afterPackage = runnerModuleParserCompileCount();
   assert.deepEqual(runnerPackage(root).files, first.files);

@@ -28,7 +28,7 @@ import {
   pathToFileURL,
 } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /** Board command latency target per command, from the 2 Nov speed rule. */

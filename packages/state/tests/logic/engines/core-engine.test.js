@@ -14,7 +14,7 @@ import { MACHINE as CORE_MACHINE } from '../../../light.js';
 import { engineAtLeast } from '../../../light.js';
 import { correctedBar as coreCorrectedBar } from '../../../light.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../..');
 const CORE_FILES = ['packages/items/src/logic/edit/bar.js', 'packages/items/src/logic/list.js',
   'packages/items/src/logic/order/work.js', 'packages/roadmap/src/logic/milestone.js'];
 

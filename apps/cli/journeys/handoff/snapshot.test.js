@@ -41,7 +41,7 @@ import {
 } from '../../../../packages/items/index.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 
 /** Require authentic command success before interpreting its result. */
 function document(result) {

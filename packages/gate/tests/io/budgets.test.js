@@ -129,7 +129,7 @@ test('the wall-clock scanner skips ignored worktrees [C7]', () => {
 });
 
 test('no test judges work by a fixed wall-clock margin [C7]', () => {
-  assert.deepEqual(wallClockViolations(fileURLToPath(new URL('../../..', import.meta.url))), []);
+  assert.deepEqual(wallClockViolations(fileURLToPath(new URL('../../../..', import.meta.url))), []);
 });
 
 test('the clock-margin guard catches planted source and names its file and line [C7]', () => {

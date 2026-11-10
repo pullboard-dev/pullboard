@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../../apps/cli/tests/fixtures/child.js';
 
-const SOURCE = join(import.meta.dirname, '../../..');
+const SOURCE = join(import.meta.dirname, '../../../../../../..');
 
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
 // Since 4c5e2ac38d (#2512) the gate keeps one of two runners for timed checks by default; these failover cases

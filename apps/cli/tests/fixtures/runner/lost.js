@@ -28,7 +28,7 @@ import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
 
 /** Source URLs resolve in the actual checked implementation, not a second installed tool. */
-const sourceURL = file => pathToFileURL(join(import.meta.dirname, '..', file)).href;
+const sourceURL = file => pathToFileURL(join(import.meta.dirname, '../../../../..', file)).href;
 
 /** A private native project, SSH namespace and fixture-only model; real machine settings are never altered. */
 function project(t) {

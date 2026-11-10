@@ -170,8 +170,8 @@ test('new format declarations and move files are discovered without a shared reg
   const root = mkdtempSync(join(tmpdir(), 'pullboard-format-discovery-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'src'));
-  copyPackageSubset(resolve(import.meta.dirname, '..'), root,
-    [...packageFiles(resolve(import.meta.dirname, '..')).filter(file => file.startsWith('packages/state/src/io/formats/')),
+  copyPackageSubset(resolve(import.meta.dirname, '../../../..'), root,
+    [...packageFiles(resolve(import.meta.dirname, '../../../..')).filter(file => file.startsWith('packages/state/src/io/formats/')),
       'packages/config/src/logic/json.js', 'packages/spec/src/logic/grammar.js', 'packages/store/src/io/board/schema/source.js'].map(path => ({ path, as: path })));
   mkdirSync(join(root, 'packages/state/src/logic/engines'), { recursive: true });
   writeFileSync(join(root, 'packages/state/src/logic/engines/fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');

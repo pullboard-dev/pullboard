@@ -143,7 +143,7 @@ async function cellsStep(job, main, source) {
 }
 
 test('on this repository, a later item that adds a file runs the cells step in under 60 s from a warm base [C7]', { timeout: 590_000 }, async t => {
-  const repository = fileURLToPath(new URL('../../..', import.meta.url));
+  const repository = fileURLToPath(new URL('../../../..', import.meta.url));
   const job = freshJob(t, repository), main = git(job, 'rev-parse', 'HEAD').trim();
   const first = await cellsStep(job, main, addFileCandidate(job, main, `cells-probe-${randomUUID()}.test.js`));
   t.diagnostic(`first job: ${first.seconds.toFixed(1)} s, inventory ${first.modes.join(', ')}`);

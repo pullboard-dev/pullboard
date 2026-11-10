@@ -44,7 +44,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { stopGroup } from '../../tests/fixtures/runner/group.js';
 import { installRegistrationProbeStandIn } from '../../tests/fixtures/runner/ssh.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../..');
 const BIN = join(SOURCE, 'apps/cli/pullboard.js');
 const HOST = 'fixture-host';
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];

@@ -29,7 +29,7 @@ import { importsIn } from '../../../index.js';
 import { commonJsIn } from '../../../index.js';
 
 const BIN = fileURLToPath(new URL('../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../../../..', import.meta.url));
 const CORE = 'packages/kernel/light.js';
 const SHELL = 'packages/kernel/src/shell/process.js';
 const BODY = 'packages/kernel/src/logic/refused.js';

@@ -102,10 +102,10 @@ test('the view chips a command the CLI adds [N26]', async (t) => {
   const demo = project(box, 'help-copy');
   const cli = join(box.dir, 'cli-copy');
   mkdirSync(cli);
-  copyPackageFiles(resolve(import.meta.dirname, '../..'), cli);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), cli);
   // These unpublished browser/test fixtures are deliberately additional to the installed tool.
   for (const entry of ['apps', 'relay', 'src', 'io', 'deploy', 'test']) {
-    cpSync(resolve(import.meta.dirname, '../..', entry), join(cli, entry), { recursive: true });
+    cpSync(resolve(import.meta.dirname, '../../../..', entry), join(cli, entry), { recursive: true });
   }
   // The CLI help lives in its cell since ea011aa6ff removed the src/help.js shim.
   const helpFile = join(cli, 'apps', 'cli', 'src', 'logic', 'help.js');

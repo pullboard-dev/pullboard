@@ -77,7 +77,7 @@ function boardBox({ initialize = true, repoName = 'repo', lanes = {} } = {}) {
 function runRelease(box, ...args) {
   const release = join(box.dir, 'installed-release');
   mkdirSync(release, { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), release);
   return runFixtureChild(process.execPath, [join(release, 'apps/cli/pullboard.js'), ...args], { cwd: box.root, env: box.env, encoding: 'utf8' });
 }
 

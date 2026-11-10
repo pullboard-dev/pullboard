@@ -24,7 +24,7 @@ import {
 } from '../../child.js';
 import { installRegistrationProbeStandIn } from '../../runner/ssh.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../../../..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
 /** Run actual fixture Git with private identity and no changes to the person's repository. */

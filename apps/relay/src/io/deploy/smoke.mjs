@@ -19,7 +19,7 @@ import { request } from '../../../../../packages/link/index.js';
 import { relayFetch } from '../../../../../packages/person/index.js';
 import { unseal } from '../../../../../packages/kernel/index.js';
 
-const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const CLI = join(REPOSITORY, 'apps/cli/pullboard.js');
 
 /** Run one production CLI command in the current repository and parse only its JSON document. */

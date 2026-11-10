@@ -199,14 +199,14 @@ test('trusted submit preserves already accepted process ownership [C7,D3,CD64]',
 });
 
 test('clause 1: main\'s committed plan places every process entry, packages/landing/src/io/main/red/refresh.js included [C7]', () => {
-  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
   const plan = readPlan(root);
   assert.ok(plan.stays.some(stay => stay.path === 'packages/landing/src/io/main/red/refresh.js'));
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });
 
 test('clause 1: infra-release and main-red-focus engines live in the state engines folder, with no src/ stay left [C7,V4]', () => {
-  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
   const plan = readPlan(root);
   for (const name of ['infra-release-engine.js', 'main-red-focus-engine.js']) {
     assert.ok(existsSync(join(root, 'packages/state/src/logic/engines', name)), name);

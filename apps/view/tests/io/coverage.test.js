@@ -20,7 +20,7 @@ import { viewPureGate } from '../../../cli/src/io/static/view.js';
 import { viewPureReport } from '../../../cli/src/io/static/view.js';
 import { viewTestProblems } from '../../index.js';
 
-const REPO = resolve(import.meta.dirname, '..');
+const REPO = resolve(import.meta.dirname, '../../../..');
 const GOOD = 'test/cockpit/good.test.js', BAD = 'test/cockpit/bad.test.js', RENDER = 'src/view/example.js';
 const ROLES = {
   [GOOD]: { kind: 'logic', reason: 'Seeded data through the actual renderer' },

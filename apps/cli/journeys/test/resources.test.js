@@ -58,7 +58,7 @@ function commitSourceFixture(root) {
 }
 
 test("the repo's own static checks never take a browser slot [C7]", async t => {
-  const root = resolve(import.meta.dirname, '..');
+  const root = resolve(import.meta.dirname, '../../../..');
   const env = { ...process.env, NODE_OPTIONS: '', PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter) };
   const configured = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).staticChecks;
   assert.equal(await checkNeedsBrowser(root, configured, { env }), false, 'the declared static command is browser-free');
@@ -185,7 +185,7 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
 
   // A frozen check reads the declarations of the files it names, from the working tree or the submitted commit.
   mkdirSync(join(root, 'bin'), { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root, { files: ['packages/gate/src/io/run/tests.js'] });
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root, { files: ['packages/gate/src/io/run/tests.js'] });
   const env = { ...process.env, NODE_OPTIONS: '', PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter) };
   assert.equal(await checkNeedsBrowser(root, 'node packages/gate/src/io/run/tests.js test/declared.test.js', { env }), true);
   assert.equal(await checkNeedsBrowser(root, 'node packages/gate/src/io/run/tests.js test/launcher.test.js', { env }), false,
@@ -198,7 +198,7 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
     'a review check follows the exact submitted commit rather than a later checkout edit');
 
   // Every listed production caller decides through these functions, and the reader parses no imports.
-  const repository = resolve(import.meta.dirname, '..');
+  const repository = resolve(import.meta.dirname, '../../../..');
   const reader = readFileSync(join(repository, 'packages/gate/src/io/browser/admission.js'), 'utf8');
   assert.doesNotMatch(reader, /module-imports|browser-module-reach|browser-launch-source|importsIn|commonJsIn/u, 'the browser decision parses no import graph');
   const callers = ['packages/gate/src/io/run/tests.js', 'packages/gate/src/io/test/run.js', 'packages/gate/src/io/test/file/dispatch.js',
@@ -230,7 +230,7 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'test'));
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
   for (const helper of ['chrome-fixture.js', 'chrome-graceful-shutdown.js', 'chrome-launch-args.js', 'fixture-child.js']) copyFileSync(resolve(import.meta.dirname, helper), repoPath(root, `test/${helper}`));
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
@@ -401,7 +401,7 @@ function chromeLaunchingTests(repository) {
 }
 
 test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {
-  const repository = resolve(import.meta.dirname, '..');
+  const repository = resolve(import.meta.dirname, '../../../..');
   // This file's own launches are fixture sources run by nested runners with their own declarations.
   const launching = chromeLaunchingTests(repository).filter(file => file !== 'apps/cli/journeys/test/resources.test.js');
   assert.ok(launching.length > 20, `the scan finds the real Chrome journeys: ${launching.length}`);

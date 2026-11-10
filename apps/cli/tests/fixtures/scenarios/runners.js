@@ -200,7 +200,7 @@ function processIsAlive(pid) {
 }
 
 /** Start an API child that requeues only an incomplete runner transport on its original ticket. */
-function startQueueController(repo, env, command, { item, queueMarker, firstItem = 'retry-first', remote = true, browser = true, toolingRoot = resolve(import.meta.dirname, '..') } = {}) {
+function startQueueController(repo, env, command, { item, queueMarker, firstItem = 'retry-first', remote = true, browser = true, toolingRoot = resolve(import.meta.dirname, '../../../../..') } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
   const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);

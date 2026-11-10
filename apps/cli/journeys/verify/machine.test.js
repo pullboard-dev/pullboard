@@ -205,7 +205,7 @@ function codeWalk(read, { caught = false } = {}) {
  * @param {string} file
  * @returns {string}
  */
-const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('..', import.meta.url)), sourceDirectories(packageFiles(fileURLToPath(new URL('..', import.meta.url))))));
+const fromDisk = sourceReader(workingSourceInventory(fileURLToPath(new URL('../../../..', import.meta.url)), sourceDirectories(packageFiles(fileURLToPath(new URL('../../../..', import.meta.url))))));
 
 /**
  * The refusal codes the named moves declare, or the whole declaration's when none is named: their
@@ -1320,7 +1320,7 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
  */
 function statusWriters(read) {
   const writers = [];
-  const movedFiles = packageFiles(fileURLToPath(new URL('..', import.meta.url)))
+  const movedFiles = packageFiles(fileURLToPath(new URL('../../../..', import.meta.url)))
     .filter(file => (file.startsWith('packages/items/src/') || file.startsWith('packages/store/src/')) && file.endsWith('.js')).map(file => `../${file}`);
   const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
     '../../../../packages/config/src/logic/json.js', ...movedFiles];

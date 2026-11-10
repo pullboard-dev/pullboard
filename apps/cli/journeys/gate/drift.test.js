@@ -33,7 +33,7 @@ import { withFileLock } from '../../../../packages/outbox/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-const SOURCE = join(import.meta.dirname, '..');
+const SOURCE = join(import.meta.dirname, '../../../..');
 const PLAN = join(SOURCE, 'packages/codemap/src/io/cells/scripts/plan.js');
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */

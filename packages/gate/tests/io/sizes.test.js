@@ -32,7 +32,7 @@ import {
   uiSizeProblems,
 } from '../../src/io/sizes.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-ui-sizes-')));
 after(() => rmSync(dir, { recursive: true, force: true }));
 

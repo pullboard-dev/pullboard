@@ -58,7 +58,7 @@ const NOTES_TEST = `import { appendFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
-const root = join(import.meta.dirname, '..');
+const root = join(import.meta.dirname, '../../..');
 /** Record that this file ran, then scan every listed note. */
 function scanNotes() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'e\\n'); const tracked = execFileSync('git', ['ls-files', 'CHANGELOG.md'], { cwd: root, encoding: 'utf8' }).trim().split('\\n'); for (const name of tracked) if (readFileSync(join(root, name), 'utf8').includes('forbidden')) throw new Error('e found a forbidden word'); }
 test('e [C7]', scanNotes);
@@ -75,7 +75,7 @@ function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-actions-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test']) mkdirSync(join(root, folder));
-  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/',
     ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(copiedToolIgnore)].join('\n') + '\n');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
@@ -242,7 +242,7 @@ test('a test that reads its own checkout history is never keyed [C7]', async (t)
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 /** Read this checkout's commit subjects. */
-function history() { execFileSync('git', ['log', '--format=%s'], { cwd: new URL('../../..', import.meta.url) }); }
+function history() { execFileSync('git', ['log', '--format=%s'], { cwd: new URL('../../../../..', import.meta.url) }); }
 test('h [C7]', history);
 `);
   fixture.change('test/h.test.js', readFileSync(join(fixture.root, 'test/h.test.js'), 'utf8'));

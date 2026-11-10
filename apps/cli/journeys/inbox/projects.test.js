@@ -850,7 +850,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const primary = join(box.dir, 'migration-cli');
   const linked = join(box.dir, 'migration-cli-linked');
   mkdirSync(primary);
-  copyPackageFiles(resolve(import.meta.dirname, '../..'), primary);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), primary);
   box.git(primary, 'init', '-q', '-b', 'main');
   box.git(primary, 'add', '-A');
   box.git(primary, 'commit', '-q', '-m', 'chore: retain migration fixture source');

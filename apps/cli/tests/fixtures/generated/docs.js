@@ -16,7 +16,7 @@ export function docsRepository(t) {
   const env = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   delete env.NODE_TEST_CONTEXT;
   const archiveFile = join(root, '.source.tar');
-  const archive = runFixtureChild('git', ['archive', '--output', archiveFile, 'HEAD'], { cwd: join(import.meta.dirname, '..'), env });
+  const archive = runFixtureChild('git', ['archive', '--output', archiveFile, 'HEAD'], { cwd: join(import.meta.dirname, '../../../../..'), env });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', archiveFile, '-C', root], { env });
   assert.equal(extracted.status, 0, extracted.context);

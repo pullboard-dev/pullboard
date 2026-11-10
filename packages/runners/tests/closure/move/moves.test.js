@@ -51,7 +51,7 @@ test('engine numbers and their frozen history are the same with or without the s
 });
 
 test('the real move closure without src/moves is the shimmed closure minus its shims [C7,H16]', t => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '../../../../..');
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-moves-cell-closure-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   const files = packageFiles(root);

@@ -54,7 +54,7 @@ function stageSource(box, file, source) {
 }
 
 test('the shared changed-file list passes a clean file [C7]', () => {
-  const dir = join(import.meta.dirname, '..', '..', '..');
+  const dir = join(import.meta.dirname, '../../../../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'), 'packages/gate/src/io/changed/scripts/static.js'], { cwd: dir, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
 });

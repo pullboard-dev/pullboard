@@ -88,5 +88,5 @@ test('five native claim join and fact writes finish within 1 s while landing rec
 });
 
 test('clause 2: native board writer call graph permits no git or test process under the transaction [C7]', () => {
-  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
+  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../../..', import.meta.url)))), []);
 });

@@ -68,7 +68,7 @@ import { applyTestMove } from '../placement.js';
 
 /** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
 function fixtureAnalyzerDigest() {
-  const root = fileURLToPath(new URL('..', import.meta.url));
+  const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
   return receiptDigest({ node: process.version, files: checkCommandDefinition(root, [], [fileURLToPath(new URL('../../cells-move-fixtures.js', import.meta.url))])
     .map(entry => [entry.path, entry.mode, entry.digest]) });
 }

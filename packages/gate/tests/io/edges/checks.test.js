@@ -25,7 +25,7 @@ import {
   ceilingsOf,
 } from '../../../src/io/edges.js';
 
-const REPO = join(import.meta.dirname, '..');
+const REPO = join(import.meta.dirname, '../../../../..');
 const made = [];
 after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }); });
 

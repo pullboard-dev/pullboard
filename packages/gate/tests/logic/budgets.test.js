@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const BIN = join(ROOT, 'packages/gate/src/io/check/budgets.js');
 const ACTIONS = [
   'firstLoad', 'switchProject', 'tab:shouts', 'tab:spec', 'tab:doctrine', 'tab:activity',

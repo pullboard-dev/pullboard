@@ -64,7 +64,7 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(added.status, 0, added.context);
   // Prepare the immutable fixture tooling before measuring the controller's actual refused run.
-  committedToolingSnapshot(resolve(import.meta.dirname, '..'), env);
+  committedToolingSnapshot(resolve(import.meta.dirname, '../../../../..'), env);
   // The runner's own pool is busy at more slots than its registration, so the worker's request is refused.
   let remoteHolder = await onMachine(remoteMachineHome, () => takeResource({ name: 'gate', capacity: 2, scope: 'machine', root: repo,
     agent: 'fixture-remote-holder', item: 'remote-holder', kind: 'force-busy-runner' }));

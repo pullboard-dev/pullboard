@@ -195,7 +195,7 @@ test('[A5] board opens upgrade older event logs and refuse future event logs bef
   setEventLogVersion(file, EVENT_LOG_VERSION - 1);
   const release = join(box.dir, 'installed-release');
   mkdirSync(release);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), release);
   const older = spawnSync(process.execPath, [join(release, 'apps/cli/pullboard.js'), 'shout', 'all', 'board upgrade', '--json'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(older.status, 0, older.stderr + older.stdout);
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION), 'an installed release opens an older event log and upgrades its marker in place');
@@ -264,7 +264,7 @@ function parseOneDocument(stdout) {
 test('[A5, A6] a future-schema worktree cannot migrate the shared board; main can still upgrade it', () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
-  const sourceRoot = resolve(import.meta.dirname, '..');
+  const sourceRoot = resolve(import.meta.dirname, '../../../..');
   mkdirSync(repo);
   copyPackageFiles(sourceRoot, repo);
   writeFileSync(join(repo, 'pullboard.json'), `${JSON.stringify({

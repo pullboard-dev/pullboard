@@ -26,7 +26,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   const box = helpers.project(`node packages/gate/src/io/run/tests.js ${FILE}`, helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  const copied = copyPackageFiles(join(import.meta.dirname, '..'), box.repo);
+  const copied = copyPackageFiles(join(import.meta.dirname, '../../../../..'), box.repo);
   // The complete installed runtime is real; its own shipped tests are outside this synthetic test universe.
   for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|apps|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });

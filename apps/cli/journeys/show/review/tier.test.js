@@ -89,7 +89,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
 
 test('every guard test in packages/verify/data/tests/guard.json is a tracked Strict file, and a moved one stays Strict at its old path [V4,B26,H16]', () => {
   const guards = JSON.parse(readFileSync(new URL('../../../../../packages/verify/data/tests/guard.json', import.meta.url), 'utf8'));
-  const tracked = new Set(spawnSync('git', ['ls-files', '-z'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' }).stdout.split('\0'));
+  const tracked = new Set(spawnSync('git', ['ls-files', '-z'], { cwd: new URL('../../../../..', import.meta.url), encoding: 'utf8' }).stdout.split('\0'));
   for (const path of guards.paths) {
     assert.ok(tracked.has(path), `${path} is listed as a guard test but is not a tracked file`);
     assert.equal(gateJudgmentPath(path), true, path);

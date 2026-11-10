@@ -92,7 +92,7 @@ async function drainOnce(box, source, swept = () => true) {
 
 test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', async t => {
   const box = fixture(t);
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../../../..');
   const tools = join(box.dir, 'silent-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
   const worker = join(tools, 'apps/cli/src/io/gate/drive.js');
@@ -134,7 +134,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
 
 test('clause 1: a drain ends a hand-off whose folder no longer exists as infrastructure once, and the builder keeps the claim [C7]', async t => {
   const box = fixture(t);
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../../../..');
   const tools = join(box.dir, 'silent-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
   const worker = join(tools, 'apps/cli/src/io/gate/drive.js');

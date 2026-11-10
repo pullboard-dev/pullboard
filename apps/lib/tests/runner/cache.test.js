@@ -17,7 +17,7 @@ test('a clean commit\'s source scan and tag selection are kept per tooling tree 
   const box = cellSandbox(t);
   const tooling = join(box.dir, 'tooling'), project = join(box.dir, 'project'), home = join(box.dir, 'home');
   for (const folder of [tooling, project, home]) mkdirSync(folder, { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '../../..'), tooling);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), tooling);
   box.git(tooling, 'init', '-q', '-b', 'main');
   box.git(tooling, 'add', '-A');
   box.git(tooling, 'commit', '-q', '-m', 'test: scanner tooling');

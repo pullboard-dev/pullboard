@@ -27,7 +27,7 @@ export function cli(repo, env, ...args) {
 
 
 /** Start the current CLI from the same clean committed tooling snapshot used by API fixtures. */
-export function startToolingCli(repo, env, args, { toolingRoot = resolve(import.meta.dirname, '..'), ...options } = {}) {
+export function startToolingCli(repo, env, args, { toolingRoot = resolve(import.meta.dirname, '../../../../..'), ...options } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
   const bin = join(committedToolingSnapshot(sourceRoot, env), 'apps/cli/pullboard.js');
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);

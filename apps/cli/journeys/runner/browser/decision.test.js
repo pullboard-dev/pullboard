@@ -55,7 +55,7 @@ test('review file sets from #2576 and #2521 take a browser lease on their first 
     if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(name) || ['NODE_OPTIONS', 'NODE_TEST_CONTEXT'].includes(name)) delete box.env[name];
   }
   box.env.PULLBOARD_TEST_REUSE = '0';
-  copyCommittedPackageFiles(box, join(import.meta.dirname, '..'));
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../../..'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   regressionSources(box);
   box.git(box.repo, 'add', '-A');

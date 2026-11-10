@@ -202,7 +202,7 @@ test('clause 1: --move-tests moves a test that reads its location only through l
     "import { a } from '../packages/kernel/a.js';",
     "const kernel = fileURLToPath(new URL('../packages/kernel/a.js', import.meta.url));",
     "const data = readFileSync(join(import.meta.dirname, 'data', 'value.txt'), 'utf8');",
-    "const root = resolve(import.meta.dirname, '..');",
+    "const root = resolve(import.meta.dirname, '../../../../..');",
     "const name = 'value';",
     "const templated = readFileSync(resolve(import.meta.dirname, `data/${name}.txt`), 'utf8');",
     "assert.equal(a, 1);",

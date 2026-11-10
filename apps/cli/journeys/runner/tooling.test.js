@@ -37,7 +37,7 @@ test('a dirty main checkout does not stop a runner check [O5,C7]', async t => {
   const worker = join(box.dir, 'worker'), home = join(box.dir, 'worker-home');
   const machineHome = join(home, '.pullboard'), requests = join(box.dir, 'requests.jsonl');
   for (const root of [tooling, project, worker, home, machineHome]) mkdirSync(root, { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), tooling);
   fixtureProjectPolicy(project, { config: { gate: 'true' } });
   for (const root of [tooling, project]) {
     box.git(root, 'init', '-q', '-b', 'main');
@@ -109,7 +109,7 @@ test('archived tooling still refuses modified archive bytes [O5,C7]', async t =>
   t.after(helpers.cleanup);
   const box = helpers.sandbox(), root = join(box.dir, 'tooling');
   mkdirSync(root);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
   box.git(root, 'init', '-q', '-b', 'main');
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'test: immutable archive control');
@@ -133,7 +133,7 @@ test('warmed controller refuses changed policy bytes and a fresh run uses each n
   const worker = join(box.dir, 'worker'), home = join(box.dir, 'worker-home');
   const machineHome = join(home, '.pullboard'), requests = join(box.dir, 'requests.jsonl');
   for (const root of [tooling, project, worker, home, machineHome]) mkdirSync(root, { recursive: true });
-  copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), tooling);
   fixtureProjectPolicy(project, { config: { gate: 'true' } });
   box.git(project, 'init', '-q', '-b', 'main');
   box.git(project, 'add', '-A');

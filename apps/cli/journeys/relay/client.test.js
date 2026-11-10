@@ -249,7 +249,7 @@ async function relayServer(t, directory, auth, { legacyRelay = false } = {}) {
  * A apps/cli/pullboard.js row gets the CLI's whole runtime minus the cells plan: it imports lazily and reads skills from disk [C7].
  */
 function seedDoctrine(seed) {
-  const repo = resolve(import.meta.dirname, '..');
+  const repo = resolve(import.meta.dirname, '../../../..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
   writeFileSync(join(seed, 'PRACTICE.md'), text);
   const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();

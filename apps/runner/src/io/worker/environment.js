@@ -43,7 +43,7 @@ export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease
 
 /** Check that this already installed capsule matches the controller before using its static API. */
 export function loadResourceApi(runtime) {
-  const sourceDirectory = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+  const sourceDirectory = join(dirname(fileURLToPath(import.meta.url)), '../../../../..');
   if (Object.entries(runtime.files).some(([name, source]) => readFileSync(join(sourceDirectory, name), 'utf8') !== source)) {
     throw new Error('trusted runtime cache does not match the request');
   }

@@ -25,7 +25,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   // Shipped code is a committed tooling dependency; the private project root remains the test universe.
-  copyCommittedPackageFiles(box, join(import.meta.dirname, '..'), { directory: 'tooling' });
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../../..'), { directory: 'tooling' });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, flakes: { rerun: false, quarantine: true },
     lanes: { web: { owns: ['test/'], specs: [] } },

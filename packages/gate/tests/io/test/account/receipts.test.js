@@ -45,7 +45,7 @@ function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-cache-receipts-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test', 'machine']) mkdirSync(join(root, folder));
-  const copied = copyShippedTool(resolve(import.meta.dirname, '../../..'), root);
+  const copied = copyShippedTool(resolve(import.meta.dirname, '../../../../../..'), root);
   /** Escape one copied-tool path for an anchored ignore line. */
   const ignore = file => '/' + [...file].map(char => ('\\*?[]!# '.includes(char) ? '\\' + char : char)).join('');
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/', ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(ignore)].join('\n') + '\n');

@@ -22,7 +22,7 @@ import {
 import { Refused } from '../../../../packages/kernel/index.js';
 import { preferOtherRunners } from '../../../../packages/gate/index.js';
 
-const url = file => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', file)).href);
+const url = file => JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../..', file)).href);
 
 /** A private project whose only executor is one SSH stand-in runner; no real host or machine setting is touched. */
 function fixture(t, { second = false } = {}) {

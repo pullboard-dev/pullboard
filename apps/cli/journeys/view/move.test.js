@@ -49,7 +49,7 @@ test('a running view answers state after its shipped doctrine dependency is remo
   const box = machine(), demo = project(box, 'moving-source');
   const installed = join(box.dir, 'installed');
   mkdirSync(installed);
-  copyPackageFiles(resolve(import.meta.dirname, '../..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
   const child = spawn(process.execPath, [join(installed, 'bin/pullboard.js'), 'view', '--no-open', '--port', '0'], {
     cwd: demo.repo, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
   });

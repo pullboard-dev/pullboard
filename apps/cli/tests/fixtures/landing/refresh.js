@@ -60,7 +60,7 @@ function project(disableRefresh) {
   // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
   const tarball = join(box.dir, 'candidate-archive.tar');
   const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
-    { cwd: join(import.meta.dirname, '..'), env });
+    { cwd: join(import.meta.dirname, '../../../../..'), env });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', tarball, '-C', box.repo], { env });
   assert.equal(extracted.status, 0, extracted.context);

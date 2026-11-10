@@ -243,7 +243,7 @@ test('the transaction implementation is audited after acquisition, keeping prepa
 });
 
 test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
-  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
+  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../../..', import.meta.url)))), []);
 });
 
 test('exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {

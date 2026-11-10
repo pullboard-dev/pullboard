@@ -42,7 +42,7 @@ import { appliedSequence } from '../../../../../../packages/state/index.js';
 import { applyEngineMove } from '../../../../../../packages/state/index.js';
 import { PROOF_RUN_ENGINE } from '../../../../../../packages/state/light.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../../..');
 const BIN = join(ROOT, 'apps', 'cli', 'pullboard.js');
 const LANES = ['core', 'view', 'coordinator', 'docs'];
 const FIXED_NOW = new Date('2026-10-01T12:00:00.000Z');

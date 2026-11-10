@@ -25,7 +25,7 @@ function makeIdentityFixture(t) {
   mkdirSync(join(root, 'bin'));
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   const fixtureRunner = join(root, 'packages/gate/src/io/run/tests.js');
   assert.equal(realpathSync(fixtureRunner), fixtureRunner, 'the copied runner uses its physical path');
   t.after(() => rmSync(root, { recursive: true, force: true }));

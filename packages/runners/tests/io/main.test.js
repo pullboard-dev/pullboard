@@ -18,7 +18,7 @@ import { runnerPackage } from '../../index.js';
 import { toolSourcePath } from '../../index.js';
 
 test("the runner's computed capsule is closed under its relative imports [C7,O5]", () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '../../../..');
   const capsule = runnerPackage(root);
   const allowed = new Set(packageFiles(root));
   assert.equal(capsule.entry, 'apps/runner/src/io/scripts/worker.js');
@@ -32,7 +32,7 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
 });
 
 test('the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '../../../..');
   const files = runnerPackage(root).files;
   assert.equal(Object.hasOwn(files, 'src/runner-load.js'), false, 'the worker reaches the canonical load body without the compatibility hop');
   assert.ok(Object.hasOwn(files, 'packages/runners/src/io/load.js'));
@@ -48,7 +48,7 @@ test('the moved runner load body keeps unrelated front-door modules out of the w
 test('the runner policy exact-leaf exception preserves every worker body byte [C7]', t => {
   const installed = mkdtempSync(join(tmpdir(), 'pullboard-policy-closure-'));
   t.after(() => rmSync(installed, { recursive: true, force: true }));
-  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
   const policy = 'packages/runners/src/io/policy.js';
   const leaf = 'packages/sandbox/src/io/trusted/policy/committed.js';
   const file = join(installed, policy);

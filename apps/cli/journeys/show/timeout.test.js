@@ -10,7 +10,7 @@ import { projectGitTimeoutFixture } from '../../tests/fixtures/timeout.js';
 
 test('the registered project list bounds stalled Git, names its root and retains readable projects [C7,N33]', { timeout: 120_000 }, async t => { // budget: native fixture setup plus one five-second Git deadline and a bounded diagnostic child.
   const box = projectGitTimeoutFixture(t);
-  const url = file => pathToFileURL(join(import.meta.dirname, '..', file)).href;
+  const url = file => pathToFileURL(join(import.meta.dirname, '../../../..', file)).href;
   const script = `import {apiBoardListing} from ${JSON.stringify(url('packages/api/index.js'))};
 import {listApiProjects} from ${JSON.stringify(url('packages/seats/index.js'))};
 import {apiBoardOpeners} from ${JSON.stringify(url('apps/cli/tests/fixtures/board.js'))};

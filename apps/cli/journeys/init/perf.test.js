@@ -36,7 +36,7 @@ test('the harness measures with eight registered projects [N26,N40]', async (t) 
   t.after(() => {
     if (t.passed) for (const fixture of fixtures) removeStressBoard(fixture);
   });
-  const root = resolve(import.meta.dirname, '../..');
+  const root = resolve(import.meta.dirname, '../../../..');
   for (const projects of [8, 1]) {
     const result = await runFixtureChildAsync(process.execPath, [join(root, 'apps/cli/tests/fixtures/cockpit/perf/run.mjs'),
       ...(projects > 1 ? ['--projects', String(projects)] : []),

@@ -42,7 +42,7 @@ import { withGitReadFacts } from '../../index.js';
 import { trunkRef } from '../../light.js';
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/io/main.js
 const BEFORE = { 'stable.txt': 'same\n', 'changed.txt': 'before\n', 'old.txt': 'removed\n' };
 const AFTER = { 'stable.txt': 'same\n', 'changed.txt': 'after\n', 'new space.txt': 'added\n', 'line\nbreak.txt': 'framed\n', 'bytes.bin': Buffer.from([0, 255, 10, 13]) };

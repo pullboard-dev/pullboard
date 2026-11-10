@@ -45,7 +45,7 @@ test('the GUI marker guard follows literal launcher imports without evaluating f
 });
 
 test('every test importing a Chrome launcher explicitly declares its GUI requirement [C7,V4]', () => {
-  const root = resolve(import.meta.dirname, '../../..');
+  const root = resolve(import.meta.dirname, '../../../../../..');
   const launchers = chromeLaunchingTests(root, trackedFiles(root));
   const missing = launchers.filter(file => !testsNeedGui(root, [file]));
   assert.deepEqual(missing, [], 'missing @pullboard-test-gui header in Chrome-launching test files: ' + missing.join(', '));

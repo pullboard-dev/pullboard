@@ -53,7 +53,7 @@ import {
 import { runFixtureChildAsync } from '../../../../cli/tests/fixtures/child.js';
 import { readText } from '../../../../../packages/gate/src/io/scan.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 
 /** Point the machine home at a private directory for one test. */
 function machineHome(t, home) {

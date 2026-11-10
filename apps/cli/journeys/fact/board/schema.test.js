@@ -160,7 +160,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
   const application = join(box.dir, 'main-application');
   mkdirSync(application);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), application);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), application);
   box.git(application, 'init', '-q', '-b', 'main');
   box.git(application, 'add', '-A');
   box.git(application, 'commit', '-q', '-m', 'chore: candidate main source');

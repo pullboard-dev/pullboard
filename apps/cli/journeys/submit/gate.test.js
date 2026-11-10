@@ -234,7 +234,7 @@ test('a changed test file selects the scanners that read test files [C7,B3]', (t
     expected, 'the old graph retains a scanner whose declaration was removed');
 
   // Use committed repository sources so a real scanner cannot be replaced by a synthetic stand-in.
-  const repository = resolve(import.meta.dirname, '..');
+  const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
   const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'test/', 'packages/gate/tests/'], {
     cwd: repository, encoding: 'utf8',
@@ -292,7 +292,7 @@ test('a source change selects the tests that scan sources [C7,B3]', (t) => {
   assert.deepEqual(selectAffectedTests(box.root, { base: deletionBase, commit: deleted }).files,
     ['test/a.test.js', ...readers].sort(), 'source deletion retains old importers and scanners');
 
-  const repository = resolve(import.meta.dirname, '..');
+  const repository = resolve(import.meta.dirname, '../../../..');
   const actual = privateRepo(t);
   const tracked = execFileSync('git', ['ls-files', '-z', 'src/', 'bin/', 'test/', 'packages/'], {
     cwd: repository, encoding: 'utf8',

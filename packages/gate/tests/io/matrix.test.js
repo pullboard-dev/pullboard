@@ -20,7 +20,7 @@ import {
   renderMatrix,
 } from '../../src/io/matrix.js';
 
-const ROOT = join(import.meta.dirname, '..');
+const ROOT = join(import.meta.dirname, '../../../..');
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /**

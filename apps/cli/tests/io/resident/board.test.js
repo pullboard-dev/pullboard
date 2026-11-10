@@ -45,7 +45,7 @@ import {
   residentSocket,
 } from '../../../src/io/resident/client.js';
 
-const REPO = resolve(import.meta.dirname, '..');
+const REPO = resolve(import.meta.dirname, '../../../../..');
 const BUDGET_MS = 200;
 let fx;
 

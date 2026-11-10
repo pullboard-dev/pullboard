@@ -32,7 +32,7 @@ import {
 import { MACHINE } from '../../../../packages/state/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const README = readFileSync(join(ROOT, 'README.md'), 'utf8');

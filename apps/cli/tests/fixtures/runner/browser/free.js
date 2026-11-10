@@ -41,7 +41,7 @@ import {
   MARKER,
 } from './free/sources.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../../../..');
 
 /** Count the stand-in's dispatched and returned markers. */
 function phases(file) {

@@ -51,7 +51,7 @@ import {
   test,
 } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 /** The files that hold these patterns to test them; every other tracked file is scanned. */
 const PATTERN_HOLDERS = new Set(['packages/sandbox/tests/privacy/words.test.js', 'docs/privacy.test.js', 'packages/sandbox/tests/privacy/guard.test.js']);
 /** Placeholder home folders that tests plant on purpose to prove redaction. */

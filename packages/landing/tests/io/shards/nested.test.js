@@ -19,7 +19,7 @@ import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../../resources/index.js';
 
-const SOURCE = join(import.meta.dirname, '../../..');
+const SOURCE = join(import.meta.dirname, '../../../../..');
 
 /** Run a landing gate under a held gate slot, as a runner worker or a local controller holds it. */
 async function landingUnderSlot(t, runnerExecution) {

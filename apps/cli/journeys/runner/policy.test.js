@@ -52,7 +52,7 @@ function fixture(t) {
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { runnersFirst: true } }));
   writeFileSync(join(remoteMachine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), repo);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), repo);
   mkdirSync(join(repo, 'test'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'candidate gate', landingShards: 2, protect: { allowed: ['*.example'] } }));
   writeFileSync(join(repo, '.env.example'), 'harmless allowed example\n');
@@ -105,7 +105,7 @@ test('ordinary fake-SSH source carries its actual trunk policy into a detached n
   assert.match(result.stdout, /TAP version 13/u);
   assert.doesNotMatch(result.stdout, /NO_POLICY/u);
   assert.ok(existsSync(box.requests), 'the real worker ran through the fake SSH transport');
-  const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '..'), box.env);
+  const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '../../../..'), box.env);
   const command = `node --input-type=module -e 'import {mainPolicy} from "./packages/sandbox/index.js"; console.log("PRIVATE_CARRIED_POLICY",mainPolicy(process.cwd()).commit)'`;
   const controller = `import { runOnRunnerAsync } from ${JSON.stringify(pathToFileURL(join(tooling, 'packages/runners/index.js')).href)};
 const result = await runOnRunnerAsync(${JSON.stringify(box.source)}, ${JSON.stringify(command)}, {

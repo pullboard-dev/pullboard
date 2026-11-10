@@ -408,7 +408,7 @@ function normalized(file, source, identities = new Map()) {
 
 
 test('the store move preserves every accepted production body except relocation operands [C7,CD60,CD64]', () => {
-  const root = resolve(import.meta.dirname, '..');
+  const root = resolve(import.meta.dirname, '../../../..');
   const map = JSON.parse(readFileSync(join(root, 'packages/codemap/data/plan/path-map/store.json'), 'utf8'));
   const identities = new Map(Object.entries(map).map(([old, moved]) => [moved, old]));
   for (const [old, digest] of Object.entries(STORE_BODY_HASHES)) {
@@ -477,7 +477,7 @@ function engineRows(source){const code=lex(source).code;return [...code.matchAll
 
 
 test('store extraction preserves the accepted engine identity set and every recorded number [C7,H16]', () => {
-  const root = resolve(import.meta.dirname, '..');
+  const root = resolve(import.meta.dirname, '../../../..');
   const landing = new Set(ACCEPTED_ENGINE_VALUES.filter(row => row[1] === null).map(row => row[0]));
   const placeholders = readEngineLeaves(join(root, 'src')).filter(row => row.number === undefined || row.number === null).map(row => [row.name, null]);
   const actual = [...styleSources(root).flatMap(row => engineRows(row.source)), ...placeholders]

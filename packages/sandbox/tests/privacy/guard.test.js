@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const SELF = 'packages/sandbox/tests/privacy/guard.test.js';
 // The view lane's paths, as `pullboard lanes` prints them.
 const VIEW = ['apps/cli/src/io/cockpit.js', 'apps/view', 'test/cockpit.test.js', 'test/cockpit', 'apps/cli/journeys/shout/journeys.test.js'];

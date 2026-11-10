@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { selectAffectedTests } from '../../index.js';
 
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const COCKPIT = join(ROOT, 'test/cockpit');
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 

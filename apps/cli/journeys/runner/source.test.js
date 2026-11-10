@@ -68,7 +68,7 @@ test('warm runner source moves a clean base and sends only the changed history [
   for (const tag of sourceTags) git(repo, env, 'tag', tag);
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachine, requests, stderrLog });
   // Register the runner through the runners cell's registration probe (the steps `runner add` performs), in a child on this fixture's machine home.
-  const cellUrl = cell => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'packages', cell, 'index.js')).href);
+  const cellUrl = cell => JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../..', 'packages', cell, 'index.js')).href);
   const registration = `import { addRunner, validateRunner } from ${cellUrl('config')};
 import { probeRunnerTransport } from ${cellUrl('runners')};
 import { recordRunnerGui } from ${cellUrl('resources')};

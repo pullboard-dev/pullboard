@@ -60,7 +60,7 @@ let inventoryCode;
  */
 function inventoryCodeDigest() {
   inventoryCode ??= receiptDigest({ node: process.version,
-    files: checkCommandDefinition(fileURLToPath(new URL('..', import.meta.url)), [], INVENTORY_CODE).map(file => [file.path, file.mode, file.digest]) });
+    files: checkCommandDefinition(fileURLToPath(new URL('../../../../../..', import.meta.url)), [], INVENTORY_CODE).map(file => [file.path, file.mode, file.digest]) });
   return inventoryCode;
 }
 
@@ -204,7 +204,7 @@ function stableChecker(key) {
   if (!key || !Array.isArray(key.code)) return null;
   try {
     return receiptDigest({ node: process.version, preloads: key.config?.preloads ?? null,
-      files: checkCommandDefinition(fileURLToPath(new URL('..', import.meta.url)), [], key.code).map(file => [file.path, file.mode, file.digest]) });
+      files: checkCommandDefinition(fileURLToPath(new URL('../../../../../..', import.meta.url)), [], key.code).map(file => [file.path, file.mode, file.digest]) });
   } catch { return null; }
 }
 

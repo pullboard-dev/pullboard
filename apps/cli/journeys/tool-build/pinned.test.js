@@ -114,7 +114,7 @@ function project(source) {
 }
 
 test('pinned CLI, hooks and loaded generation survive trunk advancement; native promotion affects new commands only [C7]', async () => {
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../..');
   const box = project(source);
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
@@ -186,7 +186,7 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
 });
 
 test('a native green selected-file gate cannot publish a full tool build [C7]', () => {
-  const box = project(resolve(import.meta.dirname, '..'));
+  const box = project(resolve(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
   const configFile = join(box.repo, 'pullboard.json');
@@ -208,7 +208,7 @@ test('automatic main gate is opt-in and refuses an unregistered timer [C7]', asy
 });
 
 test('timer honors committed main opt-out and retains an observed live owner [C7]', async () => {
-  const box = project(resolve(import.meta.dirname, '..'));
+  const box = project(resolve(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
   generation(box, 'timer');

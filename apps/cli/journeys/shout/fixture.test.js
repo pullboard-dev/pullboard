@@ -68,7 +68,7 @@ test('the view fixture refuses to launch Chrome from an undeclared test file [C7
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
-  copyPackageFiles(resolve(import.meta.dirname, '../..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
   cpSync(resolve(import.meta.dirname, '..'), join(root, 'test'), { recursive: true });
 
   /** Exercise the actual view launcher and always stop any stand-in it owns, including a failing baseline. */

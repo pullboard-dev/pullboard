@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'bin', 'docs', 'package.json', 'packages', 'skills', 'src'];
 const dirs = [];
 after(() => {

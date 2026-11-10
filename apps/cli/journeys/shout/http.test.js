@@ -408,7 +408,7 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   const codePrimary = join(box.dir, 'code-primary');
   const codeLinked = join(box.dir, 'code-linked');
   mkdirSync(codePrimary);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), codePrimary);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), codePrimary);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
   runFixtureGit(['add', '.'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'chore: private copied product source'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });

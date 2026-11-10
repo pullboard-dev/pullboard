@@ -11,7 +11,7 @@ import {
   test,
 } from 'node:test';
 
-const candidateRoot = process.env.PULLBOARD_2835_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '..');
+const candidateRoot = process.env.PULLBOARD_2835_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '../../../../../..');
 const { createE2eHelpers } = await import(pathToFileURL(join(candidateRoot, 'apps/cli/tests/fixtures/e2e.js')).href);
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

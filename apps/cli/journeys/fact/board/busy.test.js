@@ -293,12 +293,12 @@ test('opening an older board names and logs its genuine index-building write [C7
   // Installed source may own a main-board migration without entering the small project's Git history.
   const installed = join(box.dir, 'installed-maintenance-cli');
   mkdirSync(installed);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   const privateBin = join(installed, 'apps/cli/pullboard.js');
   assert.equal(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-dir'),
     box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   assert.equal(readFileSync(privateBin, 'utf8'), readFileSync(BIN, 'utf8'));
-  const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '..'), 'packages/git/index.js');
+  const sourceGit = mappedWorkingSource(resolve(import.meta.dirname, '../../../../..'), 'packages/git/index.js');
   const installedGit = {
     body: readFileSync(join(installed, sourceGit.implementationPath)),
     shimBody: sourceGit.shimBody === null ? null : readFileSync(join(installed, sourceGit.shimPath)),
@@ -536,7 +536,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const installed = join(box.dir, 'installed-rollback-cli');
   mkdirSync(installed);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const before = snapshot(file);
   const db = new DatabaseSync(file);

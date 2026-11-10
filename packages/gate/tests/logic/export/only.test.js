@@ -24,7 +24,7 @@ test('a new export-only file is refused and a listed one passes [C7]', () => {
 });
 
 test('the ceilings list only files that are still export-only, sorted [C7]', () => {
-  const root = join(import.meta.dirname, '../../..');
+  const root = join(import.meta.dirname, '../../../../..');
   const { files } = JSON.parse(readFileSync(join(root, EXPORT_ONLY_CEILINGS), 'utf8'));
   assert.deepEqual(files, [...files].sort());
   for (const file of files) assert.equal(exportOnly(file, readFileSync(join(root, file), 'utf8')), true, `${file} left the export-only shape; drop it from ${EXPORT_ONLY_CEILINGS}`);

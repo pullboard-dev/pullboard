@@ -14,7 +14,7 @@ import { toolSourcePath } from '../../../../../packages/runners/index.js';
 const helpers = createE2eHelpers();
 test.after(helpers.cleanup);
 const INDEX = fileURLToPath(new URL('../../../../../packages/runners/index.js', import.meta.url));
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 const EVENTS = 230_000;
 
 // Records every synchronous file read and child spawn, so the probe sees what import alone did.

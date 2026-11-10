@@ -65,7 +65,7 @@ const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
 async function mainSourceWorker(t) {
   const clone = mkdtempSync(join(tmpdir(), 'pullboard-main-code-'));
   t.after(() => rmSync(clone, { recursive: true, force: true }));
-  runFixtureGit(['clone', '-q', '--no-hardlinks', join(import.meta.dirname, '..'), clone], { cwd: tmpdir() });
+  runFixtureGit(['clone', '-q', '--no-hardlinks', join(import.meta.dirname, '../../../..'), clone], { cwd: tmpdir() });
   return (await import(pathToFileURL(join(clone, 'packages/sandbox/index.js')).href)).runSourceAdvances;
 }
 
@@ -179,7 +179,7 @@ test('an unsupported Node reporter stays unclassified rather than guessing a sel
 test('the pinned bundled runner selects one target and skips unrelated bodies [C7,H16]', t => {
   const box = flakyProject(t);
   const unrelated = join(box.scratch, 'bundled-unrelated-runs');
-  const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
+  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../../..'), box.root);
   /** Commit every copied manifest path through the fixture's real Git child and normal hooks. */
   const git = (_repo, ...args) => box.git(...args);
   commitFixtureFiles({ repo: box.root, git }, copied);

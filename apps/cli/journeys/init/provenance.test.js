@@ -39,7 +39,7 @@ function fixture(t) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
   const lane = join(dir, 'lane');
-  const source = resolve(import.meta.dirname, '../..');
+  const source = resolve(import.meta.dirname, '../../../..');
   const executables = join(dir, 'executables');
   mkdirSync(executables);
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" "$@"\n`);

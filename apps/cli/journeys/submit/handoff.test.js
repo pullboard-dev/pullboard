@@ -284,7 +284,7 @@ test('queued submit returns before its gate and remains bound when the builder c
 
 test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
   const box = fixture(t);
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../..');
   const tools = join(box.dir, 'builder-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
   const actualTemp = join(box.dir, 'actual-temp');

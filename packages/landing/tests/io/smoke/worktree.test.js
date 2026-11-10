@@ -14,7 +14,7 @@ import { runCommitCliSmoke } from '../../../index.js';
 import { runLandingCliSmoke } from '../../../index.js';
 import { temporaryRepository } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' };
 
 /**

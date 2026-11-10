@@ -32,7 +32,7 @@ import { addDocumentedCommand } from '../../tests/fixtures/generated/docs.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
 test('committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
-  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '..'), undefined, { openBoard }), [], 'run node docs/tools/update-docs.js');
+  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '../../../..'), undefined, { openBoard }), [], 'run node docs/tools/update-docs.js');
 });
 
 test('one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {
@@ -122,7 +122,7 @@ test('duplicate or symlinked command declarations refuse before any generated co
   const box = docsRepository(t);
   const copies = new Map(GENERATED_DOC_PATHS.map(file => [file, readFileSync(join(box.root, file))]));
   const file = join(box.root, 'apps/cli/src/io/command-docs/duplicate.json');
-  copyPackageSubset(resolve(import.meta.dirname, '..'), box.root,
+  copyPackageSubset(resolve(import.meta.dirname, '../../../..'), box.root,
     [{ path: 'apps/cli/src/io/command-docs/heartbeat.json', as: 'apps/cli/src/io/command-docs/duplicate.json' }]);
   assert.notEqual(box.node('docs/tools/update-docs.js').status, 0);
   for (const [name, bytes] of copies) assert.deepEqual(readFileSync(join(box.root, name)), bytes);

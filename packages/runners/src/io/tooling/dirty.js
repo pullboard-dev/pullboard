@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 
 /** Report one stable warning episode after five minutes; existing health receipts own durable delivery. */
 export function dirtyToolingFindings(root, files, now, previous = []) {

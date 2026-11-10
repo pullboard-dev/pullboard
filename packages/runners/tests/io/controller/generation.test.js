@@ -19,7 +19,7 @@ import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { currentRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../..');
 
 /** Create a private source tree with one entry and remove only this test's owned temporary directory. */
 function fixture(t) {

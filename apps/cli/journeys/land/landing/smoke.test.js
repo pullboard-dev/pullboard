@@ -24,7 +24,7 @@ import {
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../../tests/fixtures/land/project.js';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../../..');
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
@@ -32,7 +32,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 /** A project CLI that answers every command until an item's file asks it to break, as an import cycle would. */
 const BREAKABLE_CLI = [
   "const fs = require('node:fs'); const path = require('node:path');",
-  "const file = path.join(__dirname, '..', 'web', 'land-1.test.js');",
+  "const file = path.join(__dirname, '../../../../..', 'web', 'land-1.test.js');",
   "if (fs.existsSync(file) && fs.readFileSync(file, 'utf8').includes('BREAK')) throw new Error('import cycle in the command catalog');",
 ].join('\n') + '\n';
 

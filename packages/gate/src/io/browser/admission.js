@@ -244,7 +244,7 @@ async function ownSourceCheck(root, words, { commit, env }) {
   try {
     const node = resolveExecutable(words[0], env.PATH);
     if (!node || await realpath(node) !== await realpath(process.execPath)) return false;
-    const own = await sourceRepository(resolve(import.meta.dirname, '../../../..'));
+    const own = await sourceRepository(resolve(import.meta.dirname, '../../../../..'));
     if (!own || own !== await sourceRepository(root)) return false;
     const revision = commit ?? git(root, ['rev-parse', '--verify', 'HEAD'], { env: cleanGitEnvironment() });
     const committed = committedFiles(root, revision);

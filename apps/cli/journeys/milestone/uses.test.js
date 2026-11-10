@@ -162,7 +162,7 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
 
 test('native file URL composition retains the actual repository body and refuses unknown roots [C7]', () => {
   const prefix = "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; import {fileURLToPath} from 'node:url';\n";
-  const root = "const ROOT = fileURLToPath(new URL('..', import.meta.url));\n";
+  const root = "const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));\n";
   const read = "readFileSync(join(ROOT, 'src/local-fetch.js'), 'utf8');";
   const options = { file: 'apps/cli/journeys/init/boundary.test.js', moves: [['src/local-fetch.js', 'packages/sync/src/io/local.js']] };
   const proved = fixtureSourceEdits(prefix + root + read, options);
@@ -174,8 +174,8 @@ test('native file URL composition retains the actual repository body and refuses
   const alias = (prefix + root + read).replace('{fileURLToPath}', '{fileURLToPath as nativePath}').replace('= fileURLToPath(', '= nativePath(');
   assert.deepEqual(fixtureSourceEdits(alias, options).problems, []);
   for (const unknown of [
-    root.replace("new URL('..', import.meta.url)", 'unknown'),
-    root.replace("new URL('..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
+    root.replace("new URL('../../../..', import.meta.url)", 'unknown'),
+    root.replace("new URL('../../../..', import.meta.url)", 'new URL(unknown, import.meta.url)'),
     root.replace("'..'", "'https://outside.invalid/source'"),
     root.replace("'..'", "'../%2e/source'"),
     root.replace("'..'", "'../source?query'"),

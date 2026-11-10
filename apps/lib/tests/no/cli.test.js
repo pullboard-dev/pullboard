@@ -20,7 +20,7 @@ import { runFixtureChild } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 import { temporaryRepository } from '../../../cli/tests/fixtures/board/submit.js';
 
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const FAST = 'packages/doctrine/src/io/fast.js';
 const LINTS = fileURLToPath(new URL('../../../../packages/codemap/src/io/cell/scripts/lints.js', import.meta.url));
 

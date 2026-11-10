@@ -68,7 +68,7 @@ const HOMES = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'];
  */
 function released(box) {
   const release = join(box.dir, 'release');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), release);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), release);
   return release;
 }
 

@@ -33,7 +33,7 @@ const PROBES = ['probe machine settings are the defaults', 'probe the resource p
 
 /** Build a probe suite outside the repository that reads every kind of machine state a test could reach. */
 function probeSuite(dir) {
-  const module = (path) => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../..', path)).href);
+  const module = (path) => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../..', path)).href);
   const root = join(dir, 'probe');
   mkdirSync(join(root, 'test'), { recursive: true });
   writeFileSync(join(root, 'test/probe.test.js'), `import assert from 'node:assert/strict';

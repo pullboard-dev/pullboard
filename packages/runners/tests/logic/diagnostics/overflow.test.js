@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
-const SOURCE = join(import.meta.dirname, '../../..');
+const SOURCE = join(import.meta.dirname, '../../../../..');
 const CLEANUP_BUDGET_MS = 15_000;
 const url = path => JSON.stringify(pathToFileURL(join(SOURCE, path)).href);
 

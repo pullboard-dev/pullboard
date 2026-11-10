@@ -26,7 +26,7 @@ import {
   BROWSER_SLOT_HELD_ENV,
 } from '../../../../../../packages/resources/index.js';
 
-const SOURCE = join(import.meta.dirname, '..');
+const SOURCE = join(import.meta.dirname, '../../../../../..');
 
 /** A private machine has idle local capacity and no registered runner. */
 function privateMachine(t, runnersOnly) {

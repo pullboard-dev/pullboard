@@ -107,7 +107,7 @@ function fileOverlap(file) {
 test('the landing gate bounds its own concurrency [C7]', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-file-caps-')));
   dirs.push(root);
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   const config = join(root, 'pullboard.json');
   assert.deepEqual(testConcurrency(root, 7), { files: 7, browser: 2 }, 'the default file budget is the detected core budget');

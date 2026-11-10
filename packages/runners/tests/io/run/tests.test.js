@@ -140,7 +140,7 @@ function makeShardFixture(t) {
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   const capture = join(root, 'selected-files.txt');
   const expected = [];
   for (let number = 1; number <= shardFileCount; number += 1) {
@@ -171,7 +171,7 @@ function makeLandingStopFixture(t) {
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   writeFileSync(join(tests, '01-sibling.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
@@ -450,7 +450,7 @@ test('a landing worker runs after persistent identity snapshot errors [C7,V4]', 
   mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   const fixtureRunner = join(bin, 'run-tests.js');
   const workerTest = join(tests, 'worker-start.test.js');
   const preload = join(root, 'worker-snapshot-unavailable.mjs');
@@ -1112,7 +1112,7 @@ function makeTrackedSelectionFixture(t) {
   mkdirSync(join(root, 'docs'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, '.gitignore'), 'scratch/\n');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   const capture = join(root, 'selected-files.txt');
   const trackedSources = new Map([
     ['test/tracked.test.js', trackedFixtureSource('tracked')],

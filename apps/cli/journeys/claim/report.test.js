@@ -124,7 +124,7 @@ fs.appendFileSync(${JSON.stringify(log)},'proof\\n');
   box.git(box.repo, 'commit', '-q', '--allow-empty', '-m', 'chore: move accepted main');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   /** Name only the actual installed tool source, never a copied fixture implementation. */
-  const tool = relative => pathToFileURL(resolve(import.meta.dirname, '..', relative)).href;
+  const tool = relative => pathToFileURL(resolve(import.meta.dirname, '../../../..', relative)).href;
   const gateURL = tool('packages/gate/index.js');
   const driver = join(box.dir, 'native-gates.mjs');
   writeFileSync(driver, `import assert from 'node:assert/strict';

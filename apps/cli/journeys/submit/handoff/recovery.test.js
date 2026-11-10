@@ -137,7 +137,7 @@ test('clause 1: a driver killed mid-check leaves its saved steps, and once its l
 for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handoff is ${mode === 'missing' ? 'returned when captured tools are gone' : mode === 'silent' ? 'returned after one silent relaunch' : 'relaunched from captured tools'} [V4,H16,E18]`, async t => {
   const missing = mode === 'missing';
   const box = fixture(t);
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../../..');
   const tools = join(box.dir, 'initially-silent-tools');
   const exited = join(box.dir, 'initial-worker-exited');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });

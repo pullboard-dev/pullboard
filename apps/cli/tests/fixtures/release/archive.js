@@ -9,7 +9,7 @@ import {
   resolve,
 } from 'node:path';
 
-const REPOSITORY = resolve(import.meta.dirname, '..');
+const REPOSITORY = resolve(import.meta.dirname, '../../../../..');
 
 /**
  * Archive a tag to a file, then ask tar to read that file so an early tar exit cannot break Git's pipe.

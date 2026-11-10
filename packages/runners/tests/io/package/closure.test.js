@@ -7,7 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runnerPackage } from '../../../src/io/package.js';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const prune = 'packages/resources/src/io/handoff/prune.js';
 
 test('clause 1: handoff-folder-prune.js opens the database through a static node:sqlite import, not createRequire [C7]', () => {

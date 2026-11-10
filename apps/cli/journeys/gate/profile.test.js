@@ -493,7 +493,7 @@ function waitProfileCleanup(ms) {
 
 /** Copy the production runner's complete static import closure into the real fixture repo. */
 function copyProfileRunner(box) {
-  const source = resolve(import.meta.dirname, '..');
+  const source = resolve(import.meta.dirname, '../../../..');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
   const fixtureSource = join(box.repo, 'src');
   if (existsSync(fixtureSource)) {

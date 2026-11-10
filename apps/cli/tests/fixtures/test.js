@@ -21,7 +21,7 @@ import {
 } from './runner/ssh.js';
 import { repoPath } from '../../../../packages/kernel/light.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../..');
 let fixtureSequence = 0;
 
 /** Build an ordinary CLI fixture whose declared test reports its actual checkout and live holder. */

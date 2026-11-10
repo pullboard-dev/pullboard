@@ -20,7 +20,7 @@ import {
 import { fixtureAdd } from '../../cli/tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../cli/tests/fixtures/testkit.js';
 
-const candidateRoot = process.env.PULLBOARD_409_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '..');
+const candidateRoot = process.env.PULLBOARD_409_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '../../..');
 assert.ok(candidateRoot, 'set PULLBOARD_409_CANDIDATE_ROOT to the candidate checkout');
 
 const { createE2eHelpers } = await import(pathToFileURL(resolve(candidateRoot, 'apps/cli/tests/fixtures/e2e.js')).href);

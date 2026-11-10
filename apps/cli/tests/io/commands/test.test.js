@@ -249,7 +249,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
   const source = mkdtempSync(join(tmpdir(), 'pullboard-discovery-source-'));
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), source);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), source);
   const runner = readFileSync(join(source, 'packages/gate/src/io/run/tests.js'), 'utf8');
   writeFileSync(join(source, 'packages/gate/src/io/run/tests.js'), runner.replace('\n', "\nimport '../src/discovery-extra.js';\n"));
   writeFileSync(join(source, 'src/discovery-extra.js'), "import { value } from './discovery-nested.js';\nif (value !== 'closure') throw new Error('transitive import failed');\n");

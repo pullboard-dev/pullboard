@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 
-const SOURCE = join(import.meta.dirname, '../../..');
+const SOURCE = join(import.meta.dirname, '../../../..');
 const RUNNER = 'only-runner';
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });

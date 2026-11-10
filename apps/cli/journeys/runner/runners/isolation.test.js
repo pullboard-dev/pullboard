@@ -75,7 +75,7 @@ test('a queued run executes on a registered runner and its result comes back (ho
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare host checkout isolation fixture');
 
-  const suiteRoot = resolve(import.meta.dirname, '..');
+  const suiteRoot = resolve(import.meta.dirname, '../../../../..');
   copyPackageFiles(suiteRoot, toolingRoot);
   git(toolingRoot, env, 'init', '-q', '-b', 'main');
   git(toolingRoot, env, 'add', '.');

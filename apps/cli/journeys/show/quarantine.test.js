@@ -44,7 +44,7 @@ process.env.PULLBOARD_MODEL ??= 'Test Model';
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */
 function fixture(t, deterministic = false, companion = false) {
   const box = flakyProject(t, { beforeInit: ({ root, git }) => {
-    copyCommittedPackageFiles({ repo: root, git: (_root, ...args) => git(...args) }, resolve(import.meta.dirname, '..'));
+    copyCommittedPackageFiles({ repo: root, git: (_root, ...args) => git(...args) }, resolve(import.meta.dirname, '../../../..'));
     return join(root, 'apps/cli/pullboard.js');
   } });
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));

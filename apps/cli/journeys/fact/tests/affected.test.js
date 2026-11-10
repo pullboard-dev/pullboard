@@ -138,7 +138,7 @@ test('escaped literal templates select their documentation inputs [V4,C7]', (t) 
 
 test('a docs path built inline still selects its reader [V4,C7]', (t) => {
   const box = graph(t);
-  box.put('test/array-reader.test.js', `import {readFileSync} from 'node:fs'; readFileSync(new URL(['..','docs','api.md'] /* docs input */ .join('/'),import.meta.url),'utf8');\n`);
+  box.put('test/array-reader.test.js', `import {readFileSync} from 'node:fs'; readFileSync(new URL(['../../../../..','docs','api.md'] /* docs input */ .join('/'),import.meta.url),'utf8');\n`);
   box.put('test/inline-join.test.js', "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; const root='.',name='api.md'; readFileSync(join(root,'docs',name),'utf8');\n");
   box.put('test/inline-template.test.js', "import {readFileSync} from 'node:fs'; readFileSync(`do\\x63s/api.md`,'utf8');\n");
   box.put('test/comment-only-reader.test.js', "// Reads api.md by name only; no path syntax here.\n");
@@ -291,7 +291,7 @@ test('an undeclared non-literal specifier, through a helper or a path builder, a
     "function pick(fallback) { return process.env.CASE_MODULE || fallback; }\nawait import(new URL(pick('../src/api.js'), import.meta.url).href);\n",
     "const helpers = { pick: (fallback) => process.env.CASE_MODULE || fallback };\nawait import(new URL(helpers.pick('../src/api.js'), import.meta.url).href);\n",
     // A path builder is a call too: without a declaration even join(dir, literal) is not resolved (#803's refrozen bar).
-    "import { join } from 'node:path';\nconst dir = process.env.CASE_DIR ?? '..';\nawait import(join(import.meta.dirname, dir, 'src/api.js'));\n",
+    "import { join } from 'node:path';\nconst dir = process.env.CASE_DIR ?? '../../../../..';\nawait import(join(import.meta.dirname, dir, 'src/api.js'));\n",
   ]) {
     const box = graph(t);
     box.put('src/b.js', 'export const value = 1;\n');
@@ -487,7 +487,7 @@ test('explicit pure repo guards cover source and test changes while behavior rea
 
 /** Keep only source-text scanners in the mandatory test-edit guard set. */
 test('the repository test-tree guards list only source scanners and launch no browser [C7]', async () => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '../../../../..');
   const expected = [
     'packages/gate/tests/io/board/baseline/guard.test.js',
     'packages/gate/tests/io/browser/guard.test.js',
@@ -527,7 +527,7 @@ test('the repository test-tree guards list only source scanners and launch no br
 });
 
 test('gate source changes still select the static failure regression [C7]', () => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '../../../../..');
   const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/io/main.js'] });
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('apps/cli/journeys/submit/gate.test.js'),

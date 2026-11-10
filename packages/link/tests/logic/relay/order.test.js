@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const ROOT = new URL('../../..', import.meta.url).pathname;
+const ROOT = new URL('../../../../..', import.meta.url).pathname;
 
 /** A repository with one linked worktree, plus a git shim on PATH that logs every call it receives. */
 function repository(t) {

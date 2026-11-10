@@ -29,7 +29,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../..');
 const MAIN_MARK = 'fixture-main-cli-ran';
 const OWN_MARK = 'fixture-worktree-cli-ran';
 const ENTRY_FILES = ['apps/cli/pullboard.js', 'apps/cli/src/io/current.js', 'apps/cli/src/io/hook/composed.js', 'apps/cli/src/io/resident/client.js', 'apps/cli/src/io/ports/process.js', 'apps/cli/src/io/resident/board.js', 'apps/cli/src/io/resident/socket.js'];

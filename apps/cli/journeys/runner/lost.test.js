@@ -262,7 +262,7 @@ test('an automatic transport probe never clears a draining runner or guesses hea
 test('a controller and worker mixed across an upgrade are refused before SSH while a fresh controller works [C7]', t => {
   const box = fixture(t), installed = join(box.dir, 'installed-tooling');
   mkdirSync(installed);
-  copyPackageFiles(join(import.meta.dirname, '..'), installed);
+  copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
   const url = pathToFileURL(join(installed, 'packages/runners/index.js')).href;
   const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
     import {existsSync,readFileSync,writeFileSync} from 'node:fs';
@@ -287,7 +287,7 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
 test('a changed composed resource provider leaf refuses the old controller generation before SSH [C7]', t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-lifecycle-tooling');
   mkdirSync(installed);
-  copyPackageFiles(join(import.meta.dirname, '..'), installed);
+  copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
   const url = pathToFileURL(join(installed, 'packages/runners/index.js')).href;
   const leaf = join(installed, 'packages/resources/src/io/controller/custody.js');
   const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
@@ -306,7 +306,7 @@ test('a changed composed resource provider leaf refuses the old controller gener
 test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
   mkdirSync(installed);
-  copyPackageFiles(join(import.meta.dirname, '..'), installed);
+  copyPackageFiles(join(import.meta.dirname, '../../../..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
   const resources = toolSourcePath(installed, 'packages/resources/src/io/main.js');
   const signature = 'export function recordRunnerGui(host, gui) {';

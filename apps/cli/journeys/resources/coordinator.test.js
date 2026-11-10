@@ -21,7 +21,7 @@ import {
   testProcesses,
 } from '../../../../packages/gate/index.js';
 
-const REPO = fileURLToPath(new URL('..', import.meta.url));
+const REPO = fileURLToPath(new URL('../../../..', import.meta.url));
 
 /** Whether a process is gone; any other signal error leaves it presumed alive. */
 function gone(pid) {

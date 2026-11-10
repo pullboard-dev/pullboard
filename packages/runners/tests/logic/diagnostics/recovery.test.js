@@ -41,7 +41,7 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
   const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
     `process.stderr.write(${JSON.stringify('fixture exact-cleanup worker probe refused\n')}); ${failure}`));
-  const url = path => pathToFileURL(join(import.meta.dirname, '..', '..', '..', path)).href;
+  const url = path => pathToFileURL(join(import.meta.dirname, '../../../../..', path)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';

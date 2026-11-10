@@ -100,7 +100,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     }
     const box = board(t);
     // Preserve the real aliases and mapped bodies, so entry claims inspect the same source as the real plan.
-    const map = readPathMap(join(import.meta.dirname, '..'));
+    const map = readPathMap(join(import.meta.dirname, '../../../../..'));
     const entryMap = {};
     const entryFiles = new Set();
     for (const { path } of PLAN.entries ?? []) {

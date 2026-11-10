@@ -53,7 +53,7 @@ function releaseFixture(t, { previous = null, version = '0.8.7', changelog = PRI
   mkdirSync(cli);
   mkdirSync(repo);
   if (!freshSetup) writeFileSync(join(repo, 'SPEC.md'), '# Release fixture\n\n## N · Resume\n- N19 [approved, must] Resume announces released headlines once per checkout. | gate: review\n');
-  copyPackageFiles(join(import.meta.dirname, '..'), cli);
+  copyPackageFiles(join(import.meta.dirname, '../../../..'), cli);
   symlinkSync(join(cli, 'apps/cli/pullboard.js'), join(cli, 'bin/pullboard'));
   const packageData = JSON.parse(readFileSync(join(import.meta.dirname, '../../../../package.json'), 'utf8'));
   writeFileSync(join(cli, 'package.json'), JSON.stringify({ ...packageData, version }));

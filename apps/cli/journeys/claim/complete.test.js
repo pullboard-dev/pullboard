@@ -27,7 +27,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
-const SOURCE = resolve(import.meta.dirname, '..');
+const SOURCE = resolve(import.meta.dirname, '../../../..');
 const RUNNER = join(SOURCE, 'packages/gate/src/io/run/tests.js');
 const MAIN_RED = 'web/land-9.test.js';
 const LATER_FILE = 'web/land-99.test.js';

@@ -91,7 +91,7 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
       const result = cli(paths.repo, env, 'settings', name, value);
       assert.equal(result.status, 0, result.context);
     }
-    const tooling = committedToolingSnapshot(fileURLToPath(new URL('..', import.meta.url)), env);
+    const tooling = committedToolingSnapshot(fileURLToPath(new URL('../../../../..', import.meta.url)), env);
     const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
     const config = pathToFileURL(join(tooling, 'packages/config/src/io/main.js')).href;
     const source = `import {runGate} from ${JSON.stringify(gate)};

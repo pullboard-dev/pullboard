@@ -67,7 +67,7 @@ const SMOKE = resolve(import.meta.dirname, '../../../relay/src/io/deploy/smoke.m
 const SERVER = resolve(import.meta.dirname, '../../../relay/src/io/deploy/server.mjs');
 const DOCKERFILE = resolve(import.meta.dirname, '../../../relay/src/io/deploy/Dockerfile');
 const README = resolve(import.meta.dirname, '../../../relay/src/io/deploy/README.md');
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const SHIPPED = new Set(packageFiles(ROOT));
 const DAMAGED_SERVER_FAILURE_FLOOR_MS = 5000;
 
@@ -448,7 +448,7 @@ test('[H5,H18] the container entry point serves readiness and stays available', 
   const command = process.execPath;
   const args = [SERVER];
   const started = performance.now();
-  const child = spawn(command, args, { cwd: resolve(import.meta.dirname, '..'), env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const child = spawn(command, args, { cwd: resolve(import.meta.dirname, '../../../..'), env, stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   child.stderr.setEncoding('utf8').on('data', part => { stderr += part; });
   child.once('close', (status, signal) => {

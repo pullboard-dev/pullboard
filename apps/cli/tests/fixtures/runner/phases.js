@@ -139,7 +139,7 @@ async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, fi
  * Run a gate command through its real lease and return the profile/result emitted by the API child.
  * `requests` names the stand-in's request log, whose .phases file times the round trip by phase.
  */
-export async function runThroughGate(repo, env, command, { browser = true, timing = false, item = '663', kind = 'check', landing = false, toolingRoot = resolve(import.meta.dirname, '..'), requests, deadlines } = {}) {
+export async function runThroughGate(repo, env, command, { browser = true, timing = false, item = '663', kind = 'check', landing = false, toolingRoot = resolve(import.meta.dirname, '../../../../..'), requests, deadlines } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
   const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);

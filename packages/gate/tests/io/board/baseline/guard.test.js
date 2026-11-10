@@ -30,7 +30,7 @@ test('the board-file lint names direct, namespaced and aliased logic file opens 
 });
 
 test('the board-file debt ratchet names outstanding tests and prevents new logic file opens [C7]', () => {
-  const root = join(import.meta.dirname, '..');
+  const root = join(import.meta.dirname, '../../../../../..');
   const baseline = BOARD_FILE_BASELINE;
   assert.deepEqual(boardFileProblems(root, baseline), []);
   const debt = boardFileReport(root);

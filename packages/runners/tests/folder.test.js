@@ -26,7 +26,7 @@ import { copyPackageSubset } from '../../../apps/cli/tests/fixtures/copy.js';
 const E = 'packages/state/src/logic/engines';
 
 test('the repository keeps every engine marker in the state cell engines folder [C7]', () => {
-  assert.deepEqual(engineFolderProblems(resolve(import.meta.dirname, '..')), []);
+  assert.deepEqual(engineFolderProblems(resolve(import.meta.dirname, '../../..')), []);
 });
 
 /** Build a real private repository with a move and a separately owned engine declaration. */
@@ -38,7 +38,7 @@ function fixture(t, root = mkdtempSync(join(tmpdir(), 'pullboard-engine-folder-'
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(root, E, 'sample-engine.js'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
   writeFileSync(join(root, 'src/move.js'), "import { SAMPLE_ENGINE } from '../packages/state/src/core/engines/sample-engine.js';\nexport function move() { return { operation: 'sample', engine: SAMPLE_ENGINE }; }\n");
-  copyPackageSubset(resolve(import.meta.dirname, '..'), root,
+  copyPackageSubset(resolve(import.meta.dirname, '../../..'), root,
     [...['engine-numbers.js', 'discovery.js'].map(file => ({ path: `src/${file}`, as: `src/${file}` })), { path: `${E}/engine-next.js`, as: `${E}/engine-next.js` }]);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   runFixtureGit(['add', '.'], { cwd: root });

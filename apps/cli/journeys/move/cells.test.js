@@ -227,14 +227,14 @@ test('fixture joins retain rooted later segments while resolve keeps its absolut
   const { root, custody, input } = fixture(t, 'export const value = 42;\n');
   mkdirSync(join(root, 'test'));
   const file = 'test/join-copy.test.js';
-  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '..', '/src/leaf.js')); }";
+  const external = "function external() { return fs.readFileSync(path.resolve(import.meta.dirname, '../../../..', '/src/leaf.js')); }";
   const source = [
     "import assert from 'node:assert/strict';",
     "import * as fs from 'node:fs';",
     "import * as path from 'node:path';",
-    "const body = fs.readFileSync(path.join(import.meta.dirname, '..', '/src/leaf.js'), 'utf8');",
+    "const body = fs.readFileSync(path.join(import.meta.dirname, '../../../..', '/src/leaf.js'), 'utf8');",
     "assert.equal(body, 'export const value = 42;\\n');",
-    "assert.equal(path.resolve(import.meta.dirname, '..', '/src/leaf.js'), '/src/leaf.js');",
+    "assert.equal(path.resolve(import.meta.dirname, '../../../..', '/src/leaf.js'), '/src/leaf.js');",
     '/** An external absolute read is deliberately outside the repository move. */',
     external,
     "console.log('joined copy reads actual body');",
@@ -402,7 +402,7 @@ test('the shipped installation includes the first real package and runs its CLI 
   const outer = mkdtempSync(join(tmpdir(), 'pb-cell-shipped-'));
   t.after(() => rmSync(outer, { recursive: true, force: true }));
   const installed = join(outer, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);
   const env = { ...process.env, HOME: join(outer, 'home'), PULLBOARD_HOME: join(outer, 'home/pullboard'), PULLBOARD_MACHINE_HOME: join(outer, 'machine') };
   delete env.NODE_OPTIONS; delete env.NODE_TEST_CONTEXT;
   const child = spawnSync(process.execPath, [join(installed, 'bin/pullboard.js'), '--help'], { cwd: installed, env, encoding: 'utf8' });
