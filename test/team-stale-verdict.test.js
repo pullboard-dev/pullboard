@@ -43,7 +43,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   run(box, box.web, 'submit', '1');
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-  run(box, reviewer, 'join', 'web');
+  run(box, reviewer, 'join', 'web', '--route', 'strong');
   run(box, reviewer, 'next', '--verify', '1');
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
