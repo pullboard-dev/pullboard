@@ -7,6 +7,7 @@ import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { installRunnerPackage } from './runner-package-install.js';
+import { REUSE_CAPSULE } from './runner-runtime-held.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { captureRunnerTooling } from './runner-tooling-snapshot.js';
@@ -186,9 +187,13 @@ export function readCapsuleFromStdin() {
  *
  * @returns {{ command: string, input: Buffer }} The remote command and the stdin bytes to write before any other.
  */
-export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null) {
+export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null, { reuse = false } = {}) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
-  const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  // The transfer bound protects what crosses the wire, the gzipped capsule; the raw bundle is ratcheted on main (#4140).
+  const full = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  if (Buffer.byteLength(full) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
+  // A runner that holds this runtime by digest gets an empty capsule and re-hashes its installed copy.
+  const payload = reuse ? REUSE_CAPSULE : full;
   if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
   const installer = `import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -196,8 +201,10 @@ import { mkdtempSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -208,7 +215,7 @@ ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
 ${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
-  const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
+  const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'src/runner-worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
   return { command: `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`,
     input: Buffer.from(`${Buffer.byteLength(payload)}\n${payload}`, 'ascii') };

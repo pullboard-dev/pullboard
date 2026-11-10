@@ -11,6 +11,7 @@ const PURE_NETWORK_CALLS = new Set(['net#isIP', 'net#isIPv4', 'net#isIPv6',
 const STORE_WRITE_IDENTITIES = new Map([
   ['packages/store/src/shell/board-write-lock.js', 'src/board-write-lock.js'],
   ['packages/store/src/shell/proof-receipts.js', 'src/proof-receipts.js'],
+  ['packages/store/src/shell/board-hold-log.js', 'src/board-hold-log.js'],
   ['src/gate-run-receipt.js', 'packages/gate/src/shell/gate-run-receipt.js'],
 ]);
 

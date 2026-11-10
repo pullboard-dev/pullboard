@@ -4,6 +4,7 @@
  * The jobs cell keeps the span files.
  */
 import { appendGateSpan } from '../../../jobs/index.js';
+import { recordLandingSpan } from './landing-spans.js';
 
 /** The typed failure causes a span may carry: readiness-miss, transport-lost, runner-dropped, deadline, infra-retry. */
 
@@ -119,11 +120,16 @@ function runnerDispatchSpans({ startedAt, endedAt, host = null, kind = null, pha
 }
 
 /**
- * Record every span of one runner dispatch for the open gate.
+ * Record every span of one runner dispatch for the open gate, or, with no gate open, for the open landing run.
  *
  * @param {Parameters<typeof runnerDispatchSpans>[0]} run
  */
 export function recordRunnerDispatch(run) {
-  if (!sink) return;
-  for (const span of runnerDispatchSpans(run)) recordGateSpan(span);
+  if (sink) {
+    for (const span of runnerDispatchSpans(run)) recordGateSpan(span);
+    return;
+  }
+  // A landing's runner runs record the same dispatch steps into its landing run, so a slow landing rerun names the
+  // step that ate its time (a 1-file rerun took 333 s with no span, 9 Nov) [C7].
+  for (const { kind, ...span } of runnerDispatchSpans(run)) recordLandingSpan({ ...span, runKind: kind });
 }

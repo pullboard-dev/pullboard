@@ -1,17 +1,25 @@
+/** @pullboard-module-loads apps/cli/src/shell/disk-use-worker.js */
 /** What Pullboard keeps under .git/pullboard: its size per store, a warning threshold, and a retention policy for bulky raw material [C7]. */
+import { startDetachedCheck } from '../../../../packages/drive/index.js';
 import { appendFileSync } from 'node:fs';
+import { closeSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { openSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const GIB = 1024 ** 3;
 const DAY = 24 * 60 * 60 * 1000;
 const POLICY_FILE = 'disk-policy.json';
 const CACHE_FILE = 'disk-use-cache.json';
+/** Present while a background measurement runs, so concurrent commands start only one. */
+export const MEASURE_LOCK = 'disk-use.measuring';
 const LOG_FILE = 'retention-log.jsonl';
 
 /** The stores the board writes, by the top-level names they live under; any other name is counted as "other". */
@@ -23,6 +31,9 @@ export const DISK_STORES = {
   'check output': ['check-output'],
   receipts: ['check-receipts', 'gate-receipts', 'gate-receipts.jsonl', 'native-flake-receipts', 'landings', 'reviews'],
 };
+
+/** Removal failures that mean the entry changed or is held while being removed, so the prune keeps it and goes on. */
+const REMOVAL_RACES = new Set(['ENOTEMPTY', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES']);
 
 /** Only these stores hold raw material that may age out; every other store is kept forever. */
 const AGING_STORES = ['worktree archives', 'test actions', 'flake evidence', 'check output'];
@@ -58,7 +69,9 @@ function newestMtime(path) {
   let names = [];
   try { names = readdirSync(path); } catch { return stat.mtimeMs; }
   if (!names.length) return stat.mtimeMs;
-  return Math.max(...names.map(name => newestMtime(join(path, name))));
+  let newest = 0;
+  for (const name of names) newest = Math.max(newest, newestMtime(join(path, name)));
+  return newest;
 }
 
 /** Which store a top-level name belongs to. */
@@ -113,11 +126,55 @@ export function diskUse(dir, { now = Date.now(), maxAgeMs = 0 } = {}) {
     measured = [...sums].map(([name, bytes]) => ({ name, bytes }));
     try { writeFileSync(join(dir, CACHE_FILE), JSON.stringify({ at: now, stores: measured })); } catch { /* read-only: skip the cache */ }
   }
+  return summarized(dir, measured, policy);
+}
+
+/** The per-store report for measured sizes: stores largest first, the total, and the warning when it applies. */
+function summarized(dir, measured, policy) {
   const stores = measured.filter(row => row.name !== 'other' || row.bytes > 0).sort((a, b) => b.bytes - a.bytes || a.name.localeCompare(b.name));
   const total = stores.reduce((sum, row) => sum + row.bytes, 0);
   const warning = total > policy.warnBytes
     ? { totalBytes: total, thresholdBytes: policy.warnBytes, largest: stores.slice(0, 3).map(row => row.name) } : null;
   return { dir, total, stores, thresholdBytes: policy.warnBytes, warning };
+}
+
+/** A background measurement this old is taken to have died, and another may start. */
+const MEASURE_LOCK_MS = 60 * 60_000;
+
+/**
+ * Start one detached measurement of the stores, unless one is already running; it writes the cache diskUse reads.
+ * Returns whether one started. `launch` runs the worker; the drive cell's detached check by default.
+ */
+export function startDiskMeasure(dir, { now = Date.now(), launch = startDetachedCheck } = {}) {
+  const lock = join(dir, MEASURE_LOCK);
+  try {
+    if (now - statSync(lock).mtimeMs < MEASURE_LOCK_MS) return false;
+    rmSync(lock, { force: true });
+  } catch { /* No measurement is running. */ }
+  try { closeSync(openSync(lock, 'wx')); } catch { return false; }
+  if (launch(fileURLToPath(new URL('./disk-use-worker.js', import.meta.url)), { args: [dir] }) === null) {
+    rmSync(lock, { force: true });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Disk use from the last measurement, never measured in the command: a stale or missing measurement starts one in the
+ * background. Why: walking a large .git/pullboard took 6 minutes on 9 Nov, and status ran that walk every 10 minutes
+ * inside the resident board process, so every seat's commands fell back to cold reads behind it [C7]. With no
+ * measurement yet, the total is null and `measuring` is true.
+ */
+export function cachedDiskUse(dir, { now = Date.now(), maxAgeMs = 10 * 60_000, start = startDiskMeasure } = {}) {
+  const policy = diskPolicy(dir);
+  let cached = null;
+  try {
+    const read = JSON.parse(readFileSync(join(dir, CACHE_FILE), 'utf8'));
+    if (Number.isFinite(read.at) && Array.isArray(read.stores)) cached = read;
+  } catch { /* Never measured, or unreadable: measure. */ }
+  if (!cached || now - cached.at < 0 || now - cached.at >= maxAgeMs) start(dir, { now });
+  if (!cached) return { dir, total: null, stores: [], thresholdBytes: policy.warnBytes, warning: null, measuring: true };
+  return { ...summarized(dir, cached.stores, policy), measuredAt: new Date(cached.at).toISOString() };
 }
 
 /** Human size such as 29.0 GB. */
@@ -131,6 +188,7 @@ export function sizeText(bytes) {
 
 /** The lines status and stats print: each store, the total, and the warning when it applies. */
 export function diskLines(use) {
+  if (use.total === null) return ['disk use under .git/pullboard: being measured in the background; status shows it once measured'];
   const lines = [`disk use under .git/pullboard: ${sizeText(use.total)} total (${use.stores.map(row => `${row.name} ${sizeText(row.bytes)}`).join(', ') || 'empty'})`];
   if (use.warning) lines.push(`disk warning: .git/pullboard is ${sizeText(use.warning.totalBytes)}, over the ${sizeText(use.warning.thresholdBytes)} threshold; largest: ${use.warning.largest.join(', ')}; pullboard stats disk --prune ages out old raw logs and archives`);
   return lines;
@@ -180,7 +238,12 @@ export function pruneDisk(dir, { now = Date.now(), dryRun = false } = {}) {
       if (entry.held) { kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'a receipt or record still references it' }); continue; }
       const reason = old ? `older than ${rule.maxAgeDays} days (${ageDays} days old)` : `store over its ${sizeText(rule.maxBytes)} limit`;
       if (!dryRun) {
-        rmSync(entry.path, { recursive: true, force: true });
+        try { rmSync(entry.path, { recursive: true, force: true }); } catch (error) {
+          // A runner wrote into the folder as it was removed (9 Nov: test-actions/lists): keep it, free nothing, go on.
+          if (!REMOVAL_RACES.has(error?.code)) throw error;
+          kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'written to during removal; try again later' });
+          continue;
+        }
         mkdirSync(dir, { recursive: true });
         appendFileSync(join(dir, LOG_FILE), JSON.stringify({ at: new Date(now).toISOString(), store, entry: entry.name, bytes: entry.bytes, reason }) + '\n');
       }

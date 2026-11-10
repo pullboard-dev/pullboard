@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { readPlan, writePlan, placePath } from '../bin/cells-plan.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 import { requirePlannedSource } from '../packages/items/index.js';
 import { plannedProject } from './placement-project.fixture.js';
 import { success } from './placement-project.fixture.js';
@@ -99,7 +99,7 @@ test('native view submit validates its core companion placement on the composed 
 
 /** Keep the pure authority boundary explicit; native journeys above supply real Git/index reads. */
 function syntheticPlanChange(change = value => value, ownNewFile = path => path === 'src/view/new.css') {
-  const path = 'bin/cells-plan/39-app-view.json';
+  const path = 'bin/cells-plan/45-app-view.json';
   const index = { cells: [{ name: 'app:view', order: 39, file: path }], stays: [] };
   const cell = { name: 'app:view', order: 39, root: 'apps/view', paths: [
     ['src/view/old.css', 'apps/view/src/shell/view/old.css', 'seed'],

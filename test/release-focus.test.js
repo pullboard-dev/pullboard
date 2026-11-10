@@ -3,11 +3,15 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { addMilestone } from '../packages/store/index.js';
 import { setLineSetting } from '../packages/store/index.js';
-import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
+import { boardFixture } from './next-order-fixture.js';
+import { submitted } from './next-order-fixture.js';
+import { HOUR } from './next-order-fixture.js';
+import { FREEZE } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 function setup(t) {
   const { board, builder, reviewer } = boardFixture();

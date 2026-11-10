@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { closeBoard } from '../packages/store/index.js';
 import { events } from '../packages/store/index.js';
 import { claim } from '../packages/store/index.js';
@@ -13,7 +13,7 @@ import { verify } from '../packages/store/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { recordedMerge } from '../apps/cli/src/shell/commands/merged.js';
-import { BIN, machine, project } from './cockpit/fixture.js';
+import { BIN, machine, project } from './cockpit/machine-fixture.js';
 import { fileFixtureItem } from './testkit-fixture.js';
 
 /** A real project whose item 1 is verified and already recorded as merged with the head commit. */

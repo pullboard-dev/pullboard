@@ -4,7 +4,10 @@
  "kind": "package",
  "root": "packages/codemap",
  "frontDoor": "packages/codemap/index.js",
+ "pureFrontDoor": "packages/codemap/core.js",
  "paths": [
+  ["src/module-imports.js","packages/codemap/src/shell/module-imports.js","seed"],
+  ["src/module-import-cache-state.js","packages/codemap/src/shell/module-import-cache-state.js","imports"],
   ["src/cell-binding-uses.js","packages/codemap/src/shell/cell-binding-uses.js","rule"],
   ["src/cell-lint-baseline-plan.js","packages/codemap/src/shell/cell-lint-baseline-plan.js","rule"],
   ["src/cell-lint-exports.js","packages/codemap/src/shell/cell-lint-exports.js","rule"],

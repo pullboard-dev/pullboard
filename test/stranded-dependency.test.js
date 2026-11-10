@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { itemFolderPath, writeItemMarker } from '../apps/cli/index.js';
 import * as store from '../packages/store/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';

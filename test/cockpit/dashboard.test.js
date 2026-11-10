@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-import './dashboard-render.test.js';
+import '../../apps/view/tests/cockpit/dashboard-render.test.js';
 import '../../apps/view/tests/cockpit/dashboard-runtime.test.js';
 import './dashboard-clock.test.js';
 import './needs-panel.test.js';
@@ -36,7 +36,7 @@ test('clause 1: a board opens on Dashboard with API-backed work, shared pace and
   const box = machine();
   const alpha = project(box, 'dashboard-live');
   box.run(alpha.repo, 'add', 'web', 'A task in flight', '--specs', 'G1',
-    '--criterion', 'The fixture project remains present.', '--check', 'test -f pullboard.json', '--wait');
+    '--criterion', 'The fixture project remains present.', '--check', 'test -d web/', '--wait');
   box.run(alpha.web, 'claim', '1');
   box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--reason', 'Arrange fixture release', '--items', '1');
   const view = await startView(box);

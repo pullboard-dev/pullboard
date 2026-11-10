@@ -1,11 +1,11 @@
 /** Ordinary architectural suggestions retain coordinator and person authority, without red/green proof [D1]. */
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import { proposeDoctrine } from '../../../doctrine/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   automaticSourceFromText,
   readAutomaticRigorSource,
-} from '../../../../src/board-rigor-auto-source.js';
+} from '../../../store/index.js';
 import { planAutomaticRigorApply } from './rigor-auto-apply.js';
 import { writeRowApply } from '../../../spec/index.js';
 import {

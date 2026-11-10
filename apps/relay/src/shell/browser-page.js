@@ -11,7 +11,7 @@ import { MACHINE } from '../../../../packages/state/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { lex } from '../../../../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from '../core/browser-approval-card.js';
-import { composeViewStyles } from '../../../view/src/shell/view-styles.js';
+import { composeViewStyles } from '../../../view/core.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
 const STYLES = composeViewStyles() + APPROVAL_CARD_STYLES;
@@ -57,7 +57,6 @@ const BROWSER_MODULES = {
  * door that has no pure core.js. A cell front door with a pure core.js is read as that core.js without an entry here.
  */
 const BROWSER_STANDINS = {
-  'src/machine.js': '/relay/engine.js',
   'src/relay-device-keys.js': new URL('../../../../packages/keys/src/core/relay-device-keys.js', import.meta.url),
   'packages/keys/index.js': new URL('../../../../packages/keys/src/core/relay-device-keys.js', import.meta.url),
   'src/relay-page-layout.js': new URL('../../../../packages/pages/src/core/relay-page-layout.js', import.meta.url),
@@ -66,6 +65,9 @@ const BROWSER_STANDINS = {
   'src/person-pairing-limit.js': new URL('../../../../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
   // The moved relay limits read PAIR_PACKAGE_BYTES through the person door; its pure core.js does not carry that body.
   'packages/person/index.js': new URL('../../../../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
+  // The kernel door also carries Node-only pieces (machineHome imports node:path); a browser module reads only Refused from it.
+  'packages/kernel/index.js': new URL('../../../../packages/kernel/src/core/refused.js', import.meta.url),
+  'packages/kernel/core.js': new URL('../../../../packages/kernel/src/core/refused.js', import.meta.url),
 };
 
 /** Where a module the browser reaches by repository path is served; its directory structure is kept, so relative imports resolve. */

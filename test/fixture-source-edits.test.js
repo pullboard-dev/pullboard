@@ -120,7 +120,7 @@ test('closed local helper calls classify real repository YAML without trusting t
   const source = FLOW_PREFIX + `
 const ROOT = resolve(import.meta.dirname, '..');
 function workflowText(path) { return readFileSync(path, 'utf8'); }
-const first = workflowText(resolve(ROOT, '.github/workflows/dco.yml'));
+const first = workflowText(resolve(ROOT, '.github/workflows/cla.yml'));
 const second = workflowText(resolve(ROOT, '.github/workflows/ci.yml'));
 `;
   const result = fixtureSourceEdits(source, options);
@@ -149,11 +149,11 @@ assert.equal(code.includes('src/git.js'), true);
 test('mixed, dynamic and escaped local helper arguments keep the source read unknown [C7]', () => {
   const helper = "function text(path) { return readFileSync(path, 'utf8'); }\n";
   for (const body of [
-    helper + "text(new URL('../.github/workflows/dco.yml', import.meta.url)); text(mystery);",
+    helper + "text(new URL('../.github/workflows/cla.yml', import.meta.url)); text(mystery);",
     helper + 'text(computePath());',
     helper + "const escaped = text; escaped(new URL('../src/git.js', import.meta.url));",
     helper + 'consume(text); text(mystery);',
-    helper + "text(...paths); text(new URL('../.github/workflows/dco.yml', import.meta.url));",
+    helper + "text(...paths); text(new URL('../.github/workflows/cla.yml', import.meta.url));",
   ]) assertUnprovenFixture(body);
 });
 

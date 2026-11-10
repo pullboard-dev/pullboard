@@ -5,12 +5,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { createJob } from '../packages/jobs/index.js';
 import { runGateStages } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { driveOnce, gateSections } from '../packages/drive/index.js';
-import { handoffGate, drivenHandoffGate, handoffRefusedResult } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { handoffGate, drivenHandoffGate, handoffRefusedResult } from '../apps/cli/src/shell/submit-handoff-worker.js';
 
 const SUBMIT_SOURCE = new URL('../apps/cli/src/shell/commands/submit.js', import.meta.url);
 

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
-import { BIN, machine, project } from './cockpit/fixture.js';
+import { BIN, machine, project } from './cockpit/machine-fixture.js';
 import { fileFixtureItem } from './testkit-fixture.js';
 
 /** A real project with open item 1 and main's tip as the hand landing. */

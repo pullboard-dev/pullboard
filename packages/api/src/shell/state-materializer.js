@@ -1,9 +1,10 @@
 /**
  * The board-state materializer: a worker thread keeps every read board's state built, extending its last build
  * from the board's new events, while the request thread serves the latest materialized text [A2,C7]. Why a
- * thread: a build on a large board takes seconds, and on the request thread every read behind it waited. A
- * read never builds: it joins the materialized JSON around its own unread count, and asks for a fresh build,
- * which lands for the next read. Only a board's first read, before any build or saved snapshot exists, waits.
+ * thread: a build on a large board takes seconds, and on the request thread every read behind it waited. Each
+ * record carries the board's cheap state revision from before its build. A read whose board still has that revision
+ * joins the materialized JSON around its own unread count and starts nothing; a read after a change waits for the
+ * build that extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
  */
 import { Worker } from 'node:worker_threads';
 
@@ -36,17 +37,17 @@ function joined(parts, unseen) {
 /**
  * Start the materializer for one API server.
  *
- * @param {{ portsModule: string, projects: () => any[], scope?: { projectRoot: string }, isMain?: boolean, onStateBuild?: Function, onRecord?: Function, onFailure?: Function, Refused: Function }} options
+ * @param {{ portsModule: string, projects: () => any[], scope?: { projectRoot: string }, isMain?: boolean, openRevision: (board: object) => { revision: () => string, close?: Function }, onStateBuild?: Function, onRecord?: Function, onFailure?: Function, Refused: Function }} options
  * portsModule names a module whose boardStatePorts() gives the worker its view projections and board openers.
+ * openRevision opens a board's cheap revision watcher, the one change notices use, kept open per board.
  * The worker runs until close(), which the server's own close calls.
  */
-export function startStateMaterializer({ portsModule, projects, scope, isMain, onStateBuild, onRecord, onFailure, Refused }) {
+export function startStateMaterializer({ portsModule, projects, scope, isMain, openRevision, onStateBuild, onRecord, onFailure, Refused }) {
   // The worker takes none of this process's preloads: a test runner's per-file preload, run again in a thread,
   // claimed the file's test slot a second time and killed the worker, so every state read failed [C7].
   const { NODE_TEST_CONTEXT: _testContext, ...workerEnv } = process.env;
   const worker = new Worker(new URL('./state-materializer-worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects() }, execArgv: [], env: workerEnv });
   const boards = new Map();
-  const listeners = new Set();
   let failure = null;
   let closing = false;
   let nextId = 0;
@@ -55,8 +56,20 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   function boardEntry(board) {
     const key = board.id + '\0' + board.root;
     let entry = boards.get(key);
-    if (!entry) boards.set(key, entry = { key, board: { id: board.id, root: board.root }, record: null, inflight: null, again: false, full: false, waiters: [], held: new Map(), timer: null, stamp: 0 });
+    if (!entry) boards.set(key, entry = { key, board: { id: board.id, root: board.root }, record: null, inflight: null, again: false, full: false, waiters: [], held: new Map(), timer: null, watcher: null, wanted: null });
     return entry;
+  }
+  /** The board's state revision now, or null when it cannot be read: a null never matches, so the read waits for a build. */
+  function revisionOf(entry) {
+    try {
+      entry.watcher ??= openRevision(entry.board);
+      const value = entry.watcher.revision();
+      return typeof value === 'string' ? value : null;
+    } catch {
+      try { entry.watcher?.close?.(); } catch { /* A failed watcher is reopened on the next read. */ }
+      entry.watcher = null;
+      return null;
+    }
   }
   /** Ask the worker to build a board now, or once its build in flight lands. */
   function request(entry) {
@@ -67,14 +80,18 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     entry.inflight = ++nextId;
     let current;
     try { current = projects(); } catch { current = undefined; }
-    worker.postMessage({ type: 'build', id: entry.inflight, key: entry.key, board: entry.board, held: [...entry.held.keys()], full: entry.full, projects: current });
+    worker.postMessage({ type: 'build', id: entry.inflight, key: entry.key, board: entry.board, held: [...entry.held.keys()], full: entry.full, revision: entry.wanted, projects: current });
   }
-  /** Settle every waiting read the current record satisfies. */
-  function settle(entry) {
+  /**
+   * Settle every waiting read the record satisfies: one built from a request sent after the read, so it saw what the
+   * read saw, or a restored one saved at the very revision the read found.
+   */
+  function settle(entry, id) {
     const waiting = entry.waiters;
     entry.waiters = [];
     for (const waiter of waiting) {
-      if (entry.record && (!waiter.full || entry.record.full)) waiter.ok(entry.record);
+      const fresh = id === undefined ? waiter.revision !== null && entry.record.revision === waiter.revision : id > waiter.after;
+      if (fresh && (!waiter.full || entry.record.full)) waiter.ok(entry.record);
       else entry.waiters.push(waiter);
     }
   }
@@ -83,15 +100,10 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     const entry = message.board ? boardEntry(message.board) : boards.get(message.key);
     if (!entry) return;
     if (message.type === 'record') {
-      const prior = entry.record;
       entry.record = message.record;
-      entry.stamp += 1;
       if (!message.restored && message.id === entry.inflight) entry.inflight = null;
-      settle(entry);
+      settle(entry, message.restored ? undefined : message.id);
       onRecord?.({ board: entry.board.id, restored: Boolean(message.restored), sequence: message.record.sequence });
-      if (!prior || prior.summary.json[0] !== message.record.summary.json[0] || prior.summary.json[1] !== message.record.summary.json[1]) {
-        for (const listener of listeners) if (listener.key === entry.key) listener.notify();
-      }
     } else if (message.type === 'error') {
       if (message.id === entry.inflight) entry.inflight = null;
       const waiting = entry.waiters;
@@ -112,12 +124,17 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   worker.on('error', stopped);
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
 
-  /** The latest record of a board, asking for a fresh build; it waits only while the board has none yet. */
+  /**
+   * A board's record as of this read: the one held while the board's revision is unchanged, with no build started;
+   * otherwise the next build, which extends the last one with the change.
+   */
   function latest(board, { full = false } = {}) {
     const entry = boardEntry(board);
     if (full) entry.full = true;
-    if (entry.record && (!full || entry.record.full)) { request(entry); return entry.record; }
-    const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full }));
+    const revision = revisionOf(entry);
+    if (entry.record && (!full || entry.record.full) && revision !== null && entry.record.revision === revision) return entry.record;
+    const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
+    entry.wanted = revision;
     request(entry);
     return waiting;
   }
@@ -164,30 +181,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       const record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     },
-    /**
-     * Wrap a board's change watcher so a newly materialized record is a change too: a read that got the
-     * record built before an event hears again once the build with it lands.
-     */
-    watch(board, watcher) {
-      const entry = boardEntry(board);
-      return {
-        ...watcher,
-        revision: () => {
-          const value = watcher.revision();
-          return value instanceof Promise ? value.then((revision) => revision + '\0' + entry.stamp) : value + '\0' + entry.stamp;
-        },
-        subscribe(listener) {
-          const own = { key: entry.key, notify: () => listener() };
-          listeners.add(own);
-          const unsubscribe = watcher.subscribe?.(listener);
-          return () => { listeners.delete(own); unsubscribe?.(); };
-        },
-        close() { watcher.close?.(); },
-      };
-    },
     /** Save each board's latest build and stop the worker. */
     close() {
-      for (const entry of boards.values()) clearTimeout(entry.timer);
+      for (const entry of boards.values()) {
+        clearTimeout(entry.timer);
+        try { entry.watcher?.close?.(); } catch { /* Closing a watcher never stops the others closing. */ }
+      }
       if (failure) return;
       closing = true;
       worker.postMessage({ type: 'close' });

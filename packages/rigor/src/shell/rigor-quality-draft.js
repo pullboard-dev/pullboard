@@ -6,7 +6,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   GROWTH_BUDGET,

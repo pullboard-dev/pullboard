@@ -1,8 +1,8 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/agent-grant.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js src/agent-grant.js */
 /** A cross-lane verdict is review from its engine on, and older verdicts replay as they were recorded [E21,V2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,

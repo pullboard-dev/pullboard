@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -60,7 +60,7 @@ test('claim, join and patch attach each finish under five seconds at production 
   for (let round = 0; round < 3; round++) {
     const dir = join(box.dir, `web-r${round}`);
     box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', `web/round-${round}`);
-    joins.push(timed(box, dir, 'join', 'web').ms);
+    joins.push(timed(box, dir, 'join', 'web', '--route', 'strong').ms);
     const item = JSON.parse(fixtureAdd(box.run, box.repo, 'web', `Timed work ${round}`, '--specs', 'G1', '--json').out).item.item_id;
     claims.push(timed(box, dir, 'claim', String(item)).ms);
     const author = JSON.parse(box.run(dir, 'whoami', '--json').out).id;

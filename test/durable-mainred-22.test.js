@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { policyRepository } from './board-submit-fixture.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { openBoard, closeBoard } from '../apps/lib/src/core/native-board.js';
 import { jobView } from '../packages/jobs/index.js';
 import { mainRedLookup, classifyGateRed, MAIN_TEST_JOB } from '../packages/drive/index.js';
 import { mainRedKey, mainRedStatus } from '../packages/receipt/index.js';

@@ -15,7 +15,7 @@ import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-const WORKER = fileURLToPath(new URL('../apps/lib/src/shell/relay-sender-main.js', import.meta.url));
+const WORKER = fileURLToPath(new URL('../apps/cli/src/shell/relay-sender-main.js', import.meta.url));
 const MAIN = new URL('./native-cli-fixture.js', import.meta.url).href;
 
 /** Read only the PID/start/command identity of this fixture's already identified worker. */
@@ -73,12 +73,15 @@ async function keyDiagnostic(t, mode) {
   const box = await relayClientFixture(t);
   const configFile = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  if (config.relay) delete config.relay.outbox;
-  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
-  // Primary policy is read from Git; an uncommitted init config would select the legacy path.
+  // Primary policy is read from Git; the fixture commits its config, so only a changed config needs a new commit.
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
-  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): exercise local-first default'], { cwd: box.root, env: box.env });
+  if (Object.hasOwn(config.relay ?? {}, 'outbox')) {
+    delete config.relay.outbox;
+    writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
+    runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
+    runFixtureGit(['commit', '-q', '-m', 'chore(config): exercise local-first default'], { cwd: box.root, env: box.env });
+  }
+  assert.equal(Object.hasOwn(JSON.parse(readFileSync(configFile, 'utf8')).relay ?? {}, 'outbox'), false, 'the board uses the absent-setting default');
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(state.baselineAccepted, true);

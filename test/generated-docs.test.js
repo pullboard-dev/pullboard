@@ -2,7 +2,7 @@
 /** @pullboard-test-input docs-tree */
 /** @pullboard-test-input apps/cli/src/shell/documentation/*.json */
 /** @pullboard-test-input apps/cli/src/shell/documentation/events/*.json */
-/** @pullboard-test-input src/command-docs/*.json */
+/** @pullboard-test-input apps/cli/src/shell/command-docs/*.json */
 /** @pullboard-test-input bin/update-docs.js */
 /** Generated copies drift visibly and independent additions merge without builder resolutions [C7,V4,A1,A5,M1,H16]. */
 import assert from 'node:assert/strict';
@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import { copyPackageSubset } from './package-copy-fixture.js';
 import { createHash } from 'node:crypto';
 import { generatedDocDrift } from '../apps/cli/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { GENERATED_DOC_PATHS } from '../packages/merge/index.js';
 import { resolveMechanicalIndex } from '../packages/merge/index.js';
 import { mechanicalConflictFiles } from '../packages/merge/index.js';

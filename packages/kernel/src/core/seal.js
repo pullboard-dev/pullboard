@@ -11,8 +11,8 @@ const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
 
 /** Return the platform WebCrypto implementation without a Node-specific fallback. */
-function crypto() {
-  const value = globalThis.crypto;
+function webCrypto() {
+  const value = typeof crypto === 'undefined' ? undefined : crypto;
   if (!value?.subtle || typeof value.getRandomValues !== 'function') {
     throw new Refused('SEAL_CRYPTO', 'WebCrypto is unavailable. Use Node 22 or a secure browser context.');
   }
@@ -50,7 +50,7 @@ function associatedData(binding, version = SEAL_VERSION) {
 
 /** Make a fresh 256-bit board key on the device; callers own its private storage. */
 export async function generateBoardKey() {
-  const subtle = crypto().subtle;
+  const subtle = webCrypto().subtle;
   const key = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   return new Uint8Array(await subtle.exportKey('raw', key));
 }
@@ -84,7 +84,7 @@ export async function seal(key, plaintext, binding) {
   const raw = keyBytes(key);
   const plain = bytes(plaintext, 'SEAL_DATA', 'Encode the payload as bytes before sealing it.');
   const additionalData = associatedData(binding, SEAL_VERSION);
-  const platform = crypto();
+  const platform = webCrypto();
   const iv = platform.getRandomValues(new Uint8Array(NONCE_BYTES));
   const imported = await platform.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
   const ciphertext = new Uint8Array(await platform.subtle.encrypt({
@@ -115,7 +115,7 @@ export async function unseal(key, sealed, binding) {
   if (blob.length < 1 + NONCE_BYTES + TAG_BYTES) {
     throw new Refused('SEAL_FORMAT', 'The sealed payload is truncated. Fetch the board again.');
   }
-  const subtle = crypto().subtle;
+  const subtle = webCrypto().subtle;
   const imported = await subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
   try {
     return new Uint8Array(await subtle.decrypt({

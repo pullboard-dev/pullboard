@@ -6,11 +6,11 @@ import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
-import { runProfiledShell } from '../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -145,7 +145,8 @@ export async function diagnose(state, failures, gate) {
     const tiered = hasTestTiers(state.batch.root);
     const result = await withLandingGateSlot(state.batch.root, (lease) => {
       lease.testTiers = tiered;
-      return runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
+      // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
+      return runProfiledShellAsync(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
     }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
     if (tiered) requireTestTierAccount(result, [file]);

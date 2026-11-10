@@ -79,6 +79,28 @@ function reachesBefore(text, bound) {
 }
 
 /**
+ * The ledger lines, in order, that name one of the words, and every clear without move keys, found by searching the
+ * text rather than splitting all of it.
+ *
+ * @param {string} text
+ * @param {string[]} words
+ * @returns {string[]}
+ */
+function linesNaming(text, words) {
+  const starts = new Set();
+  const lineAt = start => { const end = text.indexOf('\n', start); return text.slice(start, end < 0 ? text.length : end); };
+  for (const word of words) {
+    for (let at = text.indexOf(word); at >= 0; at = text.indexOf(word, at + word.length)) starts.add(text.lastIndexOf('\n', at) + 1);
+  }
+  const clear = '"kind":"clear"';
+  for (let at = text.indexOf(clear); at >= 0; at = text.indexOf(clear, at + clear.length)) {
+    const start = text.lastIndexOf('\n', at) + 1;
+    if (!lineAt(start).includes('"moveKeys"')) starts.add(start);
+  }
+  return [...starts].sort((a, b) => a - b).map(lineAt);
+}
+
+/**
  * The time a ledger line was recorded, read from its own `"at"` field by a string scan, never a JSON parse, so a line
  * can be placed before or after a bound without parsing it. NaN for a torn or foreign line, which proves nothing about time.
  *
@@ -96,11 +118,16 @@ function stampOf(line) {
  * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
  * cannot change a block inside the window [C7].
  *
+ * With `mentioning`, only blocks naming one of those strings are returned, and the only lines split out and parsed are
+ * those naming one, plus any clear without move keys: the clear after every successful command split and parsed a
+ * whole 29 MB ledger of 35,000 lines [C7]. A clear names the keys it completes, so one naming none of the words can
+ * only drop another key from a returned block's pending keys, never the block itself.
+ *
  * @param {string} commonDir
- * @param {{ since?: Date }} [options]
+ * @param {{ since?: Date, mentioning?: string[] }} [options]
  * @returns {any[]}
  */
-export function readBlocks(commonDir, { since } = {}) {
+export function readBlocks(commonDir, { since, mentioning } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
@@ -111,9 +138,10 @@ export function readBlocks(commonDir, { since } = {}) {
     text = readFrom(file, offset);
     if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
   }
+  if (mentioning && !mentioning.some(word => text.includes(word))) return [];
   const blocks = new Map();
   let legacy = 0;
-  for (const line of text.split('\n')) {
+  for (const line of mentioning ? linesNaming(text, mentioning) : text.split('\n')) {
     if (!line.trim()) continue;
     // A line recorded before the bound cannot change a block inside the window, so it is skipped unparsed.
     if (since && stampOf(line) < from) continue;
@@ -215,7 +243,8 @@ export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.cloc
   if (info.isMain) owners.add('coordinator');
   try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
   try {
-    const ids = readBlocks(info.commonDir).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
+    // A move key is a hex digest, so a block naming it holds it verbatim in its line.
+    const ids = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
       && owners.has(block.owner) && Date.parse(block.at) <= now.getTime()).map(block => block.id);
     if (!ids.length) return;
     appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');

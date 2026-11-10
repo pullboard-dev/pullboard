@@ -4,7 +4,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { processCensus } from './runner-custody.js';
-import { cleanupTimeoutDetails } from '../../../../packages/runners/src/core/cleanup-diagnostics.js';
+import { cleanupTimeoutDetails } from '../../../../packages/runners/core.js';
 
 const CLEANUP_BUDGET_MS = 30_000;
 

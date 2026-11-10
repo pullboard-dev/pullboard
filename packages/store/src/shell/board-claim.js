@@ -18,7 +18,7 @@ import {
   requireBoardWriteSnapshot,
 } from "./board-write-preparation.js";
 import { checkedSubmitOutcome } from "./submit-outcome.js";
-import { submitAdmission as checkedSubmitAdmission } from "../../../state/src/core/submit-admission.js";
+import { submitAdmission as checkedSubmitAdmission } from "../../../state/core.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../state/core.js";
 import {
   ENGINE_VERSION,

@@ -2,7 +2,7 @@ import { withImportParseCache as withSubmitParseCache } from '../packages/gate/i
 import { withCellGitObjects } from './cells-snapshot-git.js';
 import { cellsObjectSnapshots } from './cells-object-snapshots.js';
 import { withCellSourceSnapshots } from '../packages/codemap/index.js';
-import { shimCountProblems } from '../packages/codemap/index.js';
+import { shimCountProblems } from '../packages/codemap/core.js';
 import { shimImportProblems } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { cellsCacheDirectory } from './cells-inventory-cache.js';
@@ -42,6 +42,8 @@ import {
   withDeclaredLoads,
 } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
@@ -171,12 +173,20 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
     if (!next || ['order', 'root', 'frontDoor'].some(key => next[key] !== cell[key])
-      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor)) {
+      || (cell.pureFrontDoor !== undefined && next.pureFrontDoor !== cell.pureFrontDoor && next.lightFrontDoor !== cell.pureFrontDoor)
+      || (cell.lightFrontDoor !== undefined && next.lightFrontDoor !== cell.lightFrontDoor)
+      || (cell.pureDoor !== undefined && next.pureDoor !== cell.pureDoor)) {
       problems.push(`accepted cell ${cell.name} identity/order/front door changed`);
       continue;
     }
     if (cell.pureFrontDoor === undefined && next.pureFrontDoor !== undefined) {
       problems.push(...pureFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.lightFrontDoor === undefined && next.lightFrontDoor !== undefined) {
+      problems.push(...lightFrontDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
+    }
+    if (cell.pureDoor === undefined && next.pureDoor !== undefined) {
+      problems.push(...pureDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
@@ -254,7 +264,7 @@ export function touchedCells(files, before, after, inventories) {
   /** A source alias and a moved target both belong to their declared cell. */
   const owners = file => {
     if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file.startsWith(cell.root + '/')
+      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
@@ -404,6 +414,28 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
 }
 
+/**
+ * Run one side's cut check, turning a plan the cut tooling cannot read into a CELLS_SUBMIT refusal that names the side
+ * and the error. Why: on 9 Nov #3689 renumbered the cell order and importCuts threw "cut links must name an earlier
+ * importing cell"; the uncaught throw killed the remote analysis and every section came back RUNNER_RESULT_INVALID, a
+ * machine fault, when the candidate's own plan was the problem.
+ *
+ * @template T
+ * @param {'candidate' | 'accepted main'} side
+ * @param {string} cell
+ * @param {() => T} check
+ * @returns {T}
+ */
+export function readableCuts(side, cell, check) {
+  try { return check(); }
+  catch (error) {
+    if (error instanceof Refused) throw error;
+    throw new Refused('CELLS_SUBMIT', `the ${side} cells plan cannot be cut-checked for ${cell}: ${error?.message ?? error}; ${side === 'candidate'
+      ? 'make every cut link in bin/cells-plan name an importing cell ordered before its target (renumber the cuts with the cells), then commit the plan'
+      : 'accepted main\'s cells plan is inconsistent; tell the coordinator, who repairs main\'s plan'}`);
+  }
+}
+
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
 function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {}, collectBacklog = false }) {
   if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [], later: [] };
@@ -424,7 +456,7 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
       oldCuts = [...cached];
       onCellObservation('base-reused', name);
     } else {
-      oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+      oldCuts = previous ? readableCuts('accepted main', name, () => checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory })) : [];
       if (previous && cacheEligible?.() && observations instanceof Map && observations.size < 32768) {
         const bytes = Buffer.byteLength(cacheKey) + Buffer.byteLength(JSON.stringify(oldCuts));
         if (bytes <= 1024 * 1024) observations.set(cacheKey, { value: [...oldCuts], bytes });
@@ -434,7 +466,7 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
     // The full accepted cut backlog belongs to the main audit, not every submit.
     if (collectBacklog) existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
-    const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
+    const newCuts = readableCuts('candidate', name, () => checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory }));
     for (const problem of additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
       newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))) {
       const edge = / still imports later [\w:-]+: ([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
@@ -442,9 +474,9 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
         warning: warning(edge[1], importLine(sourceRoot, edge[1], edge[2]), `${name} --cuts: ${problem}`, 'import a lower cell or take a port') });
       else problems.push(`${name} --cuts: ${problem}; import a lower cell or take a port`);
     }
-    const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
+    const oldDoors = previous ? readableCuts('accepted main', name, () => frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory })) : new Map();
     const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
-    for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
+    for (const [key, text] of readableCuts('candidate', name, () => frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory }))) {
       if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
     }
   }
@@ -518,14 +550,14 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
-    config: inputs, code: [import.meta.url, '../src/commands/submit.js', '../packages/gate/src/shell/module-imports.js',
+    config: inputs, code: [import.meta.url, '../apps/cli/src/shell/commands/submit.js', '../packages/codemap/src/shell/module-imports.js',
       '../packages/gate/src/shell/module-import-cache.js', '../packages/gate/src/shell/test-isolation.js', '../packages/landing/src/shell/main-red.js']
       .map(path => fileURLToPath(new URL(path, import.meta.url))), commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
     && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
   const artifact = services.acceptedArtifact ?? readAcceptedCells(root, acceptedMain);
-  if (!artifact?.available) throw inventoryPending(artifact?.cause ?? 'missing accepted tree artifact', acceptedMain);
+  if (!artifact?.available) throw inventoryPending(artifact?.message ? `${artifact.cause}: ${artifact.message}` : artifact?.cause ?? 'missing accepted tree artifact', acceptedMain);
   // The accepted inventory's identity is the pinned main's own tooling, whatever tooling runs this check (#3322).
   const expectedInventory = acceptedCellsIdentity(root, acceptedMain, { pinned: true });
   if (['tree', 'checker', 'preloads'].some(name => artifact.descriptor?.[name] !== expectedInventory[name])) throw inventoryPending('accepted inventory identity differs from the actual main checker', acceptedMain);

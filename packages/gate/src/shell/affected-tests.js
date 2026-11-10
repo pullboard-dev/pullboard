@@ -19,7 +19,7 @@ import {
   commonJsIn,
   compileModules,
   importsIn,
-} from './module-imports.js';
+} from '../../../codemap/index.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -385,7 +385,7 @@ function buildGraph(root, commit, prior, probe) {
   // packages/state/src/core/engines/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
   for (const module of g.paths) {
     const reader = module.startsWith('apps/cli/src/shell/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/shell/commands/'.length)) ? COMMAND_REGISTRY
-      : module.startsWith('packages/state/src/core/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/core/engines/'.length)) ? 'src/machine.js' : null;
+      : module.startsWith('packages/state/src/core/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/core/engines/'.length)) ? 'packages/state/src/shell/machine.js' : null;
     if (!reader) continue;
     if (!g.reverse.has(module)) g.reverse.set(module, new Set());
     g.reverse.get(module).add(reader);

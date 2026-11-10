@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { syncGitBoard } from '../packages/sync/index.js';
 
 /** Demand a successful fixture CLI result without including its synthetic relay credentials. */
@@ -48,7 +48,7 @@ test('submit on a relay-linked board never creates Git sync state and later writ
   runFixtureGit(['worktree', 'add', '-q', '-b', 'web/git-sync-repair', worker], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
-  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model'), 'join a private builder');
+  success(await box.cliAt(worker, 'join', buildLane, '--model', 'fixture-model', '--route', 'strong'), 'join a private builder');
   success(await box.cliAt(worker, 'claim', String(added.item.item_id)), 'claim the linked item');
   mkdirSync(join(worker, 'source'), { recursive: true });
   writeFileSync(join(worker, 'source', 'repair-fixture.txt'), 'source for the linked submit\n');

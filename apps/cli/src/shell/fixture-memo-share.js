@@ -1,9 +1,11 @@
 /** Share the cells fixture-analysis memo between runners through the controller [C7]. */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -110,20 +112,75 @@ export function newestFixtureMemo(directory) {
   try { return storedFixtureMemos(directory)[0] ?? null; } catch { return null; }
 }
 
+/** The memos an analysis artifact bundle carries at `file`, or none when it carries none or cannot be read. */
+function artifactMemos(file) {
+  try { const bundle = deserialize(readFileSync(file)); return Array.isArray(bundle?.fixtureMemos) ? bundle.fixtureMemos : []; }
+  catch { return []; } // No artifact, or one without memos, seeds nothing.
+}
+
 /**
  * A runner analysis job's memo share: seed its fixture memo from the carried memos now, and `collect` the newest memo
- * after the cells check for the controller. Null when main's cells cache cannot name the folder.
+ * after the cells check for the controller. `carried` is the analysis artifact's path (#4054) or a list of memos.
+ * Null when main's cells cache cannot name the folder.
  */
 export function runnerFixtureMemos(cellsCache, carried) {
   const directory = typeof cellsCache?.cellsCacheDirectory === 'function' ? cellsCache.cellsCacheDirectory('fixtures') : null;
   if (!directory) return null;
-  seedFixtureMemos(directory, carried);
+  seedFixtureMemos(directory, typeof carried === 'string' ? artifactMemos(carried) : carried);
   return { collect: () => newestFixtureMemo(directory) };
 }
 
-/** Keep a runner job's returned memo in the controller's store and drop it from the result; a failed write is only a miss. */
-export function keepRunnerFixtureMemo(value, directory = controllerMemoStore()) {
+/** The sha-256 of a carried memo's data. */
+function memoDigest(memo) {
+  return createHash('sha256').update(memo.data).digest('hex');
+}
+
+/** What each runner last returned, by host then memo name: the digest of the memo it holds. */
+function runnerIndex(directory) {
+  try { const index = JSON.parse(readFileSync(join(directory, 'runners.json'), 'utf8')); return index && typeof index === 'object' && !Array.isArray(index) ? index : {}; }
+  catch { return {}; } // No index yet sends every memo.
+}
+
+/**
+ * Keep a runner job's returned memo in the controller's store, note that `host` holds it, and drop it from the result;
+ * a failed write is only a miss.
+ */
+export function keepRunnerFixtureMemo(value, directory = controllerMemoStore(), host = null) {
   if (!value || typeof value !== 'object' || !('fixtureMemo' in value)) return;
-  try { absorbFixtureMemo(directory, value.fixtureMemo); } catch { /* The next job seeds from what the store holds. */ }
+  try {
+    absorbFixtureMemo(directory, value.fixtureMemo);
+    if (typeof host === 'string' && host && NAME.test(value.fixtureMemo?.name ?? '') && typeof value.fixtureMemo.data === 'string') {
+      const index = runnerIndex(directory);
+      index[host] = { [value.fixtureMemo.name]: memoDigest(value.fixtureMemo) };
+      publish(directory, 'runners.json', JSON.stringify(index));
+    }
+  } catch { /* The next job seeds from what the store holds. */ }
   delete value.fixtureMemo;
+}
+
+/**
+ * The analysis artifact with the shared memos the runner at `host` does not already hold added to its bundle, written
+ * beside the store and named by its digest; the inventory unchanged when there is no bundle or nothing to add. Why:
+ * #3981 carried the memos inside the request, whose spec is bounded at 1 MiB, and every gate refused
+ * RUNNER_REQUEST_LIMIT; the artifact is a frame after the spec, checked by digest and bounded at 64 MiB (#4054).
+ *
+ * @param {{ file: string, bytes: Buffer, digest: string, descriptor: { version: number, digest: string, sources: object[] } }|null} inventory
+ * @param {string|null} host
+ * @param {string} [directory]
+ */
+export function withFixtureMemos(inventory, host, directory = controllerMemoStore()) {
+  if (!inventory?.bytes || !inventory.descriptor) return inventory;
+  try {
+    const held = runnerIndex(directory)[host] ?? {};
+    const memos = storedFixtureMemos(directory).filter(memo => held[memo.name] !== memoDigest(memo));
+    if (!memos.length) return inventory;
+    const bytes = serialize({ ...deserialize(inventory.bytes), fixtureMemos: memos });
+    if (bytes.length > 60 * 1024 ** 2) return inventory;
+    const digest = createHash('sha256').update(bytes).digest('hex'), bundles = join(directory, 'bundles');
+    mkdirSync(bundles, { recursive: true, mode: 0o700 });
+    for (const old of readdirSync(bundles).filter(name => name.endsWith('.bundle')).map(name => ({ name, at: statSync(join(bundles, name)).mtimeMs }))
+      .sort((a, b) => b.at - a.at).slice(16)) rmSync(join(bundles, old.name), { force: true });
+    publish(bundles, `${digest}.bundle`, bytes);
+    return { file: join(bundles, `${digest}.bundle`), bytes, digest, descriptor: { ...inventory.descriptor, digest } };
+  } catch { return inventory; } // Without the memos the gate still runs, only colder.
 }

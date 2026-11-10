@@ -53,7 +53,7 @@ import {
 import { machineHome } from '../../../../packages/resources/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { reviewerStartup } from './next-steps.js';
-import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/src/core/discovery.js';
+import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
 import { installSkills } from './skills.js';
 import {

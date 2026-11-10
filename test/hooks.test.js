@@ -571,3 +571,46 @@ for (const channel of ['stderr', 'stdout', 'matching-output']) {
     }
   });
 }
+
+/** A staged repository that has adopted test cells: its listing names one journey, and one root test is already committed. */
+function cellRepo(t) {
+  const box = stagedRepo(t);
+  mkdirSync(join(box.root, 'bin/checks'), { recursive: true });
+  mkdirSync(join(box.root, 'test'), { recursive: true });
+  writeFileSync(join(box.root, 'bin/checks/test-cells.json'), JSON.stringify({ journeys: { 'test/listed.test.js': 'drives the CLI end to end' } }) + '\n');
+  writeFileSync(join(box.root, 'test/old.test.js'), "import { test } from 'node:test';\n");
+  box.git('add', '-A');
+  box.git('-c', 'user.name=t', '-c', 'user.email=t@t.invalid', 'commit', '-q', '-m', 'chore: adopt test cells');
+  return box;
+}
+
+test('#4005 clause 1: committing a new unlisted root test is refused naming the cell tests folder and the next step [C7]', (t) => {
+  const box = cellRepo(t);
+  writeFileSync(join(box.root, 'test/new.test.js'), "import { test } from 'node:test';\n");
+  box.git('add', '--', 'test/new.test.js');
+  assert.throws(() => stagedProblems(box.root), (error) => {
+    assert.ok(error instanceof Refused);
+    assert.equal(error.code, 'ROOT_TEST_UNLISTED');
+    assert.match(error.message, /test\/new\.test\.js is a new root test that bin\/checks\/test-cells\.json does not list as a journey/u);
+    assert.match(error.next, /packages\/<cell>\/tests\//u);
+    return true;
+  });
+});
+
+test('#4005 clause 2: a new cell test, a listed journey and an edit to an existing root test all commit [C7]', (t) => {
+  const box = cellRepo(t);
+  mkdirSync(join(box.root, 'packages/alpha/tests'), { recursive: true });
+  writeFileSync(join(box.root, 'packages/alpha/tests/unit.test.js'), "import { test } from 'node:test';\n");
+  writeFileSync(join(box.root, 'test/listed.test.js'), "import { test } from 'node:test';\n");
+  writeFileSync(join(box.root, 'test/old.test.js'), "import { test } from 'node:test';\n// edited\n");
+  box.git('add', '-A');
+  assert.deepEqual(stagedProblems(box.root), []);
+});
+
+test('#4005: a repository without the test-cell listing keeps adding root tests as before [C7]', (t) => {
+  const box = stagedRepo(t);
+  mkdirSync(join(box.root, 'test'), { recursive: true });
+  writeFileSync(join(box.root, 'test/first.test.js'), "import { test } from 'node:test';\n");
+  box.git('add', '-A');
+  assert.deepEqual(stagedProblems(box.root), []);
+});

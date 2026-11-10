@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -25,7 +25,7 @@ function snapshot(file) {
 async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-queue-board-writer');
   const source = `
-    import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
     const board = openBoard(process.argv[1], undefined, {

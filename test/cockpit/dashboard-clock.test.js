@@ -19,10 +19,10 @@ import { submitFixture } from '../board-submit-fixture.js';
 import { machine, project } from './fixture.js';
 
 /** Clause 1 proof: the four view-lane tests take their bindings from the cli front door, not the shims. */
-test('clause 1: the four view-lane tests import nothing from the src/next-step-words.js or src/cli.js shims [N26]', () => {
+test('clause 1: the four view-lane tests import nothing from a top-level src file, so no shim [N26]', () => {
   for (const file of ['dashboard-clock.test.js', 'relay-signin.test.js', 'lifecycle-ordinary-seed.js', 'prose.test.js']) {
     const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /src\/(next-step-words|cli)\.js['"]/, `${file} still imports a shim`);
+    assert.doesNotMatch(source, /(?:\.\.\/)+src\/[\w-]+\.js['"]/, `${file} still imports a top-level src file`);
   }
 });
 
@@ -38,7 +38,7 @@ test('clause 2: the cli front door exports every binding the four view-lane test
 test('Dashboard pace crosses every cached window without a milestone or a native write [N26,A2]', { timeout: 90_000 }, async t => {
   const box = machine(), alpha = project(box, 'dashboard-clock');
   box.run(alpha.repo, 'add', 'web', 'A recorded landing for the clock fixture', '--specs', 'G1',
-    '--criterion', 'The private project configuration exists.', '--check', 'test -f pullboard.json', '--wait');
+    '--criterion', 'The private project configuration exists.', '--check', 'test -d web/', '--wait');
   const base = Date.now() + 1_000, clock = { at: base };
   // @pullboard-board-file journey: the CLI seeds the persisted Git-local board that serveApi reopens over HTTP.
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });

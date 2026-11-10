@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { seal, unseal } from '../packages/kernel/src/core/seal.js';
@@ -81,7 +81,7 @@ test('an approver signed member list survives sealed native replay and revokes b
         if (options.method === 'PUT') { deliveries.push(options.body); return {}; }
         return { requests: [{ id: 'race-bob', login: 'bob', statement, signature }] };
       },
-    }, { err() {} });
+    }, { err() {}, openBoard });
     assert.equal(cleared, true, 'a real native clear commits while this handover awaits its proof');
     assert.equal(deliveries.length, 1);
     const delivered = deliveries[0];

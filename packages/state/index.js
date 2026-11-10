@@ -18,6 +18,7 @@ export { GRANT_ACTIVATION_INDEX } from './src/core/relay-activation.js';
 export { missingGrantActivationIndex } from './src/core/relay-activation.js';
 export { ensureGrantActivationIndex } from './src/core/relay-activation.js';
 export { recordedGrantActivation } from './src/core/relay-activation.js';
+export { operationIntent } from './src/core/relay-sender-policy.js';
 export { relaySenderPolicy } from './src/core/relay-sender-policy.js';
 export { recordReviewPolicyActivation } from './src/core/review-policy.js';
 export { boundedProofReason } from './src/core/submission-proof.js';
@@ -186,6 +187,7 @@ export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectio
 export { STRICT_RENAME_ENGINE } from './src/core/engines/strict-rename-engine.js';
 
 export { DEAD_HANDOFF_RETRY_ENGINE } from './src/core/engines/dead-handoff-retry-engine.js';
+export { RUNNING_HANDOFF_ITEM_CHECK_ENGINE } from './src/core/engines/running-handoff-item-check-engine.js';
 
 export { STRANDED_DEPENDENCY_ENGINE } from './src/core/engines/stranded-dependency-engine.js';
 export { TWO_TIER_DIAGNOSIS_ENGINE } from './src/core/engines/two-tier-diagnosis-engine.js';
@@ -194,3 +196,4 @@ export { CLAUSE_EVIDENCE_ENGINE } from './src/core/engines/clause-evidence-engin
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/core/engines/forced-merge-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/core/next-step-defaults.js';
+export { INFRA_RELEASE_ENGINE } from './src/core/engines/infra-release-engine.js';

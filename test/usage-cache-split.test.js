@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { usageDifference } from '../packages/stats/index.js';
@@ -140,7 +140,7 @@ for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider
   assert.deepEqual(split(stats.usage.items.find(row => row.item === id)), expected);
   assert.equal(shown.usage.inputTokens, provider === 'codex' ? 60 : 65);
   assert.equal(shown.usage.outputTokens, 8);
-  assert.match(box.run(box.repo, 'show', String(id)).out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
+  assert.match(box.run(box.repo, 'show', String(id), '--detail').out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
   assert.match(box.run(box.repo, 'stats').out, /fresh 20, cached read 40, cached write (?:unknown|5)/u);
   const publicData = JSON.stringify({ shown, stats });
   assert.equal(publicData.includes(identity), false);
@@ -169,5 +169,5 @@ test('clause 1: a supported historical usage record without splits shows unknown
   assert.deepEqual(split(shown.usage), [null, null, null]);
   assert.deepEqual(split(stats.usage.items.find(row => row.item === id)), [null, null, null]);
   assert.equal(shown.usage.inputTokens, 12);
-  assert.match(box.run(box.repo, 'show', String(id)).out, /fresh unknown, cached read unknown, cached write unknown/u);
+  assert.match(box.run(box.repo, 'show', String(id), '--detail').out, /fresh unknown, cached read unknown, cached write unknown/u);
 });

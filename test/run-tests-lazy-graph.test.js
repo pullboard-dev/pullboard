@@ -69,22 +69,22 @@ test('runner static graph avoids landing and legacy selection routes into the ga
   const paths = new Set([...graph].map(file => relative(root, file).split(sep).join('/')));
   const gate = resolve(root, 'packages/gate/src/shell/gate.js');
 
-  assert.ok(paths.has('src/landing-worker-identity.js'));
-  assert.ok(paths.has('packages/landing/src/core/landing-worker-identity.js'));
+    assert.ok(paths.has('packages/drive/src/core/worker-process-identity.js'));
   assert.ok(paths.has('packages/gate/src/shell/test-selection.js'));
   assert.ok(!paths.has('packages/landing/index.js'), 'runner must not load landing through its gate-owning front door');
   assert.ok(!paths.has('src/test-selection.js'), 'runner must not use the removed selection compatibility shim');
-  assert.ok(!staticGraph('../src/landing-worker-identity.js').has(gate), 'clause 1: the landing identity entry stays gate-free');
+  assert.ok(!staticGraph('../packages/drive/core.js').has(gate), 'clause 1: the drive light door stays gate-free');
   assert.ok(!staticGraph('../packages/gate/src/shell/test-selection.js').has(gate), 'clause 1: the selection entry stays gate-free');
 });
 
-test('clause 2: the gate-free landing identity entry is placed in the cells plan as a sanctioned re-export [C7]', () => {
-  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/30-landing.json', import.meta.url), 'utf8'));
-  assert.ok(plan.reexports.includes('src/landing-worker-identity.js'), 'pre-commit accepts the entry as a placed re-export, not a stray shim');
-  assert.ok(plan.paths.some(move => move[0] === 'src/landing-worker-identity.js'), 'the plan places it with its moved implementation');
+test('clause 2: the runner reads the worker process identity from the drive light door it already imports [C7]', () => {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const door = new Set([...staticGraph('../packages/drive/core.js')].map(file => relative(root, file).split(sep).join('/')));
+  assert.ok(door.has('packages/drive/src/core/worker-process-identity.js'), 'the drive light door carries the identity helpers');
+  assert.match(readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/packages\/drive\/core\.js'/u);
 });
 
-const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
+const RUNNER_TARGETS = ['packages/store/index.js', 'packages/store/src/shell/board.js', 'packages/state/src/shell/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
 const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
 
 /**
@@ -105,7 +105,7 @@ function importParents(entry) {
   return parent;
 }
 
-test('clause 1: bin/run-tests.js static graph does not reach src/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+test('clause 1: bin/run-tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
   const runner = importParents('bin/run-tests.js');
   for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {

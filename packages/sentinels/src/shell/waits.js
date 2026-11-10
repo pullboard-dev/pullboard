@@ -133,10 +133,24 @@ export async function recordWaits(snapshot, { openKey, fileItem, shout, prunePoo
     filed.push({ id: await fileItem(draft), key, title: draft.title });
   }
   if (filed.length || reclaimed.length) {
-    await shout([`Wait audit: ${snapshot.rows.filter(row => row.breach).length} over budget.`,
-      ...filed.map(row => `filed #${row.id}: ${row.title}`), ...reclaimed.map(line => `reclaimed: ${line}`), ...notes].join('\n'));
+    await shout(waitShout(snapshot.rows.filter(row => row.breach).length, filed.map(row => row.id), reclaimed.length));
   }
   return { filed, deduplicated, reclaimed, notes };
+}
+
+/** A shout is at most 400 characters; the audit's line stays well under it and names at most this many ids. */
+const SHOUT_MAX = 300;
+
+/**
+ * One short line for the coordinator: how many waits are over budget, the items filed and how many holders were
+ * reclaimed. The detail lives in the filed items and `pullboard waits`, never in the shout, which the board caps.
+ */
+function waitShout(over, ids, reclaimed) {
+  const tail = `, reclaimed ${reclaimed}; pullboard waits for detail`;
+  let shown = ids.map(id => `#${id}`);
+  const line = list => `waits: ${over} over budget, ${ids.length ? `filed ${list.join(' ')}${list.length < ids.length ? ` and ${ids.length - list.length} more` : ''}` : 'filed none'}${tail}`;
+  while (shown.length && line(shown).length > SHOUT_MAX) shown = shown.slice(0, -1);
+  return line(shown);
 }
 
 /** Whether an open, claimed or submitted item's brief already carries this wait key. */

@@ -85,7 +85,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
   for (const id of [1, 2, 3, 4]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); }
   box.git(alpha.repo, 'merge', '-q', '--ff-only', alpha.itemBranches.get(`${alpha.baseBranch}:3`));
   box.run(alpha.repo, 'merged', '3', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5', '--reason', 'Arrange fixture release');
   const view = await startView(box);
   try {
     const page = await openPage(view);

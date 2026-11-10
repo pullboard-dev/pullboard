@@ -5,7 +5,7 @@ import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { timingSeat } from '../../../../src/seat-timing.js';
+import { timingSeat } from '../../../seats/core.js';
 
 /**
  * One beat: open the board for read, refresh the seat's presence, close it; a missed beat is retried next tick.

@@ -106,7 +106,7 @@ test('the settings API reports every setting with its scope, value, default and 
 /** Board-owned settings keep native move evidence, independent of machine-wide admission settings [R1,R2,H16]. */
 test('a line setting change is a recorded move with its reason and its range [R1,R2,H16]', async t => {
   const { createE2eHelpers } = await import('../../../test/e2e-helpers.js');
-  const store = await import('../../../src/board.js');
+  const store = await import('../../store/index.js');
   const nativeBoard = await import('../../../apps/lib/index.js');
   const { exportBoard, importBoard } = await import('../../store/index.js');
   const { prepareEngineMove, applyRelayMove, appliedSequence } = await import('../src/shell/engine.js');
@@ -122,7 +122,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
   assert.equal(initial.code, 0, initial.err);
   const defaults = { 'route.liveOnly': false, order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, reworkSameFamily: false, returnRejectedWork: false, wipPerReviewer: false, barReady: false,
     'bar.check': false, 'bar.sharpenToPerson': false, takeoverMinutes: false,
-    landingBatchSize: false, landingCadenceMinutes: false };
+    landingBatchSize: false, landingCadenceMinutes: false, agingMinutes: false };
   assert.deepEqual(JSON.parse(initial.out).lineSettings, defaults, 'all line controls start off, not silently enabled by a machine file');
   assert.equal(JSON.parse(changed.out).lineSettings.reviewsFirst, true);
   board = nativeBoard.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

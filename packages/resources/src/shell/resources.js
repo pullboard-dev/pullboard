@@ -22,6 +22,7 @@ import { settleControllerCancellation } from './controller-disposition.js';
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
@@ -36,13 +37,13 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { repoInfo } from '../../../../src/git.js';
+import { repoInfo } from '../../../git/core.js';
 import {
   machineHome,
   machineSettingsFile,
   withMachineHomeWrite,
 } from './machine-home.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { capturedRequestOf } from './holder-liveness.js';
 import { dispatchRelaunch } from './holder-liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';
@@ -57,7 +58,8 @@ import {
   runnerExcluded,
 } from './resource-recovery.js';
 import { writeWhileLocked } from './pool-lock.js';
-import { readGateQueueSettings } from '../../../queue/index.js';
+import { gateQueueSettings } from '../../../queue/core.js';
+import { parseMachineSettings } from '../../../queue/core.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
 import { reservedTimingRunner } from './runner-timing-reserve.js';
@@ -86,8 +88,8 @@ import {
   orderedWaiters,
   queueClass,
   releaseOrderInEffect,
-} from '../../../queue/index.js';
-export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js';
+} from '../../../queue/core.js';
+export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/core.js';
 
 const LEASE_MS = 20_000;
 /**
@@ -468,7 +470,8 @@ function removeEmptyViewPortResources(db) {
  */
 function queueOrder(scope) {
   if (scope !== 'machine') return ARRIVAL_ORDER;
-  const { reviewsFirst, currentReleaseFirst, agingMinutes } = readGateQueueSettings(machineSettingsFile());
+  const file = machineSettingsFile();
+  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings(parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file), file);
   return { reviewsFirst, currentReleaseFirst, ageMs: agingMinutes * 60_000 };
 }
 

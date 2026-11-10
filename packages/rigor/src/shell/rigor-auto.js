@@ -13,7 +13,7 @@ import {
   eventCauses,
   rigorReport,
   testCause,
-} from '../../../../src/board-rigor.js';
+} from '../../../store/index.js';
 import {
   conflictNoteFiles,
   conflictReport,
@@ -26,7 +26,7 @@ import {
   automaticSourceFromText,
   readAutomaticRigorSource,
   rigorDecisionKey,
-} from '../../../../src/board-rigor-auto-source.js';
+} from '../../../store/index.js';
 import { RIGOR_AUTO_ENGINE } from '../../../state/core.js';
 import { REOPEN_CAUSE_ENGINE } from '../../../state/core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';

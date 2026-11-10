@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** A verified item whose change main already carries closes as landed, never STALE_VERDICT [C7,#2980]. */
 import { assert, helpers, run, store, test, withBoard } from './team-scenarios.fixture.js';
 import { join } from 'node:path';
@@ -15,7 +15,7 @@ test('an accept whose change main already contains reads fresh and lands without
   run(box, box.web, 'submit', '1');
   const reviewer = join(box.dir, 'already-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-  run(box, reviewer, 'join', 'web');
+  run(box, reviewer, 'join', 'web', '--route', 'strong'); // the item routes strong, and a strong verifier covers every route
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature line flips and the frozen check observes it.');
   const verdicts = withBoard(box.repo, board => store.verdictsFor(board, 1)).length;
   // A sibling item lands the identical one-line change first, as #1938 did for #1939.

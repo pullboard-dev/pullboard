@@ -69,6 +69,7 @@ import { loadSpec } from '../../../../../packages/spec/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
+  itemSpecIds,
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
@@ -475,7 +476,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       }
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
-    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
+    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     if (decision === 'ACCEPT' && check?.blockingVerdict) {
@@ -560,7 +561,7 @@ function packetAcceptance(ctx, board, item, decision, reReview, read) {
   const readUncovered = packet.rerun.filter(n => readClauses.has(n));
   const forced = packet.rerun.filter(n => !readClauses.has(n));
   if (forced.length) {
-    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${forced.join(', ')} has no recorded run and was not read; running the frozen check`);
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${forced.join(', ')} has no recorded run and was not read; taking the full accept path, which reuses the submit proof when it still covers the head`);
     return null;
   }
   const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';

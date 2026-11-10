@@ -38,12 +38,13 @@ async function enforceCellTrial(box, kind, code) {
   }
   assert.equal(document(box.run(probe, 'submit', String(probeId), '--no-next', '--json')).queued, true);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
-  const recorded = () => { try { return JSON.parse(readFileSync(file, 'utf8')).codes[code]; } catch { return undefined; } };
+  const rowsOf = ledger => Object.values(ledger.codes).filter(row => row.code === code);
+  const recorded = () => { try { return rowsOf(JSON.parse(readFileSync(file, 'utf8')))[0]; } catch { return undefined; } };
   try { await box.helpers.waitFor(() => recorded() !== undefined, `the probe's ${code} trial`, 120000); } // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
   catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, probeId)}`, { cause: error }); }
   const ledger = JSON.parse(readFileSync(file, 'utf8'));
   ledger.gates = 20;
-  ledger.codes[code].start = 0;
+  for (const row of rowsOf(ledger)) row.start = 0;
   writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 

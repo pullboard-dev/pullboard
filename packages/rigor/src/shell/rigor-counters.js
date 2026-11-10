@@ -6,9 +6,9 @@ import { rigorCounterKeys } from '../core/rigor-counter-state.js';
 import { rigorCounterResult } from '../core/rigor-counter-state.js';
 import { sortRigorCounters } from '../core/rigor-counter-state.js';
 import { undraftedRigor } from '../core/rigor-notices.js';
-import { readRigorSource } from '../../../../src/board-rigor-source.js';
-import { automaticRigorNeeds } from '../../../../src/board-rigor-auto-source.js';
-import { causeReading } from '../../../../src/board-rigor.js';
+import { readRigorSource } from '../../../store/index.js';
+import { automaticRigorNeeds } from '../../../store/index.js';
+import { causeReading } from '../../../store/index.js';
 import { createHash } from 'node:crypto';
 
 const PREFIX = 'local:proof-stats:rigor:v1:';

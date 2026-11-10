@@ -28,7 +28,7 @@ test('a rebuilt batch records the base it left and passes the revision guard; an
 /** Run one real landing pass and return its lines, the error if any, the item row and main's tip. */
 function landOnce(box, itemId) {
   const source = [
-    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
+    `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/store/index.js')).href)};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
@@ -83,6 +83,10 @@ test('main moving outside the batch files during its gate rebuilds the batch on 
   const entry = itemWorktree(box, 1);
   submitItem(box, entry, 'PASS\n');
   acceptItem(box, entry);
+  // A landing tree equal to the submit tree reuses the submit receipt and runs no gate; one commit on main first makes the landing gate run.
+  writeFileSync(join(box.repo, 'before-landing.md'), 'before\n');
+  box.git(box.repo, 'add', 'before-landing.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: main moves before the landing');
   const result = landOnce(box, entry.item);
   assert.equal(result.error, null, JSON.stringify(result));
   assert.ok(result.lines.some(line => line.includes('outside this batch\'s files; rebuilding the batch on it')), result.lines.join('\n'));

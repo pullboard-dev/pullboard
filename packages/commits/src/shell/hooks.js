@@ -10,6 +10,7 @@ import {
 } from 'node:child_process';
 import { gitExecFileSync } from "../../../../src/git-adapter.js";
 import { gitBoardDataPush } from "../core/board-format.js";
+import { rootTestRefusal } from './root-test-listing.js';
 import { hostname } from 'node:os';
 import {
   chmodSync,
@@ -45,9 +46,9 @@ import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../../../../src/import-only-change.js";
 import { movedImportTargets } from "../../../../src/import-only-change.js";
-import { planRowChange } from "../../../../src/plan-row-change.js";
-import { baselineRowChange } from "../../../../src/tier-row-change.js";
-import { tierRowChange } from "../../../../src/tier-row-change.js";
+import { planRowChange } from "../core/plan-row-change.js";
+import { baselineRowChange } from "../core/tier-row-change.js";
+import { tierRowChange } from "../core/tier-row-change.js";
 import {
   citedIds,
   deletedIds,
@@ -526,8 +527,7 @@ export function preCommitProblems(context) {
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
-  const touchedPaths = new Set(touched);
-  const writtenPaths = new Set(written);
+  const touchedPaths = new Set(touched), writtenPaths = new Set(written);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -547,8 +547,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     }
     problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
-  problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
-  problems.push(...deletedGateProblems(root, config));
+  problems.push(...deletedRowProblems(root, [config.spec, config.practice]), ...deletedGateProblems(root, config));
+  const rootTests = rootTestRefusal(written, { isTest: path => (config.claim?.barTestFiles ?? []).some(pattern => matchesPattern(pattern.split('/').at(-1), path)), known: path => ['HEAD', 'refs/heads/main'].some(revision => tryGit(root, ['cat-file', '-e', `${revision}:${path}`]).status === 0), read: path => { const shown = tryGit(root, ['show', `:${path}`]); return shown.status === 0 ? shown.stdout : null; } }); if (rootTests) throw new Refused(rootTests.code, rootTests.message, rootTests.next); // #4005
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();

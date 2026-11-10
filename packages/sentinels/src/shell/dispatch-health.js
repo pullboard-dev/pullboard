@@ -1,9 +1,9 @@
-import { lineSettings } from "../../../state/src/core/line-settings-read.js";
+import { lineSettings } from "../../../state/core.js";
 import { withLocalSeatPresence } from "../../../store/index.js";
 /** Observe eligible work beside live free seats without claiming from a read [N2,A6]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from "../../../../src/board.js";
+import * as store from "../../../store/index.js";
 import { repoInfo } from "../../../../src/git.js";
 import { localSeatSessionDigest } from "../../../seats/index.js";
 import { ownSessionReviews } from "../../../verify/index.js";

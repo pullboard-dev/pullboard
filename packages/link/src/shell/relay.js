@@ -1,5 +1,5 @@
 import { relayFetch } from '../../../person/index.js';
-import { operationIntent } from '../../../state/src/core/relay-sender-policy.js';
+import { operationIntent } from '../../../state/index.js';
 import { orderedMoveCommand } from '../core/relay-command-order.js';
 import { withRelayExclusion } from './relay-exclusion-state.js';
 import { relinkReplacement } from './relay-relink.js';
@@ -57,7 +57,7 @@ import {
   gunzipSync,
   gzipSync,
 } from 'node:zlib';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { exportBoard } from '../../../store/index.js';
 import { importBoard } from '../../../store/index.js';
 import { restoreRelaySnapshot } from '../../../store/index.js';
@@ -87,10 +87,10 @@ import { tryGit } from '../../../../src/git.js';
 import { forgetBoardKey } from '../../../keys/index.js';
 import { readBoardKey } from '../../../keys/index.js';
 import { storeBoardKey } from '../../../keys/index.js';
-import { encodeBoardKey } from '../../../kernel/src/core/seal.js';
-import { generateBoardKey } from '../../../kernel/src/core/seal.js';
-import { seal } from '../../../kernel/src/core/seal.js';
-import { unseal } from '../../../kernel/src/core/seal.js';
+import { encodeBoardKey } from '../../../kernel/index.js';
+import { generateBoardKey } from '../../../kernel/index.js';
+import { seal } from '../../../kernel/index.js';
+import { unseal } from '../../../kernel/index.js';
 import { terminalQr } from '../../../person/core.js';
 import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';

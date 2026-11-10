@@ -60,6 +60,8 @@ const timer = setInterval(() => {
 
 /** Live beat threads by waiter token. */
 const threads = new Map();
+/** Tokens whose thread died on an error: their renewals run unbeaten, since respawning per renewal is a crash loop. */
+const failed = new Set();
 
 /**
  * The beat thread for one waiter, started on its first renewal.
@@ -68,18 +70,22 @@ const threads = new Map();
  * not have reached this thread yet, and a renewal that began on it would run with no heartbeat.
  */
 function thread(file, token) {
+  if (failed.has(token)) throw new Error('the beat thread for this waiter failed');
   let entry = threads.get(token);
   if (entry && Atomics.load(entry.flag, 0) !== RETIRING) return entry;
   if (entry) threads.delete(token);
   const flag = new SharedArrayBuffer(4), since = new SharedArrayBuffer(8);
-  const worker = new Worker(SOURCE, { eval: true, workerData: { file, token, flag, since, beatMs: timing.beatMs,
+  // The source is CommonJS: a worker inherits its parent's execArgv, and a parent started with --input-type=module made
+  // this one parse it as a module, die on `require`, and respawn at every renewal, 25 a second, in the runners' job
+  // journals (#4899).
+  const worker = new Worker(SOURCE, { eval: true, execArgv: [], workerData: { file, token, flag, since, beatMs: timing.beatMs,
     longestMs: LONGEST_RENEWAL_MS, idleMs: timing.idleMs } });
   worker.unref();
   entry = { worker, flag: new Int32Array(flag), since: new Float64Array(since) };
   threads.set(token, entry);
   const forget = () => { if (threads.get(token) === entry) threads.delete(token); };
   worker.once('exit', forget);
-  worker.once('error', forget);
+  worker.once('error', () => { if (failed.size > 4096) failed.clear(); failed.add(token); forget(); });
   return entry;
 }
 

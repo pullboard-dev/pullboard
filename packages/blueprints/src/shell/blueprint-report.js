@@ -1,14 +1,14 @@
 /** What blueprint commands report back: a blueprint's starters on this board and the rows that wait [S1,I1]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   blueprintMarker,
   bundledBlueprints,
   readBlueprint,
 } from './blueprints.js';
 import { loadConfig } from '../../../config/index.js';
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/core.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../spec/index.js';
 

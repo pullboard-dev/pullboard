@@ -1,7 +1,7 @@
 /** Minute canary scheduling, cross-watch admission, shutdown draining and durable notice retry [H5,H17,C7]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -45,18 +45,13 @@ async function withFixtureEnvironment(env, action) {
   }
 }
 
-/** Commit the fixture project configuration before link setup or creating a sibling worktree. */
-function commitConfiguration(box) {
-  const file = join(box.root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+/** Install the isolated Pullboard entry point; the fixture already committed its project configuration. */
+function installPullboardEntry(box) {
   const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
   const privateBin = box.env.PATH.split(delimiter)[0];
   const pullboard = join(privateBin, 'pullboard');
   assert.equal(existsSync(pullboard), false, 'the fixture has no preexisting private Pullboard wrapper to overwrite');
   writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
-  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): prepare the canary project'], { cwd: box.root, env: box.env });
 }
 
 /** Create a real noncoordinator agent worktree sharing the fixture's local board and relay link. */
@@ -159,7 +154,7 @@ test('same-root watches share atomic admission and close aborts and drains a sin
 
 test('a pending alert notice retries after delivery failure and is removed only after success [H5,H17]', { timeout: 60_000 }, async t => { // budget: linked loopback fixture, three bounded probes, and fixture cleanup.
   const box = await relayClientFixture(t);
-  commitConfiguration(box);
+  installPullboardEntry(box);
   await box.link();
   const seat = await joinedCanarySeat(box);
   await box.stopRelay();
@@ -188,7 +183,7 @@ test('a pending alert notice retries after delivery failure and is removed only 
 
 test('the canary command binds machine opt-in to its linked ordinary seat [H5,H17]', { timeout: 60_000 }, async t => { // budget: real linked Git fixture and bounded ordinary sealed probe, not a timing assertion.
   const box = await relayClientFixture(t);
-  commitConfiguration(box);
+  installPullboardEntry(box);
   await box.link();
   const refused = await box.cli('relay', 'canary', 'on');
   assert.equal(refused.code, 1, 'a coordinator cannot substitute for the dedicated ordinary canary seat');
@@ -212,7 +207,7 @@ test('the canary command binds machine opt-in to its linked ordinary seat [H5,H1
 
 test('a stalled real board route is bounded by the probe deadline [H5,H17]', { timeout: 60_000 }, async t => { // budget: real linked fixture plus a 250 ms transport deadline, with fixture cleanup.
   const box = await relayClientFixture(t);
-  commitConfiguration(box);
+  installPullboardEntry(box);
   await box.link();
   const seat = await joinedCanarySeat(box);
   box.stallApi();

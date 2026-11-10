@@ -5,7 +5,7 @@ import { SPEC_DRAFT_REFREEZE_ENGINE } from "../../../../state/core.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 import { SPEC_REVISION_ENGINE } from "../../../../state/core.js";
-import { rowDecisions } from "../../../../spec/src/core/row-decisions-query.js";
+import { rowDecisions } from "../../../../spec/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {

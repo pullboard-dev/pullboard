@@ -1,6 +1,6 @@
 /** Local presence filters new advice only; sealed claims keep their recorded semantics [B3,N2,H16]. */
 import { COORDINATOR } from '../../../config/index.js';
-import { lineSettings } from '../../../state/src/core/line-settings-read.js';
+import { lineSettings } from '../../../state/core.js';
 
 /**
  * A current read may withhold new work; an ordered operation never depends on private heartbeat state.

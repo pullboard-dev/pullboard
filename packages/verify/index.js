@@ -1,4 +1,5 @@
 /** Canonical entry points for the verify cell; every moved body is exported here once [C7]. */
+export * from './core.js';
 export { normalizeReviewDefaults } from './src/shell/review-default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/shell/bar-actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/core/bar-check.js';
@@ -6,7 +7,7 @@ export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPat
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/shell/bar-readiness.js';
 export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/shell/evidence.js';
-export { barTestFiles, frozenRowGates } from './src/core/frozen-clause.js';
+export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/core/frozen-clause.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/core/next-review.js';
 export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
@@ -20,7 +21,7 @@ export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibi
 export { committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/shell/review-independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/core/review-policy.js';
 export { reviewQueueLine } from './src/core/review-queue-line.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem } from './src/shell/review-routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/shell/review-routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/shell/rule-proof-counts.js';
 export { committedRuleCoverage, proofCoverageFingerprint } from './src/shell/rule-proof-coverage.js';
 export { appendRuleProof } from './src/shell/rule-proof-index.js';
@@ -42,8 +43,6 @@ export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarant
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
 
 export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
-export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung, wallLoadFactor } from './src/core/file-watchdog-policy.js';
-export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { comparisonRestartPlan, COMPARISON_RESTART_LIMIT } from './src/shell/verify-compare.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
@@ -58,3 +57,4 @@ export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPack
 
 export { reusableSubmitProof, submittedPolicyCommit } from './src/shell/submit-proof-reuse.js';
 export { sealedMoveOverlap } from './src/shell/verdict-trunk.js';
+export { carriesBarReason, barCorrectionFields, barCorrections, barCorrectionLine, barStatsLines, readBarState } from './src/core/bar-corrections.js';

@@ -1,5 +1,6 @@
 import { COORDINATOR } from '../queue/core.js';
-import { Refused } from '../kernel/index.js';
+import { Refused } from '../kernel/core.js';
+export { receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/core/proof-provenance.js';
 
 /** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
 export function testOutcomeFields(value) {
