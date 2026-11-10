@@ -1,6 +1,6 @@
 /** Shell boundary for checking actual import cuts and filing their independent board items [C7,D3]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { importsIn } from '../packages/codemap/index.js';
+import { commonJsIn } from '../packages/codemap/index.js';
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
@@ -19,7 +19,10 @@ import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
-export { ownedStayProblems, processEntry, retiredProblems } from '../packages/codemap/index.js';
+import { retiredProblems } from '../packages/codemap/index.js';
+
+export { ownedStayProblems, processEntry } from '../packages/codemap/index.js';
+export { retiredProblems };
 
 /** Entry ownership is checked against the snapshot-aware path map this module reads. */
 export function entryPlacementProblems(root, plan, files, sharedMap = undefined) {

@@ -2,7 +2,12 @@
 import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { withParseScope } from '../packages/gate/index.js';
-import { PLAN_DIR, PLAN_FILE, readPlan, shardFile } from '../packages/codemap/index.js';
+import { PLAN_DIR } from '../packages/codemap/index.js';
+import { PLAN_FILE } from '../packages/codemap/index.js';
+import { readPlan } from '../packages/codemap/index.js';
+import { shardFile } from '../packages/codemap/index.js';
+import { importsIn } from '../packages/codemap/index.js';
+import { commonJsIn } from '../packages/codemap/index.js';
 import { computePlan as modelComputePlan, placePath as modelPlacePath, writePlan as modelWritePlan } from '../packages/codemap/index.js';
 import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
 import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
