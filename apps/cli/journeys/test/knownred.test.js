@@ -13,6 +13,8 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { knownRedCheck } from '../../src/io/test/known.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { executionServicesSource } from '../../tests/fixtures/gate/execution.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -109,4 +111,21 @@ test('an unsigned generic red cache cannot suppress an executor-bound comparison
   const result = compare(box);
   assert.equal(result.main, main, 'unbound generic cache must not suppress the main comparison');
   assert.equal(result.known[0].result, 'red');
+});
+
+test('the direct test API without a known-red callback still requests ordinary main comparison [C7]', { timeout: 240_000 }, () => { // budget: one real stand-in runner dispatch.
+  const box = redProject();
+  const gate = new URL('../../../../packages/gate/index.js', import.meta.url).href;
+  const landing = new URL('../../../../packages/landing/index.js', import.meta.url).href;
+  const driver = `import { readFileSync } from 'node:fs';
+import { runTestFiles } from ${JSON.stringify(gate)};
+import { withMainCheckout, failureSignatures } from ${JSON.stringify(landing)};
+${executionServicesSource(gate)}
+let called = false;
+const result = await runTestFiles(process.cwd(), JSON.parse(readFileSync('pullboard.json')), ['test/red.test.js'], { compareMain: true, executionServices, withMainCheckout, failureSignatures, compareMainFailures: async () => { called = true; return { main: null, files: [], unavailable: 'fixture deliberately supplies no main proof' }; } });
+console.log(JSON.stringify({ called, green: result.green, unavailable: result.mainUnavailable }));`;
+  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', driver], { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.context);
+  const result = JSON.parse(run.stdout.trim().split('\n').at(-1));
+  assert.deepEqual(result, { called: true, green: false, unavailable: 'fixture deliberately supplies no main proof' });
 });
