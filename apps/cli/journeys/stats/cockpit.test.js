@@ -156,9 +156,9 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
   const crewThree = joinedAgent(box, alpha, 'stats-crew-three');
   const untouched = joinedAgent(box, alpha, 'stats-untouched');
   // Record real moves on both sides of the one permitted family declaration.
-  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'coordinator', `Before family ${move}`);
+  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'web-1', `Before family ${move}`);
   box.run(crewOne, 'join', 'web', '--family', 'crew');
-  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'coordinator', `After family ${move}`);
+  for (let move = 0; move < 11; move += 1) box.run(crewOne, 'shout', 'web-1', `After family ${move}`);
   box.run(crewTwo, 'join', 'web', '--family', 'crew');
   box.run(crewThree, 'join', 'web', '--family', 'crew');
   const expected = JSON.parse(box.run(alpha.repo, 'stats', '--json')).stats;
@@ -477,7 +477,7 @@ function stageFlowBoard(box, alpha) {
   };
   claim(1, 10); submit(1, 30); review(1, 70, 80);
   at(90, board => store.merged(board, 1, { agentId: 'coordinator', commit }));
-  for (const id of [2, 3, 4, 5]) at(id === 4 ? 101 : 100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
+  for (const id of [2, 3, 4, 5]) at(100, board => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Flow item ' + id, specIds: ['G1'], criterion: 'Known flow' }));
   claim(3, 110); claim(4, 110); claim(5, 110);
   submit(4, 115); submit(5, 115); review(5, 117, 119);
 }
