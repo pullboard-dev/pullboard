@@ -128,6 +128,7 @@ const CAUGHT = {
   '../packages/spec/src/io/approval.js#specApprovalState': ['../packages/store/index.js#specApprovalBaseline', '../packages/store/src/io/board/query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
   '../packages/store/src/io/board.js#reopen': ['../packages/rigor/src/logic/notices.js#declinedRigorSource'],
+  '../packages/rigor/src/logic/notices.js#declinedRigorSource': ['../packages/spec/index.js#parseSpec'], // Only the historical source parser is caught here.
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
   '../packages/store/src/logic/board/rigor.js#eventCauses': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
   '../packages/rigor/src/logic/counter.js#neverKey': ['../packages/store/index.js#causeProblem'],
