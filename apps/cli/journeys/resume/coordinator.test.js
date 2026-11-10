@@ -261,7 +261,7 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   const indexed = JSON.parse(ordinary.out);
   assert.equal(indexed.openDecisions.length, 5, 'ordinary resume retains current coordinator obligations');
   assert.ok(indexed.staleVerdicts.some(item => item.item_id === conflictId),
-    `JSON v1 retains the stale receipt without claiming its verdict is current: conflict=${conflictId} stale=${JSON.stringify(indexed.staleVerdicts)} toMerge=${JSON.stringify(indexed.toMerge)} integration=${JSON.stringify(indexed.verifiedNotMerged)}`);
+    `JSON v1 retains the stale receipt without claiming its verdict is current: conflict=${conflictId} stale=${JSON.stringify(indexed.staleVerdicts.map(item => [item.item_id, item.item_verdict_state]))} toMerge=${JSON.stringify(indexed.toMerge.map(item => [item.item_id, item.item_verdict_state]))} conflicts=${JSON.stringify(indexed.verifiedNotMerged.conflicts.map(entry => [entry.item.item_id, entry.files]))}`);
   assert.ok(!indexed.toMerge.some(item => item.item_id === conflictId), 'a stale receipt is never ready to land');
   assert.equal(typeof indexed.newWorktreeLocation, 'string', 'JSON v1 retains the validated checkout guidance');
   assert.ok(indexed.verifiedNotMerged.conflicts.some(entry => entry.item.item_id === conflictId),
