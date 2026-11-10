@@ -31,16 +31,28 @@ function namedTable(root, name, heading, names) {
   return docTable(heading, rows);
 }
 
+/** List every event declaration below the events folder, one level of grouping folders included. */
+function eventFiles(directory) {
+  return readdirSync(directory).sort().flatMap(name => {
+    const path = join(directory, name);
+    if (lstatSync(path).isDirectory()) return /^[a-z][a-z0-9-]*$/u.test(name) ? eventFiles(path) : [];
+    if (!name.endsWith('.json')) return [];
+    if (!/^[a-z][a-z0-9_-]*\.json$/u.test(name) || !lstatSync(path).isFile()) throw new Error(`invalid event declaration ${name}`);
+    return [path];
+  });
+}
+
 /** Render event descriptions from independent per-kind files, retaining historical version annotations. */
 function eventTable(root) {
-  const directory = join(root, 'apps/cli/src/io/documentation/events');
-  const entries = readdirSync(directory).filter(file => file.endsWith('.json')).sort().flatMap(file => {
-    if (!/^[a-z][a-z0-9_-]*\.json$/u.test(file) || !lstatSync(join(directory, file)).isFile()) throw new Error(`invalid event declaration ${file}`);
-    const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));
-    if (file !== `${row.kind}.json` || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);
+  const kinds = new Set();
+  const entries = eventFiles(join(root, 'apps/cli/src/io/documentation/events')).flatMap(path => {
+    const row = JSON.parse(readFileSync(path, 'utf8'));
+    if (typeof row.kind !== 'string' || !/^[a-z][a-z0-9_-]*$/u.test(row.kind) || kinds.has(row.kind)
+        || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${path}`);
+    kinds.add(row.kind);
     return row.entries.map(entry => {
       if (!Number.isSafeInteger(entry.order) || entry.order < 0 || typeof entry.actor !== 'string'
-          || typeof entry.detail !== 'string') throw new Error(`invalid event description ${file}`);
+          || typeof entry.detail !== 'string') throw new Error(`invalid event description ${path}`);
       return { ...entry, kind: row.kind };
     });
   }).sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind));

@@ -61,7 +61,7 @@ async function compose(root, inputHead, trunk, work) {
     catch (error) {
       conflicts = git(directory, ['diff', '--name-only', '--diff-filter=U', '-z']).split('\0').filter(Boolean).sort();
       if (!conflicts.length) throw error;
-      if (conflicts.some(path => path !== 'docs/lifecycle.md' && !rowManifest(path))) {
+      if (conflicts.some(path => !rowManifest(path))) {
         const refusal = new Refused('MERGE_CONFLICT', `main conflicts with ${conflicts.join(', ')}`);
         refusal.files = conflicts; throw refusal;
       }

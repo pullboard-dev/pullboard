@@ -93,7 +93,7 @@ test('two command items from one main regenerate real Git conflicts without a bu
     assert.ok(help.stdout.includes(`Usage: pullboard ${name}`));
     assert.ok(readFileSync(join(box.root, 'docs/api.md'), 'utf8').includes(`| \`${name}\` |`));
     assert.ok(readFileSync(join(box.root, 'docs/formats.md'), 'utf8').includes(`| \`${name}\` |`));
-    assert.ok(readFileSync(join(box.root, 'docs/cli-help.txt'), 'utf8').includes(`pullboard ${name}`));
+    assert.ok(readFileSync(join(box.root, 'apps/cli/src/logic/help/additions.js'), 'utf8').includes(`pullboard ${name}`));
   }
 });
 

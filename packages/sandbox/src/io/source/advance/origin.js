@@ -179,7 +179,7 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
   let action;
   if (!composition) {
     const files = sourceConflictFiles(root, basis.inputHead, basis.trunk);
-    if (!files.length || files.every(path => path === 'docs/lifecycle.md')) throw new Refused('SOURCE_ADVANCE_SOURCE', 'a source return needs actual current Git conflicts');
+    if (!files.length) throw new Refused('SOURCE_ADVANCE_SOURCE', 'a source return needs actual current Git conflicts');
     proof = { ...basis, outcome: 'conflict', files, phases: [] };
     action = { conflict: { files, trunk: basis.trunk }, note: `main conflicts with ${files.join(', ')}` };
   } else {

@@ -137,7 +137,6 @@ export function mergeMechanicalSources(path, ancestor, ours, theirs, version = M
 
 const MISSING = Symbol('missing');
 const CONFLICT = Symbol('conflict');
-const GENERATED = new Map([['docs/lifecycle.md', ['apps/cli/pullboard.js', 'lifecycle']]]);
 
 /** Refuse numeric data JavaScript cannot faithfully round-trip instead of silently changing an untouched value. */
 function snapshot(source) {
@@ -336,7 +335,7 @@ export function resolveMechanicalIndex(root, files, { orderedData = false } = {}
   if (remaining.length) return { files: remaining, entries: [], ...(rowConflicts.length ? { rowConflicts } : {}) };
   for (const entry of resolutions.filter(entry => entry.source !== undefined)) writeFileSync(join(root, entry.path), entry.source);
   for (const entry of resolutions.filter(entry => entry.kind === 'generated')) {
-    const command = GENERATED.get(entry.path) ?? generatedDocCommand(entry.path);
+    const command = generatedDocCommand(entry.path);
     const generated = spawnSync(process.execPath, command,
       { cwd: root, env: cleanGitEnvironment(), timeout: 30_000, maxBuffer: 32 * 1024 * 1024 });
     if (generated.status !== 0) return { files: [], entries: [], failed: {
