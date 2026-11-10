@@ -337,8 +337,9 @@ test('moves move retains Strict for each protected body and excludes unrelated s
 
 test('flakes move retains Strict for each protected body and excludes unrelated siblings [V4,B26,H16]', t => {
   const f = fixture(t, { historical: true });
-  for (const name of ['flakes', 'native-flake-cli', 'native-flakes', 'quarantine']) {
-    const moved = `packages/flakes/src/io/${name}.js`;
+  for (const [name, moved] of Object.entries({ flakes: 'packages/flakes/src/io/main.js',
+    'native-flake-cli': 'packages/flakes/src/io/native/cli.js', 'native-flakes': 'packages/flakes/src/io/native.js',
+    quarantine: 'packages/flakes/src/io/quarantine.js' })) {
     assert.equal(gateJudgmentPath(`src/${name}.js`), true, name);
     assert.equal(gateJudgmentPath(moved), true, moved);
     const item = f.submit(f.add(), [moved]);
@@ -554,9 +555,10 @@ test('landing move preserves Strict on every protected provider [V4,B26,C7]', ()
 });
 
 test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
-  for (const name of ['relay-checkpoint-worker', 'relay-sender-main']) {
+  for (const [name, moved] of Object.entries({ 'relay-checkpoint-worker': 'apps/lib/src/io/worker/checkpoint/relay.js',
+    'relay-sender-main': 'apps/cli/src/io/sender.js' })) {
     assert.equal(gateJudgmentPath(`src/${name}.js`), true);
-    assert.equal(gateJudgmentPath(`${name === 'relay-sender-main' ? 'apps/cli' : 'apps/lib'}/src/shell/${name}.js`), true);
+    assert.equal(gateJudgmentPath(moved), true);
   }
   assert.equal(gateJudgmentPath('apps/cli/src/io/hook/work.js'), false);
 });
