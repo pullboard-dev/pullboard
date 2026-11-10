@@ -340,14 +340,14 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport './machine.js';\n");
+  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport '../packages/state/src/shell/machine.js';\n");
   box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
-  box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
+  box.put('packages/state/src/shell/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('packages/state/src/core/engines/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\n");
-  box.put('test/machine-reader.test.js', "import '../src/machine.js';\n");
+  box.put('test/machine-reader.test.js', "import '../packages/state/src/shell/machine.js';\n");
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
@@ -368,9 +368,9 @@ test('a discovered command module or engine leaf selects what reads its registry
 
 test('runtime discovery and the selector agree on which files are engines and commands [C7,V4]', (t) => {
   const box = graph(t);
-  box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
+  box.put('packages/state/src/shell/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('test/reader.test.js', "import '../src/machine.js';\n");
+  box.put('test/reader.test.js', "import '../packages/state/src/shell/machine.js';\n");
   box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
@@ -477,7 +477,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/board-file-guard.test.js',
     'packages/gate/tests/cell-lint-guard.test.js',
     'packages/gate/tests/gui-marker-guard.test.js',
-    'test/privacy-scan-guard.test.js',
+    'packages/sandbox/tests/privacy-scan-guard.test.js',
     'packages/gate/tests/shared-wait-guard.test.js',
     'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
@@ -493,7 +493,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/gate/tests/gui-marker-guard.test.js',
     'test/board-file-guard.test.js',
     'packages/gate/tests/cell-lint-guard.test.js',
-    'test/privacy-scan-guard.test.js',
+    'packages/sandbox/tests/privacy-scan-guard.test.js',
     'packages/gate/tests/shared-wait-guard.test.js',
     'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',

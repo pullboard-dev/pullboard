@@ -440,18 +440,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/board-hold-log.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-ratchet.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/board-hold-baseline.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-pure-front-door.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -632,10 +620,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/bar-corrections.js",
-      "reason": "canonical engine identity retained in src during package moves"
-    },
-    {
       "path": "bin/cells-remove-shims.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -696,18 +680,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/seat-timing.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/seat-ledger.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/command-docs/seats.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-test-placement.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -725,10 +697,6 @@
     },
     {
       "path": "src/move-history/201.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/untouched-claim-observation.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -975,10 +943,6 @@
     },
     {
       "path": "src/move-history/239.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/tier-row-change.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1593,6 +1557,134 @@
         "packages/stats/tests/stats-time.test.js",
         "rule"
       ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/config.test.js",
+        "packages/config/tests/config.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/lanes.test.js",
+        "packages/config/tests/lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/registry.test.js",
+        "packages/config/tests/registry.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/bar-corrections.test.js",
+        "packages/state/tests/bar-corrections.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/decision-queue.test.js",
+        "packages/state/tests/decision-queue.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/file-growth-notice.test.js",
+        "packages/state/tests/file-growth-notice.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flakes-ledger.test.js",
+        "packages/state/tests/flakes-ledger.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/flow-submit-size.test.js",
+        "packages/state/tests/flow-submit-size.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/implies.test.js",
+        "packages/state/tests/implies.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/item-hold.test.js",
+        "packages/state/tests/item-hold.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/landing-waiver-replay.test.js",
+        "packages/state/tests/landing-waiver-replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/machine-home.test.js",
+        "packages/state/tests/machine-home.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestone-limit.test.js",
+        "packages/state/tests/milestone-limit.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/milestones.test.js",
+        "packages/state/tests/milestones.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/registry-merge.test.js",
+        "packages/state/tests/registry-merge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "test/runner-slots-measured.test.js",
+        "packages/runners/tests/runner-slots-measured.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
@@ -1965,35 +2057,36 @@
         "packages/state/src/shell/move-history/186.json",
         "rule"
       ]
-    },
-    {
-      "cell": "verify",
-      "row": [
-        "src/bar-corrections.js",
-        "packages/verify/src/core/bar-corrections.js",
-        "seed"
-      ]
     }
   ],
   "allowedEdges": [
     "(root)->gate",
+    "(root)->seats",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
     "drive->kernel",
     "resources->jobs",
+    "resources->git",
     "codemap->git",
+    "codemap->kernel",
+    "gate->codemap",
     "runners->config",
     "runners->verify",
     "landing->verify",
+    "verify->kernel",
+    "verify->state",
     "runners->kernel",
     "runners->resources",
     "runners->transport",
     "activity->store",
     "(root)->apps/cli",
+    "(root)->apps/lib",
+    "(root)->apps/view",
     "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
+    "apps/cli->seats",
     "apps/cli->items",
     "apps/cli->landing",
     "apps/cli->apps/runner",
@@ -2011,6 +2104,9 @@
     "gate->kernel",
     "gate->git",
     "gate->resources",
+    "gate->drive",
+    "gate->config",
+    "gate->seats",
     "github->store",
     "items->git",
     "items->kernel",
@@ -2023,6 +2119,7 @@
     "landing->store",
     "landing->store/src",
     "landing->resources",
+    "landing->runners",
     "link->store",
     "merge->git",
     "outbox->store",
@@ -2040,6 +2137,7 @@
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
+    "apps/cli->queue",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2064,9 +2162,11 @@
     "moves->link",
     "rigor->state",
     "sandbox->state",
+    "sandbox->items",
     "sandbox->config",
     "sandbox->git",
     "commits->kernel",
+    "sandbox->commits",
     "rigor->store",
     "(root)->store",
     "spec->kernel",
@@ -2078,6 +2178,14 @@
     "health->doctrine",
     "rigor->doctrine",
     "runners->doctrine",
-    "apps/lib->doctrine"
+    "apps/lib->doctrine",
+    "store->items",
+    "store->resources",
+    "store->git",
+    "github->items",
+    "link->kernel",
+    "apps/relay->link",
+    "apps/relay->apps/lib",
+    "apps/relay->outbox"
   ]
 }

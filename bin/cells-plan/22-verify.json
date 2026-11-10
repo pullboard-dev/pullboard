@@ -6,6 +6,7 @@
  "frontDoor": "packages/verify/index.js",
  "lightFrontDoor": "packages/verify/core.js",
  "paths": [
+  ["src/bar-corrections.js","packages/verify/src/core/bar-corrections.js","rule"],
   ["src/review-default.js","packages/verify/src/shell/review-default.js","rule"],
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
   ["src/bar-check.js","packages/verify/src/core/bar-check.js","seed"],

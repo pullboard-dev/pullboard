@@ -25,6 +25,7 @@ export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-pol
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/shell/gate-slot.js";
+export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/shell/infra-requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startDiagnostics, namedFileRunner } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
@@ -37,7 +38,7 @@ export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, sa
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/shell/main-audit-worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/shell/main-audit-attribution.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
-export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
+export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/shell/release-gate-receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/shell/release-gate.js";

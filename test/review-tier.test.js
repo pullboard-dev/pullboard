@@ -66,7 +66,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'packages/spec/src/shell/signature.js',
     'packages/sandbox/src/shell/source-advance.js', 'packages/sandbox/src/shell/source-advance-worker.js',
     'src/coordinator-hold.js', 'src/seat-review-read.js',
-    'packages/seats/src/shell/coordinator-hold.js', 'packages/seats/src/core/seat-review-read.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
+    'packages/seats/src/shell/coordinator-hold.js', 'packages/seats/src/core/seat-review-read.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'packages/state/src/shell/machine.js',
     'test/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'test/review-tier.test.js', 'packages/gate/tests/selection-fallbacks.test.js',
     'test/relay-auth-expired.test.js', 'test/engine.test.js', 'test/landing-shards.test.js',
     'packages/gate/src/core/test-selection.js', 'packages/gate/src/shell/gate-run-receipt.js', 'packages/gate/src/shell/test-selection.js',
@@ -79,7 +79,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/test-value.js', 'src/test-economics.js', 'packages/store/src/shell/board.js', 'src/board-query.js',
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
-    'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
+    'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
     'packages/spec/src/shell/spec.js',
     'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
     'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js', 'packages/gate/tests/resources.test.js', 'packages/gate/tests/gate-resource.test.js']) {

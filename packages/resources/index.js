@@ -1,4 +1,5 @@
 /** Resource leases, slots and machine memory admission behind one front door [C7,CD60,CD64]. */
+export * from './core.js';
 export * from './src/shell/resources.js';
 export * from './src/shell/memory-admission.js';
 export { closeResourceConnections, reuseResourceConnections } from './src/shell/resource-connections.js';

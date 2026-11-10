@@ -25,7 +25,7 @@
     "packages/gate/src/shell/gui-admission.js": 1,
     "packages/gate/src/shell/main-audit-scheduler.js": 1,
     "packages/gate/src/shell/main-audit-worker.js": 2,
-    "packages/gate/src/shell/module-imports.js": 1,
+    "packages/codemap/src/shell/module-imports.js": 1,
     "packages/gate/src/shell/release-transport.js": 3,
     "packages/gate/src/shell/shell-run.js": 1,
     "packages/gate/src/shell/test-action-cache.js": 1,
@@ -66,7 +66,7 @@
     "packages/spec/src/shell/signature.js": 2,
     "packages/store/src/shell/board-write-lock.js": 1,
     "packages/store/src/shell/history.js": 1,
-    "packages/store/src/shell/native-user-directory.js": 1,
+    "packages/gate/src/shell/native-user-directory.js": 1,
     "packages/verify/src/shell/comparison-worker.js": 1,
     "packages/verify/src/shell/evidence.js": 2,
     "packages/verify/src/shell/verdict-trunk.js": 1

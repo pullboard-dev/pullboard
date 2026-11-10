@@ -3,10 +3,10 @@ import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
 import { listAgents } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
-import { readSeatTiming } from '../../../../../src/seat-ledger.js';
-import { seatLedger } from '../../../../../src/seat-ledger.js';
-import { seatLines } from '../../../../../src/seat-ledger.js';
-import { worktreeActivity } from '../../../../../src/seat-ledger.js';
+import { readSeatTiming } from '../../../../../packages/seats/index.js';
+import { seatLedger } from '../../../../../packages/seats/index.js';
+import { seatLines } from '../../../../../packages/seats/index.js';
+import { worktreeActivity } from '../../../../../packages/seats/index.js';
 import { commandTimingReport } from '../../core/command-timing.js';
 import { commandTimingLines } from '../../core/command-timing.js';
 

@@ -1,7 +1,7 @@
 import {
   readBarState as read,
   barReadySetting,
-} from '../../../../src/bar-corrections.js';
+} from '../core/bar-corrections.js';
 export { barReadySetting };
 import { normalizeBarActor } from './bar-actor.js';
 import {

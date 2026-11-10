@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/gate/index.js src/trusted-policy-read.js */
+/** @pullboard-test-loads packages/gate/index.js packages/sandbox/index.js */
 /** Real detached fake-SSH jobs carry admitted policy into nested shards [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -106,7 +106,7 @@ test('ordinary fake-SSH source carries its actual trunk policy into a detached n
   assert.doesNotMatch(result.stdout, /NO_POLICY/u);
   assert.ok(existsSync(box.requests), 'the real worker ran through the fake SSH transport');
   const tooling = committedToolingSnapshot(resolve(import.meta.dirname, '..'), box.env);
-  const command = `node --input-type=module -e 'import {mainPolicy} from "./src/trusted-policy-read.js"; console.log("PRIVATE_CARRIED_POLICY",mainPolicy(process.cwd()).commit)'`;
+  const command = `node --input-type=module -e 'import {mainPolicy} from "./packages/sandbox/index.js"; console.log("PRIVATE_CARRIED_POLICY",mainPolicy(process.cwd()).commit)'`;
   const controller = `import { runOnRunnerAsync } from ${JSON.stringify(pathToFileURL(join(tooling, 'src/runners.js')).href)};
 const result = await runOnRunnerAsync(${JSON.stringify(box.source)}, ${JSON.stringify(command)}, {
  runner: { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 1 },

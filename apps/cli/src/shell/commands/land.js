@@ -4,7 +4,7 @@ import { driveLanding } from '../../../../../packages/drive/index.js';
 import { inProcessLandingBatch } from '../../../../../packages/landing/index.js';
 import { landingProgress } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
-import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
+import { PHASE_LINE } from '../../../../../packages/landing/index.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
 import { closeLandingSpans } from '../../../../../packages/resources/index.js';
 import { landingSpan } from '../../../../../packages/resources/index.js';
@@ -28,13 +28,13 @@ import { validateQuarantineGate } from '../../../../../packages/flakes/index.js'
 import { validateQuarantineLandingProof } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { postLandSuitePorts } from '../post-land-suite-ports.js';
-import { parseProcessCensus } from '../../../../../packages/kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
-import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
-import { landWhyLines } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhy } from '../../../../../packages/landing/index.js';
+import { landWhyLines } from '../../../../../packages/landing/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import { context } from '../cli-read-context.js';
 import * as store from '../../../../../packages/store/index.js';

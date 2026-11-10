@@ -43,7 +43,6 @@ export { mainRedBuildRouting } from './src/shell/main-red-build-routing.js';
 export { memoryHeldRuns } from './src/shell/memory-held.js';
 export { buildLocalBoardState, dependencyIds, stateFileInputs, fileRevision } from './src/shell/native-board-state.js';
 export { nativeStateClockWindow, nativeStateClockMatches } from './src/core/native-state-clock.js';
-export { nativeUserDirectory } from './src/shell/native-user-directory.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/shell/outside-store.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/shell/proof-receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/shell/seat-presence.js';
@@ -115,3 +114,5 @@ export { objectItemPatch } from './src/shell/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";
+export { boardHoldLog, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/shell/board-hold-log.js';
+export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/shell/board-hold-ratchet.js';

@@ -11,7 +11,7 @@ import { shellWord } from './runner-remote-tooling.js';
 import { spawnSsh } from '../../../transport/index.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
-import { probeRunnerTransport } from './runner-transport.js';
+import { probeRunnerTransport } from './runner-probe.js';
 import { recoveryIdentity } from '../../../resources/index.js';
 import { effectiveRunners } from './runner-slots.js';
 import { refreshRunnerMeasurements } from './runner-slots.js';

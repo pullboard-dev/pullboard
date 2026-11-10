@@ -1,5 +1,5 @@
 /** Compare authored scope with actual claim-to-submit intervals, never an inferred estimate [N2,B3]. */
-import { proofEventDetail } from '../../../kernel/index.js';
+import { proofEventDetail } from '../../../kernel/pure.js';
 
 /** Renewals retain the original claim; releases and returns end it, and missing boundaries remain unknown. */
 export function buildCalibration(history, items, budgetMinutes = 30) {

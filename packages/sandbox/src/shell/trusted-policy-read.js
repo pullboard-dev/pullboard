@@ -13,14 +13,14 @@ import {
 } from 'node:fs';
 import {
   configFromSource,
-} from '../../../config/src/shell/config.js';
+} from '../../../config/core.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
   gitPath,
   tryGit,
   repoInfo,
-} from '../../../../src/git.js';
+} from '../../../git/core.js';
 import {
   Refused,
 } from '../../../kernel/core.js';
@@ -44,7 +44,7 @@ export function mainPolicy(root) {
   return policyAt(root, checkout.commit);
 }
 
-export { trunkRef } from '../../../git/index.js';
+export { trunkRef } from '../../../git/core.js';
 
 /** Committed policy bytes by checkout and full commit id; a pinned object never changes, so a long-lived process reuses them. */
 const POLICY_SOURCES = new Map();

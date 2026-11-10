@@ -57,3 +57,4 @@ export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPack
 
 export { reusableSubmitProof, submittedPolicyCommit } from './src/shell/submit-proof-reuse.js';
 export { sealedMoveOverlap } from './src/shell/verdict-trunk.js';
+export { carriesBarReason, barCorrectionFields, barCorrections, barCorrectionLine, barStatsLines, readBarState } from './src/core/bar-corrections.js';

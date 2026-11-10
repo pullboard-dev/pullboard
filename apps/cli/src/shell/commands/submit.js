@@ -106,7 +106,7 @@ import { prepareItemPatchSubmit } from '../../../../../packages/items/index.js';
 import { withItemPatchSubmit } from '../../../../../packages/items/index.js';
 import { normalizeItemPatch } from '../../../../../packages/items/index.js';
 import { validateItemPatchInput } from '../../../../../packages/items/index.js';
-import { boundedProofReason } from '../../../../../packages/state/src/core/submission-proof.js';
+import { boundedProofReason } from '../../../../../packages/state/core.js';
 import { completeMoveHandoff } from '../../../../../packages/verify/index.js';
 import {
   barReadySetting,
@@ -1320,7 +1320,7 @@ export async function run(io, { first, values }) {
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
-import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/src/core/submission-size.js';
+import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/core.js';
 
 /**
  * The tooling tree that judged this submit (RFC 0007 SC7, SC8), recorded so review and landing reuse its receipt only

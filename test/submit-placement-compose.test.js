@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { readPlan, writePlan, placePath } from '../bin/cells-plan.js';
-import { planRowChange } from '../src/plan-row-change.js';
+import { planRowChange } from '../packages/commits/core.js';
 import { requirePlannedSource } from '../packages/items/index.js';
 import { plannedProject } from './placement-project.fixture.js';
 import { success } from './placement-project.fixture.js';

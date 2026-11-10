@@ -2,7 +2,7 @@
   "version": 1,
   "metric": "fileSize",
   "allowances": {
-    "bin/run-tests.js": 980,
+    "packages/gate/src/shell/run-tests.js": 980,
     "CHANGELOG.md": 344,
     "docs/api.md": 329,
     "docs/demo/index.html": 3726,
@@ -30,7 +30,6 @@
     "src/land.js": 973,
     "src/landing-shards.js": 192,
     "src/machine.js": 169,
-    "src/module-imports.js": 51,
     "src/move-history/152.json": 4,
     "src/move-history/153.json": 9,
     "src/move-history/154.json": 14,

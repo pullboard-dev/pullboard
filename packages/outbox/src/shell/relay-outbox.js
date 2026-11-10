@@ -1,4 +1,4 @@
-import { operationIntent } from '../../../state/src/core/relay-sender-policy.js';
+import { operationIntent } from '../../../state/index.js';
 /**
  * The ordered outbox (#922): board moves made on an accepted relay link while the relay is unavailable, sealed on
  * this machine with the board as the relay last ordered it, until they replay in relay order.
@@ -42,7 +42,7 @@ import {
 import {
   seal,
   unseal,
-} from '../../../kernel/src/core/seal.js';
+} from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';

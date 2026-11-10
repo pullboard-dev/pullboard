@@ -4,6 +4,7 @@
  "kind": "app",
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
+ "lightFrontDoor": "apps/cli/core.js",
  "paths": [
   ["src/empty-submit.js","apps/cli/src/shell/empty-submit.js","rule"],
   ["src/runner-loss-health.js","apps/cli/src/core/runner-loss-health.js","rule"],
@@ -281,7 +282,6 @@
   ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"]
  ],
  "reexports": [
-  "src/cli-presence.js",
   "src/cli-read-context.js",
   "src/commands/index.js",
   "src/help.js",
