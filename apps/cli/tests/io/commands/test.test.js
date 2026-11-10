@@ -69,7 +69,7 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   const refused = spawnSync('pullboard', ['init'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /pullboard is not installed/);
-  assert.match(refused.stderr, /test-runner\.test\.js/);
+  assert.match(refused.stderr, /apps\/cli\/tests\/io\/commands\/test\.test\.js/);
 
   const fixtureShims = join(root, 'fixture-bin');
   mkdirSync(fixtureShims);
