@@ -43,7 +43,7 @@ function actors(box) {
   try {
     store.register(board, { lane: 'coordinator', path: box.repo, parent: 'mixed-mode-fixture-reviewer' });
     store.register(board, { lane: 'web', path: box.web, parent: 'mixed-mode-fixture-local' });
-    store.register(board, { lane: 'web', path: box.runner, parent: 'mixed-mode-fixture-runner' });
+    store.register(board, { lane: 'web', path: box.runner, route: 'mid', parent: 'mixed-mode-fixture-runner' });
   } finally { store.closeBoard(board); }
 }
 
