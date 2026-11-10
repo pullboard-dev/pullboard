@@ -241,7 +241,7 @@ test('(c) with lane core, a door addition and the shim deletion proceed; a plan 
   const shard = read(other, 'packages/codemap/data/plan/02-stats.json'), index = read(other, 'packages/codemap/data/plan/cells.json');
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats'], { cwd: other.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/02-stats\.json \(view lane\), outside the core lane/u);
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites packages\/codemap\/data\/plan\/02-stats\.json \(view lane\), outside the core lane/u);
   assert.equal(existsSync(join(other.root, 'src/stats.js')), true);
   assert.equal(read(other, 'packages/codemap/data/plan/02-stats.json'), shard, 'the view-owned shard is never written');
   assert.equal(read(other, 'packages/codemap/data/plan/cells.json'), index);
