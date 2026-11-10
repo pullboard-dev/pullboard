@@ -21,7 +21,7 @@ test('the green-baseline warning names a check that runs the new test file [V2,C
   const named = [];
   sayCheckBaseline({ say: (line) => named.push(line) }, provesNothing({ item_check: 'node packages/gate/src/io/run/tests.js', item_check_baseline: { result: 'green', main: 'a'.repeat(40), command: 'node packages/gate/src/io/run/tests.js' },
     item_criterion: 'Tests in test/cart-total.test.js pass; the first fails before the change.' }));
-  assert.match(named.join('\n'), /--check "node bin\/run-tests\.js test\/cart-total\.test\.js"/u, 'the named test file and the project runner are used');
+  assert.match(named.join('\n'), /--check "node packages\/gate\/src\/io\/run\/tests\.js test\/cart-total\.test\.js"/u, 'the named test file and the project runner are used');
 });
 
 test('a held item leaves the agent one step it can take itself [V2,C7]', (t) => {

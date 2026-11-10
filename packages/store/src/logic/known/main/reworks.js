@@ -5,7 +5,7 @@ import { Refused } from "../../../../../kernel/light.js";
 /** A repair is still open until its accepted source lands; a broad spec-row match grants nothing. */
 function covers(item, file, exclude) {
   if (item.item_id === exclude || !['open', 'claimed', 'submitted', 'verified'].includes(item.item_status)
-    || item.item_merged_commit || !/^main red\s*:/iu.test(item.item_title)) return false;
+    || item.item_merged_commit || !/^(?:main red|red cluster)\s*:/iu.test(item.item_title)) return false;
   let check = item.item_check;
   if (item.item_frozen) {
     try { check = JSON.parse(item.item_frozen).check ?? ''; }

@@ -185,7 +185,7 @@ test('the daily allowance is unmeasured until its first full-day fact, and a mea
 test('the gate checks committed allowance changes without consulting live machine counts [C7]', t => {
   assert.deepEqual(committedBoardHoldBaselineProblems(join(import.meta.dirname, '../../../..')), []);
   const box = cellProject(t), file = join(box.repo, 'packages/store/src/io/board/hold/baseline.json');
-  mkdirSync(join(box.repo, 'packages/store/src/shell'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/store/src/io/board/hold'), { recursive: true });
   const baseline = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   writeFileSync(file, JSON.stringify(baseline));
   box.git(box.repo, 'add', 'packages/store/src/io/board/hold/baseline.json');
