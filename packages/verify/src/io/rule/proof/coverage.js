@@ -4,6 +4,11 @@ import { readFileSync } from 'node:fs';
 import { tryGit } from '../../../../../git/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
+/**
+ * SHA-256 of the canonical runner launcher, packages/gate/src/io/run/tests.js. Gate sits above verify, so verify names the
+ * launcher's bytes by digest instead of reading the file; a gate test fails when the launcher changes without this value [C7].
+ */
+const CANONICAL_RUNNER_DIGEST = 'b2c8e39d4baafa0252dc4606e9ec03005ce405559df2ad57673d0dd7eb65010e';
 
 /** Bind cached interpretation to installed parser and canonical runner bytes, independent of reader runtime. */
 export function proofCoverageFingerprint() {
@@ -11,7 +16,7 @@ export function proofCoverageFingerprint() {
   // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
   hash.update('./coverage.js').update(readFileSync(new URL('./coverage.js', import.meta.url)));
   hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../../kernel/src/logic/words.js', import.meta.url)));
-  hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url)));
+  hash.update('../bin/run-tests.js').update(CANONICAL_RUNNER_DIGEST);
   return hash.digest('hex');
 }
 
@@ -71,7 +76,7 @@ function includedFiles(root, commit, command, tracked, depth = 0, context = {}) 
   if (words[1] === '--test') return selectedFiles(words.slice(2), tracked, false);
   if (words[1]?.replace(/^\.\//u, '') === 'packages/gate/src/io/run/tests.js' && tracked.has('packages/gate/src/io/run/tests.js')) {
     const source = tryGit(root, ['show', `${commit}:packages/gate/src/io/run/tests.js`]);
-    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../../../../../gate/src/io/run/tests.js', import.meta.url), 'utf8')) return [];
+    if (source.status !== 0 || createHash('sha256').update(source.stdout).digest('hex') !== CANONICAL_RUNNER_DIGEST) return [];
     return selectedFiles(words.slice(2), tracked, true);
   }
   return [];
