@@ -129,7 +129,7 @@ function makeFixture(t) {
   /** Run the whole suite through the real runner; return its status, output and the files that ran. */
   const run = (files = []) => {
     writeFileSync(capture, '');
-    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...files], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
+    const result = runFixtureChild(process.execPath, ['packages/gate/src/io/run/tests.js', ...(files.length ? files : ['--all'])], { cwd: root, env, encoding: 'utf8', timeout: 25_000 });
     const ran = readFileSync(capture, 'utf8').trim().split('\n').filter(Boolean).sort();
     return { status: result.status, output: `${result.stdout}\n${result.stderr}`, ran, context: result.context };
   };
