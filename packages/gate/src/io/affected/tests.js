@@ -23,7 +23,9 @@ import {
   globPattern,
   headerLines,
   importsIn,
+  mainCommit,
 } from '../../../../codemap/index.js';
+import { newPackageCliReach } from '../../logic/reach.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -357,6 +359,20 @@ export function testClosures(root, commit = 'HEAD') {
 /** Expose the same commit-pinned import graph for read-only code-map observations, never a new selector. */
 export function codeMapGraph(root, commit = 'HEAD', prior = null, probe = null) {
   return graphAt(root, commit, [], prior, probe);
+}
+
+/**
+ * One refusal row per package module that reaches a CLI front door in the selection graph at HEAD but not at accepted main.
+ * Such reach puts the whole CLI in every closure through that module, so cell-lints refuses it [C7].
+ *
+ * @param {string} root
+ * @returns {string[]} Empty when main is unknown (nothing can rise) or no module newly reaches the CLI.
+ */
+export function cliReachRows(root) {
+  const main = mainCommit(root);
+  if (!main) return [];
+  return newPackageCliReach(codeMapGraph(root, main), codeMapGraph(root, 'HEAD')).map(({ module, path }) =>
+    `cliReach:${module}: reaches ${path.at(-1)} through ${path.join(' -> ')}, which it did not on main ${main.slice(0, 12)}; next: pass the CLI-side entry point in as a parameter or move the shared piece down into a package`);
 }
 
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */

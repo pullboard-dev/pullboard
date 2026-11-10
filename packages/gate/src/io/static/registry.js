@@ -17,6 +17,7 @@ import { fixtureProblems } from '../test/fixtures.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
 import { STATIC_CHECKS } from '../../../index.js';
+import { cliReachRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
 
 /**
@@ -109,7 +110,7 @@ function commandFailures(root, args) {
  */
 export const STATIC_STAGE_CHECKS = Object.freeze([
   { name: 'cells', run: root => commandFailures(root, ['packages/codemap/src/io/cells/scripts/plan.js', '--check']) },
-  { name: 'cell-lints', run: root => commandFailures(root, ['packages/codemap/src/io/cell/scripts/lints.js', '--check', root]) },
+  { name: 'cell-lints', run: root => [...commandFailures(root, ['packages/codemap/src/io/cell/scripts/lints.js', '--check', root]), ...cliReachRows(root)] },
   { name: 'spec-ids', run: root => commandFailures(root, ['apps/cli/pullboard.js', 'spec', 'check']) },
 ]);
 

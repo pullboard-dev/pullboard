@@ -5,8 +5,8 @@ export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTri
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
-export { testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
-export { CLI_FRONT_DOORS, packageCliReach, newPackageCliReach } from "./src/logic/reach.js";
+export { testClosures, codeMapGraph, cliReachRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
+export { CLI_FRONT_DOORS, packageCliReach } from "./src/logic/reach.js";
 export { packageBranchCoverage } from "./src/io/coverage.js";
 export { resolveExecutable, checkNeedsBrowser, explicitCheckFiles, testsNeedBrowser, browserBoundFiles, literalShellWords, BROWSER_MARKER } from "./src/io/browser/admission.js";
 export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserSlotGuard, BROWSER_SLOT_ENV } from "./src/io/browser/guard.js";
@@ -38,7 +38,7 @@ export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, sa
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/io/main/audit/worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
-export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
+export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/logic/budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";

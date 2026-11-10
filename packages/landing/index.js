@@ -34,7 +34,6 @@ export { inProcessLandingBatch, landingProgress } from "./src/io/in/process.js";
 export * from "./src/io/prune.js";
 export * from "./src/io/main/matches.js";
 export * from "./src/io/main/red.js";
-export { cellsBacklogCollector } from "./src/io/main/backlog.js";
 export * from "./src/io/main/red/receipt.js";
 export * from "./src/io/main/red/passing.js";
 export * from "./src/io/queue.js";
