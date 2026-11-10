@@ -7,7 +7,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 import { CAUSE_ENGINE } from "../../../../../src/engine-metadata.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { IMPLIES_ENGINE } from "../../../../../src/move-engine-constants.js";
-import { carriesImplies } from "../../../../state/src/core/move-implies.js";
+import { carriesImplies } from "../../../../state/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 import { BAR_CHECK_ENGINE } from "../../../../state/core.js";
 

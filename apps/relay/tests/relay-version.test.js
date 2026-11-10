@@ -7,11 +7,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createRelayAuth } from '../../../apps/relay/index.js';
-import { createGitHubClient } from '../../../apps/relay/index.js';
-import { serveRelay } from '../../../apps/relay/index.js';
+import { createRelayAuth } from '../index.js';
+import { createGitHubClient } from '../index.js';
+import { serveRelay } from '../index.js';
 import { githubFixture } from '../../../test/relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../index.js';
+import { VERIFIER_STANDING_ENGINE } from '../../../packages/state/index.js';
 
 const A = 'a'.repeat(32); // no board credential has ever existed
 const B = 'b'.repeat(32); // historical board credential, even after revocation
