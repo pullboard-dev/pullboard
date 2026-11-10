@@ -213,7 +213,7 @@ test('submit still refuses a genuinely new cut after an importer relocation [C7,
   const box = await plannedFixture(t);
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
-    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/logic\/refused\.js -> src\/stats-flow\.js/u,
+    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/core\/refused\.js -> src\/stats-flow\.js/u,
     'a rename cannot lend an old allowance to a new dependency');
 });
 
@@ -328,7 +328,7 @@ test('a newly reachable unchanged module reuses its cold census observation [C7,
 test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
   const { root } = fixture(t), calls = bindingCompilerCalls(t);
   // The checker's identity is the bytes of its code files (#2601), so the key names real files of this tool.
-  const tool = path => fileURLToPath(new URL(`../../tests/io/submit/${path}`, import.meta.url));
+  const tool = path => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
   const key = { code: [tool('packages/codemap/src/io/cells/scripts/cache.js')], config: { acceptedMain: 'main', preloads: [] } };
   const cache = observationCache(root, key, () => true), modules = bindingModules();
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
