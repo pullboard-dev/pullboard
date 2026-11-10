@@ -3,13 +3,20 @@ import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 import { test } from 'node:test';
 import { checkCuts } from '../../../bin/cells-plan-cuts.js';
-import { computePlan } from '../../../bin/cells-plan.js';
-import { writePlan } from '../../../bin/cells-plan.js';
+import { computePlan as modelComputePlan } from '../../codemap/index.js';
+import { writePlan as modelWritePlan } from '../../codemap/index.js';
+import { readPathMap } from '../../codemap/index.js';
+import { tryGit } from '../../git/index.js';
 import { cellInventory } from '../../codemap/index.js';
 import { importsIn } from '../index.js';
 import { commonJsIn } from '../index.js';
 import { fixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
+
+/** Compute the plan with the plain Git reader; a fixture repository needs no snapshot-aware reads. */
+const computePlan = root => modelComputePlan(root, { tryGit });
+/** Write the plan with the plain path-map and Git readers. */
+const writePlan = (root, plan) => modelWritePlan(root, plan, { readPathMap, tryGit });
 
 const LOADER = '/** @pullboard-module-loads src/stats*.js */\nexport class Refused extends Error {}\nexport const load = name => import(name);\n';
 
