@@ -21,7 +21,7 @@ import { readPlan } from '../../../../codemap/index.js';
 import { writePlan } from '../../../../codemap/index.js';
 import { requireSubmitCells } from '../../../../../apps/cli/index.js';
 import { touchedCells } from '../../../../../apps/cli/index.js';
-import { cellsAuditBacklog } from '../../../../codemap/src/io/cells/backlog.js';
+import { cellsAuditBacklog } from '../../../src/io/main/backlog.js';
 import { inventoryBuildCount } from '../../../../codemap/index.js';
 import { validateAcceptedInventory } from '../../../../codemap/index.js';
 import { commonJsIn } from '../../../../gate/index.js';

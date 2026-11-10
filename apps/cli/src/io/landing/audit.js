@@ -18,7 +18,7 @@ import {
 import { produceAcceptedCells } from '../../../../lib/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { isAbsolute } from 'node:path';
-import { cellsBacklogCollector } from '../../../../../packages/codemap/src/io/cells/backlog.js';
+import { cellsBacklogCollector } from '../../../../../packages/landing/index.js';
 import { boardCommandBudgetCheck } from '../../../../../packages/gate/src/io/board/budget.js';
 
 const [root, token, ...args] = process.argv.slice(2);
