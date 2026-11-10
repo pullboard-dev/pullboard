@@ -49,7 +49,7 @@ const {
 function addDiagnosedLight(box, ...args) {
   const route = args.indexOf('--route');
   assert.equal(args[route + 1], 'light');
-  const brief = args[args.indexOf('--brief') + 1];
+  const brief = args.includes('--brief-file') ? readFileSync(args[args.indexOf('--brief-file') + 1], 'utf8') : args[args.indexOf('--brief') + 1];
   args[route + 1] = 'mid';
   const added = fixtureAdd(box.run, box.repo, ...args);
   assert.equal(added.code, 0, added.err || added.out);
@@ -64,11 +64,11 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   const box = project();
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
-  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
+  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
   assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
-  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
+  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
+  const added = addDiagnosedLight(box, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
   assert.equal(added.code, 0, added.err);
   assert.match(added.out, /\nnext: pullboard next --wait 1\n$/u);
   assert.equal(added.out.replace(/next: pullboard next --wait 1\n$/u, '').trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
@@ -111,7 +111,7 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   assert.match(box.run(light, 'run', '--agent-mid', `sh ${agent}`).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
   const ran = box.run(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
