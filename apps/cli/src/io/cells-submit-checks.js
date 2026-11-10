@@ -1,16 +1,16 @@
 import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/index.js';
-import { withCellGitObjects } from '../../../../packages/codemap/src/io/cells/git.js';
-import { cellsObjectSnapshots } from '../../../../packages/codemap/src/io/cells/snapshots.js';
+import { withCellGitObjects } from '../../../../packages/codemap/index.js';
+import { cellsObjectSnapshots } from '../../../../packages/codemap/index.js';
 import { withCellSourceSnapshots } from '../../../../packages/codemap/index.js';
 import { shimCountProblems } from '../../../../packages/codemap/light.js';
 import { shimImportProblems } from '../../../../packages/codemap/index.js';
 import { withCellLintParser } from '../../../../packages/codemap/index.js';
-import { cellsCacheDirectory } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
-import { inventoryCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
-import { observationCache } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { cellsCacheDirectory } from '../../../../packages/codemap/index.js';
+import { inventoryCache } from '../../../../packages/codemap/index.js';
+import { observationCache } from '../../../../packages/codemap/index.js';
 import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
 import { readAcceptedCells } from '../../../../packages/gate/index.js';
-import { inventoryPending } from '../../../../packages/codemap/src/io/cells/scripts/cache.js';
+import { inventoryPending } from '../../../../packages/codemap/index.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { cellExistsSync as existsSync } from '../../../../packages/codemap/index.js';
@@ -22,8 +22,8 @@ import { checkReceiptKey } from '../../../../packages/git/index.js';
 import { readCheckReceipt } from '../../../../packages/git/index.js';
 import { writeCheckReceipt } from '../../../../packages/git/index.js';
 import { receiptDigest } from '../../../../packages/git/index.js';
-import { git } from '../../../../packages/codemap/src/io/cells/git.js';
-import { tryGit } from '../../../../packages/codemap/src/io/cells/git.js';
+import { cellGit as git } from '../../../../packages/codemap/index.js';
+import { cellTryGit as tryGit } from '../../../../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { cellInventory } from '../../../../packages/codemap/index.js';
@@ -32,25 +32,25 @@ import { cellLintGrowth } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { cellReadPathMap as readPathMap } from '../../../../packages/codemap/index.js';
 import { mappedPath } from '../../../../packages/codemap/index.js';
-import { checkCuts } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
-import { entryPlacementProblems } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
+import { checkCuts } from '../../../../packages/codemap/index.js';
+import { entryPlacementProblems } from '../../../../packages/codemap/index.js';
 import { processEntry } from '../../../../packages/codemap/index.js';
 import { cutTitle } from '../../../../packages/codemap/index.js';
 import {
   frontDoorBypasses,
   onlyForwards,
   withDeclaredLoads,
-} from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
-import { checkMoved } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
-import { lightFrontDoorProblems } from '../../../../packages/codemap/src/io/cells/door.js';
-import { pureDoorProblems } from '../../../../packages/codemap/src/io/cells/door.js';
-import { pureFrontDoorProblems } from '../../../../packages/codemap/src/io/cells/door.js';
+} from '../../../../packages/codemap/index.js';
+import { checkMoved } from '../../../../packages/codemap/index.js';
+import { lightFrontDoorProblems } from '../../../../packages/codemap/index.js';
+import { pureDoorProblems } from '../../../../packages/codemap/index.js';
+import { pureFrontDoorProblems } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
 import { shardFile } from '../../../../packages/codemap/index.js';
-import { unplanned } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
-import { stalePlanRows } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+import { unplanned } from '../../../../packages/codemap/index.js';
+import { stalePlanRows } from '../../../../packages/codemap/index.js';
 import { engineStayTransition } from '../../../../packages/codemap/index.js';
-import { scriptMentions } from '../../../../packages/codemap/src/io/cells/shims.js';
+import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
 import { cellsReorgReason } from './cells-reorg.js';
@@ -561,7 +561,7 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const expectedInventory = acceptedCellsIdentity(root, acceptedMain, { pinned: true });
   if (['tree', 'checker', 'preloads'].some(name => artifact.descriptor?.[name] !== expectedInventory[name])) throw inventoryPending('accepted inventory identity differs from the actual main checker', acceptedMain);
   const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads,
-    { acceptedMain, artifact, artifacts: services.acceptedArtifacts, strict: true });
+    { acceptedMain, artifact, artifacts: services.acceptedArtifacts, readAccepted: readAcceptedCells, strict: true });
   const observations = observationCache(root, receiptKey, samePreloads);
   for (const [id, row] of artifact.observations ?? []) if (!observations.values.has(id)) observations.values.set(id, row);
   commit = cellsComposition(root, acceptedMain, source);
