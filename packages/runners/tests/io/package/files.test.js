@@ -431,7 +431,7 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   mkdirSync(project);
   writeFileSync(join(project, 'README.md'), 'Private committed source.\n');
-  writeFileSync(join(installed, 'src/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
+  writeFileSync(join(installed, 'apps/runner/src/io/scripts/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
   const worker = join(installed, 'apps/runner/src/io/scripts/worker.js');
   writeFileSync(worker, readFileSync(worker, 'utf8') + '\nimport "./[literal]*.js";\n');
   for (const root of [installed, project]) {
