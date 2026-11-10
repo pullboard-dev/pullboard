@@ -18,7 +18,7 @@ import { ENFORCED_FILE } from '../../src/io/static/view.js';
 import { enforcedRoots } from '../../src/io/static/view.js';
 import { viewPureGate } from '../../src/io/static/view.js';
 import { viewPureReport } from '../../src/io/static/view.js';
-import { viewTestProblems } from '../../../view/index.js';
+import { viewTestProblems } from '../../../view/light.js';
 
 const REPO = resolve(import.meta.dirname, '../../../..');
 const GOOD = 'test/cockpit/good.test.js', BAD = 'test/cockpit/bad.test.js', RENDER = 'src/view/example.js';
