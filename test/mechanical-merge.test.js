@@ -153,6 +153,8 @@ function boardFixture() {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('docs/', 'test/');
+  // The board's model table determines fixture seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
