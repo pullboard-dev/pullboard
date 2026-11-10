@@ -2182,6 +2182,10 @@
     "store->items",
     "store->resources",
     "store->git",
-    "github->items"
+    "github->items",
+    "link->kernel",
+    "apps/relay->link",
+    "apps/relay->apps/lib",
+    "apps/relay->outbox"
   ]
 }

@@ -2,13 +2,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { Readable, Transform } from 'node:stream';
+import { Readable } from 'node:stream';
+import { Transform } from 'node:stream';
 import { once } from 'node:events';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { createAuthHandler, createRelayAuth, createRelayHandler, createGitHubClient } from '../apps/relay/index.js';
-import { githubFixture } from './relay-fixture.js';
-import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';
+import { createAuthHandler } from '../../index.js';
+import { createRelayAuth } from '../../index.js';
+import { createRelayHandler } from '../../index.js';
+import { createGitHubClient } from '../../index.js';
+import { githubFixture } from '../../../../test/relay-fixture.js';
+import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
 
 /**
  * Start an authorized loopback relay with no CLI process. The caller owns the scratch folder (the relay keeps its journals and auth database there) and passes it in; it passes
