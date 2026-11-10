@@ -1,7 +1,0 @@
-{
-  "src/activity-delivery-cli.js": "packages/activity/src/shell/activity-delivery-cli.js",
-  "src/activity-delivery-read.js": "packages/activity/src/core/activity-delivery-read.js",
-  "src/activity-delivery.js": "packages/activity/src/core/activity-delivery.js",
-  "src/activity-inbox.js": "packages/activity/src/shell/activity-inbox.js",
-  "src/inbox-budget.js": "packages/activity/src/core/inbox-budget.js"
-}

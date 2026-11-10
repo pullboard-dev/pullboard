@@ -315,7 +315,7 @@ const hostedState = (function hostedState(state, facts = {}) {
         lead: agent, help: opening },
     'no-linked': share,
     // The account shares boards this browser holds no key for. Running the command alone never opens them here: a
-    // browser enrolls only from the pairing link the command prints (relay/browser-devices.js enrollPhone), so the
+    // browser enrolls only from the pairing link the command prints (apps/relay/src/io/deploy/browser-devices.js enrollPhone), so the
     // screen says to open that link or scan its QR, as the screen before it did.
     'unpaired': { ...share, text: 'On the computer with your projects, open a terminal and run this, then open the link it prints here or scan its QR:', ask: opening,
       small: 'Your account shares ' + (shared.join(', ') || 'your boards') + '. This browser opens ' + (shared.length === 1 ? 'it' : 'them') + ' from that link.' },

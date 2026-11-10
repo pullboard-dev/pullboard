@@ -1,0 +1,5 @@
+{
+  "src/index.js": "apps/lib/src/logic/index.js",
+  "src/native-board.js": "apps/lib/src/logic/native.js",
+  "src/relay-checkpoint-worker.js": "apps/lib/src/io/worker/checkpoint/relay.js"
+}

@@ -1,14 +1,14 @@
-/** @pullboard-test-loads src/commands/resume.js */
-/** @pullboard-test-loads src/commands/takeover.js */
+/** @pullboard-test-loads apps/cli/src/io/commands/resume.js */
+/** @pullboard-test-loads apps/cli/src/io/commands/takeover.js */
 /** The coordinator guide follows real board output rather than a session transcript [B3,N19]. */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { createE2eHelpers } from '../test/e2e-helpers.js';
-import { runFixtureChild } from '../test/fixture-child.js';
+import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
+import { runFixtureChild } from '../apps/cli/tests/fixtures/child.js';
 
 /** Require the real fixture CLI to succeed before interpreting its output. */
 function command(box, cwd, ...args) {

@@ -82,7 +82,7 @@ export function narrationDurations(scenes, cues, audioSeconds) {
 function pullboardStats() {
   const commonDir = command('git', ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const mainRoot = dirname(commonDir);
-  const bin = join(mainRoot, 'bin', 'pullboard.js');
+  const bin = join(mainRoot, 'apps', 'cli', 'pullboard.js');
   const document = JSON.parse(command(process.execPath, [bin, 'stats', '--json'], mainRoot));
   if (document.version !== 1 || !document.stats || !Number.isSafeInteger(document.stats.submissions)) {
     throw new Error('pullboard stats returned an unexpected versioned document.');
