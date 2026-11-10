@@ -54,11 +54,11 @@ test('a batch that breaks an unaffected test files exactly one Main red naming t
   const result = await box.land('b2', [11, 12], [{ file: 'apps/cli/journeys/health/main.test.js', name: 'footer renders' }]);
   assert.equal(box.added.length, 1);
   const [item] = box.added;
-  assert.match(item.title, /health\.test\.js/u);
+  assert.match(item.title, /health\/main\.test\.js/u);
   assert.match(item.criterion, /b2/u);
   assert.match(item.criterion, /#11, #12/u);
   assert.match(item.criterion, /footer renders/u);
-  assert.match(item.check, /health\.test\.js/u);
+  assert.match(item.check, /health\/main\.test\.js/u);
   assert.equal(item.lane, 'core');
   assert.equal(result.filed.length, 1);
 });
