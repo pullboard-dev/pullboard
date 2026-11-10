@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -31,6 +33,7 @@ import {
 import { personNeeds } from '../../../../packages/spec/index.js';
 import { personNeedsState } from '../../../view/index.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = `# MCP fixture
@@ -79,7 +82,16 @@ function shellWord(value) {
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(async () => {
+    const jobs = join(dir, 'repo', '.git', 'pullboard', 'submit-handoffs');
+    await createE2eHelpers().waitFor(() => !existsSync(jobs) || readdirSync(jobs).every(job => {
+      const request = join(jobs, job, 'request.json');
+      let tools = null;
+      try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { return false; }
+      return !existsSync(join(jobs, job, 'source')) && (!tools || !existsSync(tools));
+    }), 'MCP fixture submit worker cleanup');
+    rmSync(dir, { recursive: true, force: true });
+  });
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
