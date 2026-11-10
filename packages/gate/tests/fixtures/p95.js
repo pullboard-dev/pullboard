@@ -62,6 +62,11 @@ export async function measureFileInflation(t, mode) {
   assert.equal(git.status, 0, git.failure);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ testConcurrency: { files: 8, browser: 1 } }));
+  // The runner reads its policy from the committed HEAD, so the fixture needs one commit.
+  for (const args of [['add', 'package.json', 'pullboard.json'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture']]) {
+    const step = runFixtureChild('git', args, { cwd: root });
+    assert.equal(step.status, 0, step.failure);
+  }
   const machine = join(root, '.machine');
   mkdirSync(machine);
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 4, browserSlots: 1,
