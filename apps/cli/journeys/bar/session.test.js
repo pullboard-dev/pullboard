@@ -15,6 +15,9 @@ import { performance } from 'node:perf_hooks';
 import { runFixtureChild } from "../../tests/fixtures/child.js";
 import { join } from 'node:path';
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import * as store from "../../../../packages/store/index.js";
 import { openBoard } from "../../../lib/index.js";
 import { parentSessionDigest } from "../../../../packages/items/index.js";
@@ -38,6 +41,13 @@ function setup(wholeCoverage = false) {
   const sandbox=fixtures.sandbox();delete sandbox.env.NODE_TEST_CONTEXT;
   sandbox.env.PULLBOARD_MODEL='Private fixture';
   const box=fixtures.project('true',sandbox);
+  const bin=join(box.dir,'baseline-bin'), worker=join(box.dir,'baseline-worker'), home=join(box.dir,'baseline-home');
+  const machine=box.env.PULLBOARD_MACHINE_HOME;
+  for (const path of [bin,worker,home,join(home,'.pullboard'),machine]) mkdirSync(path,{recursive:true});
+  installSshStandIn({bin,worker,home,machineHome:join(home,'.pullboard'),requests:join(box.dir,'baseline-ssh.jsonl'),nodeCommand:process.execPath});
+  box.env.PATH=`${bin}:${box.env.PATH}`;
+  fixtureMachineSettings(machine,{gateSlots:0,browserSlots:0,gate:{browserFreeChecks:true,timingRunner:false},
+    runners:[{host:HOST,slots:1,browser:0,node:process.execPath,root:join(home,'.pullboard-runner')}]});
   succeeds(act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
   writeFileSync(join(box.repo,'test/witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
