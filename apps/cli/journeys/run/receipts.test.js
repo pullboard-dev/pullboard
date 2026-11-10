@@ -119,7 +119,7 @@ test('a direct full suite records one durable source-bound run, including a comp
   const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.deepEqual(nativeFlakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
   finally { store.closeBoard(board); }
-  const filtered = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--test-skip-pattern=first'],
+  const filtered = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--test-skip-pattern=first', 'test/one.test.js', 'test/two.test.js'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(filtered.status, 0, filtered.stderr + filtered.stdout);
   const frame = filtered.stdout.split('\n').find(line => line.startsWith(SUITE_TIMING_PREFIX));
