@@ -9,6 +9,7 @@ import {
 } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import {
   join,
@@ -29,7 +30,6 @@ function readyLanding(t, rerun) {
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
   box.git('push', '-q', '-u', 'origin', 'main');
-  const base = box.git('rev-parse', 'HEAD').trim();
   const id = checkedItem(box);
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
@@ -42,6 +42,12 @@ function readyLanding(t, rerun) {
   reviewer.git('checkout', '-q', '--detach', head);
   const accepted = reviewer.cli('verify', String(id), 'accept', '--note', 'Private fixture: its exact controlled check passed before the external failure was armed.');
   assert.equal(accepted.code, 0, JSON.stringify(accepted.document));
+  // Change the checked input on main so landing measures the merged tree instead of reusing the submit proof.
+  appendFileSync(join(box.root, 'test/alternating.test.mjs'), '\n// Advance the checked input on main.\n');
+  box.git('add', 'test/alternating.test.mjs');
+  box.git('commit', '-q', '-m', 'test: advance controlled landing input');
+  box.git('push', '-q', 'origin', 'main');
+  const base = box.git('rev-parse', 'HEAD').trim();
   writeFileSync(box.counter, '');
   writeFileSync(box.counter + '.mode', 'paired');
   return { ...box, remote, base, id };
