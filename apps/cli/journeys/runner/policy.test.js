@@ -60,7 +60,7 @@ function fixture(t) {
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
-import { mainPolicy } from '../../../../packages/sandbox/index.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 test('nested shard uses carried admitted policy [C7,V4]', () => {
   const policy = mainPolicy(process.cwd());
   assert.equal(policy.config.gate, 'admitted policy gate');

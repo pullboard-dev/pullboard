@@ -250,7 +250,10 @@ test('#4073 clause 1: a running hand-off resumes only while its item is claimed 
     assert.equal(resumed.started, false);
     assert.equal(resumed.job.state, 'running');
     // The claim moves on: the item is released while its gate runs; the next driver must not resume the old gate.
-    board.db.prepare("UPDATE item SET item_status = 'open', item_owner = NULL WHERE item_id = ?").run(id); // fixture-subject: the item left its claim
+    // The status guard admits a write only inside a move, so the fixture opens the same window moveItem does.
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try { board.db.prepare("UPDATE item SET item_status = 'open', item_owner = NULL WHERE item_id = ?").run(id); } // fixture-subject: the item left its claim
+    finally { board.db.exec('DELETE FROM temp.moving'); }
     assert.throws(() => store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id }),
       error => error.code === 'SUBMIT_HANDOFF_CHANGED' && /running claim or frozen bar changed/u.test(error.message));
   } finally { board.db.close(); }

@@ -4,6 +4,7 @@
 /** Agent presentation keeps real test evidence in its full log instead of the context [C7,V10]. */
 import assert from 'node:assert/strict';
 import {
+  appendFileSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -75,6 +76,7 @@ function itemProject() {
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.web.owns.push('test/');
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false },
     gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
@@ -149,10 +151,10 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   assert.equal(document.gate.profile.tests, undefined, 'case-level records stay in the full timing profile');
   assert.match(readFileSync(document.gate.logPath, 'utf8'), /passing case 199/u);
   const review = join(box.dir, 'review-output');
-  mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  writeFileSync(join(box.repo, 'docs', 'main-move.txt'), 'advance the fixture trunk after submit\n');
-  box.git(box.repo, 'add', 'docs/main-move.txt');
-  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance fixture trunk');
+  // Advance an actual checked input so the frozen check runs instead of reusing the submit proof.
+  appendFileSync(join(box.repo, 'test/output.test.js'), '\n// Advance the checked input on main.\n');
+  box.git(box.repo, 'add', 'test/output.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: advance checked fixture input');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output', submittedHead);
   const joined = fixtureJoin(box.run, review, 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
