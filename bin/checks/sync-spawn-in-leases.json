@@ -25,7 +25,7 @@
     "packages/gate/src/shell/gui-admission.js": 1,
     "packages/gate/src/shell/main-audit-scheduler.js": 1,
     "packages/gate/src/shell/main-audit-worker.js": 2,
-    "packages/gate/src/shell/module-imports.js": 1,
+    "packages/codemap/src/shell/module-imports.js": 1,
     "packages/gate/src/shell/release-transport.js": 3,
     "packages/gate/src/shell/shell-run.js": 1,
     "packages/gate/src/shell/test-action-cache.js": 1,

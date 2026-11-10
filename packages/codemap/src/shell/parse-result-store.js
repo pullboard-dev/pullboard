@@ -2,7 +2,6 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { userInfo } from 'node:os';
 import { machineHome } from '../../../kernel/index.js';
 
@@ -30,6 +29,8 @@ function openStore() {
   try {
     const directory = storeDirectory();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
+    // Loaded on first use: codemap's door is imported by every check script, and node:sqlite prints a warning when loaded [C7].
+    const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
     const db = new DatabaseSync(join(directory, 'parse-results.sqlite'));
     try {
       db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF; CREATE TABLE IF NOT EXISTS results(key TEXT PRIMARY KEY, body TEXT NOT NULL)');
