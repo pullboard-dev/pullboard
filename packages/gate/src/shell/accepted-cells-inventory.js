@@ -36,7 +36,7 @@ import { withFileLock } from '../../../outbox/index.js';
 import {
   importsIn,
   commonJsIn,
-} from './module-imports.js';
+} from '../../../codemap/index.js';
 import { withImportParseCache } from './module-import-cache.js';
 import { foreignNodeOptions } from './test-isolation.js';
 

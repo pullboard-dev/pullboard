@@ -10,8 +10,8 @@ import { isBuiltin } from 'node:module';
 import { cellInventory } from '../../../codemap/index.js';
 import { withCellSourceSnapshots } from '../../../codemap/index.js';
 import { repositoryImport } from '../../../codemap/index.js';
-import { importsIn } from './module-imports.js';
-import { commonJsIn } from './module-imports.js';
+import { importsIn } from '../../../codemap/index.js';
+import { commonJsIn } from '../../../codemap/index.js';
 import { withImportParseCache } from './module-import-cache.js';
 import { lex } from '../../../kernel/index.js';
 
