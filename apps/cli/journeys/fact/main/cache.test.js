@@ -26,6 +26,13 @@ import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 
+/** Preserve the runner's preload declaration for nested cache eligibility checks. */
+function cacheFixture() {
+  const box = e2e.project();
+  if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
+  return box;
+}
+
 /** Bind the same canonical runtime classifier as the actual higher write orchestrator. */
 const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
 
@@ -63,7 +70,7 @@ function worktreeBytes(root) {
 }
 
 test('two real claims derive main inputs once and preserve HEAD, index and working bytes [B6,V1]', () => {
-  const box = e2e.project();
+  const box = cacheFixture();
   const first = item(box, 'First cached claim');
   const second = item(box, 'Second cached claim');
   mainCriterionFacts(box.web, { cacheEligible });
@@ -96,7 +103,7 @@ test('two real claims derive main inputs once and preserve HEAD, index and worki
 });
 
 test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion provider [B2,B5,C7]', () => {
-  const box = e2e.project();
+  const box = cacheFixture();
   const first = item(box, 'Held claim');
   const second = item(box, 'Refused claim');
   const agent = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;

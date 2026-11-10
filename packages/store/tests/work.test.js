@@ -48,8 +48,13 @@ function focusedBoard(t) {
 
 /** Record a green gate at the item's submitted head, the way the submit queue does. */
 function green(board, id) {
-  const head = store.getItem(board, id).item_commit;
-  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: head, agentId: 'builder', state: 'green' });
+  const item = store.getItem(board, id);
+  const { item_commit: head, item_tree: tree, item_frozen_digest: digest, item_built_by: builder } = item;
+  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: head, executionCommit: head,
+    executionTree: tree, digest, agentId: builder, state: 'green' });
+  store.logEvent(board, builder, 'proof-run', id, { receipt: { id: `proof-${id}`, kind: 'submit', item: id,
+    commit: head, tree, frozenDigest: digest, seat: builder, sourceClean: true, exitCode: 0,
+    counts: { passed: 1, failed: 0, skipped: 0 }, failures: [] } });
 }
 
 test('with focus on and overflow off, next --verify still offers a green submission outside the focus [C7,#2961]', t => {
