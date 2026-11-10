@@ -130,6 +130,7 @@ test('clause 1: on a runners-only coordinator a sharded landing gate runs on a r
   const config = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {};
   writeFileSync(configFile, JSON.stringify({ ...config, landingShards: 2 }, null, 2) + '\n');
   const mark = `import { writeFileSync } from 'node:fs'; if (process.env.HOME === ${JSON.stringify(box.env.HOME)}) writeFileSync(${JSON.stringify(marker)}, 'local');`;
+  mkdirSync(join(box.repo, 'bin'), { recursive: true });
   writeFileSync(join(box.repo, 'bin/gate-probe.js'), `${mark}\nconsole.log('gate-ran-at:' + process.env.HOME);\n`);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: sharded landing gate probe');
