@@ -137,17 +137,17 @@ test('the actual background sentinel scans once, honors off switches and drains 
   const configFile = join(repo, 'pullboard.json'), config = loadConfig(repo);
   const boardFile = join(repo, '.git/pullboard/board.sqlite');
   const expiredClock = { now: () => new Date(Date.now() - 3_600_000 - 60_000) };
-  const board = openBoard(boardFile, expiredClock);
+  const active = openBoard(boardFile);
   const lane = Object.keys(config.lanes)[0];
   const builderPath = join(box.dir, 'sentinel-builder');
   mkdirSync(builderPath);
-  const builder = store.register(board, { lane, path: builderPath });
-  const id = store.addItem(board, { by: 'coordinator', lane, title: 'A real background finding', criterion: 'The private board remains readable.' });
+  const builder = store.register(active, { lane, path: builderPath });
+  const id = store.addItem(active, { by: 'coordinator', lane, title: 'A real background finding', criterion: 'The private board remains readable.' });
+  const board = openBoard(boardFile, expiredClock);
   store.claim(board, id, { agentId: builder, lane, leaseMs: 3_600_000,
     freeze: item => frozenCriterion(loadSpec(repo, config), item, loadDoctrine(repo, config)) });
   store.closeBoard(board);
   // Keep this real seat active after its lease lapses so the scheduled sweep observes rather than releases it.
-  const active = openBoard(boardFile);
   assert.equal(store.heartbeatSeat(active, builder), true);
   store.shout(active, { from: builder, to: 'coordinator', text: 'The fixture builder is active.', lanes: [lane] });
   /** Read the persisted result through the board reader; the worker alone executes the observer move. */
