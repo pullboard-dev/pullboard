@@ -30,6 +30,7 @@ import {
 } from '../../../../packages/kernel/index.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 import { personNeedsState } from '../../../view/index.js';
+import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = `# MCP fixture
@@ -78,8 +79,7 @@ function shellWord(value) {
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
-  // Detached comparison cleanup can still be removing its own files.
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 }));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
@@ -103,7 +103,7 @@ function project(t) {
   /** Run real Git under the fixture's isolated identity. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the real CLI in its own process; extra holds the environment of the shell it runs from. */
-  const run = (cwd, args, extra = {}) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
+  const run = (cwd, args, extra = {}) => runFixtureChild(process.execPath, [BIN, ...fixtureJoinRoute(args)], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
@@ -111,8 +111,7 @@ function project(t) {
   assert.equal(initialized.status, 0, fixtureChildMessage(initialized));
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  // The board's model table determines fixture seat routes since b95e1aa538.
-  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', modelTiers: [{ contains: '-model', route: 'strong' }], lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
+  writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore: set up mcp fixture');
