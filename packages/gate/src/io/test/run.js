@@ -239,7 +239,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
   // A known red needs no main run: "is it red" is enough, and the candidate's own result is the proof [C7].
   const redFiles = !run.isGreen && compareMain && typeof knownRed === 'function' ? [...new Set((typeof failureSignatures === 'function' ? failureSignatures(run, run.executionRoot ?? root) : null)?.map(row => row.file) ?? paths)] : [];
-  const reasons = redFiles.map(knownRed);
+  const reasons = typeof knownRed === 'function' ? redFiles.map(knownRed) : [];
   const knownReds = redFiles.length > 0 && reasons.every(Boolean);
   if (knownReds) result.mainSkipped = reasons[0];
   if (!run.isGreen && !skipMain && !knownReds) {
