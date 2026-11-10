@@ -63,7 +63,7 @@ function fixture({ fixer = false } = {}) {
     'apps/cli/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
       + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
       + 'if (composed !== null) process.exit(composed);\n'
-      + "await import('../api/serve.js');\n"
+      + "await import('../../api/serve.js');\n"
       + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
         + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
