@@ -95,6 +95,8 @@ test('[V2,N26] real Chrome shows matching proof stats at phone width and clears 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats [data-stat=\"submissions\"]')");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats [data-stat="submissions"]')`);
@@ -169,6 +171,8 @@ test('[V2,N26] stats counts agree in number', { timeout: 90_000 }, async () => {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && !!document.querySelector('#proof-stats-summary')`);
@@ -210,6 +214,8 @@ test('the stats card folds from its summary line [N26]', {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary')");
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("view.tab === 'items'");
@@ -322,6 +328,8 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats && document.querySelector('#proof-stats-summary') && document.querySelector('#chain > li')");
     const api = JSON.parse(await chrome.stable('JSON.stringify(data.project.proofStats)'));
     assert.equal(api.flow.bottleneck.stage, 'mergeWait', 'the real measured board has an accepted queue bottleneck');
@@ -415,6 +423,8 @@ test('stats times read in human units [N26,V2]', { timeout: 90_000 }, async (t) 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("!!data?.project?.proofStats?.flow && document.querySelector('#proof-stats-summary')");
     const actual = JSON.parse(await chrome.stable('JSON.stringify([42,213.9,5707.5,null,59.6,1439.6].map(flowMinutes))'));
     assert.deepEqual(actual, ['42 min', '3 h 34 min', '3 d 23 h', 'unmeasured', '1 h 0 min', '1 d 0 h'], 'the actual production formatter rounds fixed inputs, including unit boundaries, without altering the API');
@@ -488,6 +498,8 @@ test('the stats card shows API flow and bottleneck at 375 and 1280 [N26]', { tim
     assert.equal(api.bottleneck.stage, 'reviewWait');
     assert.equal(api.bottleneck.recommendation, 'review the oldest submission first (#4)');
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor('!!data?.project?.proofStats');
     await pickProject(chrome, 'document.querySelector(' + JSON.stringify('[data-root="' + alpha.repo + '"]') + ')');
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-stage=build]")');
@@ -563,6 +575,8 @@ test('an unchanged board does not redraw on refresh [N26,N40]', {
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("!!data?.project");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo) + ' && !!document.querySelector("[data-oldest=open]")');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('#proof-stats-summary')");
