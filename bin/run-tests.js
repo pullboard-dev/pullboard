@@ -1367,7 +1367,7 @@ async function main(args) {
       ]);
       const executionServices = await gateSlotServices();
       const capacity = loadMachineSettings().gateSlots;
-      const { timingSeat } = await import('../src/seat-timing.js');
+      const { timingSeat } = await import('../packages/seats/core.js');
       const seat = timingSeat(process.cwd());
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
@@ -1417,7 +1417,7 @@ async function main(args) {
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // No test run starts on the coordinator unless a runner job started it (#3899).
   (await import('../packages/gate/src/shell/coordinator-test-guard.js')).refuseTestsOnCoordinator({ read: (await import('../packages/config/index.js')).loadMachineSettings });
-  const { beginSeatTiming } = await import('../src/seat-timing.js');
+  const { beginSeatTiming } = await import('../packages/seats/core.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
   let finishWait;
   recordRunnerWait = state => { if (state.admitted) { finishWait?.(); finishWait = null; } else finishWait ??= beginSeatTiming(process.cwd(), 'runner-wait', 'gate slot'); };

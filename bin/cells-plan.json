@@ -680,10 +680,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/seat-timing.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/command-docs/seats.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1969,6 +1965,7 @@
   ],
   "allowedEdges": [
     "(root)->gate",
+    "(root)->seats",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
