@@ -2,7 +2,7 @@
   "version": 1,
   "metric": "fileSize",
   "allowances": {
-    "bin/run-tests.js": 980,
+    "packages/gate/src/shell/run-tests.js": 980,
     "CHANGELOG.md": 344,
     "docs/api.md": 329,
     "docs/demo/index.html": 3726,
