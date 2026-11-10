@@ -187,7 +187,10 @@ test('the cockpit helper starts its view in the foreground [C7,N26]', async t =>
   box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(observer).href}`.trim();
   /** Read only the PIDs and marker observed by this fixture's actual Node children. */
   const observed = () => {
-    try { return readFileSync(receipt, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
+    try { const seen = new Map();
+      // A worker thread inside the view repeats the preload under the same pid, so count processes, not imports.
+      for (const line of readFileSync(receipt, 'utf8').trim().split('\n').filter(Boolean)) { const row = JSON.parse(line); if (!seen.has(row.pid)) seen.set(row.pid, row); }
+      return [...seen.values()]; }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   };
   /** Stop any owned child if a failed assertion interrupted the helper's normal cleanup. */
@@ -355,7 +358,7 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
       && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|events|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
     assert.deepEqual(offPublic, [], 'every page request uses a public v1 path');
     assert.ok(page.requests.some((request) => request.path === '/api/v1/boards'));
-    assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`));
+    assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`), JSON.stringify(page.requests.map((request) => request.path)));
     assert.ok(page.requests.some((request) => request.path.startsWith(`/api/v1/boards/${id}/code?`)));
     assert.ok(moves.every((request) => request.path === `/api/v1/boards/${id}/moves`));
     assert.doesNotMatch(page.html, /['"]\/api\/(?:state|act|code)(?:[?'"])/, 'the served page contains no legacy API calls');
