@@ -27,6 +27,8 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../packages/verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -285,6 +287,14 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     t.diagnostic(JSON.stringify({ host: hostname(), node: process.version, loadSamples: samples }));
   });
   const box = project();
+  // The baseline worker needs a registered runner in this isolated machine home.
+  const runnerBin = join(box.dir, 'runner-bin'), worker = join(box.dir, 'runner-worker');
+  const runnerHome = join(box.dir, 'runner-home'), runnerMachine = join(runnerHome, '.pullboard');
+  for (const folder of [runnerBin, worker, runnerHome, runnerMachine]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin: runnerBin, worker, home: runnerHome, machineHome: runnerMachine,
+    requests: join(box.dir, 'runner-requests.jsonl'), nodeCommand: process.execPath });
+  box.env.PATH = runnerBin + delimiter + box.env.PATH;
+  box.cli(box.root, 'runner', 'add', HOST, '--slots', '1', '--browser', '0');
   const builder = box.cli(box.root, 'worktree', 'app', '--model', 'watch-builder');
   const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
     '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait').item;
