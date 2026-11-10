@@ -23,6 +23,6 @@ test('loading core.js resolves no shell file [C7]', () => {
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', script, CORE], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const seen = JSON.parse(run.stdout.trim().split('\n').pop());
-  assert.ok(seen.some(url => url.endsWith('/src/core/land-why.js')));
-  assert.deepEqual(seen.filter(url => url.includes('/src/shell/')), []);
+  assert.ok(seen.some(url => url.endsWith('/src/logic/land/why.js')));
+  assert.deepEqual(seen.filter(url => url.includes('/src/io/')), []);
 });
