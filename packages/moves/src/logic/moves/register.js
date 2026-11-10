@@ -1,6 +1,6 @@
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by register, discovered without a shared registry edit [C7,V4,H16]. */
-import { VERIFIER_STANDING_ENGINE } from "../../../../state/index.js";
+import { VERIFIER_STANDING_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { familyDeclareFloor } from "../../../../items/light.js";

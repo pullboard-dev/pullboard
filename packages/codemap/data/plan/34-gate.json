@@ -73,8 +73,6 @@
   ["src/test-value.js","packages/gate/src/io/test/value.js","rule"],
   ["src/timed-shell-worker.js","packages/gate/src/io/timed.js","seed"],
   ["src/timing.js","packages/gate/src/io/timing.js","seed"],
-  ["test/check-baseline-delivery.test.js","packages/gate/tests/io/check/baseline/delivery.test.js","seed"],
-  ["test/check.test.js","packages/gate/tests/io/check/baseline.test.js","seed"],
   ["test/cpu-callable-options.test.js","packages/gate/tests/io/admission/cpu/load.test.js","seed"],
   ["test/gate-resource.test.js","packages/gate/tests/io/main/resource.test.js","seed"],
   ["test/gate-timing-output.test.js","packages/gate/tests/io/main/output.test.js","seed"],
