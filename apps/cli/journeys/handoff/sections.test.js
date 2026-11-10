@@ -7,25 +7,25 @@ import { test } from 'node:test';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../cli/tests/fixtures/child.js';
+} from '../../tests/fixtures/child.js';
 import {
   openBoard,
   closeBoard,
-} from '../../../src/logic/native.js';
-import { createJob } from '../../../../../packages/jobs/index.js';
-import { runGateStages } from '../../../../../packages/gate/index.js';
-import { Refused } from '../../../../../packages/kernel/index.js';
+} from '../../../lib/src/logic/native.js';
+import { createJob } from '../../../../packages/jobs/index.js';
+import { runGateStages } from '../../../../packages/gate/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 import {
   driveOnce,
   gateSections,
-} from '../../../../../packages/drive/index.js';
+} from '../../../../packages/drive/index.js';
 import {
   handoffGate,
   drivenHandoffGate,
   handoffRefusedResult,
-} from '../../../../cli/src/io/submit/handoff/worker.js';
+} from '../../src/io/submit/handoff/worker.js';
 
-const SUBMIT_SOURCE = new URL('../../../../cli/src/io/commands/submit.js', import.meta.url);
+const SUBMIT_SOURCE = new URL('../../src/io/commands/submit.js', import.meta.url);
 
 /** The stage names canonical Submit hands its stage runner, in the order its source declares them. */
 function submitStageOrder() {

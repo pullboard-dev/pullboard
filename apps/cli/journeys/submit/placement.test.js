@@ -16,13 +16,13 @@ import { entryPlacementProblems } from '../../../../packages/codemap/src/io/cell
 import { frontDoorBypasses } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
 import { fixture } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
-import { runFixtureChild } from '../../../cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
-import { requireSubmitCells } from '../../../cli/index.js';
-import { landedCutItemRows } from '../../../cli/index.js';
-import { fixtureBoard } from '../../../cli/tests/fixtures/board.js';
+import { requireSubmitCells } from '../../index.js';
+import { landedCutItemRows } from '../../index.js';
+import { fixtureBoard } from '../../tests/fixtures/board.js';
 import { withMainCheckout } from '../../../../packages/landing/index.js';
 import { warmAcceptedCells } from '../../../../packages/gate/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';

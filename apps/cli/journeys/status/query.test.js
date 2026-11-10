@@ -1,7 +1,7 @@
-import { localDependencyIds } from '../../../../../packages/items/index.js';
-import { dependencyLabel } from '../../../../../packages/items/index.js';
-import { itemFileCollisions } from '../../../../../packages/items/index.js';
-import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
+import { localDependencyIds } from '../../../../packages/items/index.js';
+import { dependencyLabel } from '../../../../packages/items/index.js';
+import { itemFileCollisions } from '../../../../packages/items/index.js';
+import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 /** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** Native query capabilities preserve actual cell boundaries and fail closed before storage [C7,CD64]. */
 import assert from 'node:assert/strict';
@@ -18,29 +18,29 @@ import {
   cellInventory,
   mappedPath,
   readPathMap,
-} from '../../../../../packages/codemap/index.js';
+} from '../../../../packages/codemap/index.js';
 import {
   commonJsIn,
   importsIn,
-} from '../../../../../packages/gate/index.js';
-import { readPlan } from '../../../../../packages/codemap/index.js';
+} from '../../../../packages/gate/index.js';
+import { readPlan } from '../../../../packages/codemap/index.js';
 import {
   nativeBoardPorts,
   openBoard,
-} from '../../../src/logic/native.js';
-import * as queries from '../../../../../packages/store/index.js';
-import * as store from '../../../../../packages/store/index.js';
+} from '../../../lib/src/logic/native.js';
+import * as queries from '../../../../packages/store/index.js';
+import * as store from '../../../../packages/store/index.js';
 import {
   readyItems,
   routingCapacity,
-} from '../../../../../packages/queue/index.js';
-import { workQueue } from '../../../../../packages/items/index.js';
-import { roadmap } from '../../../../../packages/store/index.js';
-import { eligibilityProblem } from '../../../../../packages/verify/index.js';
-import { lineSettings } from '../../../../../packages/state/index.js';
-import { observeWorkers } from '../../../../cli/src/io/scale.js';
+} from '../../../../packages/queue/index.js';
+import { workQueue } from '../../../../packages/items/index.js';
+import { roadmap } from '../../../../packages/store/index.js';
+import { eligibilityProblem } from '../../../../packages/verify/index.js';
+import { lineSettings } from '../../../../packages/state/index.js';
+import { observeWorkers } from '../../src/io/scale.js';
 
-const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 test('the actual stats seats verify items and queue graphs have no board-query imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);

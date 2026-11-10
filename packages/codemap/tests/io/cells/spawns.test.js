@@ -7,19 +7,19 @@ import {
   gitChildEnv,
   realGitAdapter,
   withGitContractAdapter,
-} from '../../../../packages/git/index.js';
-import { createFixtureMemo } from '../../../../packages/codemap/index.js';
+} from '../../../../git/index.js';
+import { createFixtureMemo } from '../../../index.js';
 import {
   git,
   readBlobs,
   withCellSourceSnapshots,
-} from '../../../../packages/codemap/src/io/cells/git.js';
-import { historyShimReferences } from '../../../../packages/codemap/src/io/cells/scripts/plan.js';
+} from '../../../src/io/cells/git.js';
+import { historyShimReferences } from '../../../src/io/cells/scripts/plan.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../cli/tests/fixtures/child.js';
-import { fixtureCommittedGraph } from '../../../cli/tests/fixtures/testkit.js';
+} from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 /** A real Git adapter that records every synchronous Git command it runs. */
 function countingGit() {

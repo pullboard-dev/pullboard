@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/cla.yml .github/workflows/stale.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
-import { copyPackageFiles } from '../../../packages/runners/index.js';
+import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import {
   cpSync,
@@ -21,13 +21,13 @@ import {
   after,
   test,
 } from 'node:test';
-import { cellSandbox } from '../../../packages/store/tests/fixtures/cell.js';
+import { cellSandbox } from '../../../../packages/store/tests/fixtures/cell.js';
 import {
   privateFixtureFiles,
   runFixtureChild,
-} from '../../cli/tests/fixtures/child.js';
+} from '../../tests/fixtures/child.js';
 
-const ROOT = resolve(import.meta.dirname, '../../..');
+const ROOT = resolve(import.meta.dirname, '../../../..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
@@ -90,7 +90,7 @@ test('no workflow requires a DCO sign-off [I1]', () => {
   }
 });
 
-const workflow = readFileSync(new URL('../../../.github/workflows/release.yml', import.meta.url), 'utf8');
+const workflow = readFileSync(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
 
 /** Execute the actual workflow extraction against private input; no GitHub or npm command runs. */
 function extract(t, script, changelog, tag = 'v1.2.3') {
@@ -216,7 +216,7 @@ test('clause 3: the workflow events and allowed actions, a listed signer and an 
 });
 
 test('a landing appends a signer entry with the CLA hash [C7]', async (t) => {
-  const { appendSignatures } = await import('../../../packages/gate/src/io/check/cla.js');
+  const { appendSignatures } = await import('../../../../packages/gate/src/io/check/cla.js');
   const fixture = privateFixtureFiles('cla-land-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
   const file = join(fixture.root, 'cla-signatures.json');

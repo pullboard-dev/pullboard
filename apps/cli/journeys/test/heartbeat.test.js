@@ -6,12 +6,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../src/logic/native.js';
-import { captureLapsedClaims } from '../../../../../packages/health/index.js';
-import { itemFolderPath } from '../../../../cli/index.js';
-import { whileSeatAlive } from '../../../../../packages/gate/src/io/keepalive.js';
-import { privateFixtureFiles } from '../../../../cli/tests/fixtures/child.js';
+import * as store from '../../../../packages/store/index.js';
+import { openBoard } from '../../../lib/src/logic/native.js';
+import { captureLapsedClaims } from '../../../../packages/health/index.js';
+import { itemFolderPath } from '../../index.js';
+import { whileSeatAlive } from '../../../../packages/gate/src/io/keepalive.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 
 /** A clock the test moves by hand, so minutes pass without waiting for them. */
 function manualClock(start = Date.parse('2026-11-01T12:00:00.000Z')) {

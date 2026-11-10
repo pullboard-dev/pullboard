@@ -9,19 +9,19 @@ import {
   fileURLToPath,
 } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../../../../../packages/store/index.js';
-import { fixtureBoard } from '../../../../cli/tests/fixtures/board.js';
+import * as store from '../../../../packages/store/index.js';
+import { fixtureBoard } from '../../tests/fixtures/board.js';
 import {
   startFixtureChild,
   runFixtureGit,
-} from '../../../../cli/tests/fixtures/child.js';
-import { boardWriteIoProblems } from '../../../../../packages/gate/src/io/board/write.js';
-import { styleSources } from '../../../../../packages/codemap/index.js';
+} from '../../tests/fixtures/child.js';
+import { boardWriteIoProblems } from '../../../../packages/gate/src/io/board/write.js';
+import { styleSources } from '../../../../packages/codemap/index.js';
 
 /** Start a warmed native writer and retain every message and its terminal outcome. */
 function writer(t, file, kind, index, item, agent, commit) {
-  const boardUrl = pathToFileURL(fileURLToPath(new URL('../../../../../packages/store/index.js', import.meta.url))).href;
-  const openUrl = pathToFileURL(fileURLToPath(new URL('../../../index.js', import.meta.url))).href;
+  const boardUrl = pathToFileURL(fileURLToPath(new URL('../../../../packages/store/index.js', import.meta.url))).href;
+  const openUrl = pathToFileURL(fileURLToPath(new URL('../../../lib/index.js', import.meta.url))).href;
   const program = `import * as store from ${JSON.stringify(boardUrl)};
 import {openBoard} from ${JSON.stringify(openUrl)};
 const [file,kind,index,item,agent,commit]=process.argv.slice(1);
@@ -88,5 +88,5 @@ test('five native claim join and fact writes finish within 1 s while landing rec
 });
 
 test('clause 2: native board writer call graph permits no git or test process under the transaction [C7]', () => {
-  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../../..', import.meta.url)))), []);
+  assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../..', import.meta.url)))), []);
 });

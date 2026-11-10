@@ -16,19 +16,19 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { temporaryDirectory } from '../../../../cli/tests/fixtures/board.js';
-import { waitForCondition } from '../../../../cli/tests/fixtures/runner/holders.js';
-import { recoverQueuedHandoffs } from '../../../../cli/src/io/cli-main/recovery.js';
-import { wakesHandoffRecovery } from '../../../../cli/src/io/cli-main/run.js';
-import { startDetachedCheck } from '../../../../../packages/drive/index.js';
-import { drainHandoffQueue } from '../../../../../packages/resources/index.js';
-import { handoffDispatcherHeartbeat } from '../../../../../packages/resources/index.js';
-import { handoffDispatcherMayBeDead } from '../../../../../packages/resources/index.js';
-import { runRecoveryCheck } from '../../../src/io/handoff/dispatcher.js';
-import { queueHandoffLaunch } from '../../../../../packages/resources/index.js';
-import { reserveHandoffTicket } from '../../../../../packages/resources/index.js';
+import { temporaryDirectory } from '../../tests/fixtures/board.js';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { recoverQueuedHandoffs } from '../../src/io/cli-main/recovery.js';
+import { wakesHandoffRecovery } from '../../src/io/cli-main/run.js';
+import { startDetachedCheck } from '../../../../packages/drive/index.js';
+import { drainHandoffQueue } from '../../../../packages/resources/index.js';
+import { handoffDispatcherHeartbeat } from '../../../../packages/resources/index.js';
+import { handoffDispatcherMayBeDead } from '../../../../packages/resources/index.js';
+import { runRecoveryCheck } from '../../../lib/src/io/handoff/dispatcher.js';
+import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
+import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 
-const DISPATCHER = fileURLToPath(new URL('../../../src/io/handoff/dispatcher.js', import.meta.url));
+const DISPATCHER = fileURLToPath(new URL('../../../lib/src/io/handoff/dispatcher.js', import.meta.url));
 
 /** A private machine home, a repository common dir with a board file, and a captured tools tree; cleaned by the test. */
 function fixture(t) {
@@ -128,7 +128,7 @@ test('clause 2: a drain pass beats the dispatcher heartbeat the cheap check read
 test('clause 2: the detached recovery check relaunches a dead dispatcher from the captured tooling [C7]', async t => {
   const box = fixture(t);
   const marker = join(box.dir, 'dispatcher-started');
-  copyFileSync(fileURLToPath(new URL('../../../../../packages/resources/src/io/handoff/worker/detach.js', import.meta.url)), join(box.tools, 'packages/resources/src/io/handoff/worker/detach.js'));
+  copyFileSync(fileURLToPath(new URL('../../../../packages/resources/src/io/handoff/worker/detach.js', import.meta.url)), join(box.tools, 'packages/resources/src/io/handoff/worker/detach.js'));
   writeFileSync(join(box.tools, 'apps/lib/src/io/handoff/dispatcher.js'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');\n`);
   await queueJob(box);
   const run = spawnSync(process.execPath, [DISPATCHER, '--recover'], { cwd: box.commonDir, env: process.env, encoding: 'utf8' });
