@@ -541,13 +541,15 @@ export async function freeze(root, { table, dryRun = false, scan = [] } = {}) {
   if (status.status !== 0 || status.stdout) throw refuse('FREEZE_DIRTY', 'the freeze needs a clean tree', 'commit or remove every change, then run it again');
   const tablePath = table ?? TABLES.map(rel => join(root, rel)).find(file => existsSync(file));
   if (!tablePath || !existsSync(tablePath)) throw refuse('FREEZE_NO_TABLE', 'no rename table found', 'pass --table <renames.tsv>');
-  const rows = parseTable(readFileSync(tablePath, 'utf8'));
+  const tableText = readFileSync(tablePath, 'utf8');
+  const rows = parseTable(tableText);
+  const listed = new Set(tableText.split('\n').map(line => line.split('\t')[0]));
   const files = trackedFiles(root);
   const tracked = new Set(files);
   const { moves, merges, deletes, done, missing } = planRows(tracked, rows);
   const summary = { dryRun, rows: rows.length, done, missing, moved: moves.size, merged: merges.size, deleted: deletes.size,
     importsRewritten: 0, doorRepoints: 0, pathStringsRewritten: 0, unresolved: [], conflicts: [], docLines: [], docEdits: 0,
-    literalsInTests: 0, specifiersNotFiles: 0, notes: [], folderSpecifiers: [], splitFolders: [], edgeCeilingsRaised: [], splitFolderRefs: [], segmentBuilt: [], outOfScope: [], filesChanged: 0, baselineShardsRebound: 0, pathMapShard: null };
+    literalsInTests: 0, specifiersNotFiles: 0, notes: [], folderSpecifiers: [], splitFolders: [], unmapped: files.filter(file => !listed.has(file)), edgeCeilingsRaised: [], splitFolderRefs: [], segmentBuilt: [], outOfScope: [], filesChanged: 0, baselineShardsRebound: 0, pathMapShard: null };
   if (!moves.size && !merges.size && !deletes.size) return summary;
   const where = (old) => deletes.get(old) ?? merges.get(old) ?? moves.get(old) ?? old;
   const filePaths = new Map([...moves, ...merges, ...deletes]);
@@ -736,7 +738,7 @@ async function main(argv) {
   const lines = [`${summary.dryRun ? 'dry run' : 'freeze'}: ${summary.rows} rows, ${summary.done} already done, ${summary.missing.length} missing`,
     `moved ${summary.moved}, merged ${summary.merged}, deleted ${summary.deleted}, files rewritten ${summary.filesChanged}`,
     `imports rewritten ${summary.importsRewritten}, repointed to doors ${summary.doorRepoints}, path strings rewritten ${summary.pathStringsRewritten}, doc lines ${summary.docEdits}`,
-    `unresolved imports ${summary.unresolved.length}, merge conflicts ${summary.conflicts.length}`];
+    `unresolved imports ${summary.unresolved.length}, merge conflicts ${summary.conflicts.length}, rows without a file ${summary.missing.length}, files without a row ${summary.unmapped.length}`];
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
