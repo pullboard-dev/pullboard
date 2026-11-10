@@ -3076,7 +3076,7 @@
   "test/runner-controller-machine-fixture.js": {
     "repo-read": 1
   },
-  "test/runner-controller.test.js": {
+  "packages/runners/tests/runner-controller.test.js": {
     "tempdir": 1
   },
   "test/runner-cpu-classification-fixture.js": {

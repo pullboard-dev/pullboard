@@ -1681,6 +1681,14 @@
         "packages/state/tests/relay-approval-delivery.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-key-file.test.js",
+        "packages/state/tests/relay-key-file.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
