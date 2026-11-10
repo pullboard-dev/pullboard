@@ -104,3 +104,4 @@ export { gateHealthReport } from "./src/shell/gate-health.js";
 export { maintainPartsStore, prunePartsStore } from './src/shell/test-action-parts-prune.js';
 export { firstChangedInput, recordInputParts } from './src/shell/test-cache-account.js';
 export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/shell/test-shards.js";
+export { ownerFor, addedPlacementProblems, onlyForwards, withDeclaredLoads, checkCuts, frontDoorBypasses } from "./src/shell/plan-cuts.js";
