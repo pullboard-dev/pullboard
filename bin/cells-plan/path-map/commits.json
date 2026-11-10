@@ -5,6 +5,7 @@
   "src/guard-revert.js": "packages/commits/src/shell/guard-revert.js",
   "src/hooks.js": "packages/commits/src/shell/hooks.js",
   "src/infra-note.js": "packages/commits/src/shell/infra-note.js",
+  "src/import-only-change.js": "packages/commits/src/core/import-only-change.js",
   "src/plan-row-change.js": "packages/commits/src/core/plan-row-change.js",
   "src/tier-row-change.js": "packages/commits/src/core/tier-row-change.js",
   "src/why-file.js": "packages/commits/src/core/why-file.js",
