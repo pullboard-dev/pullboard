@@ -5072,6 +5072,7 @@
     },
     "merge": {
       "imports": [
+        "codemap",
         "git",
         "items",
         "kernel"

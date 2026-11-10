@@ -11,9 +11,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { amendLandingEngines } from '../index.js';
-import { computePlan } from '../../../bin/cells-plan.js';
-import { readPlan } from '../../../bin/cells-plan.js';
-import { writePlan } from '../../../bin/cells-plan.js';
+import { computePlan } from '../../codemap/index.js';
+import { readPlan } from '../../codemap/index.js';
+import { writePlan } from '../../codemap/index.js';
 import { git } from '../../../test/cells-plan-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 
