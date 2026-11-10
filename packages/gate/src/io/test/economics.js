@@ -20,7 +20,7 @@ export function journeyReason(closure, modules) {
   if (!closure?.files) return closure?.reason || 'undeclared reach';
   for (const path of closure.helpers ?? []) {
     const source = modules.get(path) ?? '';
-    const cliPath = /(?:apps\/cli\/pullboard\.[cm]?js|['"]cli['"]\s*,\s*['"]pullboard\.[cm]?js['"])/u.test(source);
+    const cliPath = /(?:(?:bin|apps\/cli)\/pullboard\.[cm]?js|(?:['"]bin['"]|['"]apps['"]\s*,\s*['"]cli['"])\s*,\s*['"]pullboard\.[cm]?js['"])/u.test(source);
     const child = /\b(?:spawn(?:Sync)?|execFile(?:Sync)?|fork|runFixtureChild|runFixtureExecFile|startFixtureChild)\s*\(/u.test(source);
     if (cliPath && child) return `CLI-spawning boundary in ${path}`;
   }

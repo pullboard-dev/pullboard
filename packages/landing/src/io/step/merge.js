@@ -2,7 +2,7 @@ import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
-import { assignEngineNumbers } from '../../../../state/src/io/engine/numbers.js';
+import { assignEngineNumbers } from '../../../../state/index.js';
 import { placeLandingNewFiles } from '../history.js';
 import { placeLandingHistory } from '../history.js';
 import { GENERATED_DOC_PATHS } from '../../../../merge/index.js';

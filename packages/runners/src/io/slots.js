@@ -151,8 +151,15 @@ export async function refreshRunnerMeasurements(settings, { measure, record, now
   if (settings.gate?.measuredSlots !== true && !cpu) return;
   if (typeof measure !== 'function' || typeof record !== 'function') throw new TypeError('runner measurement requires canonical transport and persistence');
   await Promise.all((settings.runners ?? []).map(async runner => {
-    const at = Date.parse(cpu ? runner.cpuLoad?.at : runner.measuredAt);
-    if (Number.isFinite(at) && now >= at && now - at < (cpu ? RUNNER_PROBE_SHARE_MS : RUNNER_MEASUREMENT_MS)) return;
+    /** Accept only a nonfuture observation within its own freshness interval. */
+    const fresh = (value, interval) => {
+      const at = Date.parse(value);
+      return Number.isFinite(at) && now >= at && now - at < interval;
+    };
+    // A busy observation can refresh CPU load without updating capacity. Retry stale capacity after the lease ends.
+    const loadFresh = !cpu || fresh(runner.cpuLoad?.at, RUNNER_PROBE_SHARE_MS);
+    const sizeFresh = settings.gate?.measuredSlots !== true || fresh(runner.measuredAt, RUNNER_MEASUREMENT_MS);
+    if (loadFresh && sizeFresh) return;
     let claim;
     try { claim = typeof probeDirectory !== 'string' ? { settle() {} } : await claimProbe(probeDirectory, String(runner.host), now, waitMs); }
     catch { return; /* An unwritable probe directory skips this pass rather than probing unshared. */ }

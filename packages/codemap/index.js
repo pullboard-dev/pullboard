@@ -48,7 +48,7 @@ export { narrowedTo, readText, TEST_FILE, walk } from './src/io/check-walk.js';
 export { assumptionCounts, assumptionProblems, assumptionsIn, writeAssumptionBaseline } from './src/io/no-runtime-assumptions.js';
 export { leasedModules, syncCallsIn, syncSpawnConfig, syncSpawnProblems, syncSpawnReport, writeSyncSpawnBaseline } from './src/io/sync-spawn-in-leases.js';
 
-export { git as cellGit, tryGit as cellTryGit, withCellGitObjects } from './src/io/cells/git.js';
+export { git as cellGit, tryGit as cellTryGit, readPathMap as cellReadPathMap, withCellGitObjects } from './src/io/cells/git.js';
 export { cellsObjectSnapshots, landingPlanProblems } from './src/io/cells/snapshots.js';
 export { cellsCacheDirectory, inventoryCache, inventoryPending, observationCache } from './src/io/cells/scripts/cache.js';
 export { checkMoved, stalePlanRows, unplanned } from './src/io/cells/scripts/plan.js';
