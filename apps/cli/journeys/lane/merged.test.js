@@ -17,8 +17,8 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 
 /** Reproduce the original merge shape: the builder's new row precedes a row independently accepted on main. */
-function mergedPlacement(t) {
-  const box = plannedProject(t, { companionLanes: true });
+async function mergedPlacement(t) {
+  const box = await plannedProject(t, { companionLanes: true });
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   // The board's model table determines fixture seat routes since b95e1aa538.
@@ -67,8 +67,8 @@ function mergedPlacement(t) {
   return { ...box, view, id, main, mainFile };
 }
 
-test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', t => {
-  const box = mergedPlacement(t);
+test('a view item merges a main-owned plan change and submits its unchanged main row plus owned creation [L3,C7,V4]', async t => {
+  const box = await mergedPlacement(t);
   const submitted = success(box, box.view, 'submit', String(box.id));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the real gate ran after ownership admitted the composed source');
@@ -76,8 +76,8 @@ test('a view item merges a main-owned plan change and submits its unchanged main
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), box.main, 'submit does not rewrite accepted main');
 });
 
-test('a builder editing the accepted main row itself still fails public submit before its gate [L3,C7,V4]', t => {
-  const box = mergedPlacement(t);
+test('a builder editing the accepted main row itself still fails public submit before its gate [L3,C7,V4]', async t => {
+  const box = await mergedPlacement(t);
   const plan = readPlan(box.view);
   const row = plan.cells.find(cell => cell.name === 'app:view').paths.find(row => row[0] === box.mainFile);
   row[1] = row[1].replace('/shell/', '/core/');
