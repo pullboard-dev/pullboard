@@ -1,6 +1,6 @@
 /** Coordinator capacity uses local authenticated activity and canonical ready-item blockers [B3,N2]. */
-import { COORDINATOR } from '../packages/queue/core.js';
-import { readyItems } from '../packages/queue/index.js';
+import { COORDINATOR } from '../../core.js';
+import { readyItems } from './queue-readiness.js';
 
 /** Display presence may include relay observations; those observations never supply routing capacity. */
 export function routingCapacity(board, agents, foreignBlockers, reads = board.nativePorts) {

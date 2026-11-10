@@ -2036,6 +2036,7 @@
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
+    "apps/cli->queue",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
