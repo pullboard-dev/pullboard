@@ -141,11 +141,22 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
 
 
 // What the runner worker uses from gate, re-exported so apps/runner imports the light door and never gate's src.
+export { chromeCloneDirectories } from './src/shell/chrome-clone-check.js';
+export { childJournalPreloadSource } from './src/shell/child-journal-preload.js';
+export { exactStart } from './src/shell/child-journal-preload.js';
+export { gateStages } from './src/shell/gate-stages.js';
+export { stagedScript } from './src/shell/gate-stages.js';
+export { readPipes } from './src/shell/gate-stages.js';
+export { guiSession } from './src/shell/gui-session.js';
+export { TEST_RESULT_REQUEST_ENV } from './src/shell/test-result-store.js';
+export { TEST_RESULT_ORIGIN_ENV } from './src/shell/test-result-store.js';
+export { TEST_RESULT_STORE_ENV } from './src/shell/test-result-store.js';
+export { importTestResults } from './src/shell/test-result-store.js';
+export { packTestResults } from './src/shell/test-result-store.js';
+export { selectedTestResults } from './src/shell/test-result-store.js';
+export { startRunnerPhases } from './src/shell/timing.js';
 export { RunnerDropped } from './src/core/runner-source.js';
 export { runnerSource } from './src/core/runner-source.js';
-export { guiSession } from './src/shell/gui-session.js';
-export { gateStages } from './src/shell/gate-stages.js';
 export { readStages } from './src/shell/gate-stages.js';
 export { retainTestResultCompletion } from './src/shell/test-result-store.js';
-export { importTestResults } from './src/shell/test-result-store.js';
 export { runnerPhaseFields } from './src/shell/timing.js';
