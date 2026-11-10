@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { recordToolCommand } from '../../../../../git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
-import { withParseScope } from '../../../../../gate/index.js';
+import { withParseScope } from '../../../../index.js';
 import { PLAN_DIR } from '../../../../index.js';
 import { PLAN_FILE } from '../../../../index.js';
 import { readPlan } from '../../../../index.js';
@@ -59,7 +59,7 @@ import { moveDeclarationFiles } from '../../../../index.js';
 import { createFixtureMemo } from '../../../../index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
 import { receiptDigest } from '../../../../../git/index.js';
-import { foreignNodeOptions } from '../../../../../gate/index.js';
+import { foreignNodeOptions } from '../../../../../kernel/index.js';
 import { cellsCacheDirectory } from './cache.js';
 import { publishCacheEntry } from './cache.js';
 import { placeTests } from '../placement.js';
@@ -74,7 +74,7 @@ function fixtureAnalyzerDigest() {
 }
 const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, unsupportedSite } = createFixtureMemo({
   fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest: fixtureAnalyzerDigest,
-  eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+  eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS, process.env),
 });
 
 export { PLAN_DIR, PLAN_FILE, SEED_FILE, formatJson, planWrites, readPlan, readSeed, shardFile } from '../../../../index.js';
@@ -484,11 +484,13 @@ function main(argv) {
     return 0;
   }
   if (mode === '--move-tests') {
-    const [cell, ...paths] = rest;
+    const [cell, ...options] = rest;
+    const helpers = options.includes('--helpers');
+    const paths = options.filter(value => value !== '--helpers');
     const listed = tryGit(root, ['ls-files', '-z']);
     if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --move-tests');
     const tracked = listed.stdout.split('\0').filter(Boolean);
-    const planned = planTestMove({ tracked, inventory: cellInventory(root, { importsIn, commonJsIn }), plan: readPlan(root), cell, paths, lex });
+    const planned = planTestMove({ tracked, inventory: cellInventory(root, { importsIn, commonJsIn }), plan: readPlan(root), cell, paths, lex, helpers });
     if (planned.refused) throw new Refused(planned.refused.code, planned.refused.message);
     /** Run one git step of the move, refusing with git's own words when it fails. */
     const git = args => {

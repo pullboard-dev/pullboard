@@ -3,3 +3,4 @@ export { isDefaultTestFile } from './src/logic/discovery.js';
 export { rootAllowed, strayNextStep } from './src/logic/allowlist.js';
 export { shimCountProblems } from './src/logic/ratchet.js';
 export { compareItemFunctions } from './src/logic/functions.js';
+export { importsIn } from './src/io/module/imports.js';

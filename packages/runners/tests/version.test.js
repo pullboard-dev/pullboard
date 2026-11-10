@@ -26,7 +26,7 @@ function fixture(t) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo'); const lane = join(dir, 'lane');
   const executables = join(dir, 'executables'); mkdirSync(executables);
-  writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" "$@"\n`);
+  writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
   copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
@@ -47,7 +47,7 @@ function fixture(t) {
   const initialized = cli(root, root, 'init'); assert.equal(initialized.status, 0, initialized.stderr);
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: install source fixture hooks');
   git(root, 'worktree', 'add', '-q', '-b', 'core/future', lane, 'main');
-  const joined = cli(root, lane, 'join', 'core', '--json'); assert.equal(joined.status, 0, joined.stderr + joined.stdout);
+  const joined = cli(root, lane, 'join', 'core', '--route', 'strong', '--json'); assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const file = join(root, '.git/pullboard/board.sqlite');
   /** Run a source-level probe in a fresh process, always under the private fixture environment. */
   const probe = (source) => { const path = join(lane, 'probe.mjs'); writeFileSync(path, source); const r = run(lane, process.execPath, [path]); assert.equal(r.status, 0, r.stderr + r.stdout); return JSON.parse(r.stdout); };
@@ -85,7 +85,7 @@ test('a broken Git link cannot impersonate an installed release and upgrade a bo
 
 test('a newer lane can make a real checked commit and doctor gives a working main-checkout step [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); const versionSource = box.bump('SCHEMA_VERSION', 3, 4);
-  writeFileSync(join(box.lane, '.githooks/pre-commit'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/bin/pullboard.js" hook pre-commit\n`);
+  writeFileSync(join(box.lane, '.githooks/pre-commit'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" hook pre-commit\n`);
   box.git(box.lane, 'add', versionSource); box.git(box.lane, 'commit', '-q', '-m', 'feat: propose a future schema [G1]');
   assert.deepEqual(box.versions(), before, 'the actual checkout hook must not migrate the shared board');
   const r = box.cli(box.lane, box.lane, 'doctor', '--json'); assert.equal(r.status, 1, r.stderr + r.stdout);

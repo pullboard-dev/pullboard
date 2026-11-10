@@ -1179,7 +1179,8 @@ export async function takeResource(options) {
           runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
           db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
         }
-        return { acquired: false, state: { ...spot, position: reportPosition, ...(runnerWait ? { runnerWait } : {}), ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
+        const runnerHolders = name === 'gate' ? db.prepare("SELECT name, repo FROM holder WHERE name GLOB 'runner:*' ORDER BY since, token").all().map(({ name, repo }) => ({ host: name.slice('runner:'.length), repo })) : [];
+        return { acquired: false, state: { ...spot, position: reportPosition, ...(runnerHolders.length ? { runnerHolders } : {}), ...(runnerWait ? { runnerWait } : {}), ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       // A missed READY grants one immediate ordered admission, never another queue wait budget.

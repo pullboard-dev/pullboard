@@ -19,8 +19,6 @@ import { lowerCellLintBaseline } from '../../../../index.js';
 import { withCellLintParser } from '../../../../index.js';
 import { cachedCellsRun } from '../../../../index.js';
 import { cellLintParsers } from '../../../../index.js';
-import { codeMapGraph } from '../../../../../gate/index.js';
-import { newPackageCliReach } from '../../../../../gate/index.js';
 
 withCellLintParser(compile => {
   const parsers = cellLintParsers(compile);
@@ -54,21 +52,8 @@ withCellLintParser(compile => {
       // Advisory transition authority comes only from main, as in the submit check.
       current.transition = base.report.transition;
       const problems = cellLintGrowth(current, base.baseline);
-      const reach = cliReachRows(root, main);
-      for (const row of reach) console.error(row);
       for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
-      return reach.length || problems.some(row => !row.advisory) ? 1 : 0;
-    }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../../main/lints.js', import.meta.url)),
-      fileURLToPath(new URL('../../../../../gate/src/io/affected/tests.js', import.meta.url)),
-      fileURLToPath(new URL('../../../../../gate/src/logic/reach.js', import.meta.url))] });
+      return problems.some(row => !row.advisory) ? 1 : 0;
+    }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../../main/lints.js', import.meta.url))] });
   }
 });
-
-/**
- * One refusal line per package module that reaches apps/cli/index.js or apps/cli/src/io/landing/audit.js in the selection
- * graph at HEAD but not at main [C7]. Such reach puts the whole CLI in every closure through that module.
- */
-function cliReachRows(root, main) {
-  return newPackageCliReach(codeMapGraph(root, main), codeMapGraph(root, 'HEAD')).map(({ module, path }) =>
-    `cliReach:${module}: reaches ${path.at(-1)} through ${path.join(' -> ')}, which it did not on main ${main.slice(0, 12)}; next: pass the CLI-side entry point in as a parameter or move the shared piece down into a package`);
-}

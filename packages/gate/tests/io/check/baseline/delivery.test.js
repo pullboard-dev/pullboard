@@ -4,6 +4,7 @@ import { runFixtureExecFile as execFileSync } from '../../../../../../apps/cli/t
 import { runFixtureChild as spawnSync } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -127,7 +128,10 @@ function completionCount(board, id) {
 
 /** Run the actual worker function in a clean child process using the fixture environment. */
 function runWorker(box, id, request) {
-  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../../../../apps/lib/index.js', import.meta.url).href)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard });`;
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 1, browserSlots: 1,
+    runners: [{ host: 'fixture-runner', slots: 1, browser: 1 }], gate: { memoryFloorMB: 0, timingRunner: false } });
+  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../../../../apps/lib/index.js', import.meta.url).href)};\nimport { runnerExecutionServices } from ${JSON.stringify(new URL('../../../../../runners/index.js', import.meta.url).href)};\nimport { landingExecutionServices } from ${JSON.stringify(new URL('../../../../../landing/index.js', import.meta.url).href)};\nimport { runFixtureChild } from ${JSON.stringify(new URL('../../../../../../apps/cli/tests/fixtures/child.js', import.meta.url).href)};\nconst runners = { ...runnerExecutionServices(), refreshRunnerMeasurements: async () => {}, probeRunnerTransport: async () => ({ healthy: false }), probeRunnerHealth: async () => ({ healthy: false }), runOnRunnerAsync: async (root, command, options) => { if (!options.source?.commit || options.runner.host !== 'fixture-runner') throw new Error('baseline did not select the pinned runner'); const run = runFixtureChild('/bin/sh', ['-c', command], { cwd: root, encoding: 'utf8' }); return { exitCode: run.status, output: run.stdout + run.stderr }; } };\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard, gateExecutionServices: async () => ({ runners, landing: landingExecutionServices() }) });`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });

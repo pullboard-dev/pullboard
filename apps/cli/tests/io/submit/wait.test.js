@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cliContext$context as context } from '../../../index.js';
+import { gateWaitReporter } from '../../../../../packages/gate/index.js';
+import { takeResource } from '../../../../../packages/resources/index.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
@@ -33,4 +35,26 @@ test('control: a reporter the caller supplies is kept [C7]', t => {
   const supplied = () => () => {};
   const io = { cwd: repository(t), say: () => {}, err: () => {}, gateWaitReporter: supplied };
   assert.equal(context(io).io.gateWaitReporter, supplied);
+});
+
+
+test('a runner-only gate wait reports two runner holders by host [C7]', async t => {
+  const root = repository(t);
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine');
+  t.after(() => {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previous;
+  });
+  const options = { name: 'gate', scope: 'machine', root, capacity: 0, remote: true, runnerOnly: true,
+    runnerProvider: () => [{ host: '.51', slots: 2, browser: 0 }] };
+  const first = await takeResource({ ...options, agent: 'first' });
+  const second = await takeResource({ ...options, agent: 'second' });
+  const lines = [];
+  const report = gateWaitReporter({ say: line => lines.push(line) });
+  const stop = new Error('observed wait');
+  try {
+    await assert.rejects(takeResource({ ...options, agent: 'waiting', onWait: state => { report(state); throw stop; } }), error => error === stop);
+    assert.match(lines.join('\n'), /2 running; runners \.51: 2/);
+  } finally { first.release(); second.release(); }
 });
