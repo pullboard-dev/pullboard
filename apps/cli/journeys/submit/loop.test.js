@@ -71,7 +71,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
     "const assert = require('node:assert/strict');",
     "const fs = require('node:fs');",
     "const test = require('node:test');",
-    "test('source stays green', () => assert.notEqual(fs.readFileSync('web/snapshot.txt', 'utf8').trim(), 'red'));",
+    "test('source stays green (clause 1 and clause 2)', () => assert.notEqual(fs.readFileSync('web/snapshot.txt', 'utf8').trim(), 'red'));",
     '',
   ].join('\n'));
   fs.mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -86,8 +86,8 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   item = added.item.item_id;
   assert.equal(added.item.item_check, check, 'the frozen check executes the red-input test');
   document(box.run(box.web, 'claim', String(item), '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: the committed test observes the red input', '--json'));
-  document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: the same test observes the corrected input', '--json'));
+  document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the red input', '--json'));
+  document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: web/red-loop-gate.test.cjs: source stays green (clause 1 and clause 2) observes the corrected input', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'red\n', 'feat(web): retain red source [G1]').status, 0);
   const firstRedHead = box.git(box.web, 'rev-parse', 'HEAD');
   document(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
