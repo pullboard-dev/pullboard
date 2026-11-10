@@ -195,7 +195,7 @@ test('a red remote step returns its refusal to the queued submit, and altered ou
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box, { tamper: true }), join(box.dir, 'tampered')),
     { code: 'RUNNER_RESULT_INVALID' });
   let reads = 0;
-  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, () => [{ item_id: ++reads > 1 ? 8 : 7 }]), fakeRunner(box), join(box.dir, 'moved')),
+  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, () => [{ item_id: ++reads > 2 ? 8 : 7 }]), fakeRunner(box), join(box.dir, 'moved')),
     { code: 'CELLS_SUBMIT' });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), { runner: null }, join(box.dir, 'none')), { code: 'RUNNER_SOURCE' });
 });
