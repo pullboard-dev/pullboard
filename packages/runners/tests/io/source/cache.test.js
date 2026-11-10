@@ -79,7 +79,7 @@ const NOTES_TEST = `import { appendFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
-const root = join(import.meta.dirname, '../../..');
+const root = join(import.meta.dirname, '..');
 /** Record that this file ran, then scan every listed note. */
 function scanNotes() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'e\\n'); const tracked = execFileSync('git', ['ls-files', 'CHANGELOG.md'], { cwd: root, encoding: 'utf8' }).trim().split('\\n'); for (const name of tracked) if (readFileSync(join(root, name), 'utf8').includes('forbidden')) throw new Error('e found a forbidden word'); }
 test('e [C7]', scanNotes);
