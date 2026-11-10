@@ -336,17 +336,15 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
       const shared = [...testWords].filter(word => clauseWords.has(word)).length;
       if (cited || (shared >= 3 && shared * 2 >= testWords.size)) evidence.push({ ...run, why: cited ? 'test cites the clause' : `${shared} shared words` });
     }
-    // A test clause that names no file of its own cites the brief's Test: files the exact-head gate ran, with their
-    // outcomes: submit runs those files whatever the selection says, so a green gate leaves no gap (#3533, #3253) [C7].
-    if (!evidence.length && clause.kind === 'test' && !namedTestFiles(clause.text).length) {
-      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
-    }
-    // A test clause that names no file and no case still has the item's own check: the executed cases of the check's
-    // files, run by the submit gate at this head, are its recorded run. Why: on 6 Nov 18 of 28 rejects in 90 minutes
-    // were "no recorded run for clause N" on items whose gate had run exactly those files green [V4,C7].
-    if (!evidence.length && clause.kind === 'test' && checkFiles.length && !declared.some(name => citesClause(name, clause.n))) {
+    // Prefer the exact named check cases, and never let file-level evidence cover a skipped clause case.
+    const ownCaseDeclared = declared.some(name => citesClause(name, clause.n));
+    if (!evidence.length && clause.kind === 'test' && checkFiles.length && !ownCaseDeclared) {
       evidence = executed.filter(run => checkFiles.includes(run.file) && run.test.replace(/^\.\//u, '') !== run.file)
         .map(run => ({ ...run, why: "the item's check ran" }));
+    }
+    // When no named check outcome exists, retain the brief's file-level proof for a clause with no case of its own.
+    if (!evidence.length && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
+      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
     }
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {
