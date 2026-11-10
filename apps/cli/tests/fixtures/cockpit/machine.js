@@ -120,7 +120,7 @@ function machine() {
  * A project registered on the machine: a repo set up by `pullboard init`, one web lane, and a
  * worktree joined to it as web-1. `extra` adds to its pullboard.json, such as products.
  */
-function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } = {}) {
+function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true } = {}) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
@@ -141,7 +141,7 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } =
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   // The seat joins on the strong route so it can claim the strong fixture items.
-  joinFixtureSeat(box, web, 'web');
+  if (joinSeat) joinFixtureSeat(box, web, 'web', { model: MACHINE_MODEL });
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 

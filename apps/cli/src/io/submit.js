@@ -87,7 +87,7 @@ export function namedProofTests(root, item, commit, { crossRunTests = [] } = {})
 export function filesSince(root, id, from, to) {
   if (!from) return [];
   const others = [`--exclude=refs/pullboard/items/${id}/*`, '--glob=refs/pullboard/items/*'];
-  const result = tryGit(root, ['log', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
+  const result = tryGit(root, ['log', '--first-parent', '--no-merges', '--no-renames', '--format=', '--name-only', to, '--not', from, ...others]);
   return result.status === 0 ? [...new Set(result.stdout.split('\n').filter(Boolean))].sort() : [];
 }
 

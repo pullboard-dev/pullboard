@@ -8,17 +8,17 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
+import * as store from '../index.js';
+import { openCellBoard as openBoard } from './fixtures/cell.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../../packages/store/index.js';
+} from '../index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../../../../packages/state/src/io/engine.js';
-import { ENGINE_VERSION } from '../../../../packages/state/src/io/machine.js';
+} from '../../state/index.js';
+import { ENGINE_VERSION } from '../../state/index.js';
 
 const MAIN = 'a'.repeat(40);
 const ADD_AT = '2026-10-08T20:00:00.000Z';

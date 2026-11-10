@@ -20,6 +20,7 @@ const sorted = (key, value) => value && typeof value === 'object' && !Array.isAr
 
 /** Plan data the index and numbered shards don't carry: data reads, seed, temporary edges, transition marker. */
 const planData = file => file.startsWith('packages/codemap/data/plan/') && !file.startsWith('packages/codemap/data/plan/path-map/')
+  && file !== 'packages/codemap/data/plan/cells.json'
   && !/^packages\/codemap\/data\/plan\/\d{2,}-[a-z-]+\.json$/u.test(file);
 
 /** One string per plan-data row: array entries per key, scalars as key=value; unreadable bytes are one opaque row. */

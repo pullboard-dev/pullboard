@@ -53,6 +53,8 @@ export function copyFixtureRunner(source, destination) {
           if (isBuiltin(specifier) || specifier === '(computed)') continue;
           if (!specifier.startsWith('.')) throw new Error(`fixture runner cannot resolve ${file}: ${specifier}`);
           const target = posix.normalize(posix.join(posix.dirname(file), specifier));
+          // The export manifest exists only in a built tooling export; the scanner reads it as optional, so a source checkout lacks it.
+          if (target === '.pullboard-runner-source.json' && !existsSync(join(source, target))) continue;
           if (target.startsWith('../') || !existsSync(join(source, target))) throw new Error(`fixture runtime path is unavailable: ${target}`);
           if (statSync(join(source, target)).isDirectory()) continue;
           if (/\.[cm]?js$/u.test(target)) pending.push(target);

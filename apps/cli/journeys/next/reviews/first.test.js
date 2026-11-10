@@ -9,10 +9,16 @@ import {
   cli,
 } from '../../../tests/fixtures/next/take.js';
 
-/** Record a green gate at the item's submitted head, the way the submit queue does. */
+/** Record a green gate at the item's submitted head with the proof receipt the production gate writes, as the submit queue does. */
 function green(box, id) {
-  const head = store.getItem(box.board, id).item_commit;
-  recordSubmitHandoff(box.board.db, id, { id: `fixture-${id}`, commit: head, agentId: box.seats.builder.id, state: 'green' });
+  const item = store.getItem(box.board, id);
+  const head = item.item_commit, tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
+  const agentId = box.seats.builder.id;
+  recordSubmitHandoff(box.board.db, id, { id: `fixture-${id}`, commit: head, tree, executionCommit: head, executionTree: tree,
+    digest: item.item_frozen_digest, agentId, state: 'green' });
+  box.board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
+    .run(box.clock.now().toISOString(), agentId, 'proof-run', id, JSON.stringify({ receipt: { id: `fixture-receipt-${id}`, kind: 'submit',
+      commit: head, tree, seat: agentId, frozenDigest: item.item_frozen_digest, sourceClean: true } }));
 }
 
 test('a seat with a green unreserved submission reviews it before any build, with no starvation wait [C7,#2992]', async t => {
@@ -65,7 +71,8 @@ test('a green submission whose earlier reservation expired or was released is re
   const build = box.add('Open build', { brief: 'Files: web/other.js\nTest: an independent build stays open.' });
   green(box, expired); green(box, released);
   store.reserveReview(box.board, expired, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 60_000, policy: 'any' });
-  box.advance(120_000);
+  // Past the 60 s lease but under the two-minute starvation age, so the green-review path, not the aged one, makes the offer.
+  box.advance(61_000);
   assert.equal(store.reviewHolder(box.board, store.getItem(box.board, expired)), null, 'the earlier review lease has expired');
   store.reserveReview(box.board, released, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 3_600_000, policy: 'any' });
   store.release(box.board, released, box.seats.outside.id, 'Fixture reviewer steps away.', undefined, 'OTHER');

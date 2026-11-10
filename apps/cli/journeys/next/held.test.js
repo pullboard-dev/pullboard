@@ -2,6 +2,9 @@
 /** Busy builders take starved reviews: a held claim no longer hides a review that waited past the limit [C7,N2,V1]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   fixture,
@@ -35,6 +38,14 @@ function holding(box, seat, id) {
 
 test('clause 3: a seat holding one claim and a seat holding two each get the starved review first at the five-minute default; the builds stay held [C7,N2,V1]', async t => {
   const box = await board(t);
+  // This case makes the review-lane seat a builder too, so its declared build files have an owner.
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.review.owns = ['review/'];
+  writeFileSync(configFile, JSON.stringify(config));
+  box.git(box.root, 'add', 'pullboard.json');
+  box.git(box.root, 'commit', '-q', '-m', 'chore: assign review fixture files [G1]');
+  for (const seat of Object.values(box.seats)) box.git(seat.path, 'merge', '-q', '--ff-only', 'main');
   const waiting = box.add('Submission waiting past the review limit');
   box.submit(waiting);
   const one = box.add('Build held by the one-claim seat', { brief: 'Files: web/one.js\nTest: the held build keeps its lease.' });

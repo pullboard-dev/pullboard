@@ -22,7 +22,7 @@ import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 const SOURCE = new URL('../../../../../', import.meta.url);
 
 /** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false } = {}) {
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = false } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -53,7 +53,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   for (const name of ['web','test','docs']) mkdirSync(join(repo,name),{recursive:true});
   writeFileSync(join(repo,'SPEC.md'),'# Private fixture specification\n');
   const check = 'node --test --test-reporter=tap test/check.test.js';
-  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,...(selective?{affectedTests:'node --test --test-reporter=tap'}:{}),submitGate:'landing',submitDeferAbove:1,
+  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:check,...(selective?{affectedTests:'node --test --test-reporter=tap'}:{}),...(manualLanding?{landing:{manualOverride:true}}:{}),submitGate:'landing',submitDeferAbove:1,
     spec:'SPEC.md',verify:'any',lanes:{web:{owns:['web/'],specs:[]},review:{owns:['test/'],specs:[]}},shared:['docs/','src/','bin/','package.json','pullboard.json']}));
   writeFileSync(join(repo,'web/feature.js'),"export const feature = 'base';\n");
   writeFileSync(join(repo,'web/other.js'),"export const other = 'base';\n");

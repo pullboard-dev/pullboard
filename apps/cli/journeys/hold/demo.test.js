@@ -293,7 +293,7 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
       return JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return !e.disabled&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0&&!e.closest('[hidden]')};
       const selector='button,a[href],input:not([type=hidden]),select,textarea,[role=button],[data-root],[data-tab],[data-go],[data-item],[data-state],[data-rows],[data-row],[data-release],[data-shout],[data-new],[data-code]';
-      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const r=e.getBoundingClientRect();return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
+      const controls=[...new Set(document.querySelectorAll(selector))].filter(visible).map(e=>{const b=e.getBoundingClientRect(),edges=e.matches('.seg button')?[...e.querySelectorAll('.seg-hit')].map(x=>x.getBoundingClientRect()):[],r={x:b.x,y:Math.min(b.top,...edges.map(x=>x.top)),right:b.right,bottom:Math.max(b.bottom,...edges.map(x=>x.bottom)),width:b.width};r.height=r.bottom-r.y;return {tag:e.tagName,id:e.id||'',text:(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,60),x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,inlineReference:e.matches('.feed button.ref, .feed a.ref[data-go], .shout button.ref, .shout a.ref[data-go], .shout .band a, .detail button.ref, .detail a.ref[data-go]')||!!e.closest('#chain .meta .gate, #detail .kv dd.waits-on'),statusBar:(!!e.closest('.status')||(!!e.closest('.composer')&&innerWidth>=900))&&!matchMedia('(pointer: coarse)').matches,oneLine:!e.closest('.status')||getComputedStyle(e).whiteSpace==='nowrap'}});
       const notice=document.querySelector('#console');
       const noticeBox=visible(notice)?notice.getBoundingClientRect():null;
       const toast=noticeBox?{x:noticeBox.x,y:noticeBox.y,right:noticeBox.right,bottom:noticeBox.bottom,visible:noticeBox.y>=0&&noticeBox.bottom<=innerHeight,
@@ -323,6 +323,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await assertFirstStateDelay(chrome, t);
     await chrome.stable(`(() => {
@@ -785,6 +787,8 @@ test('the spec chip measurement survives a redraw [N26,C7]', {
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await press(chrome, "document.querySelector('[data-tab=spec]')");
     await chrome.waitFor("document.querySelectorAll('#spec-chips button:not([data-natural-chip])').length >= 2");

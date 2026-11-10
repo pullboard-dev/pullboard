@@ -69,6 +69,7 @@ export const WORKER_ENTRY = 'apps/runner/runner-worker.js';
 
 /** The worker entry of this tree: the legacy path while it exists (0.9.3 layout), else the cell path. */
 export function workerEntry(root) {
+  if (existsSync(join(root, 'src/runner-worker.js'))) return 'src/runner-worker.js';
   return existsSync(join(root, LEGACY_WORKER_ENTRY)) ? LEGACY_WORKER_ENTRY : WORKER_ENTRY;
 }
 

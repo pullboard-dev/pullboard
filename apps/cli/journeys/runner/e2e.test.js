@@ -37,6 +37,8 @@ import * as store from '../../../../packages/store/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -45,26 +47,54 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
+/** File light work at mid, then route it through the coordinator's diagnosis. */
+function addDiagnosedLight(box, ...args) {
+  const route = args.indexOf('--route');
+  assert.equal(args[route + 1], 'light');
+  const brief = args.includes('--brief-file') ? readFileSync(args[args.indexOf('--brief-file') + 1], 'utf8') : args[args.indexOf('--brief') + 1];
+  args[route + 1] = 'mid';
+  const added = fixtureAdd(box.run, box.repo, ...args);
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = added.out.match(/^#(\d+)/m)?.[1];
+  assert.ok(id, added.out);
+  const diagnosis = box.run(box.repo, 'fact', id, 'diagnosis', brief);
+  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
+  return added;
+}
+
 test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', () => {
   const box = project();
+  const bin = join(box.dir, 'runner-bin');
+  const worker = join(box.dir, 'runner-worker');
+  const home = join(box.dir, 'runner-home');
+  for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
+  box.env.PATH = `${bin}:${box.env.PATH}`;
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.dir, 'runner-requests.jsonl') });
+  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
+  assert.equal(registered.code, 0, registered.err || registered.out);
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+    const configured = box.run(box.repo, 'settings', key, value);
+    assert.equal(configured.code, 0, configured.err || configured.out);
+  }
+
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
-  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
+  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
   assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
-  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'light', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
+  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
-  const added = fixtureAdd(box.run, box.repo, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
+  const added = addDiagnosedLight(box, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
   assert.equal(added.code, 0, added.err);
-  assert.match(added.out, /\nnext: pullboard next --wait 1\n$/u);
-  assert.equal(added.out.replace(/next: pullboard next --wait 1\n$/u, '').trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
+  assert.match(added.out, /\nnext: pullboard next\n$/u);
+  assert.equal(added.out.replace(/next: pullboard next\n$/u, '').trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
   assert.match(box.run(box.repo, 'list').out, /#2 {2}open {2}web {2}Copy the header {2}light/);
   assert.doesNotMatch(box.run(box.repo, 'list', '--route', 'light').out, /Design the page/);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
-  assert.match(made.out, /joined as web-2 \(Test Model\) in the web lane, on the light route/);
+  assert.match(made.out, /joined as web-2 \(fixture-model\) in the web lane, on the light route/);
   const light = made.out.match(/^made (\S+) /)[1];
-  assert.match(box.run(light, 'whoami').out, /^web-2 \(Test Model\) \(web lane, light route\)/);
+  assert.match(box.run(light, 'whoami').out, /^web-2 \(fixture-model\) \(web lane, light route\)/);
   const next = box.run(light, 'next');
-  assert.match(next.out, /claimed #2: Copy the header\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
+  assert.match(next.out, /claimed #2: Copy the header\nnext: build and commit in [^\n]+\nitem folder: [^\n]+; seat web-2; build, commit and submit there\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match(box.run(light, 'claim', '1').err, /ROUTE/);
   assert.match(box.run(box.web, 'next').out, /claimed #1: Design the page/);
   assert.equal(box.run(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.').code, 0);
@@ -88,15 +118,15 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   ].join('\n'));
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
   const has = (file, text) => `grep -q ${text} ${file}`;
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
+  assert.equal(addDiagnosedLight(box, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
+  assert.equal(addDiagnosedLight(box, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
   assert.match(box.run(light, 'run', '--agent-mid', `sh ${agent}`).err, /ROUTE.*joined on the light route, so it cannot take mid items/);
   const ran = box.run(light, 'run', '--agent-light', `sh ${agent}`, '--attempts', '2', '--minutes', '2');
   assert.equal(ran.code, 0, ran.err);
-  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
+  assert.match(ran.out, /#1 attempt 1: red[\s\S]*#1 attempt 2: green \(agent \d+s, check \d+s\)\nsubmit authorization and source: \d+\.\d+s\nsubmit composition: \d+\.\d+s\nsubmit changed static: \d+\.\d+s\nsubmit doctrine: \d+\.\d+s\nsubmit static: \d+\.\d+s\nsubmit cells: \d+\.\d+s\n[1-9]\d* lane updates; details remain on the board\nsubmitted #1 at [0-9a-f]{12};/);
   assert.match(ran.out, /nothing left to run: no open light runnable items in the web lane/);
   assert.match(ran.out, /#2 attempt 2: red[\s\S]*#2 escalated light -> mid; the attempt is pinned at refs\/pullboard\/attempts\/2\//);
   assert.match(ran.out, /runner done: 1 submitted, 1 escalated/);
@@ -113,8 +143,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   const shown = box.run(box.repo, 'show', '2').out;
   assert.match(shown, /#2 {2}open {2}web {2}Say bye {2}mid/);
   assert.match(shown, /unattended attempts: red, red/);
-  assert.match(shown, /escalated light -> mid by web-2 \(Test Model\), pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
-  assert.match(box.run(box.repo, 'inbox').out, /web-2 \(Test Model\) -> coordinator \(unknown\): #2 escalated light -> mid after 2 red attempts/);
+  assert.match(shown, /escalated light -> mid by web-2 \(fixture-model\), pinned at refs\/pullboard\/attempts\/2\/[0-9a-f]{12}: 2 attempts stayed red/);
+  assert.match(box.run(box.repo, 'inbox').out, /web-2 \(fixture-model\) -> coordinator \(unknown\): #2 escalated light -> mid after 2 red attempts/);
 });
 
 test('one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', () => {
@@ -127,8 +157,8 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const weak = script('weak.sh', ['echo nope > api/server.js']);
   const strong = script('strong.sh', ['grep -q "Earlier tries by a lighter model" "$PULLBOARD_PACK" && echo "export const served = true;" > api/server.js']);
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
-  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
-  fixtureAdd(box.run, box.repo, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
+  addDiagnosedLight(box, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
+  addDiagnosedLight(box, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   assert.match(box.run(webRunner, 'run', '--agent-light', good, '--attempts', '1').out, /submitted #1/);
   const commit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
@@ -155,7 +185,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   box.git(localRunner, 'commit', '-q', '-m', 'feat(api): local server variant [G2]');
 
   const brief = LIGHT_BRIEF.replace('web/page.js', 'api/server.js');
-  fixtureAdd(box.run, box.repo, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
+  addDiagnosedLight(box, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
     '--check', 'grep -q upstream api/server.js', '--brief', brief);
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
@@ -165,7 +195,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.').out, /verified #1/);
 
   const dependentBrief = LIGHT_BRIEF.replace('web/page.js', 'api/client.js');
-  fixtureAdd(box.run, box.repo, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
+  addDiagnosedLight(box, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
     '--check', 'test -f api/client.js && grep -q upstream api/server.js', '--brief', dependentBrief);
   const blocked = box.run(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
   assert.notEqual(blocked.code, 0, blocked.out);
@@ -208,7 +238,16 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.equal(machineBlind.code, 1);
   const next = JSON.parse(machineBlind.out).error.next;
   assert.equal(next, 'Fix the check so flagged files make it fail, then run pullboard sweep again.');
-  assert.ok(blind.err.trimEnd().endsWith(next), blind.err);
+  const refusalLine = blind.err.split('\n').find((line) => line.startsWith('stderr: ')) ?? blind.err;
+  assert.ok(refusalLine.trimEnd().endsWith(next), blind.err);
+
+  const checker = join(box.dir, 'novar.mjs');
+  writeFileSync(checker, readFileSync(checker, 'utf8').replace('no-var Unexpected var', 'unknown-rule Unexpected var'));
+  const unsupported = box.run(box.repo, ...sweep);
+  assert.equal(unsupported.code, 0, unsupported.err);
+  assert.match(unsupported.out, /filed 1/);
+  const pending = JSON.parse(box.run(box.repo, 'show', '3', '--json').out);
+  assert.equal(pending.item_route, 'mid', 'unknown checker rules stay mid until actually diagnosed');
 });
 
 test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
@@ -250,7 +289,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
   const fresh = box.run(box.web, 'resume');
   assert.equal(fresh.code, 0, fresh.err);
-  assert.match(fresh.out, /^resume: web-1 \(Test Model\), web lane, at /);
+  assert.match(fresh.out, /^resume: web-1 \(fixture-model\), web lane, at /);
   assert.match(fresh.out, /branch web\/one: 0 ahead of main, 0 behind/);
   assert.match(fresh.out, /next: pullboard next \(1 ready in your lane\)/);
   box.run(box.web, 'next');
@@ -315,7 +354,7 @@ test('hold pauses a lane: next names who held it and why; --off lets it go [N22]
   assert.match(box.run(box.web, 'hold', 'web', '--reason', 'mine').err, /COORDINATOR_ONLY/);
   assert.match(box.run(box.repo, 'hold', 'nowhere', '--reason', 'x').err, /NO_LANE/);
   assert.match(box.run(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten').out, /holding the web lane: G1 is being rewritten/);
-  const held = box.run(box.web, 'next');
+  const held = box.run(box.web, 'next', '--take');
   assert.equal(held.code, 1);
   assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
   assert.match(box.run(box.web, 'claim', '1').err, /LANE_HELD/);
