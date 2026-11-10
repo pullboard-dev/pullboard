@@ -185,7 +185,7 @@ export async function wholeSuiteHolders(box, names) {
     return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
   });
   try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
-    throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; box ${readdirSync(box.dir).join(',')}`);
+    throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);
   }
   return runs;
 }
