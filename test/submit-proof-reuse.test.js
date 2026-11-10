@@ -25,7 +25,7 @@ function fixture() {
 }
 
 test('exact admission, criterion and proof reuse their sealed run ids [C7,H16]', () => {
-  assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'] });
+  assert.deepEqual(reusableSubmitProof(fixture(), opts), { ids: ['criterion-id', 'proof-id'], environment: null });
 });
 
 test('changed source, main, criterion or incomplete evidence fails closed [C7,H16]', () => {
@@ -63,7 +63,7 @@ async function nativeProofScenario(t, moveMain) {
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   box.env.CODEX_THREAD_ID = 'proof-reuse-reviewer-session';
-  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'proof-reuse-reviewer'); assert.equal(joined.code, 0, joined.err || joined.out);
+  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'proof-reuse-reviewer', '--route', 'strong'); assert.equal(joined.code, 0, joined.err || joined.out);
   if (moveMain) {
     box.env.CODEX_THREAD_ID = 'proof-reuse-builder-session';
     box.git(box.repo, 'commit', '--allow-empty', '-m', 'chore: advance fixture main');
@@ -131,7 +131,7 @@ test('a complete tiered unit proof is reusable while journeys stay deferred [C7,
     value.receipt.submitReusePlan = submitReusePlanDigest({ check: opts.check, files: expectedPlan.files, full: false, deferred: true, proofCommand: opts.supplement });
     row.event_detail = JSON.stringify(value);
   }
-  assert.deepEqual(reusableSubmitProof(rows, { ...opts, expectedPlan }), { ids: ['criterion-id', 'proof-id'] });
+  assert.deepEqual(reusableSubmitProof(rows, { ...opts, expectedPlan }), { ids: ['criterion-id', 'proof-id'], environment: null });
   assert.ok(reusableSubmitProof(rows, { ...opts, expectedPlan: { ...expectedPlan, tiered: false } }).reason, 'ordinary deferred proof still cannot be cited');
   const missing = rows.filter(row => row.event_id !== 3);
   assert.ok(reusableSubmitProof(missing, { ...opts, expectedPlan }).reason, 'a missing unit proof receipt is never deferred away');
