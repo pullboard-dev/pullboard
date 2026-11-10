@@ -39,12 +39,14 @@ function actorGit(f, actor, ...args) {
   finally { if (before === undefined) delete f.box.env.CODEX_THREAD_ID; else f.box.env.CODEX_THREAD_ID = before; }
 }
 
+const STRONG_MODEL = 'strong fixture';
+
 /** Create a genuine joined worktree; no live seat or host identity is borrowed. */
 function seat(f, name, lane) {
   const root = join(f.box.dir, name);
   f.box.git(f.box.repo, 'worktree', 'add', '--detach', root, 'main');
   const actor = { root, session: name };
-  actor.id = document(run(f, actor, 'join', lane)).agent;
+  actor.id = document(run(f, actor, 'join', lane, '--model', STRONG_MODEL)).agent;
   return actor;
 }
 
@@ -57,6 +59,8 @@ function fixture(t) {
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.lanes.core = { owns: ['core/'], specs: ['G1'] };
   config.lanes.view = { owns: ['view/'], specs: ['G2'] };
+  // The board's model table determines seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: STRONG_MODEL, route: 'strong' }];
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-m', 'chore: private companion policy [G1]');
