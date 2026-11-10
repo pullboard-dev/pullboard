@@ -7,7 +7,8 @@ import { acceptedCutItems } from '../../../../packages/landing/tests/fixtures/pl
 import { cachedSubmitSourceStep } from '../../src/io/submit/cache.js';
 import { withImportParseCache } from '../../../../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
-import assert from 'node:assert/strict';
+import real from "node:assert/strict"; // PROBE
+const assert = new Proxy(real, { get(t,k){ const f=t[k]; if(typeof f!=="function") return f; return (...a)=>{ const wrap=e=>{ if(e && e.name==="AssertionError") throw new Error(("DBG "+String(e.actual?.message ?? (typeof e.actual==="string"?e.actual:JSON.stringify(e.actual)))).replace(/\s+/g," ").slice(0,900)); throw e;}; try{ const r=f.apply(t,a); return r&&r.then? r.catch(wrap): r;}catch(e){wrap(e)} } } }); // PROBE
 import {
   rmSync,
   writeFileSync,
