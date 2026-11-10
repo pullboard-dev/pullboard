@@ -24,7 +24,7 @@ test('loading core.js resolves neither the command table nor cli-main, in under 
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', script, CORE], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const { seen, ms } = JSON.parse(run.stdout.trim().split('\n').pop());
-  assert.ok(seen.some(url => url.endsWith('/src/shell/pinned-tool-build.js')));
-  assert.deepEqual(seen.filter(url => /\/commands\/|\/cli-main\.js$/u.test(url)), []);
+  assert.ok(seen.some(url => url.endsWith('/src/io/pinned/tool/build.js')));
+  assert.deepEqual(seen.filter(url => /\/commands\/|\/main\.js$/u.test(url)), []);
   assert.ok(ms < 100, `${ms} ms`);
 });
