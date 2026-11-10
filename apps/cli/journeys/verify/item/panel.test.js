@@ -54,10 +54,12 @@ function seedPanelItems(box, demo) {
 test('the item panel presents native verdicts, checks, files and newest-first history at desktop and phone widths [N26,B23]', { timeout: 300_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen item-panel journey requires real Chrome.');
-  const box = machine(), demo = project(box, 'item-panel');
+  // The seeded check names two files outside web/, so the lane owns them for claim to accept the bar [C7].
+  const owned = ['web/', 'packages/gate/src/io/run/tests.js', 'apps/cli/journeys/verify/item/panel.test.js'];
+  const box = machine(), demo = project(box, 'item-panel', undefined, { lanes: { web: { owns: owned, specs: ['G'] } } });
   // The seeded check is also executed by the native submission, so its fixture needs a real runner and test.
-  mkdirSync(join(demo.repo, 'bin'), { recursive: true });
-  mkdirSync(join(demo.repo, 'test', 'cockpit'), { recursive: true });
+  mkdirSync(join(demo.repo, 'packages', 'gate', 'src', 'io', 'run'), { recursive: true });
+  mkdirSync(join(demo.repo, 'apps', 'cli', 'journeys', 'verify', 'item'), { recursive: true });
   writeFileSync(join(demo.repo, 'packages', 'gate', 'src', 'io', 'run', 'tests.js'), "const { spawnSync } = require('node:child_process'); const result = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' }); process.exit(result.status ?? 1);\n");
   writeFileSync(join(demo.repo, 'apps', 'cli', 'journeys', 'verify', 'item', 'panel.test.js'), "const { test } = require('node:test'); test('fixture check', () => {});\n");
   box.git(demo.repo, 'add', 'packages/gate/src/io/run/tests.js', 'apps/cli/journeys/verify/item/panel.test.js');
