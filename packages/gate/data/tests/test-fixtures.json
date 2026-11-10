@@ -311,14 +311,14 @@
   "packages/store/tests/corrections.test.js": {
     "raw-board": 3
   },
-  "apps/cli/journeys/engine/check.test.js": {
+  "packages/store/tests/check-baseline-worker.test.js": {
     "raw-board": 4
   },
   "packages/store/tests/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
-  "apps/cli/journeys/engine/replay.test.js": {
+  "packages/store/tests/engine-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -347,7 +347,7 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "apps/cli/journeys/relay/activation.test.js": {
+  "packages/store/tests/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
@@ -355,10 +355,10 @@
     "raw-board": 22,
     "tempdir": 4
   },
-  "apps/cli/journeys/engine/review.test.js": {
+  "packages/store/tests/review-grant-replay.test.js": {
     "raw-board": 6
   },
-  "apps/cli/journeys/engine/queue.test.js": {
+  "packages/store/tests/review-queue-replay.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/engine/settings.test.js": {
@@ -371,7 +371,7 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "apps/cli/journeys/engine/team.test.js": {
+  "packages/store/tests/team-engine.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
