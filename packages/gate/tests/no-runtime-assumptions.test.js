@@ -7,9 +7,9 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { assumptionProblems } from '../../../bin/checks/no-runtime-assumptions.js';
-import { assumptionsIn } from '../../../bin/checks/no-runtime-assumptions.js';
-import { writeAssumptionBaseline } from '../../../bin/checks/no-runtime-assumptions.js';
+import { assumptionProblems } from '../../codemap/index.js';
+import { assumptionsIn } from '../../codemap/index.js';
+import { writeAssumptionBaseline } from '../../codemap/index.js';
 import { STATIC_CHECKS } from '../index.js';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
