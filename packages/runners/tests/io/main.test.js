@@ -54,7 +54,7 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
   const file = join(installed, policy);
   const after = runnerPackage(installed).files;
   const source = after[policy];
-  const direct = "'../../../sandbox/core.js'";
+  const direct = "'../../../sandbox/light.js'";
   assert.ok(source.includes(direct));
   assert.equal(Object.hasOwn(after, 'src/trusted-policy-read.js'), false);
   assert.equal(Object.hasOwn(after, 'packages/sandbox/index.js'), false);
@@ -62,7 +62,7 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
   try {
     // Reconstruct the former transparent hop; today's compatibility shim uses the public front door.
     writeFileSync(join(installed, 'src/trusted-policy-read.js'),
-      "export { policyGit, mainPolicy, policyAt, RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk, trunkRef } from '../packages/sandbox/core.js';\n");
+      "export { policyGit, mainPolicy, policyAt, RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk, trunkRef } from '../packages/sandbox/light.js';\n");
     writeFileSync(file, source.replace(direct, "'../../../../src/trusted-policy-read.js'"));
     const before = runnerPackage(installed).files;
     assert.ok(Object.hasOwn(before, 'src/trusted-policy-read.js'));
