@@ -1,12 +1,17 @@
 /** @pullboard-test-input test/** */
 /** Manifest copies retain moved runtime files and reject executable hand copiers [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { fixtureCopierProblems } from './package-copy-fixture.js';
+import { copyPackageFiles } from '../index.js';
+import { fixtureCopierProblems } from '../../../test/package-copy-fixture.js';
 
 /** Create only private source and destination directories, never the person's checkout. */
 function fixture(t) {

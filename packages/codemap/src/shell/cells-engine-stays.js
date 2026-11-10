@@ -1,10 +1,10 @@
 /** Retain canonical engine identities without allowing arbitrary accepted plan rows to disappear [C7,CD64]. */
-import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
-import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
+import { cellLstatSync as lstatSync } from './cell-source-snapshot.js';
+import { cellReadFileSync as readFileSync } from './cell-source-snapshot.js';
 import { join } from 'node:path';
-import { engineBindings } from '../packages/state/core.js';
-import { lex } from '../packages/kernel/index.js';
-import { Refused } from '../packages/kernel/index.js';
+import { engineBindings } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/index.js';
 
 const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js']);
 const HISTORY = /^src\/move-history\/(?:legacy|[1-9][0-9]*)\.json$/u;
