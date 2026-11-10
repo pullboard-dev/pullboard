@@ -16,8 +16,8 @@ export const LAYOUT_RULES = Object.freeze({
   'alias-folder': 'migration alias: src/core is src/logic and src/shell is src/io; rename the folder',
   'src-entry': 'a cell\'s src/ holds only logic/ and io/; move it into one of them',
   'test-placement': 'tests/ holds test files under logic/ and io/ and helpers under fixtures/; move it',
-  'test-mirror': 'a test file sits at tests/<logic|io>/<path> and mirrors the src/<logic|io>/<path> file it proves; move it',
-  'data-group': 'data/ holds only the groups baselines/, ceilings/ and tests/; move it into one',
+  'test-mirror': 'a test file sits at tests/<logic|io>/<path> and mirrors the src/<logic|io>/<path> file it proves (a test in tests/<tier>/<name>/ mirrors src/<tier>/<name>); a test with no source file sits at tests/<topic> or tests/<group>/<topic>; move it',
+  'data-group': 'data/ holds only the groups baselines/, ceilings/, tests/, plan/ and history/; move it into one',
   'journey-folder': 'journeys/ holds one folder per exact command; put the file in journeys/<command>/',
   'name-repeat': 'a file name never repeats its cell\'s or folder\'s name; drop that word',
   'name-length': 'a file name is one word, or two only when one word would be ambiguous in its folder; shorten it',
@@ -31,7 +31,9 @@ const DOORS = new Set(['index.js', 'light.js', 'browser.js']);
 const ALIAS_DOORS = new Map([['core.js', 'light.js'], ['pure.js', 'browser.js']]);
 const ALIAS_FOLDERS = new Map([['core', 'logic'], ['shell', 'io']]);
 const TIERS = new Set(['logic', 'io']);
-const DATA_GROUPS = new Set(['baselines', 'ceilings', 'tests']);
+const DATA_GROUPS = new Set(['baselines', 'ceilings', 'tests', 'plan', 'history']);
+/** Folders whose file names a registry reads, so the name rules leave them alone. */
+const REGISTRY_FOLDERS = new Set(['moves', 'commands']);
 const CELL = /^(apps|packages)\/([^/]+)\/(.+)$/u;
 
 /** The words of a file name: whatever precedes its first dot, split on hyphens. */
@@ -119,9 +121,11 @@ function testViolations(cell, rel, parts, effective, add) {
   if (fixture) return;
   if (!isDefaultTestFile(rel)) { add('test-placement', full, full); return; }
   if (parts.length === 2 && DOORS.has(`${words(parts[1])[0]}.js`)) return;
+  if (parts.length === 2 || (!TIERS.has(parts[1]) && parts[1] !== 'fixtures')) return;
   if (parts.length < 3 || !TIERS.has(parts[1])) { add('test-mirror', full, `${full} has no logic/ or io/ folder`); return; }
   const mirror = ['src', ...parts.slice(1, -1), `${words(parts.at(-1)).join('-')}.js`].join('/');
-  if (!effective.has(mirror)) add('test-mirror', full, `${full} mirrors nothing at ${cell}/${mirror}`);
+  const folderMirror = parts.length > 3 ? ['src', ...parts.slice(1, -2), `${parts.at(-2)}.js`].join('/') : null;
+  if (!effective.has(mirror) && !(folderMirror && effective.has(folderMirror))) add('test-mirror', full, `${full} mirrors nothing at ${cell}/${mirror}`);
 }
 
 /** The naming rules for one file under src/ or tests/. */
@@ -129,7 +133,9 @@ function nameViolations(cell, cellName, rel, parts, effective, add) {
   const full = `${cell}/${rel}`;
   const file = parts.at(-1);
   const folder = parts.at(-2);
+  if (REGISTRY_FOLDERS.has(folder)) return;
   const own = words(file);
+  if (folder === 'engines' && own.length > 1 && own.at(-1) === 'engine') own.pop();
   const repeats = [cellName, folder].some(other => containsRun(own, other.split('-')));
   if (repeats) add('name-repeat', full, full);
   const siblings = [...effective].filter(other => other !== rel && other.startsWith(parts.slice(0, -1).join('/') + '/') && other.split('/').length === parts.length);
