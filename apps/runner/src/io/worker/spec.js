@@ -56,7 +56,8 @@ function hydrateRuntime(value, S) {
     || name.split('/').some(part => !part || part === '.' || part === '..') || /[\\\u0000-\u001f\u007f]/u.test(name))) {
     throw new Error('invalid trusted runtime paths');
   }
-  const root = fileURLToPath(new URL('../../../../../', S.entryUrl)); // the runtime root above apps/runner/src/io/scripts/ [V32]
+  // The runtime root sits six levels above the entry, apps/runner/src/io/scripts/worker.js [V32].
+  const root = dirname(dirname(dirname(dirname(dirname(dirname(fileURLToPath(S.entryUrl)))))));
   const files = {};
   for (const name of names) {
     try { files[name] = readFileSync(join(root, name), 'utf8'); }
