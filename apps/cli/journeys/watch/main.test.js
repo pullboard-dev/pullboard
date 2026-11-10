@@ -410,7 +410,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
   const facts = recorded.filter(event => event.event_kind === 'fact');
-  assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
+  assert.equal(facts.length, 4, `each submission records exactly pending and completed comparison facts: ${JSON.stringify(facts)}`);
   for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
     const comparisons = facts.filter(event => event.item_id === item).map(event => {
       const fact = JSON.parse(event.event_detail);
