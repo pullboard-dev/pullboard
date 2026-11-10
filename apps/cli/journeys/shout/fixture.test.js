@@ -183,7 +183,7 @@ test('the cockpit helper starts its view in the foreground [C7,N26]', async t =>
   const receipt = join(box.dir, 'view-processes.jsonl');
   const observer = join(box.dir, 'observe-view.mjs');
   // A preload observes the real spawned Node environment without replacing the CLI or server.
-  writeFileSync(observer, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(receipt)}, JSON.stringify({ pid: process.pid, marker: process.env.PULLBOARD_VIEW_FOREGROUND ?? null }) + '\\n', { mode: 0o600 });\n`);
+  writeFileSync(observer, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(receipt)}, JSON.stringify({ pid: process.pid, argv: process.argv.slice(1, 4), marker: process.env.PULLBOARD_VIEW_FOREGROUND ?? null }) + '\\n', { mode: 0o600 });\n`);
   box.env.NODE_OPTIONS = `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(observer).href}`.trim();
   /** Read only the PIDs and marker observed by this fixture's actual Node children. */
   const observed = () => {
@@ -201,7 +201,7 @@ test('the cockpit helper starts its view in the foreground [C7,N26]', async t =>
   let children;
   try {
     children = observed();
-    assert.equal(children.length, 1, 'the helper owns one foreground view process');
+    assert.equal(children.length, 1, 'the helper owns one foreground view process: ' + JSON.stringify(children));
     assert.equal(children[0].marker, '1', 'the actual spawned child receives the foreground marker');
     assert.doesNotThrow(() => process.kill(children[0].pid, 0), 'the owned child stays alive while serving');
   } finally {
@@ -352,7 +352,7 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
     assert.equal(moves[4].body.args.off, true);
     // The local view also asks its own server whether it can link boards (/api/v1/view-link, #633).
     const offPublic = [...new Set(page.requests.map((request) => request.path).filter((path) => path !== '/api/v1/view-link'
-      && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
+      && !/^\/api\/v1\/boards(?:$|\/[^/]+\/(?:state|code|moves|events|items\/\d+|items\?q=[^&]+)(?:\?|$))/.test(path)))];
     assert.deepEqual(offPublic, [], 'every page request uses a public v1 path');
     assert.ok(page.requests.some((request) => request.path === '/api/v1/boards'));
     assert.ok(page.requests.some((request) => request.path === `/api/v1/boards/${id}/state`));
