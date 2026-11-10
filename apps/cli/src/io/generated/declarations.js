@@ -31,13 +31,27 @@ function namedTable(root, name, heading, names) {
   return docTable(heading, rows);
 }
 
+/** Exact kind-to-path identities selected by the committed layout freeze [A5,C7]. */
+const EVENT_DIRECTORY = 'apps/cli/src/io/documentation/events';
+const EVENT_PATH_BY_KIND = {
+  'review-default': `${EVENT_DIRECTORY}/default.json`, 'next-idle': `${EVENT_DIRECTORY}/idle.json`,
+  'lane-lead': `${EVENT_DIRECTORY}/lead.json`, 'strong-rejection-notice': `${EVENT_DIRECTORY}/notice.json`,
+  'test-quarantine': `${EVENT_DIRECTORY}/quarantine.json`, 'shared-usage': `${EVENT_DIRECTORY}/shared.json`,
+  'bar-sharpen': `${EVENT_DIRECTORY}/sharpen.json`,
+};
+
 /** Render event descriptions from independent per-kind files, retaining historical version annotations. */
 function eventTable(root) {
-  const directory = join(root, 'apps/cli/src/io/documentation/events');
+  const directory = join(root, EVENT_DIRECTORY);
+  const kinds = new Set();
   const entries = readdirSync(directory).filter(file => file.endsWith('.json')).sort().flatMap(file => {
     if (!/^[a-z][a-z0-9_-]*\.json$/u.test(file) || !lstatSync(join(directory, file)).isFile()) throw new Error(`invalid event declaration ${file}`);
     const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));
-    if (file !== `${row.kind}.json` || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);
+    const actual = `${EVENT_DIRECTORY}/${file}`;
+    const expected = Object.hasOwn(EVENT_PATH_BY_KIND, row.kind) ? EVENT_PATH_BY_KIND[row.kind] : `${EVENT_DIRECTORY}/${row.kind}.json`;
+    if (!/^[a-z][a-z0-9_-]*$/u.test(row.kind ?? '') || actual !== expected || kinds.has(row.kind)
+      || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);
+    kinds.add(row.kind);
     return row.entries.map(entry => {
       if (!Number.isSafeInteger(entry.order) || entry.order < 0 || typeof entry.actor !== 'string'
           || typeof entry.detail !== 'string') throw new Error(`invalid event description ${file}`);
