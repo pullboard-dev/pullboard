@@ -340,12 +340,12 @@ test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, ref
   const keysDirectory = join(pullboardHome, 'relay-keys');
   mkdirSync(keysDirectory, { recursive: true, mode: 0o755 });
   chmodSync(keysDirectory, 0o755);
-  await assert.rejects(cli(root, relayEnv, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', relay.origin), /RELAY_KEY_STORAGE/);
+  await assert.rejects(cli(root, relayEnv, 'relay', 'on', '--url', relay.origin), /RELAY_KEY_STORAGE/);
   assert.deepEqual(await auth.boardsFor(person.token), [], 'a failed device key save creates no remote link');
   assert.ok(!relay.calls.some((call) => call.path === '/auth/boards/link'));
   assert.equal(signIns, 0, 'a failed key save does not start a foreground person sign-in');
   chmodSync(keysDirectory, 0o700);
-  const on = await cli(root, relayEnv, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', relay.origin);
+  const on = await cli(root, relayEnv, 'relay', 'on', '--url', relay.origin);
   const linkedAt = auth.linkedBoards().find(link => link.id === boardId).linkedAt;
   assert.deepEqual(await auth.boardsFor(person.token), [{ id: boardId, repository: 'fixture/repository', linkedAt }]);
   assert.equal(on.version, 1);
@@ -569,7 +569,7 @@ async function lostReplyFixture(t) {
   runFixtureGit(['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' });
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
   mkdirSync(join(pullboardHome, 'relay-keys'), { recursive: true, mode: 0o700 });
-  await cli(root, env, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', relay.origin);
+  await cli(root, env, 'relay', 'on', '--url', relay.origin);
   return { root, env, lane, relay, pullboardHome };
 }
 

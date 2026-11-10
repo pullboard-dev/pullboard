@@ -23,7 +23,7 @@ async function enrollment(file, command, ready = '') {
 
 /** Enroll a signed supplemental protocol device; the separate acceptance test uses two real browsers. */
 async function firstDevice(box, file) {
-  const command = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const command = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   const pending = await enrollment(file, command);
   const published = await box.waitForResponse('/api/v1/devices/enrollments/' + pending.locator);
   assert.equal(published.method, 'POST', 'native enrollment publication completes before the protocol device answers');
@@ -44,16 +44,16 @@ test('the additional-browser flag preserves string options and refuses unrelated
   const file = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
   const before = existsSync(file) ? readFileSync(file, 'utf8') : null;
   const calls = box.calls.length;
-  for (const args of [['apps', 'relay', 'src', 'io', 'deploy', 'recover', '--skip', '1'], ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all'], ['apps', 'relay', 'src', 'io', 'deploy', 'devices']]) {
+  for (const args of [['relay', 'recover', '--skip', '1'], ['relay', 'on', '--all'], ['relay', 'devices']]) {
     const result = await box.cli(...args, '--new-browser');
     assert.equal(result.code, 1);
     assert.equal(result.document.error.code, 'USAGE');
   }
   assert.equal(box.calls.length, calls, 'misused flags do not reach relay endpoints');
   assert.equal(existsSync(file) ? readFileSync(file, 'utf8') : null, before, 'misused flags do not mutate machine state');
-  const help = await box.startCli(['apps', 'relay', 'src', 'io', 'deploy', '--help', '--browser=2'], {}, { json: false }).closed;
+  const help = await box.startCli(['relay', '--help', '--browser=2'], {}, { json: false }).closed;
   assert.equal(help.code, 0, 'the existing browser option still accepts a string value');
-  const missing = await box.startCli(['apps', 'relay', 'src', 'io', 'deploy', '--browser'], {}, { json: false }).closed;
+  const missing = await box.startCli(['relay', '--browser'], {}, { json: false }).closed;
   assert.equal(missing.code, 2, 'the existing string option still requires its value');
   assert.match(missing.stderr, /--browser.*argument missing/iu);
   assert.match(help.stdout, /relay pair --new-browser/u);
@@ -66,11 +66,11 @@ test('repeat setup retains its device and cancelling another browser names the f
   const before = JSON.parse(readFileSync(file, 'utf8')).devices;
   const enrollments = box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length;
   assert.ok(enrollments > 0, 'the initial real enrollment was observed before testing idempotence');
-  const repeated = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--all');
+  const repeated = await box.cli('relay', 'on', '--all');
   assert.equal(repeated.code, 0);
   assert.equal(box.calls.filter(call => call.method === 'POST' && call.path.startsWith('/api/v1/devices/enrollments/')).length, enrollments);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).devices, before);
-  const additional = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'pair', '--new-browser'], {}, { json: false });
+  const additional = box.startCli(['relay', 'pair', '--new-browser'], {}, { json: false });
   const pending = await enrollment(file, additional, 'Now waiting for another browser');
   assert.ok(pending.locator, 'a real additional enrollment exists before cancellation');
   assert.equal(additional.child.kill('SIGINT'), true, 'only this exact owned foreground child receives SIGINT');
@@ -81,5 +81,5 @@ test('repeat setup retains its device and cancelling another browser names the f
   assert.equal(after.pending, null);
   assert.deepEqual(after.devices, before, 'cancellation retains the first device exactly');
   assert.equal(after.devices[0].deviceId, device);
-  assert.equal((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair')).code, 0, 'bare pairing still creates a computer-clone bundle');
+  assert.equal((await box.cli('relay', 'pair')).code, 0, 'bare pairing still creates a computer-clone bundle');
 });

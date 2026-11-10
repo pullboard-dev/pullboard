@@ -120,7 +120,7 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   writeFileSync(otherLink, elsewhere, { mode: 0o600 });
   const warned = await ci('status');
   assert.match(JSON.stringify(warned.document?.diagnostics ?? []), /RELAY_LINKED/u, 'the environment names the link to another board and the read goes on');
-  const relayRead = await ci('apps', 'relay', 'src', 'io', 'deploy', 'status');
+  const relayRead = await ci('relay', 'status');
   assert.equal(relayRead.code, 0, `relay status is a read too, so it goes on: ${JSON.stringify(relayRead.document?.error?.code ?? null)}`);
   assert.match(JSON.stringify(relayRead.document?.diagnostics ?? []), /RELAY_LINKED/u, 'relay status names the link to another board');
   const refused = await ci('add', box.lane, 'Added across boards');

@@ -71,7 +71,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     // Only this process's own children: a busy machine lists more processes than one ps read should hold.
-    const controllers = execFileSync('pgrep', ['-P', String(process.pid), '-f', 'runner-controller.js'], { encoding: 'utf8' })
+    const controllers = execFileSync('pgrep', ['-P', String(process.pid), '-f', 'pullboard-runner-controller'], { encoding: 'utf8' })
       .split(String.fromCharCode(10)).filter(Boolean).map(Number);
     // Startup and dispatch are over; from here the controller only waits on the remote job.
     await new Promise(resolve => setTimeout(resolve, 1000));

@@ -41,7 +41,7 @@ const { sandbox, commitFile } = e2e;
 const ROWS = Array.from({ length: 36 }, (_, index) => `Z${index + 1}`);
 
 /** A local-only repo with a spec of G1 and Z1..Z36, landing into its own trunk with a trivial gate. */
-function localProject() {
+function localProject({ batch = false } = {}) {
   const box = sandbox();
   const repo = join(box.dir, 'message-repo');
   mkdirSync(repo);
@@ -50,7 +50,7 @@ function localProject() {
   assert.equal(initialized.code, 0, initialized.err);
   const configFile = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', landing: { ...config.landing, manualOverride: true }, lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
+  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', landing: { ...config.landing, manualOverride: true, ...(batch ? { perItem: false } : {}) }, lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), `# Message fixture\n\n## Goals\n- G1 [approved, must] The result exists. | gate: true\n${ROWS.map((id) => `- ${id} [approved, must] Row ${id} holds. | gate: true`).join('\n')}\n`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure local landing');
@@ -101,7 +101,7 @@ function advanceMain(box) {
 }
 
 test('a landing batch writes ids that fit then +N, and every frozen row in spec order as the last paragraph [C7,B3,R3]', () => {
-  const box = localProject();
+  const box = localProject({ batch: true });
   // 36 rows cited in scattered order: landing never refuses, and the trailer lists them in spec order.
   const many = claimedItem(box, 'Land every cited row', [...ROWS].reverse(), 'web/many.txt');
   // Rows cited out of order, then refrozen after the claim by a coordinator correction.
@@ -120,7 +120,7 @@ test('a landing batch writes ids that fit then +N, and every frozen row in spec 
   const landed = box.run(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err || landed.out);
   const receipt = JSON.parse(landed.out);
-  assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort());
+  assert.deepEqual([...receipt.landed].sort(), [many.id, refrozen.id].sort(), JSON.stringify(receipt));
   const merges = box.git(box.repo, 'rev-list', '--reverse', '--first-parent', `${base}..${receipt.batch.tip}`).split('\n').filter(Boolean);
   const messages = new Map(merges.map((commit) => {
     const message = box.git(box.repo, 'log', '-1', '--format=%B', commit);

@@ -132,7 +132,7 @@ const second = workflowText(resolve(ROOT, '.github/workflows/ci.yml'));
 test('a closed helper reading moved implementation rewrites its actual source and preserves destinations and assertions [C7]', () => {
   const source = FLOW_PREFIX + `
 function sourceText(path) { return readFileSync(path, 'utf8'); }
-const code = sourceText(new URL('../../../../../git/index.js', import.meta.url));
+const code = sourceText(new URL('../packages/git/index.js', import.meta.url));
 writeFileSync(join(root, 'packages/git/index.js'), code);
 assert.equal(code.includes('packages/git/index.js'), true);
 `;
@@ -140,7 +140,7 @@ assert.equal(code.includes('packages/git/index.js'), true);
   assert.deepEqual(result.problems, []);
   assert.equal(result.edits.length, 1);
   const rewritten = editedFixture(source, result.edits);
-  assert.match(rewritten, /new URL\(['"]\.\.\/packages\/git\/src\/shell\/git\.js['"], import\.meta\.url\)/u);
+  assert.match(rewritten, /new URL\(['"]\.\.\/packages\/git\/src\/io\/main\.js['"], import\.meta\.url\)/u);
   assert.ok(rewritten.includes("writeFileSync(join(root, 'packages/git/index.js'), code)"));
   assert.ok(rewritten.includes("assert.equal(code.includes('packages/git/index.js'), true)"));
   assert.deepEqual(fixtureSourceEdits(rewritten, options).edits, [], 'an actual-home source is not rewritten again');
@@ -151,7 +151,7 @@ test('mixed, dynamic and escaped local helper arguments keep the source read unk
   for (const body of [
     helper + "text(new URL('../../../../../../.github/workflows/cla.yml', import.meta.url)); text(mystery);",
     helper + 'text(computePath());',
-    helper + "const escaped = text; escaped(new URL('../../../../../git/index.js', import.meta.url));",
+    helper + "const escaped = text; escaped(new URL('../packages/git/index.js', import.meta.url));",
     helper + 'consume(text); text(mystery);',
     helper + "text(...paths); text(new URL('../../../../../../.github/workflows/cla.yml', import.meta.url));",
   ]) assertUnprovenFixture(body);
@@ -187,7 +187,7 @@ const box = makeBox();
 `;
   assertUnprovenFixture(factory + "const other = unknownBox(); readFileSync(other.marker, 'utf8');");
   assertUnprovenFixture(`
-function makeBox() { return { marker: new URL('../../../../../git/index.js', import.meta.url) }; }
+function makeBox() { return { marker: new URL('../packages/git/index.js', import.meta.url) }; }
 const box = makeBox(); readFileSync(box.marker, 'utf8');
 `);
 });
@@ -236,7 +236,7 @@ test('copying implementation into a temporary fixture never excuses the original
 function makeBox() {
   const dir = mkdtempSync(join(tmpdir(), 'source-flow-'));
   const marker = join(dir, 'git.js');
-  cpSync(new URL('../../../../../git/index.js', import.meta.url), marker);
+  cpSync(new URL('../packages/git/index.js', import.meta.url), marker);
   return { marker };
 }
 const box = makeBox();
@@ -246,8 +246,8 @@ readFileSync(box.marker, 'utf8');
   assert.ok(result.edits.length || result.problems.length, 'a copied source remains an edit or named unknown');
   if (result.edits.length) {
     const rewritten = editedFixture(source, result.edits);
-    assert.match(rewritten, /new URL\(['"]\.\.\/packages\/git\/src\/shell\/git\.js['"], import\.meta\.url\)/u);
-    assert.match(rewritten, /cpSync\(new URL\(['"]\.\.\/packages\/git\/src\/shell\/git\.js['"], import\.meta\.url\), marker\)/u);
+    assert.match(rewritten, /new URL\(['"]\.\.\/packages\/git\/src\/io\/main\.js['"], import\.meta\.url\)/u);
+    assert.match(rewritten, /cpSync\(new URL\(['"]\.\.\/packages\/git\/src\/io\/main\.js['"], import\.meta\.url\), marker\)/u);
     assert.ok(rewritten.includes("readFileSync(box.marker, 'utf8')"));
   }
 });

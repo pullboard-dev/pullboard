@@ -31,13 +31,13 @@ function declare(root, cell, key, value) {
 }
 
 /** Move the fixture's app:cli behind index.js and a declared light core.js that re-exports its body. */
-function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/core/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
+function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { run } from './src/logic/cli.js';\n", key = 'lightFrontDoor', value = DOOR } = {}) {
   const project = fixture(t), { root, put } = project;
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   put(BODY, body);
   put(DOOR, door);
-  put('apps/cli/index.js', "export * from './core.js';\n");
-  put('src/cli.js', "export { run } from '../apps/cli/core.js';\n");
+  put('apps/cli/index.js', "export * from './light.js';\n");
+  put('src/cli.js', "export { run } from '../apps/cli/light.js';\n");
   put('bin/tool.js', "import '../apps/cli/index.js';\n");
   assert.equal(plan(root, '--write').status, 0);
   declare(root, 'app:cli', key, value);

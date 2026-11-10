@@ -146,14 +146,16 @@ function installTestWatchdog() {
   });
 
   afterEach((context) => {
-    const id = activeTests.get(context);
-    if (id !== undefined) {
-      reportFileTest(id, null);
-      watchdog.postMessage({ type: 'stop', id });
-      runningTests.delete(id);
-    }
-    // A suite's after hooks run before root after; start the idle ceiling here.
-    if (runningTests.size === 0) armFileExitWatchdog();
+    // Test-owned after hooks run after afterEach; keep the case watchdog until cleanup ends.
+    context.after(() => {
+      const id = activeTests.get(context);
+      if (id !== undefined) {
+        reportFileTest(id, null);
+        watchdog.postMessage({ type: 'stop', id });
+        runningTests.delete(id);
+      }
+      if (runningTests.size === 0) armFileExitWatchdog();
+    });
   });
 
   /** Bound cleanup between completed tests, cancelling the ceiling when another test starts. */

@@ -290,7 +290,7 @@ test('a GitHub 403 never refuses or delays a move: it is recorded and queued, th
 
 test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
-  const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const printed = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const permission = () => box.providerCalls.filter(call => call.path.endsWith('/permission')).length;
   const asked = permission();
@@ -362,7 +362,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   enableOutbox(box);
   await box.link();
   const contested = (await box.cli('add', box.lane, 'Claimed on two machines')).document.item.item_id;
-  const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const printed = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code);
   const here = await seat(box, 'here-agent');
   const otherPath = join(dirname(other.root), 'there-agent');

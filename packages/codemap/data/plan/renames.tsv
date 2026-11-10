@@ -3798,7 +3798,7 @@ test/outbox-ports.test.js	apps/cli/journeys/fact/ports.test.js
 test/output-budget.test.js	apps/cli/journeys/inbox/budget.test.js
 test/outside-sensitive-paths.test.js	packages/items/tests/logic/outside/sensitive.test.js
 test/package-copy-fixture.js	apps/cli/tests/fixtures/copy.js
-test/package.test.js	packages/doctrine/tests/package.test.js
+test/package.test.js	merge:packages/doctrine/tests/package.test.js
 test/pairing.test.js	apps/cli/journeys/relay/pairing.test.js
 test/patch-binds-item-folder.test.js	apps/cli/journeys/patch/folder.test.js
 test/patch-follow-head.test.js	apps/cli/journeys/patch/head.test.js

@@ -59,7 +59,7 @@ function cliCommand(root, env, args, timeoutMs = APPROVAL_TIMEOUT_MS, { json = t
 
 /** Start foreground machine setup and pair one real Chrome device through the real relay. */
 async function pairPhone(box, t) {
-  const setup = cliCommand(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin], 120_000);
+  const setup = cliCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 120_000);
   let chrome;
   const native = [setup];
   t.after(async () => {
@@ -188,7 +188,7 @@ function approvedLinkScenario(t) {
     const button = '#phone-approve-' + proposal.context.id;
     await chrome.waitFor(`document.querySelector(${JSON.stringify(button)}) !== null`);
 
-    const run = cliCommand(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin], 120_000, { json: false });
+    const run = cliCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin], 120_000, { json: false });
     native.push(run);
     let live = '';
     run.child.stdout.on('data', chunk => { live += chunk; });
