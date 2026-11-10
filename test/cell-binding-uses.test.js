@@ -34,7 +34,7 @@ import {
   localFunctionCallSets,
   readOnlyMemberRanges,
 } from '../packages/codemap/index.js';
-import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
 import { mainAuditKey } from '../packages/gate/index.js';
 import { readAuditJob } from './main-audit-project.js';
 import { relayClientFixture } from './relay-client-fixture.js';

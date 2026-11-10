@@ -1,12 +1,9 @@
 /** Bind the bounded leaf transaction to the repository's compile-only source analyzers [C7]. */
-import { createMoveTool } from './cells-move-transaction.js';
+import { spawnSync } from 'node:child_process';
 import { lex } from '../packages/kernel/index.js';
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { commonJsIn, createMoveTool, fixtureSourceEdits, importsIn, readPathMap } from '../packages/codemap/index.js';
 import { engineFolderViolations } from '../packages/state/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
-import { cleanGitEnvironment } from '../src/git.js';
-import { fixtureSourceEdits } from './cells-move-fixtures.js';
+import { cleanGitEnvironment } from '../packages/git/index.js';
 
 export const cellsMove = createMoveTool({
   lex,
@@ -16,4 +13,5 @@ export const cellsMove = createMoveTool({
   readPathMap,
   cleanGitEnvironment,
   fixtureSourceEdits,
+  runProcess: spawnSync,
 });
