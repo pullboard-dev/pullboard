@@ -277,7 +277,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
 
 /** The tooling id: the name of the tools folder this gate runs from, a shared snapshot per tooling tree (#3339). */
 function runningToolingId() {
-  return basename(dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))).replace(/[^\w.-]/gu, '_');
+  return basename(fileURLToPath(new URL('../../../../../', import.meta.url))).replace(/\/$/u, '').replace(/[^\w.-]/gu, '_');
 }
 
 /**

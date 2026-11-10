@@ -365,7 +365,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     const owned = attached;
     attached = false;
     try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
-    finally { if (owned) removeJobToolSnapshot(request, dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))); }
+    finally { if (owned) removeJobToolSnapshot(request, fileURLToPath(new URL('../../../../../../', import.meta.url))); }
   };
   /**
    * A stop signal stops the gate's child processes through their own signals and waits for them to close, then frees

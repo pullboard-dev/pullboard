@@ -124,7 +124,7 @@ function codeTreeName(root, commit) {
  * the next command, while a commit that leaves the code alone does not retire it.
  */
 export function codeVersion(entry) {
-  const codeRoot = dirname(dirname(entry));
+  const codeRoot = dirname(dirname(dirname(entry))); // apps/cli/pullboard.js sits three levels below the root [V32]
   const location = gitLocation(codeRoot, { walk: false });
   if (location) {
     const commit = headCommit(location);

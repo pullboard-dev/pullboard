@@ -251,7 +251,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
-    const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
+    const toolRoot = dirname(dirname(dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker))))))); // apps/cli/src/io/submit/handoff/worker.js [V32]
     const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,

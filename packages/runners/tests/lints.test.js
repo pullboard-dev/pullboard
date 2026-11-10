@@ -396,7 +396,7 @@ test('bounded hash-bound baseline shards count their own files and refuse missin
 
 
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = dirname(dirname(BIN)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
+  const root = fileURLToPath(new URL('../../../', import.meta.url)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
   const growth = cellLintGrowth(report, baseline);
   for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
   assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
