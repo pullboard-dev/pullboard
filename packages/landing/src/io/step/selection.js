@@ -39,12 +39,22 @@ export function testBlob(root, commit, file) {
  */
 export function defectPassedAtTrunk(root, trunk, defect, comparison = cachedMainComparison) {
   if (!Array.isArray(defect.names) || !defect.names.length) return false;
+  // A green run of the original test cannot clear a defect observed with different candidate-only test bytes.
+  if (defect.blob && defect.trunkBlob && defect.blob !== defect.trunkBlob
+    && testBlob(root, trunk.commit, defect.test) === defect.trunkBlob) return false;
   let entry;
   try { entry = comparison(root, trunk.commit, [defect.test]).files?.find(row => row.file === defect.test); } catch { return false; }
   if (!entry) return false;
   if (entry.result === 'green') return true;
   const failures = entry.result === 'red' ? cachedFailureSignatures(entry, defect.test) : undefined;
   return Array.isArray(failures) && failures.length > 0 && !failures.some(row => defect.names.includes(row.name));
+}
+
+/** An interaction defect cannot be cleared by a green test run on the same trunk that produced it. */
+function defectAtOriginalTrunk(board, trunk, defect) {
+  if (!defect.batchId) return false;
+  const batch = store.landingBatches(board).find(entry => entry.id === defect.batchId);
+  return Boolean(batch?.base && batch.base === trunk.commit);
 }
 
 /** The repair item statuses under which a test defect still holds its trunk: its repair is still outstanding [C7]. */
@@ -80,7 +90,8 @@ export function heldTestDefects(root, board, trunk, landingPorts, { defects = st
     if (defect.branch !== trunk.branch) return [];
     if (!defectStillHolds(board, defect, getItem)) return [];
     const status = defectItemStatus(board, defect, getItem);
-    const holds = !defectReleasedWithoutRun(root, board, trunk, defect, landingPorts) && !defectPassedAtTrunk(root, trunk, defect, comparison);
+    const holds = !defectReleasedWithoutRun(root, board, trunk, defect, landingPorts)
+      && (defectAtOriginalTrunk(board, trunk, defect) || !defectPassedAtTrunk(root, trunk, defect, comparison));
     return holds ? [{ ...defect, status: status ?? undefined }] : [];
   });
 }
@@ -114,6 +125,7 @@ export async function closePassedTestDefects({ root, board, trunk, write, say = 
     if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item)) continue;
     // A defect whose repair item was withdrawn or landed holds nothing, so its test is not run for it (#3761).
     if (!defectStillHolds(board, defect)) continue;
+    if (defectAtOriginalTrunk(board, trunk, defect)) continue;
     if (!defectPassedAtTrunk(root, trunk, defect, comparison)) {
       // A changed or waived test holds nothing, so no runner run stands between the accept and its landing [C7].
       if (defectReleasedWithoutRun(root, board, trunk, defect, landingPorts)) continue;

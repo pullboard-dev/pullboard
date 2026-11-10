@@ -19,9 +19,12 @@ function repo() {
   fixture.write('code.js', 'export const broken = true;\n');
   vcs('add', '.'); vcs('commit', '-qm', 'trunk A');
   const blob = vcs('rev-parse', `HEAD:${TEST}`), trunkA = vcs('rev-parse', 'HEAD');
+  fixture.write(TEST, "test('case one', () => {});\n// candidate-only edit\n");
+  const candidateBlob = vcs('hash-object', '-w', TEST);
+  fixture.write(TEST, "test('case one', () => {});\n");
   fixture.write('code.js', 'export const broken = false;\n');
   vcs('commit', '-qam', 'trunk B: code fix only');
-  return { root, blob, trunkA, trunkB: vcs('rev-parse', 'HEAD') };
+  return { root, blob, candidateBlob, trunkA, trunkB: vcs('rev-parse', 'HEAD') };
 }
 
 test('clause 1: a defect is released by a recorded green run of its test at the trunk tip, and only by a run naming its cases passing [C7]', t => {
@@ -55,4 +58,15 @@ test('clause 2: defect recorded at trunk A, code fix lands as trunk B without to
   assert.equal(at(trunkB, [{ file: TEST, result: 'green' }]), 0, 'a recorded green run of the test at trunk B lifts the hold');
   const otherCase = [{ file: TEST, result: 'red', signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, failures: [{ file: TEST, name: 'another case', signature: 'c'.repeat(64) }] }];
   assert.equal(at(trunkB, otherCase), 0, 'a run in which only a different case fails shows the defect cases passing');
+});
+
+test('a green trunk receipt cannot clear a defect in different candidate-only test bytes [C7]', t => {
+  const { root, blob, candidateBlob, trunkB } = repo();
+  const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-candidate-board-').root, 'board.sqlite') });
+  t.after(() => closeBoard(board));
+  const trunk = { branch: 'refs/heads/main', commit: trunkB };
+  const defect = { branch: trunk.branch, test: TEST, blob: candidateBlob, trunkBlob: blob, names: ['case one'] };
+  const green = () => ({ files: [{ file: TEST, result: 'green' }] });
+  assert.equal(heldTestDefects(root, board, trunk, { quarantineWaivers: () => [] }, { defects: () => [defect], comparison: green }).length, 1,
+    'passing the original trunk test does not prove the different candidate test');
 });
