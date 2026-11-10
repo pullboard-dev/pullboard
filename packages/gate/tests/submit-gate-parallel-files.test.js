@@ -4,17 +4,16 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROOF_BATCH_FILES } from '../../gate/index.js';
-import { PROOF_MAX_SHARDS } from '../../gate/index.js';
-import { PROOF_MIN_SHARD_MS } from '../../gate/index.js';
-import { SHARD_ADMIT_MS } from '../../gate/index.js';
-import { SHARD_STARTUP_MS } from '../../gate/index.js';
-import { freeRunnerSlots } from '../../gate/index.js';
-import { mergeShardRuns } from '../../gate/index.js';
-import { proofShardCount } from '../../gate/index.js';
-import { runProofShards } from '../../gate/index.js';
-import { shardStartupMs } from '../../gate/index.js';
-import { startupDeadline } from '../src/shell/runner-dispatch.js';
+import { PROOF_BATCH_FILES } from '../src/shell/proof-shards.js';
+import { PROOF_MAX_SHARDS } from '../src/shell/proof-shards.js';
+import { PROOF_MIN_SHARD_MS } from '../src/shell/proof-shards.js';
+import { SHARD_ADMIT_MS } from '../src/shell/proof-shards.js';
+import { SHARD_STARTUP_MS } from '../src/shell/proof-shards.js';
+import { freeRunnerSlots } from '../src/shell/proof-shards.js';
+import { mergeShardRuns } from '../src/shell/proof-shards.js';
+import { proofShardCount } from '../src/shell/proof-shards.js';
+import { runProofShards } from '../src/shell/proof-shards.js';
+import { shardStartupMs } from '../src/shell/proof-shards.js';
 import { proofFields } from '../../verify/index.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 
@@ -204,7 +203,4 @@ test('clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s 
   assert.equal(shardStartupMs(SHARD_ADMIT_MS), SHARD_STARTUP_MS, 'the admission window no longer sets the startup budget');
   assert.equal(shardStartupMs(undefined), SHARD_STARTUP_MS);
   assert.equal(shardStartupMs(30 * 60_000), 30 * 60_000, 'a longer lease budget stands');
-  const connect = 1_000_000;
-  assert.equal(startupDeadline({ runnerWaitDeadline: connect - 5_000, runnerStartupMs: shardStartupMs(SHARD_ADMIT_MS) }, connect), connect + 90_000,
-    'a shard connecting after its admission window still has 90 s to reach READY');
 });

@@ -3643,7 +3643,7 @@
   "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
-  "packages/runners/tests/test-cache-receipts.test.js": {
+  "packages/gate/tests/test-cache-receipts.test.js": {
     "tempdir": 2
   },
   "test/test-command.test.js": {
