@@ -4,7 +4,7 @@ import * as store from "./board.js";
 import { measureBoardWritePhase } from './board-write-lock.js';
 import { prepareReserveNextReview } from "./board-reserve-next-review.js";
 import { prepareReserveReview } from "./board-reserve-review.js";
-import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
+import { requireHandoffActive } from "../../../state/core.js";
 import { requireAgentGrant } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { Refused } from "../../../kernel/index.js";

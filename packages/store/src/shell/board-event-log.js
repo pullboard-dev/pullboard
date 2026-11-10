@@ -2,7 +2,7 @@ import { setItem as writeItemFields } from "../../../items/index.js";
 import { now } from "./board-query.js";
 import { liftInfraHold } from "../core/board-infra-release.js";
 import { liftConditionalHold } from "../core/board-conditional-holds.js";
-import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
+import { requireHandoffActive } from "../../../state/core.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { writeSync } from 'node:fs';

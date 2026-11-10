@@ -142,7 +142,7 @@ export {
   milestones,
   unverifiedSubmissions,
 } from "./board-read-auxiliary.js";
-export { lineSettings } from "../../../state/src/core/line-settings-read.js";
+export { lineSettings } from "../../../state/core.js";
 export { setLineSetting } from "./board-line-settings.js";
 
 export {
@@ -416,7 +416,7 @@ export { itemHold } from "./board-query.js";
 
 export { rowDrafts } from "./board-query.js";
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from "./spec-approval-baseline.js";
-export { canonicalMilestoneTarget } from "../../../state/src/core/milestone-target.js";
+export { canonicalMilestoneTarget } from "../../../state/core.js";
 
 export { rowDecisions } from "./board-query.js";
 

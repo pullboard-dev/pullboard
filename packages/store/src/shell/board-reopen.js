@@ -14,7 +14,7 @@ import { logEvent } from "./board-event-log.js";
 import { manualLandingFailure } from "../../../items/index.js";
 import { firstRefusalDetail } from "../../../items/index.js";
 import { tellFirstRefusal } from "../../../items/index.js";
-import { manualLandingFailureQuoted } from "../../../state/src/core/manual-landing-failure-quoted.js";
+import { manualLandingFailureQuoted } from "../../../state/core.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUOTED_LANDING_FAILURE_ENGINE } from "../../../state/index.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../state/index.js";
