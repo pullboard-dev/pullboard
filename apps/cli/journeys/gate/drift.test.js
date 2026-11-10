@@ -37,7 +37,7 @@ const SOURCE = join(import.meta.dirname, '../../../..');
 const PLAN = join(SOURCE, 'packages/codemap/src/io/cells/scripts/plan.js');
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */
-async function plannedProject(t, { companionLanes = false } = {}) {
+async function plannedProject(t, { companionLanes = false, submitReady = true } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
@@ -64,8 +64,10 @@ async function plannedProject(t, { companionLanes = false } = {}) {
   box.git(box.repo, 'add', 'packages/codemap/data/baselines/lints');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  await publishAcceptedInventory(box);
-  enforcePlacementTrial(box);
+  if (submitReady) {
+    await publishAcceptedInventory(box);
+    enforcePlacementTrial(box);
+  }
   return { ...box, marker };
 }
 
@@ -143,7 +145,7 @@ test('clause 1: native submit refuses an unplanned source while independent chec
   const refused = box.run(box.web, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
-  assert.match(refused.out, /node packages\/codemap\/data\/plan\.js --place/);
+  assert.match(refused.out, /node packages\/codemap\/src\/io\/cells\/scripts\/plan\.js --place/);
   refusedPhaseCounts(box.marker);
   assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
     'placement refusal records no accepted submission');
@@ -164,7 +166,7 @@ test('clause 1: native submit refuses an unplanned source while independent chec
   mkdirSync(join(box.web, 'packages/items/src/io'), { recursive: true });
   mkdirSync(join(box.web, 'apps/web'), { recursive: true });
   writeFileSync(join(box.web, 'packages/items/src/io/plan-gate-added.js'), 'export const value = 1;\n');
-  writeFileSync(join(box.web, 'packages/items/index.js'), "export { value } from './src/shell/plan-gate-added.js';\n");
+  writeFileSync(join(box.web, 'packages/items/index.js'), "export { value } from './src/io/plan-gate-added.js';\n");
   rmSync(join(box.web, 'src/plan-gate-added.js')); // A first move of a never-landed source leaves no forwarding shim.
   writeFileSync(join(box.web, 'apps/web/index.js'), "import { value } from '../../packages/items/index.js'; console.log(value);\n");
   box.git(box.web, 'add', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan', 'src', 'packages', 'apps');
@@ -189,7 +191,7 @@ test('native view submit validates its core companion placement on the composed 
   mkdirSync(join(view, 'src/view'), { recursive: true });
   mkdirSync(join(view, 'apps/view/src/io/view'), { recursive: true });
   writeFileSync(join(view, 'apps/view/src/io/view/plan-companion-added.js'), 'export const companionPlaced = true;\n');
-  writeFileSync(join(view, 'apps/view/index.js'), "export { companionPlaced } from './src/shell/view/plan-companion-added.js';\n");
+  writeFileSync(join(view, 'apps/view/index.js'), "export { companionPlaced } from './src/io/view/plan-companion-added.js';\n");
   writeFileSync(join(view, file), 'export const companionPlaced = true;\n'); // A new source, not a forwarding shim over main.
   box.git(view, 'add', file, 'apps/view');
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
@@ -217,7 +219,7 @@ test('native view submit validates its core companion placement on the composed 
 });
 
 test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scope paths without rewriting the plan [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   writeFileSync(join(box.repo, 'src/plan-place-negative.js'), 'export const value = 2;\n');
   box.git(box.repo, 'add', 'src/plan-place-negative.js');
@@ -232,10 +234,15 @@ test('placement rejects unknown cells, duplicate paths, symlinks and out-of-scop
   placePath(box.repo, 'src/plan-place-negative.js', { stay: true });
   assert.deepEqual(readPlan(box.repo).stays.slice(0, before.stays.length), before.stays);
   assert.throws(() => placePath(box.repo, 'src/plan-place-negative.js', { stay: true }), /already placed/);
+  writeFileSync(join(box.repo, 'src/plan-place-pure.js'), 'export const value = 3;\n');
+  box.git(box.repo, 'add', 'src/plan-place-pure.js');
+  placePath(box.repo, 'src/plan-place-pure.js', { cell: 'items', part: 'core' });
+  assert.deepEqual(readPlan(box.repo).cells.find(row => row.name === 'items').paths.find(([from]) => from === 'src/plan-place-pure.js'),
+    ['src/plan-place-pure.js', 'packages/items/src/logic/plan-place-pure.js', 'rule']);
 });
 
 test('committed plan deletion and malformed shards refuse; an unstaged placement cannot authorize source [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   assert.throws(() => requirePlannedSource(box.repo, '0'.repeat(40), base), /presence could not be read from Git/);
   mkdirSync(join(box.repo, 'src'), { recursive: true });
@@ -257,7 +264,7 @@ test('committed plan deletion and malformed shards refuse; an unstaged placement
 });
 
 test('removing an existing placement cannot strand its retained committed source [C7]', async t => {
-  const box = await plannedProject(t);
+  const box = await plannedProject(t, { submitReady: false });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   const file = 'src/plan-retained-source.js';
   writeFileSync(join(box.repo, file), 'export const retained = true;\n');

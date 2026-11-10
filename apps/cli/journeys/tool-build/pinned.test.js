@@ -98,11 +98,12 @@ function project(source) {
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   const originalHook = readFileSync(join(repo, 'apps/cli/src/io/commands/hook.js'), 'utf8');
   // This private project has one committed test; copied package and app fixtures are not its tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   for (const name of readdirSync(join(repo, 'apps'))) rmSync(join(repo, 'apps', name, 'tests'), { recursive: true, force: true });
+  mkdirSync(join(repo, 'packages/gate/tests/fixtures'), { recursive: true });
+  copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/tests/fixtures/budgets.js'), join(repo, 'packages/gate/tests/fixtures/budgets.js'));
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-qm', 'chore: install synthetic tool source before board initialization');
   const initialized = box.run(repo, 'init');
@@ -116,8 +117,8 @@ function project(source) {
 test('pinned CLI, hooks and loaded generation survive trunk advancement; native promotion affects new commands only [C7]', async () => {
   const source = resolve(import.meta.dirname, '../../../..');
   const box = project(source);
-  mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
+  mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
   const first = generation(box, 'first');
   const location = toolBuildLocation(box.repo);
   assert.equal(toolBuildPolicy(location).enabled, false);
@@ -187,11 +188,11 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
 
 test('a native green selected-file gate cannot publish a full tool build [C7]', () => {
   const box = project(resolve(import.meta.dirname, '../../../..'));
-  mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
+  mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.gate = 'node packages/gate/src/io/run/tests.js test/pin-audit.test.js';
+  config.gate = 'node packages/gate/src/io/run/tests.js apps/cli/tests/pin-audit.test.js';
   writeFileSync(configFile, JSON.stringify(config));
   const commit = generation(box, 'partial');
   const receipt = gate(box);
@@ -209,8 +210,8 @@ test('automatic main gate is opt-in and refuses an unregistered timer [C7]', asy
 
 test('timer honors committed main opt-out and retains an observed live owner [C7]', async () => {
   const box = project(resolve(import.meta.dirname, '../../../..'));
-  mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
+  mkdirSync(join(box.repo, 'apps/cli/tests'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps/cli/tests/pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
   generation(box, 'timer');
   const commonDir = realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   const ctx = { info: { root: box.repo, commonDir }, config: { toolBuild: { autoGate: true } } };

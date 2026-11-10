@@ -5,23 +5,21 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../../packages/store/index.js';
-import {
-  openBoard,
-  openBoardForRead,
-} from '../../../lib/index.js';
-import { agentGrantMinimum } from '../../../../packages/state/src/logic/grant.js';
-import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines/agent-grant-engine.js';
-import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../packages/state/src/logic/engines/rigor-instructions-engine.js';
-import { appliedSequence } from '../../../../packages/state/src/io/engine.js';
-import { applyEngineMove } from '../../../../packages/state/src/io/engine.js';
-import { prepareEngineMove } from '../../../../packages/state/src/io/engine.js';
-import { startRelayEpoch } from '../../../../packages/state/src/io/engine.js';
-import { exportBoard } from '../../../../packages/store/index.js';
-import { importBoard } from '../../../../packages/store/index.js';
-import { restoreRelaySnapshot } from '../../../../packages/store/index.js';
-import { recordSchemaStamp } from '../../../../packages/store/index.js';
-import { SCHEMA_DIGEST } from '../../../../packages/store/index.js';
+import * as store from '../index.js';
+import { openCellBoard as openBoard } from './fixtures/cell.js';
+import { openBoardForRead } from '../index.js';
+import { agentGrantMinimum } from '../../state/index.js';
+import { AGENT_GRANT_ENGINE } from '../../state/index.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../state/index.js';
+import { appliedSequence } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { startRelayEpoch } from '../../state/index.js';
+import { exportBoard } from '../index.js';
+import { importBoard } from '../index.js';
+import { restoreRelaySnapshot } from '../index.js';
+import { recordSchemaStamp } from '../index.js';
+import { SCHEMA_DIGEST } from '../index.js';
 
 const AT = '2026-10-01T12:00:00.000Z';
 const LEGACY = AGENT_GRANT_ENGINE - 1;

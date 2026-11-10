@@ -93,7 +93,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     const fixtureHooks = join(box.dir, 'fixture-hooks');
     mkdirSync(fixtureHooks);
     box.git(box.repo, 'config', 'core.hooksPath', fixtureHooks);
-    copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+    copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../..'));
     mkdirSync(join(box.repo, 'web'), { recursive: true });
     writeFileSync(join(box.repo, 'web/legacy.test.js'),
       "import { test } from 'node:test'; test('legacy fixture [H16]',()=>{});\n");

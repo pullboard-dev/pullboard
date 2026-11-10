@@ -44,7 +44,7 @@ const CALLER_REPORTER = resolve(import.meta.dirname, '../../tests/fixtures/repor
 const RESOURCE_MODULE = resolve(import.meta.dirname, '../../../../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
-const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
+const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/', '.timed/', 'timed/', 'packages/gate/src/io/run/tests.js'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
 // budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
@@ -305,7 +305,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
-  assert.equal(box.run(box.web, 'claim', '1').status, 0);
+  const claimedOne = box.run(box.web, 'claim', '1');
+  assert.equal(claimedOne.status, 0, `${claimedOne.stdout}${claimedOne.stderr}`);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
   const commit = featureCommit(box, box.web);
@@ -621,7 +622,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
-    assert.equal(box.run(box.web, 'claim', '1').status, 0);
+    const claimedTwo = box.run(box.web, 'claim', '1');
+    assert.equal(claimedTwo.status, 0, `${claimedTwo.stdout}${claimedTwo.stderr}`);
     writeFileSync(trace, ''); // Ignore the real --wait baseline execution in submission counts.
     writeFileSync(join(box.web, 'web/value.js'), 'export const value = 7; // changed lane module\n');
     if (scenario.full) writeFileSync(join(box.web, 'web/README.txt'), 'unsupported path forces the configured gate\n');

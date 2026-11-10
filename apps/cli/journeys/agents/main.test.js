@@ -83,7 +83,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   const alpha = project(box, 'alpha');
   const second = join(box.dir, 'alpha-web-two');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  box.run(second, 'join', 'web');
+  box.run(second, 'join', 'web', '--route', 'strong');
   for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // The board lists items newest first; each agent's rows must put its higher id second.
   build(box, alpha, 3, 'greeting.html');
@@ -117,7 +117,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
     for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
     await page.click({ go: 'item:1' });
-    assert.match(page.show('detail'), /<h2><span>#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
+    assert.match(page.show('detail'), /<h2><span class="id">#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
   } finally {
     await view.stop();
   }
@@ -183,8 +183,8 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         // The approved entry keeps identity and time/state above its held item, with extra holds on hover.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
+        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Fixture Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
+        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Fixture Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
         assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -200,7 +200,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Fixture Model)×', 'web-1', [['web-1', 'coordinator and you']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
@@ -267,9 +267,9 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for model-name viewport proof');
   const box = machine();
-  const alpha = project(box, 'model-names');
+  const alpha = project(box, 'model-names', SPEC, {}, { joinSeat: false });
   const model = 'GPT-6 with a very long model declaration for readable agent names';
-  box.run(alpha.web, 'join', 'web', '--model', model);
+  box.run(alpha.web, 'join', 'web', '--model', model, '--route', 'strong');
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try { register(board, { lane: 'coordinator', path: alpha.repo, model: 'Claude' }); }
   finally { closeBoard(board); }
@@ -471,8 +471,8 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
 
 test('staged and exported boards carry API model display names [O8,N26,A10]', async () => {
   const box = machine();
-  const alpha = project(box, 'model-export', SPEC, { agents: { names: 'prefix' } });
-  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6');
+  const alpha = project(box, 'model-export', SPEC, { agents: { names: 'prefix' } }, { joinSeat: false });
+  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6', '--route', 'strong');
   const source = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   const staged = openBoard(join(box.dir, 'staged-models.sqlite'));
   try {

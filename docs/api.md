@@ -147,10 +147,6 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `show` | `version:number`, `item_id:number`, `item_title:string`, `item_lane:string`, `item_status:string`, `verdicts:array`, `thread:array`, `reviewEligibility:object` |
 | `capacity` | `version:number`, `report:object` |
 | `stats` | `version:number`, `stats:object`, `gateWaits:array`, `usage:object` |
-| `stats pipeline` | `version:number`, `pipeline:object` |
-| `stats moves` | `version:number`, `moves:object` |
-| `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
-| `stats disk` | `version:number`, `disk:object` |
 | `badge` | `version:number`, `items:number`, `checked:number`, `percent:number\|null`, `changed:array` |
 | `status` | `version:number`, `me:object`, `mine:array`, `capacityForecast:object`, `ruleCounts:object`, `stats:object`, `reviewQueue:object`, `unread:number`, `relay:object` |
 | `doctor` | `version:number`, `problems:array` |
@@ -238,6 +234,10 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `red` | `version:number`, `file:string` |
 | `seats` | `version:number`, `seats:array` |
+| `stats disk` | `version:number`, `disk:object` |
+| `stats moves` | `version:number`, `moves:object` |
+| `stats pipeline` | `version:number`, `pipeline:object` |
+| `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 <!-- api-command-shapes:end -->
 
@@ -567,7 +567,7 @@ The SQLite schema marker is now `PRAGMA user_version = 2`. Opening an older boar
 
 A request body is `{text}`. It creates a request from the person to the coordinator. Open requests stay first in coordinator `resume` and `inbox` until answered `done`, or `declined` with a reason, and do not count as open decisions.
 
-For live events, send `Accept: text/event-stream` to the events path. Ordinary messages have an `id` equal to their event sequence and `data` has the `stream` shape above. The local server also sends `event: changed` with `data: {"version":1,"event":{"event_kind":"changed"}}` when a view input changes without a board event; that notification has no `id` and does not move the reconnect cursor. Reconnect with `Last-Event-ID` to resume after the last ordinary event sequence; it takes precedence over `after`.
+For live events, send `Accept: text/event-stream` to the events path. Ordinary messages have an `id` equal to their event sequence and `data` has the `stream` shape above. The local server also sends `event: changed` with `data: {"version":1,"event":{"event_kind":"changed"}}` when a view input changes without a board event; that notification has no `id` and does not move the reconnect cursor. Add `?signals=none` to the events path to receive events only: the server then sends no `changed` notification and builds no state revision for that client. Reconnect with `Last-Event-ID` to resume after the last ordinary event sequence; it takes precedence over `after`.
 
 To follow several boards on one connection, send `Accept: text/event-stream` to `GET /api/v1/events?boards=<id>,<id>`, naming each board once by its id from `GET /api/v1/boards`. A browser holds at most six connections per origin, so a project group's view follows all its repos through this one stream. Each frame's `data` also names its `board`: an event is `{"version":1,"board":"<id>","event":{...}}`, and the changed signal is `{"version":1,"board":"<id>","event":{"event_kind":"changed"}}`, sent on the same terms as a single board's. An ordinary event's `id` carries one cursor per board, `<id>:<sequence>` pairs joined by commas, so reconnecting with `Last-Event-ID`, or passing the same cursor as `after`, resumes each board where it left off. A followed board the cursor leaves out starts from its first event, and a pair for a board not followed is ignored. Every named board must be one the caller may read: otherwise the request is refused with that board's refusal, naming the board, and nothing is streamed. The path is live only; a request without `Accept: text/event-stream` is refused with `BAD_REQUEST`. The single-board events path is unchanged.
 
