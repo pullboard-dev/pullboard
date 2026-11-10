@@ -45,3 +45,4 @@ export { layoutCheck, layoutReport, layoutWrite } from './src/shell/layout-check
 export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/shell/main-facts-cache.js';
 export { narrowedTo, readText, TEST_FILE, walk } from './src/shell/check-walk.js';
 export { assumptionCounts, assumptionProblems, assumptionsIn, writeAssumptionBaseline } from './src/shell/no-runtime-assumptions.js';
+export { leasedModules, syncCallsIn, syncSpawnConfig, syncSpawnProblems, syncSpawnReport, writeSyncSpawnBaseline } from './src/shell/sync-spawn-in-leases.js';
