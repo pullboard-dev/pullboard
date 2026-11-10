@@ -267,7 +267,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = join(box.root, 'packages/gate/src/io/run/tests.js');
+  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
@@ -309,7 +309,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const runner = join(box.root, 'packages/gate/src/io/run/tests.js');
+  const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
@@ -336,7 +336,7 @@ test('runner option values that resemble a name pattern remain values [C7,S13]',
   writeFileSync(empty, 'export {};\n');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, [join(box.root, 'packages/gate/src/io/run/tests.js'),
+  const result = spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
     '--test-skip-pattern', '--test-name-pattern=absent option value 1018', empty],
   { cwd: box.root, env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -355,7 +355,7 @@ test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
   /** Exercise configured discovery without explicit files, so the landing-shard branch is reached. */
-  const execute = (pattern) => spawnSync(process.execPath, [join(box.root, 'packages/gate/src/io/run/tests.js'),
+  const execute = (pattern) => spawnSync(process.execPath, [realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js')),
     '--test-name-pattern', pattern], { cwd: box.root, env, encoding: 'utf8' });
   const present = execute('one discovered test');
   assert.equal(present.status, 0, `${present.stdout}${present.stderr}`);
