@@ -1,0 +1,96 @@
+/** Observe native next phases independently of its synchronous board work, without any board authority [C7]. */
+import { writeSync } from 'node:fs';
+import {
+  isMainThread,
+  parentPort,
+  Worker,
+  workerData,
+} from 'node:worker_threads';
+
+/** Use the same monotonic process clock in both threads, without depending on wall-clock corrections. */
+function monotonicMs() { return Number(process.hrtime.bigint() / 1_000_000n); }
+
+/** Write one phase line straight to the inherited descriptor; Worker stdio forwarding would itself block on the parent. */
+function phaseLine(fd, phase, item, started) {
+  const text = `next phase ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; ${Math.max(0, monotonicMs() - started)} ms\n`;
+  writeSync(fd, text);
+}
+
+/** Own only a timer and the inherited diagnostic descriptor; no native role, board, claim or process-killing capability exists here. */
+function observePhases() {
+  const state = new Int32Array(workerData.state);
+  let timer = null;
+  parentPort.on('message', message => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    if (message.kind !== 'phase') return;
+    const { generation, phase, item, started } = message;
+    /** Recheck the monotonic threshold because a timer may wake just before its requested millisecond. */
+    function report() {
+      if (Atomics.load(state, 0) !== generation) return;
+      const remaining = workerData.phaseMs - (monotonicMs() - started);
+      if (remaining > 0) { timer = setTimeout(report, remaining); return; }
+      if (Atomics.compareExchange(state, 0, generation, -generation) !== generation) return;
+      phaseLine(workerData.fd, phase, item, started);
+    }
+    timer = setTimeout(report, Math.max(0, workerData.phaseMs - (monotonicMs() - started)));
+  });
+  parentPort.postMessage('ready');
+}
+
+if (!isMainThread && workerData?.kind === 'next-progress') observePhases();
+
+/** A file-backed Worker cannot inherit the parent eval input type; retain every other argument verbatim. */
+function monitorExecArgv() {
+  const args = [];
+  for (let index = 0; index < process.execArgv.length; index++) {
+    const value = process.execArgv[index];
+    if (value === '--input-type') { index++; continue; }
+    if (!value.startsWith('--input-type=')) args.push(value);
+  }
+  return args;
+}
+
+/** Start one acknowledged diagnostic worker before native routing; callers await close only after ordered work settles. */
+export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
+  // Only the actual CLI stream permits descriptor writes; an adapter can expose fd 2 while capturing write().
+  if (io.stderr !== process.stderr) return null;
+  const fd = io.stderr.fd;
+  if (!Number.isSafeInteger(fd) || fd < 0) return null;
+  const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT), state = new Int32Array(shared);
+  const worker = new Worker(new URL('./monitor.js', import.meta.url),
+    { execArgv: monitorExecArgv(), workerData: { kind: 'next-progress', state: shared, fd, phaseMs } });
+  let failure = null, generation = 0, current = null;
+  worker.on('error', error => { failure = error; });
+  try {
+    await new Promise((resolve, reject) => {
+      worker.once('error', reject);
+      worker.once('exit', code => reject(new Error(`next progress worker exited before readiness (${code})`)));
+      worker.once('message', value => value === 'ready' ? resolve() : reject(new Error('next progress worker did not acknowledge readiness')));
+    });
+  } catch (error) { await worker.terminate(); throw error; }
+  worker.unref();
+  /** Publish the real phase before its synchronous work; a new generation invalidates every older pending timer. */
+  function enter(phase, item) {
+    if (failure) throw failure;
+    generation++;
+    Atomics.store(state, 0, generation);
+    current = { kind: 'phase', generation, phase, item, started: monotonicMs() };
+    worker.postMessage(current);
+  }
+  /** Share the exactly-once flag with the independent timer when a phase completes near its reporting threshold. */
+  function warn() {
+    if (current && Atomics.compareExchange(state, 0, current.generation, -current.generation) === current.generation) {
+      phaseLine(fd, current.phase, current.item, current.started);
+    }
+  }
+  /** Invalidate a finished or deliberately idle phase without cancelling any native operation. */
+  function stop() {
+    Atomics.store(state, 0, ++generation);
+    current = null;
+    worker.postMessage({ kind: 'stop' });
+  }
+  /** Join only this owned diagnostic thread; never race or replay native mutations. */
+  async function close() { stop(); await worker.terminate(); }
+  return { enter, warn, stop, close };
+}
