@@ -156,7 +156,7 @@ window.fetch = (input, options) => {
   assert.equal((await chrome.send('Network.setCookie', {
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   })).success, true, 'only the synthetic fixture session is installed');
-  const setup = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
   const pending = await phoneSetupState(() => existsSync(machineFile) && JSON.parse(readFileSync(machineFile, 'utf8')).pending,
     'the native command publishes its one-time phone enrollment');
@@ -192,7 +192,7 @@ window.fetch = async (input, options) => {
   assert.equal(proposal?.published, true, 'the actual native proposal is waiting for this enrolled browser');
   const selector = '#phone-approve-' + proposal.context.id;
   const beforeForeground = box.calls.length;
-  const run = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin], {}, { json: false });
+  const run = box.startCli(['relay', 'on', '--all', '--url', box.origin], {}, { json: false });
   await phoneSetupState(() => box.calls.slice(beforeForeground).some(call => call.method === 'GET'
     && call.path === '/api/v1/devices/approvals/' + proposal.context.id), 'the same foreground command is actually waiting for this approval');
   await chrome.navigate('about:blank');

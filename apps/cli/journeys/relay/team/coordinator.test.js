@@ -29,7 +29,7 @@ async function refusedCoordinatorAdd(device, lane, title, add = () => device.cli
 test('one coordinator per board across machines [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
-  const pairing = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const pairing = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
   /** A refusal's code and message as the CLI reports them. */
   const refusal = result => ({ code: result.document?.error?.code, message: String(result.document?.error?.message ?? '') });
@@ -80,7 +80,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
 test('an agent session on a computer that does not hold the coordinator takes it over [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
-  const pairing = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const pairing = await box.cli('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
   /** Run the second computer's real CLI from a named agent session. */
   const inSession = (...args) => relayFixtureChild(other.root, { ...other.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'second-computer-session' },

@@ -63,7 +63,7 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   runFixtureGit(['commit', '-q', '-m', 'chore: commit private relay policy'], { cwd: box.root, env: box.env });
   securityStandIn(box);
 
-  const linked = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const linked = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(linked.code, 0,
     'relay on succeeds when the available security command reports a locked keychain');
   const encoded = readFileSync(box.keyFile, 'utf8').trim();
@@ -83,7 +83,7 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
     let output = '', errors = '';
     const streams = { cwd: ${JSON.stringify(box.root)},
       stdout: { write: part => { output += part; } }, stderr: { write: part => { errors += part; } } };
-    const linkedCode = await main(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', ${JSON.stringify(box.origin)}], streams);
+    const linkedCode = await main(['relay', 'on', '--url', ${JSON.stringify(box.origin)}], streams);
     const carriers = output.split('\\n').filter(line => line.includes(key));
     const pairingOnly = carriers.length === 1 && carriers[0].startsWith('https://app.pullboard.dev/#board=') && carriers[0].endsWith('&key=' + key);
     output = '';

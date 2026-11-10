@@ -76,7 +76,7 @@ async function secondBoard(box) {
   const repository = 'sender-second-repository';
   box.providerState.repositories.push(repository);
   runFixtureGit(['remote', 'add', 'origin', `git@github.com:fixture/${repository}.git`], { cwd: root, env: box.env });
-  await cli(root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin]);
+  await cli(root, box.env, ['relay', 'on', '--url', box.origin]);
   const file = join(root, '.git/pullboard/relay.json');
   const state = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(state.baselineAccepted, true);

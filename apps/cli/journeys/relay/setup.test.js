@@ -38,7 +38,7 @@ import {
 } from '../../tests/fixtures/relay/setup.js';
 
 test('relay help lists every relay command, with a whole example [H17]', () => {
-  const printed = spawnSync(process.execPath, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', '--help'], { cwd: tmpdir(), encoding: 'utf8' });
+  const printed = spawnSync(process.execPath, [CLI, 'relay', '--help'], { cwd: tmpdir(), encoding: 'utf8' });
   assert.equal(printed.status, 0, printed.stderr);
   const [usage, rest] = printed.stdout.split('\nFlags:\n');
   for (const command of ['relay [status|on|off|pair|join <code>]', 'relay on --all', 'relay devices', 'relay revoke <device>',
@@ -58,7 +58,7 @@ test('relay pair labels the code for a computer and the QR for a phone [H17]', a
 import { main } from ${JSON.stringify(cliModule)};
 let output = '';
 const streams = { cwd: ${JSON.stringify(box.root)}, stdout: { write: part => { output += part; } }, stderr: { write() {} } };
-const code = await main(['apps', 'relay', 'src', 'io', 'deploy', 'pair'], streams);
+const code = await main(['relay', 'pair'], streams);
 process.stdout.write(JSON.stringify({ code, lines: output.split('\\n') }));
 `);
   assert.equal(result.code, 0, 'the private pair script completes');
@@ -143,7 +143,7 @@ test('relay on --all says who signed in, what it linked and what it waits for [H
   }
   assert.equal(runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'init', '--json'], { cwd: second, env: box.env }).status, 0,
     'the second board registers through the actual init command');
-  const setup = plainCommand(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = plainCommand(box.root, box.env, ['relay', 'on', '--all', '--url', box.origin]);
   t.after(async () => { if (setup.child.exitCode === null) setup.child.kill('SIGTERM'); await setup.done; });
   const deadline = Date.now() + 20_000; // budget: hang ceiling for the loopback sign-in, two links and the first pairing poll.
   // Every pairing line is written before the first enrollment poll, so that poll marks the wait.
@@ -173,7 +173,7 @@ test('relay on --all says who signed in, what it linked and what it waits for [H
   const board = JSON.parse(readFileSync(join(box.root, '.git/pullboard/relay.json'), 'utf8')).board;
   const relayRequests = (from) => box.calls.slice(from).map(call => `${call.method} ${call.path.replace(/[0-9a-f]{32}/gu, '<board>')}`);
   const beforeStatus = box.calls.length;
-  const status = plainCommand(box.root, box.env, ['apps', 'relay', 'src', 'io', 'deploy', 'status']);
+  const status = plainCommand(box.root, box.env, ['relay', 'status']);
   const shown = await status.done;
   const statusRequests = relayRequests(beforeStatus);
   assert.equal(shown.code, 0, `pullboard relay status runs: ${shown.stderr}`);
