@@ -77,6 +77,7 @@ export async function run(io, { first, second }) {
   let result;
   try { result = explainObservations(root, second, observations(root, second)); }
   catch (error) { io.err(error.message); return 1; }
+  io.result?.(result);
   io.say(`File: ${result.file}`);
   io.say(`Last green: ${result.green ?? 'unknown'}`);
   io.say(`First observed red: ${result.red ?? 'unknown'}`);

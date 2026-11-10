@@ -403,6 +403,7 @@ Additional commands
   pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
   pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
+  pullboard red explain <test-file> [--json]  show observed red history, matching source changes, and the failure frame
   pullboard seats                     current seat states and local 24-hour timing ledger
   pullboard trace <agent|item> [--since 2h] [--json]  an agent's or an item's timeline from the command trace and the board's events
 

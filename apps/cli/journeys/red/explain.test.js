@@ -70,6 +70,9 @@ test('red explain reads receipt history through the real CLI [C7]', () => {
   assert.match(result.stdout, /Cluster: TypeError @ src\/logic\.js#execute/u);
   assert.match(result.stdout, new RegExp(`Suspect: ${red} #123`, 'u'));
   assert.match(result.stdout, /\+export const n = 2/u);
+  const structured = box.run('red', 'explain', file, '--json');
+  assert.equal(structured.status, 0, structured.stdout + structured.stderr);
+  assert.equal(JSON.parse(structured.stdout).file, file);
   const missing = box.run('red', 'explain', 'test/missing.test.js');
   assert.equal(missing.status, 0, missing.stdout + missing.stderr);
   assert.match(missing.stdout, /Last green: unknown/u);

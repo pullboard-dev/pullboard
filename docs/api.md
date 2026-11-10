@@ -232,6 +232,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `tool-build` | `version:number`, `build:object\|null` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
+| `red` | `version:number`, `file:string` |
 | `seats` | `version:number`, `seats:array` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 <!-- api-command-shapes:end -->
