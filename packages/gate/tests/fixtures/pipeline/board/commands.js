@@ -20,7 +20,7 @@ import {
 guardProcesses();
 
 test('each seat command stays under its module ceiling and answers in under 200 ms warm [C7]', { timeout: 600_000 }, async () => {
-  const { budgetBreaches, measureBoardCommands, WALL_MS } = await from('packages/gate/src/io/board/budget.js');
+  const { budgetBreaches, measureBoardCommands, WALL_MS } = await from('apps/cli/src/io/landing/budget.js');
   const committed = JSON.parse(readFileSync(join(ROOT, 'packages/gate/data/ceilings/board-commands.json'), 'utf8'));
   const dir = await scratch('board-commands');
   await hopCheck('command-latency', async () => {

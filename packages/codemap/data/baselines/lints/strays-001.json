@@ -343,7 +343,7 @@
     "packages/gate/tests/io/board/baseline/guard.test.js": 1,
     "packages/gate/tests/io/static/style.test.js": 1,
     "packages/gate/tests/stable.test.js": 1,
-    "packages/gate/tests/study.test.js": 1,
+    "apps/cli/journeys/study/metrics.test.js": 1,
     "packages/github/tests/fixtures/stale.js": 1,
     "apps/cli/src/io/landing/advance.js": 1,
     "apps/lib/src/io/landing/candidate.js": 1,

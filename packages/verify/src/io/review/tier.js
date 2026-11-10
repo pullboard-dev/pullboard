@@ -1,3 +1,4 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../state/light.js';
@@ -117,7 +118,7 @@ export function gateJudgmentItem(board, id) {
  * sandbox verdict plus the owner's approval of the exact commit for sensitive paths) [V3,B26].
  */
 export function classifiedStrict(board, id) {
-  const engine = /* Unversioned local boards use the current feature rule. */ board.executionEngineVersion ?? Math.max(STRICT_RENAME_ENGINE, REVIEW_TIER_ENGINE, REVIEW_DEFAULT_ENGINE);
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   const renamed = engine >= STRICT_RENAME_ENGINE && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`strict_rename:${id}`);
   if (renamed && outsideSource(board, id)?.kind !== 'pull-request') return true;
   const judgment = engine >= REVIEW_TIER_ENGINE

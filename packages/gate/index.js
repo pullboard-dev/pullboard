@@ -95,7 +95,6 @@ export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.j
 export { changedStaticFailures, stagedHookFailures } from './src/io/changed/static.js';
 export { STATIC_CHECKS, runStaticRegistry } from './src/io/static/check/registry.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
-export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
 export { keepClaimsAlive } from "./src/io/keepalive.js";
@@ -108,3 +107,4 @@ export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { gateSlotServices } from './src/io/slot/services.js';
+export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';

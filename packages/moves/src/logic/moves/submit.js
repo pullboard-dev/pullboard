@@ -1,3 +1,4 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../state/light.js';
@@ -46,7 +47,7 @@ function minimumEngine(args, board, at) {
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined)
       ? args[1].submissionProof.knownMainFailures.failures.some(row => row?.ran !== undefined)
         ? KNOWN_MAIN_RUNNING_FILE_ENGINE
-        : (/* Unversioned local boards use the current feature rule. */ board?.executionEngineVersion ?? KNOWN_MAIN_OWNER_PATTERN_ENGINE) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
+        : (board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
           ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE
       : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,

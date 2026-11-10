@@ -1,3 +1,4 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { SAME_FAMILY_REFUSAL_ENGINE } from '../../../../state/light.js';
 import { STRICT_COMPOSITION_ENGINE } from '../../../../state/light.js';
 import { classifiedStrict } from '../../io/review/tier.js';
@@ -55,6 +56,6 @@ function routingPolicyEngine(board) {
 
 /** Keep historical refusal codes for recorded moves while identifying current same-vendor conflicts. */
 export function sameFamilyProblem(board, message, next) {
-  if ((/* Unversioned local boards use the current feature rule. */ board.executionEngineVersion ?? SAME_FAMILY_REFUSAL_ENGINE) >= SAME_FAMILY_REFUSAL_ENGINE) return new Refused('SAME_FAMILY', message, next);
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SAME_FAMILY_REFUSAL_ENGINE) return new Refused('SAME_FAMILY', message, next);
   return new Refused('O2_FAMILY_MATCH', message, next);
 }
