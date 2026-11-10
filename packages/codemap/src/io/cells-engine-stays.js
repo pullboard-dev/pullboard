@@ -12,9 +12,10 @@ const REASON = 'canonical engine identity retained in src during package moves';
 
 /** Read only a regular canonical root leaf; symlinks cannot supply accepted source authority. */
 function rootSource(root, file) {
-  if (!/^src\/[A-Za-z0-9._-]+\.[cm]?js$/u.test(file) && !HISTORY.test(file)) return null;
+  if (!/^src\/[A-Za-z0-9._-]+\.[cm]?js$/u.test(file) && !HISTORY.test(file) && !SUPPORT.has(file)) return null;
   try {
-    for (const parent of HISTORY.test(file) ? ['src', 'packages/state/data/history'] : ['src']) {
+    const parents = file.split('/').slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join('/'));
+    for (const parent of parents) {
       const directory = lstatSync(join(root, parent));
       if (!directory.isDirectory() || directory.isSymbolicLink()) return null;
     }
