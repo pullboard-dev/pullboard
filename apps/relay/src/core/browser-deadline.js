@@ -1,4 +1,4 @@
-import { realRelayAdapter } from '../../../../relay/browser-adapter.js';
+import { realRelayAdapter } from '../shell/browser-adapter.js';
 /** Bound browser I/O independently of the first-paint promise [H5,H16,H17]. */
 import { Refused } from '../../../../packages/kernel/index.js';
 
