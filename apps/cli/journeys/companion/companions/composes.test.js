@@ -63,12 +63,12 @@ function fixture({ fixer = false } = {}) {
     'apps/cli/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
       + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
       + 'if (composed !== null) process.exit(composed);\n'
-      + "await import('../api/serve.js');\n"
+      + "await import('../../api/serve.js');\n"
       + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
         + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
-    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
-    '.selfhooks/pre-merge-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-merge-commit\n`,
+    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/apps/cli/pullboard.js" hook pre-commit\n`,
+    '.selfhooks/pre-merge-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/apps/cli/pullboard.js" hook pre-merge-commit\n`,
   });
   chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
   chmodSync(join(box.repo, '.selfhooks/pre-merge-commit'), 0o755);
@@ -166,7 +166,7 @@ function hooksFixture() {
       + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
       + 'if (composed !== null) process.exit(composed);\n'
       + `await import(${JSON.stringify(REAL_CLI)});\n`,
-    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
+    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/apps/cli/pullboard.js" hook pre-commit\n`,
   });
   chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
   box.git(box.repo, 'add', '-A');

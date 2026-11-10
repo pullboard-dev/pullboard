@@ -46,7 +46,7 @@ function unplacedPaths(root, run) {
   const checked = run(root, ['--check']);
   if (checked.status === 0) return [];
   const names = `${checked.stderr ?? ''}\n${checked.stdout ?? ''}`.split('\n')
-    .map(line => /^not in packages\/codemap\/data\/plan\.json: (\S+)$/u.exec(line)?.[1]).filter(Boolean);
+    .map(line => /^not in packages\/codemap\/data\/plan\/cells\.json: (\S+)$/u.exec(line)?.[1]).filter(Boolean);
   return [...new Set(names)];
 }
 

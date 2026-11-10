@@ -59,7 +59,7 @@ test('clause 1: a landed new bin/ or src/ file outside the engine and move-histo
   const { root, merge } = fixture(t, files);
   const before = check(root);
   assert.notEqual(before.status, 0, 'the landing leaves its new files unplaced until the landing step runs');
-  for (const file of files) assert.match(before.stdout + before.stderr, new RegExp(`not in packages/codemap/data/plan\\.json: ${file.replace(/[./]/gu, '\\$&')}`, 'u'));
+  for (const file of files) assert.match(before.stdout + before.stderr, new RegExp(`not in packages/codemap/data/plan/cells\\.json: ${file.replace(/[./]/gu, '\\$&')}`, 'u'));
   const parents = git(root, 'show', '-s', '--format=%P', merge);
   amendLandingEngines(root);
   const head = git(root, 'rev-parse', 'HEAD');
