@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js packages/state/src/shell/machine.js */
-import { landingWaiverFor as nativeLandingWaiverFor } from '../../landing/index.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../../landing/index.js';
+import { landingWaiverFor as nativeLandingWaiverFor } from '../index.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../index.js';
 /** Preserve released person-waiver receipts on independent current replicas [B3,R3,H16]. */
 import { landingPorts } from '../../../test/landing-ports-fixture.js';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
 import {
   exportBoard,
   importBoard,
@@ -22,7 +22,7 @@ import {
 import {
   applyEngineMove,
   engineReceipt,
-} from '../src/shell/engine.js';
+} from '../../state/index.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 /** Ignore only the current writer marker, never semantic history or ordered receipts. */
