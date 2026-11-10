@@ -354,7 +354,8 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
         const first=document.querySelector('#chain > li');
         return {summary:text.textContent, summaryLines:Math.ceil(text.getBoundingClientRect().height/lineHeight), summaryClipped:text.scrollHeight > text.clientHeight + 1, naturalHeight, lineHeight, clamp:getComputedStyle(text).webkitLineClamp, summaryBox:rect(summary),
           expanded:summary.getAttribute('aria-expanded'), first:first?.dataset.item ?? null, firstBox:first&&rect(first), itemListHidden:document.querySelector('#item-list').hidden,
-          viewportWidth:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, viewportHeight:innerHeight};
+          viewportWidth:document.documentElement.clientWidth, pageWidth:document.documentElement.scrollWidth, viewportHeight:innerHeight,
+          itemOrder:data.project.items.filter(item => [3,4].includes(item.id)).map(item => ({id:item.id,status:item.status,updatedAt:item.updatedAt,holder:item.holder}))};
       })())`));
       assert.equal(before.summary, expectedSummary, `${width}px ${scheme}: the line selects the API merged, sent-back and bottleneck values`);
       assert.equal(before.expanded, 'false', `${width}px ${scheme}: the compact summary starts closed`);
@@ -363,7 +364,7 @@ test('stats read at a glance on a board with hundreds of agents [N26,V2]', { tim
       if (before.naturalHeight > before.lineHeight * (width < 900 ? 2 : 1) + 1) assert.equal(before.summaryClipped, true, `${width}px ${scheme}: a recommendation that would exceed the line limit is clipped`);
       assert.ok(before.summaryBox.height >= tapTarget(width), `${width}px ${scheme}: the summary meets the #371 target size`);
       assert.equal(before.itemListHidden, false, `${width}px ${scheme}: the item list remains the visible default`);
-      assert.equal(before.first, '4', `${width}px ${scheme}: the first real item row is present`);
+      assert.equal(before.first, '4', `${width}px ${scheme}: the first real item row is present: ${JSON.stringify(before.itemOrder)}`);
       assert.ok(before.firstBox.bottom <= height, `${width}px ${scheme}: the first item appears without scrolling: ${JSON.stringify(before)}`);
       assert.ok(before.pageWidth <= before.viewportWidth, `${width}px ${scheme}: no horizontal page overflow`);
       layouts.push({ scheme, width, firstBottom: before.firstBox.bottom, summaryHeight: before.summaryBox.height });
