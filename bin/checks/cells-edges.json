@@ -1076,10 +1076,6 @@
       "cells": 2,
       "deep": 3
     },
-    "bin/release-gate.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "bin/resident-board.js": {
       "cells": 2,
       "deep": 2
@@ -4725,7 +4721,7 @@
     },
     "<-gate": {
       "imports": [],
-      "deepImporters": 18
+      "deepImporters": 17
     },
     "apps/view": {
       "imports": [
