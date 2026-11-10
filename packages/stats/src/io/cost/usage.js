@@ -9,7 +9,8 @@ export const USAGE_BATCH_LIMIT = 1000;
 export const UNKNOWN_USAGE_REASONS = ['native-session-unavailable', 'no-native-baseline', 'native-session-unreadable-or-reset', 'native-counter-unreadable-or-decreased', 'shared-session', 'missed-claim-anchor', 'wrapper-session-id-fixed', 'not-recorded'];
 
 /** Every numeric field a sanitized usage record carries. */
-export const SPLIT_COUNTS = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens'];
+export { SPLIT_COUNTS, hasInputSplit } from '../../logic/split.js';
+import { SPLIT_COUNTS } from '../../logic/split.js';
 
 /** Existing aggregate totals retain their historical shape when replaying old usage. */
 export const COUNTS = ['inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens', ...SPLIT_COUNTS];
@@ -61,6 +62,4 @@ export function unknownInputSplit() {
 }
 
 /** Identify additive numeric payloads so their move can retain the legacy replay floor otherwise. */
-export function hasInputSplit(records) {
-  return Array.isArray(records) && records.some(row => row && SPLIT_COUNTS.some(name => Object.hasOwn(row, name)));
-}
+

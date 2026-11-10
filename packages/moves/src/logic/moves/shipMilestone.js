@@ -1,4 +1,4 @@
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../../state/light.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by shipMilestone, discovered without a shared registry edit [C7,V4,H16]. */
