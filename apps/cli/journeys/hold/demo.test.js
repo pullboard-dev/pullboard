@@ -323,6 +323,8 @@ test('real Chrome keeps the demo board usable at phone and desktop widths [H5,N2
     };
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await assertFirstStateDelay(chrome, t);
     await chrome.stable(`(() => {
@@ -785,6 +787,8 @@ test('the spec chip measurement survives a redraw [N26,C7]', {
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
+    await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     await press(chrome, "document.querySelector('[data-tab=spec]')");
     await chrome.waitFor("document.querySelectorAll('#spec-chips button:not([data-natural-chip])').length >= 2");
