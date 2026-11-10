@@ -110,11 +110,11 @@ test('clause 1: the worker job path runs a spec ticket through runHandoffJob, wi
 });
 
 test('clause 1: the runner worker calls runHandoffJob for a spec that carries a ticket, validates the ticket and reports it in the receipt [C7]', () => {
-  const read = name => readFileSync(join(import.meta.dirname, '../apps/runner/src/shell', name), 'utf8');
-  assert.match(read('runner-worker-main.js'), /spec\.handoff \? await runHandoffJob\(spec, root, runnerRoot\)/u);
-  assert.match(read('runner-worker-handoff.js'), /runStageEntry\(entry \?\? mainEntry/u);
+  const readWorker = name => readFileSync(join(import.meta.dirname, '../../../../apps/runner/src/io/worker', name), 'utf8');
+  assert.match(readWorker('entry.js'), /spec\.handoff \? await runHandoffJob\(spec, root, runnerRoot\)/u);
+  assert.match(readWorker('handoff.js'), /runStageEntry\(entry \?\? mainEntry/u);
   assert.match(readFileSync(join(import.meta.dirname, '../../src/io/runner/handoff/child.js'), 'utf8'), /runHandoffStages\(root, input/u);
-  assert.match(read('runner-worker-spec.js'), /throw new Error\('invalid hand-off ticket'\)/u);
+  assert.match(readWorker('spec.js'), /throw new Error\('invalid hand-off ticket'\)/u);
   assert.ok(SPEC_RULES.has('invalid hand-off ticket'));
-  assert.match(read('runner-worker-receipt.js'), /fields\.handoff \? \{ handoff: fields\.handoff \}/u);
+  assert.match(readWorker('receipt.js'), /fields\.handoff \? \{ handoff: fields\.handoff \}/u);
 });

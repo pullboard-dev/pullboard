@@ -26,7 +26,7 @@ export function installFileWatchdog(file) {
     const write = stream.write;
     /** Preserve stream backpressure, encoding and callback semantics while recording output. */
     stream.write = function (...args) {
-      if (args[0]?.length > 0) worker.postMessage({ type: 'output' });
+      if (args[0]?.length > 0) worker.postMessage({ type: 'output', text: typeof args[0] === 'string' ? args[0].slice(-2000) : Buffer.from(args[0]).subarray(-2000).toString() });
       return Reflect.apply(write, this, args);
     };
   }
