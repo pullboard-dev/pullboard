@@ -35,7 +35,7 @@ function harness(t) {
   const added = [];
   const said = [];
   const open = [];
-  const state = { board: {}, config: { lanes: { core: { owns: ['test/', 'src/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node packages/gate/src/io/run/tests.js' },
+  const state = { board: {}, config: { lanes: { core: { owns: ['test/', 'src/', 'apps/cli/journeys/'] }, coordinator: { owns: ['docs/'] } }, affectedTests: 'node packages/gate/src/io/run/tests.js' },
     write: async (operation, [item]) => { assert.equal(operation, 'addItem'); added.push(item); const id = 900 + added.length;
       open.push({ item_id: id, item_status: 'open', item_title: item.title, item_criterion: item.criterion, item_brief: item.brief, item_check: item.check, item_lane: item.lane }); return id; },
     say: text => said.push(text), batch: null };
@@ -125,7 +125,7 @@ test('a real landed batch files a newly red case and a green batch files nothing
   const box = helpers.project('node packages/gate/src/io/run/tests.js', undefined, { withWorktree: false });
   t.after(() => helpers.cleanup());
   delete box.env.NODE_TEST_CONTEXT;
-  copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+  copyCommittedPackageFiles(box, join(import.meta.dirname, '../../../..'));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'),
     "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('unaffected landing test [C7]', () => assert.equal(1, 1));\n");
