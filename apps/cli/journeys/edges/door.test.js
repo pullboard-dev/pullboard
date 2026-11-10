@@ -223,3 +223,11 @@ test('every real light door is recorded in the edge ceilings within its budget [
   assert.ok(lightDoorsOf(REPO).includes('packages/gate/light.js'));
   assert.ok(!lightDoorsOf(REPO).some(door => door.includes('/kernel/')), 'a pure door stays off the light list');
 });
+
+test('declared app light doors load within the existing cold budget [C7]', async t => {
+  for (const door of ['apps/cli/light.js', 'apps/runner/light.js', 'apps/view/light.js']) {
+    const ms = await coldLoadMs(REPO, door);
+    t.diagnostic(`${door} ${ms}ms`);
+    assert.ok(ms <= LIGHT_DOOR_BUDGET_MS, `${door} cold load ${ms}ms exceeds the existing budget`);
+  }
+});
