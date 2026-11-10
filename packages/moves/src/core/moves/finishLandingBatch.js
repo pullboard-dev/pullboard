@@ -4,7 +4,7 @@ import { quarantineBatchGates } from "../../../../verify/core.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from "../../../../../src/engine-metadata.js";
-import { carriesLandingEnvironment } from "../../../../sandbox/core.js";
+import { carriesLandingEnvironment } from "../../../../sandbox/pure.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../state/core.js";
 import { latestLandingBatch } from "../../../../git/pure.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";

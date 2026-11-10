@@ -25,5 +25,6 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "merged", order: 19, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "NOT_VERIFIED": "merge only verified items; see pullboard list --all"
+  "NOT_VERIFIED": "merge only verified items; see pullboard list --all",
+  "FORCED_REASON": "supply a nonempty reason with --forced or use an ordinary verified merge"
 }) });
