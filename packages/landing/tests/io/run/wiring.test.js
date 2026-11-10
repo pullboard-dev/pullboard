@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Build, submit and review test runs split by the shard planner over the slots free after landings [C7]. */
-/** @pullboard-world-pin: clause 1 reads packages/gate/src/io/run/tests.js to prove the runner entry calls the ordinary-run shard helper. */
+/** @pullboard-world-pin: clause 1 reads packages/gate/src/io/run-tests.js (the engine packages/gate/src/io/run/tests.js launches) to prove the runner entry calls the ordinary-run shard helper. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,7 +16,7 @@ test('clause 1: packages/gate/src/io/run/tests.js shards an ordinary run through
   assert.deepEqual(plan, planRunShards(FILES, 2, TIMES), 'an ordinary run takes the planner\'s split');
   assert.equal(plan.length, 2);
   assert.deepEqual(plan.flatMap(shard => shard.files).sort(), [...FILES].sort(), 'every selected file is in exactly one shard');
-  const source = readFileSync(join(import.meta.dirname, '../../../../gate/src/io/run/tests.js'), 'utf8');
+  const source = readFileSync(join(import.meta.dirname, '../../../../gate/src/io/run-tests.js'), 'utf8');
   assert.match(source, /ordinaryShards \? freeRunnerSlots\(\) : landingShardCount/u, 'the runner entry sizes every non-landing, non-shard run by the free runner slots and runs it through the landing shard planner');
 });
 

@@ -56,7 +56,7 @@ function timingProject(t) {
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const copied = copyPackageFiles(join(import.meta.dirname, '../../../..'), box.repo);
   // Selective fixture: the installed runtime is real; shipped documentation tests are a different test universe.
-  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
+  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages|apps)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...JSON.parse(config), landingShards: 2,
@@ -99,7 +99,7 @@ function assertMeasured(run, box, output) {
 
 test('a direct full suite records one durable source-bound run, including a complete red run [C7,H16]', async t => {
   const box = timingProject(t);
-  const run = async red => runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--all'],
+  const run = async red => runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js'],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_TIMING_FIXTURE_RED: red }, encoding: 'utf8' });
   const green = await run('0');
   assert.equal(green.status, 0, green.stderr + green.stdout);
@@ -119,7 +119,7 @@ test('a direct full suite records one durable source-bound run, including a comp
   const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.deepEqual(nativeFlakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
   finally { store.closeBoard(board); }
-  const filtered = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--test-skip-pattern=first'],
+  const filtered = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--test-skip-pattern=first', 'test/one.test.js', 'test/two.test.js'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(filtered.status, 0, filtered.stderr + filtered.stdout);
   const frame = filtered.stdout.split('\n').find(line => line.startsWith(SUITE_TIMING_PREFIX));
@@ -232,9 +232,9 @@ console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:rece
 test('an all-reused direct invocation preserves a receipt without inventing a fresh full suite [C7,H16]', async t => {
   const box = timingProject(t);
   const env = { ...box.env, PULLBOARD_TEST_REUSE: '1' };
-  const first = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--all'], { cwd: box.repo, env, encoding: 'utf8' });
+  const first = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr + first.stdout);
-  const second = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js', '--all'], { cwd: box.repo, env, encoding: 'utf8' });
+  const second = await runFixtureChildAsync(process.execPath, ['packages/gate/src/io/run/tests.js'], { cwd: box.repo, env, encoding: 'utf8' });
   assert.equal(second.status, 0, second.stderr + second.stdout);
   assert.match(second.stdout, /# reused/u, 'the native cache really reused the seeded file results');
   const runs = recorded(box);
