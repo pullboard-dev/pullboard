@@ -95,6 +95,9 @@ test('the real pre-commit hook refuses a temp dir, a model literal, a raw board 
     assert.equal(printed.length, 1, `the gate prints one red for ${file}: ${gate.join('\n')}`);
     assert.match(printed[0], message);
     box.git(box.repo, 'add', file);
+    const staged = stagedCheck(box);
+    assert.notEqual(staged.status, 0, `the staged checker refuses ${file}: ${staged.stderr}`);
+    assert.ok(staged.stderr.includes(printed[0]), `the staged checker prints the gate line ${printed[0]}`);
     const commit = box.tryGit(box.repo, 'commit', '-q', '-m', 'test: add a fixture case [G1]');
     const output = `${commit.stderr ?? commit.err ?? ''}${commit.stdout ?? commit.out ?? ''}`;
     assert.notEqual(commit.status ?? commit.code, 0, `the hook refuses ${file}`);
