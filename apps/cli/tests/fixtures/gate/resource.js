@@ -19,6 +19,7 @@ import { BROWSER_SLOT_HELD_ENV } from '../../../../../packages/resources/index.j
 import { GATE_SLOT_HELD_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../../packages/resources/index.js';
+import { TEST_FILE_POOL_ENV } from '../../../../../packages/gate/index.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from '../testkit.js';
 
@@ -78,6 +79,8 @@ export function fixture() {
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
   delete env[GATE_SLOT_HELD_ENV];
+  // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
+  delete env[TEST_FILE_POOL_ENV];
   return { dir, events, env };
 }
 
