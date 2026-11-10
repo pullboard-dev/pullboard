@@ -67,6 +67,8 @@ test('next offers new work while the gate is queued or running, and the red item
   const submitted = runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'submit', String(first), '--no-next', '--json'], { cwd: seat.path, env: { ...process.env }, encoding: 'utf8' });
   try {
     await waitForCondition(() => existsSync(gate.entered), 'the real submit gate enters', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for a real runner gate to start.
+    const running = store.submitHandoff(box.board, first);
+    assert.equal(running?.state, 'running', `the observed gate belongs to a running submit handoff: ${JSON.stringify(running)}`);
   const offered = await cli(box, seat.path, ['next', '--build']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, second, 'a running gate does not hold the seat idle');
