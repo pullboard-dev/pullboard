@@ -1,5 +1,6 @@
 {
   "journeys": {
+    "test/milestone-text.test.js": "drives the real CLI (milestone add, edit, pin, order and ship, roadmap) in a project checkout and checks the landed counts, target, limit, foreign references and kept pins it prints end to end",
     "test/bar-native-session.test.js": "drives the real CLI (join, bar sign, claim, submit, verify) through private native sessions and checks its exit codes, refusals and board rows end to end",
     "test/blueprint-cli-part-2.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
     "test/blueprint-cli-part-3.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
@@ -244,8 +245,6 @@
     "packages/state/tests/item-hold.test.js": "imports test/e2e-helpers.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/machine-home.test.js": "imports packages/runners/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/merged.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/state/tests/milestone-limit.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
-    "packages/state/tests/milestones.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/registry-merge.test.js": "imports test/package-copy-fixture.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/relay-activation.test.js": "imports packages/store/index.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
     "packages/state/tests/relay-approval-delivery.test.js": "imports test/relay-client-fixture.js, outside its own cell state; a cell test imports its own cell, the front door of a cell below it, a leaf cell's front door or a pure testkit helper",
