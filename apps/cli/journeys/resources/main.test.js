@@ -16,6 +16,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { checkNeedsBrowser } from '../../../../packages/gate/index.js';
+import { awaitNestedPhase } from '../../../../packages/gate/index.js';
 import { queuedLeaseProof } from '../../../../packages/gate/tests/fixtures/resources/lease.js';
 import { openPrivateScopedView } from '../../../../packages/gate/tests/fixtures/resources/lease.js';
 import { resourceNames } from '../../tests/fixtures/resources/lease.js';
@@ -67,15 +68,13 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   const itemMarker = join(repo, 'item-check-started');
   const itemStarted = waitForMarker(itemMarker);
   const itemRun = runFixtureChildAsync(process.execPath, [BIN, 'check', String(item), '--yes'], { cwd: repo, env: box.env });
-  let itemResult;
-  try {
-    await itemStarted;
-    assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'check-browser-holder'),
-      'the item check starts while the unrelated browser lease remains held');
-  } finally {
-    await release(browserHolder);
-    itemResult = await itemRun;
-  }
+  const itemResult = await awaitNestedPhase(itemRun, async () => {
+    try {
+      await itemStarted;
+      assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'check-browser-holder'),
+        'the item check starts while the unrelated browser lease remains held');
+    } finally { await release(browserHolder); }
+  });
   assert.equal(itemResult.status, 0, itemResult.failure ?? itemResult.stderr);
   assert.equal(readFileSync(itemMarker, 'utf8'), 'started');
 
@@ -84,17 +83,15 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   const submitMarker = join(repo, 'submit-check-started');
   const submitStarted = waitForMarker(submitMarker);
   const submitRun = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', SUBMIT_CHECK, repo, base, submitCheck], { cwd: repo, env: box.env });
-  let submitResult;
   let submitStartFailure = null;
-  try {
-    try { await submitStarted; }
-    catch (error) { submitStartFailure = error; }
-    assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'submit-browser-holder'),
-      'the submission check starts while the unrelated browser lease remains held');
-  } finally {
-    await release(nextBrowserHolder);
-    submitResult = await submitRun;
-  }
+  const submitResult = await awaitNestedPhase(submitRun, async () => {
+    try {
+      try { await submitStarted; }
+      catch (error) { submitStartFailure = error; }
+      assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === 'submit-browser-holder'),
+        'the submission check starts while the unrelated browser lease remains held');
+    } finally { await release(nextBrowserHolder); }
+  });
   assert.equal(submitStartFailure, null, `${submitStartFailure?.message ?? ''}\n${submitResult.stdout}\n${submitResult.stderr}`);
   assert.equal(submitResult.status, 0, submitResult.failure ?? submitResult.stderr);
   assert.deepEqual(JSON.parse(submitResult.stdout), {
@@ -121,21 +118,19 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
     const started = waitForMarker(marker);
     const startedOutcome = started.then(() => null, error => error);
     const resultPromise = runFixtureChildAsync(process.execPath, [BIN, 'check', String(item), '--yes'], { cwd: repo, env: box.env });
-    let result;
-    try {
-      if (shouldStartWithBrowserHeld) {
-        await started;
-        assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === `policy-browser-${String(value)}`),
-          'the browser lease stays live while an opted-in browser-free check runs');
-      } else {
-        await waitUntil(() => privateList(box).find(({ name }) => name === 'gate')?.line.some(({ kind, item: waitingItem }) => kind === 'check' && waitingItem === String(item)),
-          'a browser-disabled check to wait in the gate queue');
-        assert.equal(existsSync(marker), false, 'the check does not start while browser-free checks are disabled or absent');
-      }
-    } finally {
-      await release(browserHolder);
-      result = await resultPromise;
-    }
+    const result = await awaitNestedPhase(resultPromise, async () => {
+      try {
+        if (shouldStartWithBrowserHeld) {
+          await started;
+          assert.ok(privateList(box).find(({ name }) => name === 'browser')?.holders.some(({ agent }) => agent === `policy-browser-${String(value)}`),
+            'the browser lease stays live while an opted-in browser-free check runs');
+        } else {
+          await waitUntil(() => privateList(box).find(({ name }) => name === 'gate')?.line.some(({ kind, item: waitingItem }) => kind === 'check' && waitingItem === String(item)),
+            'a browser-disabled check to wait in the gate queue');
+          assert.equal(existsSync(marker), false, 'the check does not start while browser-free checks are disabled or absent');
+        }
+      } finally { await release(browserHolder); }
+    });
     assert.equal(result.status, 0, result.failure ?? result.stderr);
     assert.equal(await startedOutcome, null, 'the check marker observer settles and closes');
     assert.equal(readFileSync(marker, 'utf8'), 'started');
