@@ -1,7 +1,9 @@
 /** @pullboard-test-input test-tree */
+/** @pullboard-world-pin: the affected-selection case copies this test's own source into a clone to prove the scanner is selected. */
 /** A source-only guard for shared Chrome waits and affected test selection [N26,C7]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -18,7 +20,6 @@ import { execFileSync } from 'node:child_process';
 import { selectAffectedTests } from '../../index.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
-const COCKPIT = join(ROOT, 'test/cockpit');
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 
 /** Find complete top-level exception bodies without exempting the rest of stable.js. */
@@ -37,7 +38,7 @@ function maskSharedChromeFunctions(source) {
 }
 
 /** Return every forbidden raw Chrome call with a cockpit-relative path and source line. */
-function rawChromeBypasses(root = COCKPIT) {
+function rawChromeBypasses(root = ROOT) {
   const patterns = [
     ['direct evaluate', new RegExp('(?<!Runtime)\\.\\s*' + 'evaluate' + '\\b')],
     ['computed evaluate', new RegExp('\\[\\s*[\'"]' + 'evaluate' + '[\'"]\\s*\\]')],
@@ -54,11 +55,26 @@ function rawChromeBypasses(root = COCKPIT) {
       else if (entry.isFile() && /\.(?:js|mjs)$/u.test(entry.name)) files.push(path);
     }
   }
-  walk(root);
+  if (root === ROOT) {
+    // The cockpit tests live beside their commands now: every Chrome-driving test under a tests or journeys folder.
+    for (const group of ['apps', 'packages']) {
+      for (const cell of readdirSync(join(ROOT, group))) {
+        for (const folder of ['tests', 'journeys']) {
+          const base = join(ROOT, group, cell, folder);
+          if (existsSync(base)) walk(base);
+        }
+      }
+    }
+    for (let index = files.length - 1; index >= 0; index -= 1) {
+      const path = files[index];
+      const sharedClient = /[\\/]tests[\\/]fixtures[\\/]chrome(?:[\\/]|\.js$)/u.test(path);
+      if (sharedClient || !/chrome/iu.test(readFileSync(path, 'utf8'))) files.splice(index, 1);
+    }
+  } else walk(root);
   const violations = [];
   for (const path of files) {
     let source = readFileSync(path, 'utf8');
-    if (basename(path) === 'stable.js' && relative(root, path) === 'stable.js') {
+    if (basename(path) === 'stable.js' && (relative(root, path) === 'stable.js' || path.endsWith(join('tests', 'fixtures', 'cockpit', 'stable.js')))) {
       source = maskSharedChromeFunctions(source);
     }
     const lines = source.split('\n');
