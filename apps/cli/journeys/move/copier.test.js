@@ -147,9 +147,9 @@ test('only an import that resolves to the canonical copier body makes a copier [
     `import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nimport { toolSourcePath } from '${specifier}';\n${read}${unrelated}`,
     { ...options, file });
   const clean = { edits: [], problems: [] };
-  assert.deepEqual(withImport('../src/io/package/files.js', 'test/a.test.js'), clean);
-  assert.deepEqual(withImport('../../packages/runners/src/shell/package-files.js', 'test/sub/a.test.js'), clean, 'a relative variant that resolves to the canonical file');
-  assert.deepEqual(withImport('../src/io/package/files.js', 'test/a.test.js'), clean);
+  assert.deepEqual(withImport('../src/package-files.js', 'test/a.test.js'), clean);
+  assert.deepEqual(withImport('../../packages/runners/src/io/package/files.js', 'test/sub/a.test.js'), clean, 'a relative variant that resolves to the canonical file');
+  assert.deepEqual(withImport('../packages/runners/src/io/package/files.js', 'test/a.test.js'), clean);
   for (const [specifier, file] of [['./private/package-files.js', 'test/a.test.js'], ['../private/package-files.js', 'test/a.test.js'],
     ['../src/io/package/files.js', 'test/sub/a.test.js'], ['../lib/package-files.js', 'test/a.test.js']]) {
     const result = withImport(specifier, file);
@@ -177,7 +177,7 @@ test('the copier is also accepted through the front door of the cell that owns i
   const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
   const as = specifier => fixtureSourceEdits(
     `import { readFileSync } from 'node:fs';\nimport { toolSourcePath } from '${specifier}';\n${read}`, { ...options, file: 'test/a.test.js' });
-  assert.deepEqual(as('../index.js'), { edits: [], problems: [] });
+  assert.deepEqual(as('../packages/runners/index.js'), { edits: [], problems: [] });
   for (const lookalike of ['../../config/index.js', '../packages/runners/other.js', '../../../apps/runner/index.js']) {
     const refused = as(lookalike);
     assert.ok(refused.edits.length + refused.problems.length > 0, `${lookalike} is not the copier`);
