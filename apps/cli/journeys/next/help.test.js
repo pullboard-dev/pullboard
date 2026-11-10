@@ -29,6 +29,8 @@ import { HELP } from '../../index.js';
 import { resultCommands } from '../../index.js';
 import * as helpDeclaration from '../../index.js';
 import { importStyleViolations } from '../../tests/fixtures/style.js';
+import { REPOSITORY } from '../../tests/fixtures/source.js';
+import { movedSourceFiles } from '../../tests/fixtures/source.js';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { laneOf } from '../../../../packages/seats/index.js';
@@ -176,11 +178,10 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone focus". Run pullboard help --all for the full list.\n');
   t.diagnostic('help overview bytes ' + JSON.stringify(overview.stdout));
 
-  const directory = resolve(import.meta.dirname, '../src');
-  const config = loadConfig(resolve(directory, '..'));
-  const sources = readdirSync(directory, { recursive: true })
-    .filter((file) => file.endsWith('.js') && laneOf(config, `src/${file}`) === 'core')
-    .map((file) => ({ file, source: readFileSync(join(directory, file), 'utf8') }));
+  const config = loadConfig(REPOSITORY);
+  const sources = movedSourceFiles()
+    .filter((file) => laneOf(config, file) === 'core')
+    .map((file) => ({ file, source: readFileSync(join(REPOSITORY, file), 'utf8') }));
   assert.ok(sources.length > 0, 'the core lane owns source files');
   assert.deepEqual(importStyleViolations(sources), [], 'each actual static import has one binding per line');
   const styles = [
@@ -208,9 +209,9 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   assert.equal(generated.overview, HELP.overview, 'a new declaration preserves the overview bytes');
   assert.equal(generated.all, HELP.all, 'a new declaration preserves the full-help bytes');
 
-  // Help and the result-command list are built in cli-help.js, from the same registry dispatch reads.
-  const shell = resolve(import.meta.dirname, '../apps/cli/src/shell');
-  const original = readFileSync(join(shell, 'cli-help.js'), 'utf8');
+  // Help and the result-command list are built in help.js, from the same registry dispatch reads.
+  const shell = resolve(import.meta.dirname, '../../src/io');
+  const original = readFileSync(join(shell, 'help.js'), 'utf8');
   const registryUrl = 'data:text/javascript;base64,' + Buffer.from([
     `import { COMMANDS as actual, UNLISTED_COMMANDS } from ${JSON.stringify(pathToFileURL(join(shell, 'commands/index.js')).href)};`,
     "/** A private new command proves help follows actual dispatch declarations. */",
@@ -303,7 +304,7 @@ test('the settings forms the CLI dispatches have help and reach their own refusa
 });
 
 test('every command comes from its own module [C7,V4]', async () => {
-  const source = resolve(import.meta.dirname, '../apps/cli/src/shell');
+  const source = resolve(import.meta.dirname, '../../src/io');
   const registry = await import(pathToFileURL(join(source, 'commands/index.js')).href).catch(() => null);
   assert.ok(registry?.COMMANDS, 'src/commands/index.js registers the commands');
   const names = Object.keys(registry.COMMANDS);
@@ -315,10 +316,10 @@ test('every command comes from its own module [C7,V4]', async () => {
   const files = readdirSync(join(source, 'commands')).filter((file) => file.endsWith('.js') && file !== 'index.js').map((file) => file.slice(0, -3)).sort();
   assert.deepEqual(files, [...names].sort(), 'every module under src/commands/ is registered, and every registered command has its module');
   for (const name of [...resultCommands(), 'mcp']) assert.ok(names.includes(name), `${name} comes from its own module`);
-  const cli = readFileSync(join(source, 'cli.js'), 'utf8');
+  const cli = readFileSync(join(source, 'entry.js'), 'utf8');
   assert.doesNotMatch(cli, /function (?:setup|read|work)Commands\(/u, 'apps/cli/src/io/entry.js holds no command table');
-  // Dispatch lives in cli-main/run-command.js, the entry that loads only the command in hand.
-  const entry = readFileSync(join(source, 'cli-main', 'run-command.js'), 'utf8');
+  // Dispatch lives in cli-main/run/command.js, the entry that loads only the command in hand.
+  const entry = readFileSync(join(source, 'cli-main', 'run', 'command.js'), 'utf8');
   const dispatch = entry.slice(entry.indexOf('async function runCommand('), entry.indexOf('\n}\n', entry.indexOf('async function runCommand(')));
   assert.ok(dispatch.includes('COMMANDS[command]'), 'runCommand looks the command up in the registry');
   assert.doesNotMatch(dispatch, /if \(command === '[a-z-]+'(?: && [^)]*)?\) /u, 'runCommand holds no command of its own');
@@ -329,8 +330,8 @@ test('every command comes from its own module [C7,V4]', async () => {
 });
 
 test('each command body lives in its own module, not in apps/cli/src/io/entry.js [C7,V4]', async () => {
-  const source = resolve(import.meta.dirname, '../apps/cli/src/shell');
-  const cli = readFileSync(join(source, 'cli.js'), 'utf8');
+  const source = resolve(import.meta.dirname, '../../src/io');
+  const cli = readFileSync(join(source, 'entry.js'), 'utf8');
   const bodies = {
     hook: 'hookCommand', mcp: 'mcpHere', next: 'nextHere', resume: 'resumeHere', runner: 'runnerCommand', serve: 'serveHere',
     settings: 'settingsCommand', spec: 'specCommand', submit: 'submitHere', verify: 'verifyHere', view: 'viewHere', worktree: 'worktreeFor',

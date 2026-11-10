@@ -108,7 +108,7 @@ export const FRAMEWORKS = 'Choices: Next.js, SvelteKit, Rails, Something else.';
 
 /** The bundled blueprint of this name, as its file says. */
 export function bundled(name) {
-  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../packages/blueprints/src/shell/blueprints/${name}.json`), 'utf8'));
+  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../../../../packages/blueprints/data/blueprints/${name}.json`), 'utf8'));
 }
 
 /** Every row text a blueprint drafts, rules then questions, as SPEC.md carries them. */

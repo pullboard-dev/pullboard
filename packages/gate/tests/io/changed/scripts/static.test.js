@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** The explicit staged checker runs the gate's changed-file static checks on staged files, so a static red never costs a gate run [C7]. */
 import assert from 'node:assert/strict';
 import { copyFileSync } from 'node:fs';
@@ -15,7 +16,10 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '../../../bin/checks');
+const ROOT = join(import.meta.dirname, '../../../../../..');
+/** The repository's own staged checker and its test-waits baseline: what bin/checks held before the layout move. */
+const CHECKER = join(ROOT, 'packages/gate/src/io/changed/scripts/static.js');
+const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.json');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
 function staticProject(accepted = {}) {
@@ -28,10 +32,11 @@ function staticProject(accepted = {}) {
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: record existing source before static policy');
   }
-  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
-  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
+  mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/src/io/changed/scripts'), { recursive: true });
+  copyFileSync(BASELINE, join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
-    `import { changedStaticFailures, stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
+    `import { changedStaticFailures, stagedHookFailures } from ${JSON.stringify(pathToFileURL(CHECKER).href)};`,
     "const failures = process.argv[2] === '--staged-hook' ? stagedHookFailures(process.cwd()) : changedStaticFailures(process.cwd(), process.argv.slice(3), { staged: process.argv[2] === '--staged' });",
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...JSON.parse(box.git(box.repo, 'show', 'HEAD:pullboard.json')), gate: 'true',
@@ -55,7 +60,7 @@ function stageSource(box, file, source) {
 
 test('the shared changed-file list passes a clean file [C7]', () => {
   const dir = join(import.meta.dirname, '../../../../../..');
-  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'), 'packages/gate/src/io/changed/scripts/static.js'], { cwd: dir, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER, 'packages/gate/src/io/changed/scripts/static.js'], { cwd: dir, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
 });
 

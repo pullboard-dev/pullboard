@@ -255,9 +255,9 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     paths: existsSync(join(box.repo, '.git', 'pullboard', 'landings'))
       ? readdirSync(join(box.repo, '.git', 'pullboard', 'landings'), { recursive: true }).sort() : null };
   /** Resolve the running installed source for a real private controller child. */
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
+  const url = name => pathToFileURL(join(import.meta.dirname, '../../../../..', name)).href;
   const direct = [
-    `import * as store from ${JSON.stringify(url('board.js'))};`,
+    `import * as store from ${JSON.stringify(url('packages/store/index.js'))};`,
     `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../lib/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('../landing/ports.js', import.meta.url).href)};`,

@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
-/** @pullboard-test-loads packages/moves/src/shell/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
+/** @pullboard-test-loads packages/moves/src/io/registry.js packages/moves/src/logic/moves/*.js packages/moves/src/io/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from '../../tests/fixtures/cases/registry.js';
 import '../../../lib/tests/registry.test.js';
@@ -44,7 +44,10 @@ import {
   mappedWorkingSources,
 } from '../../../../packages/gate/src/io/scan.js';
 import { readPathMap } from '../../../../packages/codemap/index.js';
-import { readEngineLeaves } from '../../../../packages/state/src/io/engine/numbers.js';
+import {
+  ENGINE_FOLDER,
+  readEngineLeaves,
+} from '../../../../packages/state/src/io/engine/numbers.js';
 import { historyProblems } from '../../tests/fixtures/move/registry/history.js';
 import { installRegistryMergeCase } from '../../tests/fixtures/move/registry/cases.js';
 import { TRAIN_LANDING_ENGINE } from '../../../../packages/state/light.js';
@@ -89,13 +92,13 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 
 test('live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => SNAPSHOT.operations.includes(operation)), SNAPSHOT.operations, 'historical operation order is retained while new declarations append independently');
-  const root = fileURLToPath(new URL('../src/', import.meta.url));
   const repository = fileURLToPath(new URL('../../../../', import.meta.url));
-  const identities = new Set(readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js')).map(file => 'src/' + file));
+  // The old src/ files are named by the committed map, which points each at the cell or app file that holds it now.
+  const identities = new Set();
   for (const [identity] of readPathMap(repository)) if (identity.startsWith('src/') && identity.endsWith('.js')) identities.add(identity);
   const sources = mappedWorkingSources(repository, [...identities])
     .flatMap(input => [input.body, ...(input.shimBody === null ? [] : [input.shimBody])]).map(bytes => bytes.toString('utf8'));
-  assert.deepEqual(registryProblems({ registry: MOVE_REGISTRY, leaves: readEngineLeaves(root), sources, nextSteps: NEXT_STEPS }), []);
+  assert.deepEqual(registryProblems({ registry: MOVE_REGISTRY, leaves: readEngineLeaves(join(repository, ENGINE_FOLDER)), sources, nextSteps: NEXT_STEPS }), []);
   assert.deepEqual(ENGINE_OPERATIONS, Object.keys(MOVE_REGISTRY), 'engine routing derives every operation from its declaration');
   for (const [code, step] of Object.entries(CLAUSE_STEPS)) assert.equal(NEXT_STEPS[code], step, `${code} retains exact clause recovery`);
   assert.equal(minimumMoveEngine('recordProofRun', [{ landingFence: {}, receipt: { environment: {} } }, { cause: 'conflict:new' }]), PROOF_RUN_ENGINE);
@@ -162,9 +165,9 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: exact installed source map']);
   const before = consumerHashes(root);
-  mkdirSync(join(root, 'packages/moves/src/core/moves'), { recursive: true });
-  writeFileSync(join(root, 'packages/moves/src/core/moves/seedAlpha.js'), seedDeclaration('seedAlpha', 9, true, 'repair the first seeded move'));
-  writeFileSync(join(root, 'packages/moves/src/core/moves/seedBeta.js'), seedDeclaration('seedBeta', 11, false, 'repair the second seeded move'));
+  mkdirSync(join(root, 'packages/moves/src/logic/moves'), { recursive: true });
+  writeFileSync(join(root, 'packages/moves/src/logic/moves/seedAlpha.js'), seedDeclaration('seedAlpha', 9, true, 'repair the first seeded move'));
+  writeFileSync(join(root, 'packages/moves/src/logic/moves/seedBeta.js'), seedDeclaration('seedBeta', 11, false, 'repair the second seeded move'));
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
@@ -178,21 +181,21 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './packages/store/index.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
-import { registryFixtureBoard } from './test/move-registry-fixture.js';
-import { REGISTRY_AT } from './test/move-registry-fixture.js';
+import * as store from './packages/store/index.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/logic/native.js';
+import { registryFixtureBoard } from './apps/cli/tests/fixtures/move/registry.js';
+import { REGISTRY_AT } from './apps/cli/tests/fixtures/move/registry.js';
 const root=process.cwd();
 const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:'seedAlpha',args:[7,{agentId:'seed-agent'}]}),
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
   const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
   const {importsIn}=await import('./packages/gate/index.js');
-  const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
+  const snapshot=JSON.parse(readFileSync('./apps/cli/tests/fixtures/move/registry/baseline.json','utf8'));
   const boards=new Map();
   try {
     const forbidden=new Set(['src/board.js','src/engine.js','src/board-engine-ports.js','src/next-step-words.js','src/move-registry.js','src/git.js']);
     const seen=new Set();
-    let pending=['packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
+    let pending=['packages/moves/src/logic/moves','packages/moves/src/io/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
     while(pending.length) {
       const level=[...new Set(pending)].filter(file=>!seen.has(file));pending=[];
       for(const file of level) {
@@ -262,7 +265,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
   const forbidden = new Set(['packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
-  let pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))
+  let pending = ['packages/moves/src/logic/moves', 'packages/moves/src/io/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))
     .map(file => pathToFileURL(join(root, folder, file)).href));
   while (pending.length) {
     const level = [...new Set(pending)].filter(file => !seen.has(file));
@@ -316,7 +319,7 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
-  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, 'packages/state/src/core/engines')), git), []);
+  assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git), []);
 });
 
 installRegistryMergeCase();

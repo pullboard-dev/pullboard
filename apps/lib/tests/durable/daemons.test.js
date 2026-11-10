@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** No process is load-bearing: the changed-file static check refuses new daemons and state files outside the drive, transport, jobs and pin cells [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -21,7 +22,10 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '../../../bin/checks');
+const ROOT = join(import.meta.dirname, '../../../..');
+/** The repository's own staged checker and its test-waits baseline: what bin/checks held before the layout move. */
+const CHECKER = join(ROOT, 'packages/gate/src/io/changed/scripts/static.js');
+const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.json');
 
 const DAEMON = [
   "import { spawn } from 'node:child_process';",
@@ -51,10 +55,11 @@ function kinds(source, path) {
 /** A real project whose staged checker is the repository's own changed-file list, with a ceilings file on main. */
 function ceilingProject(ceilings) {
   const box = cellProject(owner, { gate: 'true' });
-  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
-  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
+  mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
+  mkdirSync(dirname(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js')), { recursive: true });
+  copyFileSync(BASELINE, join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
-    `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
+    `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(CHECKER).href)};`,
     "const failures = stagedHookFailures(process.cwd());",
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
   write(box, LOAD_BEARING_CEILINGS, JSON.stringify(ceilings, null, 2) + '\n');
@@ -101,7 +106,7 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
   assert.equal(stageAndCheck(box, { [file]: DAEMON }).status, 0, 'sites within the ceiling pass');
   const grown = stageAndCheck(box, { [file]: DAEMON.replace('  child.unref();', '  child.unref();\n  child.unref();') });
   assert.notEqual(grown.status, 0);
-  assert.match(grown.out, /packages\/items\/src\/shell\/daemon\.js:\d+: load-bearing unref/u);
+  assert.match(grown.out, /packages\/items\/src\/io\/daemon\.js:\d+: load-bearing unref/u);
   const fresh = stageAndCheck(box, { [file]: DAEMON, 'src/new-daemon.js': DAEMON });
   assert.match(fresh.out, /src\/new-daemon\.js:3: load-bearing detached/u, 'a file the ceilings do not list allows none');
   box.git(box.repo, 'rm', '-q', '--cached', 'src/new-daemon.js');
@@ -114,7 +119,7 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
 
 test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '../../../..');
-  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', join(REAL, 'changed-static.js'),
+  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER,
     LOAD_BEARING_CEILINGS, 'apps/cli/src/io/submit/handoff/worker.js', 'packages/resources/src/io/handoff/worker/cap.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
 });

@@ -19,16 +19,16 @@ function control(t, body) {
   const requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, home, machineHome, root, join(root, 'jobs')]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
-  const url = file => pathToFileURL(join(import.meta.dirname, '../../../src', file)).href;
+  const url = file => pathToFileURL(join(import.meta.dirname, '../../../..', file)).href;
   const source = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
-    import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
-    import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('../packages/runners/index.js'))};
-    import { processCensus } from ${JSON.stringify(url('../apps/runner/index.js'))};
-    const custodyURL = ${JSON.stringify(url('../apps/runner/index.js'))};
-    const transportURL = ${JSON.stringify(url('../packages/runners/index.js'))};
+    import { probeRunnerHealth } from ${JSON.stringify(url('packages/runners/index.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('packages/resources/index.js'))};
+    import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('packages/runners/index.js'))};
+    import { processCensus } from ${JSON.stringify(url('apps/runner/index.js'))};
+    const custodyURL = ${JSON.stringify(url('apps/runner/index.js'))};
+    const transportURL = ${JSON.stringify(url('packages/runners/index.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
     const identity = { version: 1, launchFence: 1, request: 'orphan-' + randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) };

@@ -13,7 +13,7 @@ import {
   ACKNOWLEDGED_OPERATIONS,
   outboxQueueable,
 } from '../../../../packages/outbox/index.js';
-const checkpointWorker = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
+const checkpointWorker = fileURLToPath(new URL('../../../lib/src/io/worker/checkpoint/relay.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from '../../../../packages/outbox/index.js';
 import { replay as replayConflictRecord } from '../../../../packages/outbox/index.js';

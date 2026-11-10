@@ -31,7 +31,9 @@ import { parentSessionDigest as parentSessionDigestOf } from '../../../../../pac
 import { familyName } from '../../../../../packages/verify/index.js';
 import { withOpenedBoard } from '../../../index.js';
 import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { REPOSITORY } from '../../../tests/fixtures/source.js';
+import { movedSourceFiles } from '../../../tests/fixtures/source.js';
+import { sourceFiles } from '../../../tests/fixtures/source.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -856,13 +858,13 @@ test('the derived family decides eligibility: a historically cleared seat still 
 });
 
 test('no family decision reads the stored family column outside the one derivation [V4,B26,H16]', () => {
-  const root = new URL('../src/', import.meta.url);
-  const files = readdirSync(root, { recursive: true }).filter(name => typeof name === 'string' && name.endsWith('.js') && !name.startsWith('move-history'));
-  const allowed = new Set(['family-declaration.js', 'board-schema-source.js', 'board-migrate.js']);
+  const files = movedSourceFiles().filter(name => !name.includes('move-history'));
+  // The three files that own the derivation: items' declaration, and the board schema and migration.
+  const allowed = new Set(['packages/items/src/io/declaration.js', 'packages/store/src/io/board/schema/source.js', 'packages/store/src/io/board/migrate.js']);
   const offenders = [];
   for (const file of files) {
     if (allowed.has(file)) continue;
-    const lines = readFileSync(new URL(file, root), 'utf8').split('\n');
+    const lines = readFileSync(join(REPOSITORY, file), 'utf8').split('\n');
     lines.forEach((line, index) => {
       // Writes keep the display column; every read of it, by property or SELECT, must call seatFamily instead.
       if (/\.agent_family\b/u.test(line) || /SELECT[^;]*\bagent_family\b/u.test(line) || /\bagent_family\b/u.test(line) && !/UPDATE agent SET agent_family|INSERT INTO agent \(/u.test(line)) {
@@ -870,17 +872,15 @@ test('no family decision reads the stored family column outside the one derivati
       }
     });
   }
-  assert.deepEqual(offenders, [], 'family reads go through src/family-declaration.js seatFamily');
+  assert.deepEqual(offenders, [], 'family reads go through packages/items/src/io/declaration.js seatFamily');
   // Whole-row reads carry agent_family too: every SELECT * or agent.* projection of agent rows must derive it.
   const rowReads = [];
-  for (const base of ['../src/', '../packages/']) {
-    const dir = new URL(base, import.meta.url);
-    for (const file of readdirSync(dir, { recursive: true }).filter(name => typeof name === 'string' && name.endsWith('.js') && !name.includes('move-history') && !name.includes('/tests/'))) {
-      if (base === '../src/' && ['family-declaration.js', 'exchange.js'].includes(file)) continue; // exchange.js validates raw exported tables.
-      readFileSync(new URL(file, dir), 'utf8').split('\n').forEach((line, index) => {
-        if (/SELECT\s+\*\s+FROM\s+agent\b|SELECT\s+agent\.\*/u.test(line) && !/withDerivedFamil(?:y|ies)\(|withModel\(/u.test(line)) rowReads.push(`${base}${file}:${index + 1}: ${line.trim()}`);
-      });
-    }
+  // The old src/ files, then every file of the cells (the old packages/ folder), as the check always read both.
+  for (const file of new Set([...files, ...sourceFiles().filter(name => name.startsWith('packages/'))])) {
+    if (['packages/items/src/io/declaration.js', 'packages/store/src/io/exchange.js'].includes(file)) continue; // exchange.js validates raw exported tables.
+    readFileSync(join(REPOSITORY, file), 'utf8').split('\n').forEach((line, index) => {
+      if (/SELECT\s+\*\s+FROM\s+agent\b|SELECT\s+agent\.\*/u.test(line) && !/withDerivedFamil(?:y|ies)\(|withModel\(/u.test(line)) rowReads.push(`${file}:${index + 1}: ${line.trim()}`);
+    });
   }
   assert.deepEqual(rowReads, [], 'agent-row projections return the derived family');
 });

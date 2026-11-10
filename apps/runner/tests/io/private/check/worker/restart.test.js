@@ -21,7 +21,7 @@ function observe(t, busy, reason = 'worker-unresponsive') {
   for (const directory of [bin, worker, hung, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   writeFileSync(join(hung, 'runner-worker.js'), 'setInterval(() => {}, 60000);\n');
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: 1 });
-  const url = name => pathToFileURL(join(import.meta.dirname, '../../../src', name)).href;
+  const url = name => pathToFileURL(join(import.meta.dirname, '../../../../../../..', name)).href;
   const script = `
     import assert from 'node:assert/strict';
     import { DatabaseSync } from 'node:sqlite';
@@ -31,16 +31,16 @@ function observe(t, busy, reason = 'worker-unresponsive') {
     import { writeFileSync, mkdirSync } from 'node:fs';
     import { readFileSync } from 'node:fs';
     import { join } from 'node:path';
-    import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { processCensus } from ${JSON.stringify(url('../apps/runner/index.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
+    import { probeRunnerHealth } from ${JSON.stringify(url('packages/runners/index.js'))};
+    import { processCensus } from ${JSON.stringify(url('apps/runner/index.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('packages/resources/index.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
     const db = new DatabaseSync(':memory:');
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');
     initializeRunnerRecovery(db);
     const identity = { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
-    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'apps/runner/src/io/scripts/worker.js')], { stdio: 'ignore' });
+    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'src/runner-worker.js')], { stdio: 'ignore' });
     const exited = once(stale, 'exit');
     let ownerWitness;
     try {
