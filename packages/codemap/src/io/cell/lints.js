@@ -98,7 +98,7 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
     for (const { target } of edges.get(file) ?? []) if (!testFile(target)) pending.push(target);
   }
   for (const file of files.keys()) if (file !== TRANSITION_FILE && file !== 'packages/codemap/data/baselines/lints/shim-counts.json' && !/^packages\/codemap\/data\/plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file)
-    && !/^packages\/codemap\/data\/baselines\/lints\/cells\/[a-z][a-z0-9-]*\.json$/u.test(file)
+    && !/^packages\/codemap\/data\/baselines\/lints\/(?:cells\/[a-z][a-z0-9-]*|index|[a-zA-Z]+-\d{3})\.json$/u.test(file)
     && (cellOf(file) || /^(?:src|bin|relay)\//u.test(file)) && !testFile(file) && !reachable.has(file)) add('unreachable', file, 1, 'not reached from an app front door by known production imports');
   const packages = new Set([...files.keys()].map(cellOf).filter(cell => cell?.startsWith('packages/')));
   for (const cell of [...packages].sort()) if (!reachable.has(cell + '/index.js')) add('unreachablePackages', cell, 1, 'package front door is not reached from an app');
