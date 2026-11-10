@@ -23,9 +23,9 @@ test('the moved config command declarations retain their root and stay out of th
   const root = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));
   const capsule = runnerPackage(root);
   assert.equal(capsule.entry, 'src/runner-worker.js');
-  // The declaration reader reads src/command-docs at import, and that directory is not a shipped runner file.
+  // The declaration reader reads apps/cli/src/shell/command-docs at import, and that directory is not a shipped runner file.
   for (const reader of ['packages/config/src/shell/command-declaration-read.js', 'packages/config/src/core/json.js', 'packages/config/index.js']) {
-    assert.ok(!Object.hasOwn(capsule.files, reader), `the worker closure must not import ${reader}; it would die reading src/command-docs`);
+    assert.ok(!Object.hasOwn(capsule.files, reader), `the worker closure must not import ${reader}; it would die reading apps/cli/src/shell/command-docs`);
   }
   assert.ok(Object.hasOwn(capsule.files, 'packages/config/src/shell/config.js'), 'the worker still reaches config through its shell module');
   assert.ok(Object.hasOwn(capsule.files, 'package.json'), 'the root anchor is a real shipped file');
