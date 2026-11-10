@@ -1,8 +1,8 @@
 /** The closed source-identity inventory counts real imports only, never import text inside string literals [M1,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sourceFacts } from '../../../test/machine-source-functions.fixture.js';
-import { withoutStringText } from '../../../test/machine-source-functions.fixture.js';
+import { sourceFacts } from './fixtures/functions.js';
+import { withoutStringText } from './fixtures/functions.js';
 
 test('clause 1: a template string holding an import line records no identity, while real imports stay [M1,C7]', () => {
   const source = [

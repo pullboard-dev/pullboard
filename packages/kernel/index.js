@@ -1,14 +1,14 @@
 /** Pure discovery, parsing, refusal and registry obligations shared by every cell [C7]. */
-export * from './src/core/discovery.js';
-export * from './src/core/js-lex.js';
-export * from './src/core/literal-shell-words.js';
-export { Refused } from './core.js';
-export * from './src/core/registry-guards.js';
-export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/core/pipeline-cause.js';
-export { decodedProofEvent, proofEventDetail } from './src/core/event-detail.js';
+export * from './src/logic/discovery.js';
+export * from './src/logic/lex.js';
+export * from './src/logic/words.js';
+export { Refused, repoPath } from './light.js';
+export * from './src/logic/registry.js';
+export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/logic/cause.js';
+export { decodedProofEvent, proofEventDetail } from './src/logic/detail.js';
 
-export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
-export { parseProcessCensus } from './src/core/process-census.js';
-export { machineHome, engineBindings } from './core.js';
-export { RUNNER_PRELOAD_ENV, declareKnownNodeOption, declareNodeOptionProofs, foreignNodeOptions } from './src/core/foreign-node-options.js';
-export { seal, unseal, generateBoardKey, encodeBoardKey, decodeBoardKey } from './src/core/seal.js';
+export { auditAdapterEnvironment } from './src/logic/audit.js';
+export { parseProcessCensus } from './src/logic/census.js';
+export { machineHome, engineBindings } from './light.js';
+export { RUNNER_PRELOAD_ENV, declareKnownNodeOption, declareNodeOptionProofs, foreignNodeOptions } from './src/logic/node/options.js';
+export { seal, unseal, generateBoardKey, encodeBoardKey, decodeBoardKey } from './src/logic/seal.js';

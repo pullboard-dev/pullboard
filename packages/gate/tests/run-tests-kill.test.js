@@ -1,7 +1,7 @@
 /** A landing cleanup kill that hits a process the run no longer owns counts as gone, and says so [C7,#850]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { killAnsweredGone } from '../src/shell/run-tests.js';
+import { killAnsweredGone } from '../src/io/run-tests.js';
 
 const OWNED = { pid: 4242, pgid: 4240, started: 'Mon Oct 20 03:00:00 2026', state: 'S' };
 
