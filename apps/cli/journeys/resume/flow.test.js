@@ -54,6 +54,7 @@ function releaseFixture(t, { previous = null, version = '0.8.7', changelog = PRI
   mkdirSync(repo);
   if (!freshSetup) writeFileSync(join(repo, 'SPEC.md'), '# Release fixture\n\n## N · Resume\n- N19 [approved, must] Resume announces released headlines once per checkout. | gate: review\n');
   copyPackageFiles(join(import.meta.dirname, '../../../..'), cli);
+  mkdirSync(join(cli, 'bin'), { recursive: true }); // the shim folder is the fixture's own; the shipped CLI lives in apps/cli
   symlinkSync(join(cli, 'apps/cli/pullboard.js'), join(cli, 'bin/pullboard'));
   const packageData = JSON.parse(readFileSync(join(import.meta.dirname, '../../../../package.json'), 'utf8'));
   writeFileSync(join(cli, 'package.json'), JSON.stringify({ ...packageData, version }));
@@ -661,7 +662,7 @@ function recordSetupAnswer(box, command) {
 
 /** Open the real local view and wait for its ready line before stopping its owned child. */
 async function openSetupView(box) {
-  const child = spawn(process.execPath, [join(box.root, 'cli/bin/pullboard.js'), 'view', '--no-open', '--port', '0'],
+  const child = spawn(process.execPath, [join(box.root, 'cli/apps/cli/pullboard.js'), 'view', '--no-open', '--port', '0'],
     { cwd: box.repo, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '', errors = '';
   const closed = new Promise(resolve => child.once('close', (code, signal) => resolve({ code, signal })));
@@ -715,7 +716,7 @@ test('a reused authenticated view completes setup for its new board [N26,N32]', 
     assert.equal(JSON.parse(box.run(box.repo, 'resume', '--diagnostics', '--json').stdout).setup?.step, 5);
   }
   awaitingView(firstBoard);
-  const child = spawn(process.execPath, [join(firstBoard.root, 'cli/bin/pullboard.js'), 'view', '--no-open', '--json'],
+  const child = spawn(process.execPath, [join(firstBoard.root, 'cli/apps/cli/pullboard.js'), 'view', '--no-open', '--json'],
     { cwd: firstBoard.repo, env: { ...firstBoard.env, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const closed = new Promise(resolve => child.once('close', resolve));
   t.after(async () => {
