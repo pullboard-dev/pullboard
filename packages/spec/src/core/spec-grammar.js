@@ -1,5 +1,5 @@
 /** The SPEC.md row grammar: the reader and the constants it needs, pure so a light path can parse a spec without spec's shell [C7,CD60]. */
-import { Refused } from '../../../kernel/core.js';
+import { Refused } from '../../../kernel/pure.js';
 import { parseRowVerification } from './spec-verdict-format.js';
 
 export const STATUSES = ['approved', 'draft', 'pending', 'fact', 'wont', 'retired'];

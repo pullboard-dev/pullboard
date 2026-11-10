@@ -2,7 +2,7 @@
 import { LINE_CAPACITY_ENGINE } from '../../../state/core.js';
 import { lineSettings } from '../../../state/core.js';
 import { flowWindowBounds } from './flow-window-bounds.js';
-import { Refused } from '../../../kernel/core.js';
+import { Refused } from '../../../kernel/pure.js';
 import {
   ACTIVE_REVIEWER_WINDOW_MINUTES,
   lineWipLimit,
