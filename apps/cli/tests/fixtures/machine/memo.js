@@ -43,8 +43,8 @@ export function assertMachineWalkMemo(codeWalk) {
     assert.ok(entryScans > scannedOnce);
     assert.equal(reads, 2);
     const caughtSources = new Map([
-      ['../../../../../packages/items/src/logic/cross/repo.js', "import { boardLinkRecord } from '../../../kernel/src/core/registry-guards.js';\n" + caughtEntry + '\n'],
-      ['../../../../../packages/kernel/src/logic/registry.js', "function boardLinkRecord() {\n  throw new Refused('MEMO_CAUGHT', 'fixture');\n}\n"],
+      ['../packages/items/src/logic/cross/repo.js', "import { boardLinkRecord } from '../../../../kernel/src/logic/registry.js';\n" + caughtEntry + '\n'],
+      ['../packages/kernel/src/logic/registry.js', "function boardLinkRecord() {\n  throw new Refused('MEMO_CAUGHT', 'fixture');\n}\n"],
     ]);
     const caughtRead = file => {
       assert.ok(caughtSources.has(file), 'use the real named caught boundary with finite synthetic inputs');

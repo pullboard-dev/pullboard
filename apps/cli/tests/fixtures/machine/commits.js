@@ -36,9 +36,9 @@ export function machineSourceModule(file, read) {
 export function assertCommitShimRefusals(codeWalk, read, editedSource, codeProblems, machine) {
   const walk = codeWalk(read);
   for (const [entry, code] of [
-    ['../packages/commits/src/shell/hooks.js#machineNameProblems', 'HOST_NAME'],
-    ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
-    ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
+    ['../packages/commits/src/io/hooks.js#machineNameProblems', 'HOST_NAME'],
+    ['../packages/commits/src/io/revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
+    ['../packages/commits/src/io/revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
   ]) assert.ok(walk.refusalsOf(entry).has(code), `${entry} retains its actual moved refusal ${code}`);
   const planted = editedSource('../../../../../packages/commits/src/io/hooks.js',
     /^export function machineNameProblems\(root, range, \{ refuse, say, names = machineNames\(\) \}\) \{$/m,

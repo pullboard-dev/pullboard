@@ -245,7 +245,7 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
-  const commandFiles = fs.readdirSync(new URL('../apps/cli/src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
+  const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
     '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
