@@ -76,7 +76,7 @@ function remote(box) {
   for (const path of [bin, worker, home, machineHome]) mkdirSync(path, { recursive: true });
   box.env.PATH = bin + ':' + box.env.PATH;
   installSshStandIn({ bin, worker, home, machineHome, requests });
-  let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
+  let result = cli(box, box.root, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   for (const [key, value] of [['gate.runnersFirst', 'on'], ['browserSlots', '0'], ['gateSlots', '0']]) {
     result = cli(box, box.root, 'settings', key, value);
