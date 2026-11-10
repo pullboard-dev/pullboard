@@ -27,6 +27,7 @@ import { runFixtureChildAsync } from '../child.js';
 import { installSshStandIn } from './ssh.js';
 import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
+import { waitForCondition } from './holders.js';
 
 /** Source URLs resolve in the actual checked implementation, not a second installed tool. */
 const sourceURL = file => pathToFileURL(join(import.meta.dirname, '../../../../..', file)).href;
@@ -38,14 +39,19 @@ function project(t) {
   isolateTestMachine(sandbox.env, sandbox.dir);
   const box = helpers.project('true', sandbox, { withWorktree: false });
   const record = join(box.dir, 'job.json');
-  t.after(() => {
+  t.after(async () => {
+    let owned = [];
     try {
-      const { owned = [] } = JSON.parse(readFileSync(record, 'utf8'));
+      ({ owned = [] } = JSON.parse(readFileSync(record, 'utf8')));
       for (const owner of owned) {
         if (processCensus()?.get(owner.pid)?.started !== owner.started) continue;
         for (const signal of ['SIGTERM', 'SIGKILL']) { try { process.kill(owner.pid, signal); } catch { /* This exact owned fixture process already exited. */ } }
       }
     } catch { /* Setup may fail before this private fixture creates any process. */ }
+    if (owned.length) await waitForCondition(() => {
+      const census = processCensus();
+      return census && owned.every(owner => { const found = census.get(owner.pid); return !found || found.started !== owner.started || found.state?.startsWith('Z'); });
+    }, 'owned runner fixture processes exit', { signal: AbortSignal.timeout(5_000) }); // Budget: bounded drain of the fixture's exact owned processes.
     helpers.cleanup();
   });
   return { ...box, record };
