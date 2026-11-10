@@ -4,9 +4,9 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cellProject } from '../../../../test/cell-fixture.js';
-import { closeCellBoard } from '../../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../../test/cell-fixture.js';
+import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
 import { relayServerFixture } from './relay-server-fixture.js';
 import { relayIo } from '../../../../packages/link/index.js';
 import { relayOn } from '../../../../packages/link/index.js';
@@ -29,7 +29,7 @@ import { scheduleCheckpoint } from '../../../../packages/outbox/index.js';
 import { uncertainUploadFailure } from '../../../../packages/outbox/index.js';
 import { withOutboxGuard } from '../../../../packages/outbox/index.js';
 
-const CHECKPOINT_WORKER = fileURLToPath(new URL('../../../lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
+const CHECKPOINT_WORKER = fileURLToPath(new URL('../../../lib/src/io/worker/checkpoint/relay.js', import.meta.url));
 const ENVIRONMENT = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELAY_KEY', 'PULLBOARD_RELAY_TOKEN'];
 
 /**

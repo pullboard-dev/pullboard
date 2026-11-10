@@ -6,17 +6,17 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { policyRepository } from '../../../test/board-submit-fixture.js';
-import { fixtureMachineSettings } from '../../../test/testkit-fixture.js';
-import { fixtureProjectPolicy } from '../../../test/testkit-fixture.js';
-import { executionServices } from '../../../test/gate-execution-fixture.js';
-import { HOST } from '../../../test/runner-ssh-fixture.js';
-import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
-import { measureBaseline } from '../src/shell/check-baseline-worker.js';
+import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { policyRepository } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { fixtureMachineSettings } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { executionServices } from '../../../apps/cli/tests/fixtures/gate/execution.js';
+import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { measureBaseline } from '../src/io/check/baseline/worker.js';
 
-const EXPECTED = { command: 'node bin/run-tests.js test/a.test.js', main: 'a'.repeat(40) };
+const EXPECTED = { command: 'node packages/gate/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
 
 test('clause 2: with no runner registered the baseline is pending, never run on this machine [C7,V2]', async () => {
   // No execution services at all: nothing may run locally.
@@ -49,12 +49,12 @@ function runnerFixture(t) {
   policyRepository(paths.repo);
   writeFileSync(join(paths.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   fixtureProjectPolicy(paths.repo, { config: { gate: 'node test/runner.js', affectedTests: 'node test/runner.js' } });
-  writeFileSync(join(paths.repo, 'test', 'failing.test.js'), [
+  writeFileSync(join(paths.repo, 'test/failing.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "test('the baseline failure is named [V2]', () => assert.equal(1, 2));",
   ].join('\n') + '\n');
-  writeFileSync(join(paths.repo, 'test', 'runner.js'), [
+  writeFileSync(join(paths.repo, 'test/runner.js'), [
     "import { spawnSync } from 'node:child_process';",
     "const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...process.argv.slice(2)], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });",
     "if (result.stdout) process.stdout.write(result.stdout);",

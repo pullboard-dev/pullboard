@@ -8,17 +8,17 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../packages/store/index.js';
 import { parseWorkerBudget } from '../../../packages/config/index.js';
-import { fixtureBoard } from '../../../test/board-fixture.js';
-import { submitFixture } from '../../../test/board-submit-fixture.js';
-import { fixtureAddItem } from '../../../test/worker-scale-fixture.js';
-import { fixtureRegister } from '../../../test/worker-scale-fixture.js';
-import { openGatedWebBoard } from '../../../test/worker-scale-fixture.js';
-import { observeWorkers } from '../src/shell/worker-scale.js';
-import { planWorkerScale } from '../src/shell/worker-scale.js';
-import { scaleCycle } from '../src/shell/worker-scale.js';
-import { seatHoldsWork } from '../src/shell/worker-scale.js';
-import { windowStart } from '../src/shell/worker-scale.js';
-import { workerLedger } from '../src/shell/worker-scale.js';
+import { fixtureBoard } from './fixtures/board.js';
+import { submitFixture } from './fixtures/board/submit.js';
+import { fixtureAddItem } from '../../lib/tests/fixtures/scale.js';
+import { fixtureRegister } from '../../lib/tests/fixtures/scale.js';
+import { openGatedWebBoard } from '../../lib/tests/fixtures/scale.js';
+import { observeWorkers } from '../src/io/scale.js';
+import { planWorkerScale } from '../src/io/scale.js';
+import { scaleCycle } from '../src/io/scale.js';
+import { seatHoldsWork } from '../src/io/scale.js';
+import { windowStart } from '../src/io/scale.js';
+import { workerLedger } from '../src/io/scale.js';
 
 const HOUR = 3_600_000;
 
@@ -291,7 +291,7 @@ test('clause 1: workers.budget parses and stores spend per day, and the scaler l
 
 test('clause 2: workers help text and setting descriptions name spend per day, and the unset default message matches [C7]', async () => {
   const { SETTING_DESCRIPTIONS } = await import('../../../packages/config/index.js');
-  const { workHelp } = await import('../src/core/help/work.js');
+  const { workHelp } = await import('../src/logic/help/work.js');
   const { DEFAULT_NEXT_STEPS } = await import('../../../packages/state/index.js');
   assert.match(SETTING_DESCRIPTIONS['workers.budget'].description, /spend per day or week/u);
   assert.equal(SETTING_DESCRIPTIONS['workers.budget'].unit, 'spend');

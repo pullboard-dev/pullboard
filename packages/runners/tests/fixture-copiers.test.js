@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../index.js';
-import { fixtureCopierProblems } from '../../../test/package-copy-fixture.js';
+import { fixtureCopierProblems } from '../../../apps/cli/tests/fixtures/copy.js';
 
 /** Create only private source and destination directories, never the person's checkout. */
 function fixture(t) {
@@ -65,7 +65,7 @@ test('manifest exclusions never become subset destination or path-map instructio
 test('the guard names hand copies including imported aliases, finite lists and read-write copies [C7]', () => {
   for (const source of [
     "import { cpSync } from 'node:fs'; cpSync(new URL('../../../src', import.meta.url), target);",
-    "import { copyFileSync as duplicate } from 'node:fs'; const input = new URL('../../../bin/run-tests.js', import.meta.url); duplicate(input, target);",
+    "import { copyFileSync as duplicate } from 'node:fs'; const input = new URL('../../gate/src/io/run/tests.js', import.meta.url); duplicate(input, target);",
     "import * as fs from 'node:fs'; for (const entry of ['src', 'bin']) fs.cpSync(join(root, entry), join(target, entry));",
     "import { readFileSync, writeFileSync } from 'node:fs'; const body = readFileSync(new URL('../../../src/a.js', import.meta.url)); writeFileSync(target, body);",
     "import { cpSync, mkdtempSync } from 'node:fs'; function privateFixture(){const root=mkdtempSync('/tmp/x');return root;} function installed(){const root=new URL('../../..',import.meta.url);cpSync(new URL('../../../src',import.meta.url),target);}",
@@ -80,13 +80,13 @@ test('the guard names hand copies including imported aliases, finite lists and r
 });
 
 test('the guard ignores fixture strings, comments and private board or test-helper copies [C7]', () => {
-  const source = "import { cpSync, copyFileSync } from 'node:fs';\n// cpSync('../../../src', target);\nconst fixture = \"cpSync('../../../bin', target)\";\ncpSync(join(root, '.git/pullboard'), target);\ncopyFileSync(new URL('../../../test/fixture-child.js', import.meta.url), target);";
+  const source = "import { cpSync, copyFileSync } from 'node:fs';\n// cpSync('../../../src', target);\nconst fixture = \"cpSync('../../../bin', target)\";\ncpSync(join(root, '.git/pullboard'), target);\ncopyFileSync(new URL('../../../apps/cli/tests/fixtures/child.js', import.meta.url), target);";
   assert.deepEqual(fixtureCopierProblems(source), []);
-  assert.deepEqual(fixtureCopierProblems("import {writeFileSync} from 'node:fs'; const BIN=new URL('../../../bin/pullboard.js',import.meta.url); writeFileSync(target, `exec ${BIN}`);"), [], 'a launcher refers to tooling without copying its bytes');
+  assert.deepEqual(fixtureCopierProblems("import {writeFileSync} from 'node:fs'; const BIN=new URL('../../../apps/cli/pullboard.js',import.meta.url); writeFileSync(target, `exec ${BIN}`);"), [], 'a launcher refers to tooling without copying its bytes');
   assert.deepEqual(fixtureCopierProblems("import {readFileSync,writeFileSync} from 'node:fs'; const data=JSON.parse(readFileSync(new URL('../../../src/blueprints/web-app.json',import.meta.url))); writeFileSync(target,JSON.stringify({...data,name:'changed'}));"), [], 'parsed fixture data is not a runtime file copy');
   assert.deepEqual(fixtureCopierProblems("import {readFileSync,writeFileSync} from 'node:fs'; const path=join(root,'src/sample.js'); const original=readFileSync(path); writeFileSync(path,original);"), [], 'restoring bytes to the same source is not a copy into another fixture');
 
-  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src','sample-engine.js'),target);"), []);
+  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src/sample-engine.js'),target);"), []);
 });
 
 test('every test fixture uses the manifest helper for shipped tool copies [C7]', () => {
