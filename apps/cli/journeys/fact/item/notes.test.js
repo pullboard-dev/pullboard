@@ -42,10 +42,9 @@ function note(box, cwd, item, kind, text) {
 
 test('typed notes on an item reach its agents and stay off the board-wide feed [B29,B30,B31,B32,N14,N26]', () => {
   const box = helpers.project();
-  command(box, box.web, 'join', 'web', '--model', 'Scripted builder', '--parent', 'notes-builder-parent');
   const reviewer = join(box.dir, 'notes-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  command(box, reviewer, 'join', 'web', '--model', 'Scripted reviewer', '--parent', 'notes-reviewer-parent');
+  command(box, reviewer, 'join', 'web', '--model', 'fixture-model', '--route', 'strong', '--parent', 'notes-reviewer-parent');
   const added = document(box, box.repo, 'add', 'web', 'Read the item conversation', '--specs', 'G1',
     '--route', 'light', '--criterion', 'the page exists', '--check', 'test -f web/page.js',
     '--brief', helpers.LIGHT_BRIEF, '--wait');
