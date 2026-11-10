@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** The repository pre-commit hook refuses the gate's test fixture and test-name reds on staged files, with the gate's messages [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -17,6 +18,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureProblems } from '../../../../packages/gate/src/io/test/fixtures.js';
 import { testNameProblems } from '../../../../packages/gate/src/io/test/names.js';
 import { STAGED_TEST_CHECKS } from '../../../../packages/gate/src/io/changed/scripts/static.js';
+import { copyPackageFiles } from '../../../../packages/runners/index.js';
 
 const helpers = createE2eHelpers();
 after(() => helpers.cleanup());
@@ -39,6 +41,7 @@ const CASES = [
  */
 function hookedProject() {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  copyPackageFiles(REPO, box.repo);
   mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
   mkdirSync(join(box.repo, 'packages/gate/data/tests'), { recursive: true });
   mkdirSync(join(box.repo, 'packages/gate/src/io/changed/scripts'), { recursive: true });
