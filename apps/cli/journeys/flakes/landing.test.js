@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Native flake landing: a red landing keeps its original verdict and a retained diagnostic is consumed once [C7,H16]. */
 import {
   flakyProject,
@@ -10,6 +11,7 @@ import {
 import { landingPorts } from '../../tests/fixtures/landing/ports.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import {
   join,
@@ -26,6 +28,12 @@ import { checkAtCommit } from '../../../runner/index.js';
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
 function readyLanding(t, rerun) {
   const box = flakyProject(t, { alwaysPass: 'controlled', rerun });
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
+  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
+  box.git('add', 'pullboard.json');
+  box.git('commit', '-q', '-m', 'test: configure focused main comparison');
   const remote = join(box.scratch, 'private-origin.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
