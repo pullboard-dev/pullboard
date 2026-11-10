@@ -366,7 +366,7 @@
     "raw-board": 9,
     "model": 1
   },
-  "packages/state/tests/landing-waiver-replay.test.js": {
+  "packages/landing/tests/landing-waiver-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
