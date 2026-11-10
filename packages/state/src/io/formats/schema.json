@@ -1,0 +1,11 @@
+{
+  "name": "board schema",
+  "order": 30,
+  "version": {
+    "kind": "constant",
+    "file": "packages/store/src/io/board/schema/source.js",
+    "constant": "SCHEMA_VERSION"
+  },
+  "source": "`SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version`",
+  "upgrade": "On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is."
+}
