@@ -87,6 +87,14 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const liveStatus = box.git(reviewer, 'status', '--porcelain=v1');
     const indexPath = box.git(reviewer, 'rev-parse', '--git-path', 'index');
     const liveIndex = readFileSync(indexPath.startsWith('/') ? indexPath : join(reviewer, indexPath));
+    let verifier = reviewer;
+    if (companion) {
+      verifier = join(box.dir, 'composed-reviewer');
+      box.git(box.repo, 'worktree', 'add', '-q', '--detach', verifier, head);
+      document(fixtureJoin(box.run, verifier, 'api', '--json'));
+      document(box.run(verifier, 'next', '--verify', '1', '--json'));
+      assert.equal(await checkNeedsGui(verifier, check), true, 'the reserved reviewer sees the composed GUI marker');
+    }
     const ready = join(box.dir, 'holder-ready');
     const release = join(box.dir, 'holder-release');
     const holderSource = join(box.dir, 'holder.mjs');
@@ -98,7 +106,7 @@ ${executionServicesSource(gate)}\nimport { existsSync, writeFileSync } from 'nod
     let queued;
     try {
       await helpers.waitFor(() => existsSync(ready), 'private gate holder');
-      verification = helpers.launch(box, reviewer, process.execPath, [helpers.BIN, 'verify', '1', 'accept', '--note', 'real admission fixture', '--json']);
+      verification = helpers.launch(box, verifier, process.execPath, [helpers.BIN, 'verify', '1', 'accept', '--note', 'real admission fixture', '--json']);
       const db = new DatabaseSync(join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), { readOnly: true });
       // This observer must wait for a real in-flight writer, without changing admission or its deadline.
       db.exec('PRAGMA busy_timeout = 500');
