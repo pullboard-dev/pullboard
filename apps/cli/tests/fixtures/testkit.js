@@ -259,3 +259,9 @@ export function fixtureJoinRoute(args, defaultModel) {
   if (!/^claude-haiku-/u.test(String(model ?? '')) && model !== 'gpt-6-luna') args.push('--route', 'strong');
   return args;
 }
+
+/** Make one checkout's pullboard.json ask for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */
+export function requireSessionIndependence(dir) {
+  const file = join(dir, 'pullboard.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), review: { independence: 'session' } }, null, 2) + '\n');
+}

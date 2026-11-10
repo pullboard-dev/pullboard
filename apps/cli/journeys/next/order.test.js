@@ -53,6 +53,7 @@ import {
   resolve,
 } from 'node:path';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 /** Remove only the CLI's trailing next-step hint; its flags change independently of the queue answer under test. */
 function queueAnswer(output) {
@@ -602,6 +603,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
   const mine = box.seat('own-builder', 'web', box.session);
   const other = box.seat('other-builder', 'web', 'unrelated-session');
   const reviewer = box.seat('own-reviewer', 'api', box.session);
+  requireSessionIndependence(reviewer.root);
   const own = box.add('web', 'Built by the reviewer\'s own session');
   const outside = box.add('web', 'Built by another session');
   box.milestone('first', own);
