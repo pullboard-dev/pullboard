@@ -132,7 +132,7 @@ test('a current skill change leaves the legacy fixtures alone [C7,I11]', () => {
     mkdirSync(join(testRoot, 'fixtures', 'skills-0.8.1', name), { recursive: true });
     mkdirSync(join(currentRoot, name), { recursive: true });
     writeFileSync(scratchFixture, readFileSync(fixture));
-    const current = readFileSync(resolve(import.meta.dirname, `../skills/${name}/SKILL.md`));
+    const current = readFileSync(resolve(import.meta.dirname, `../../../../skills/${name}/SKILL.md`));
     writeFileSync(scratchCurrent, current);
     before[role] = digest(legacySkill(role, testRoot));
     writeFileSync(scratchCurrent, Buffer.concat([current, Buffer.from('\nLocal scratch-only skill note.\n')]));
@@ -189,7 +189,7 @@ test('skills --update refreshes an unmodified old skill [I2]', () => {
   assert.equal(allHelp.status, 0, allHelp.stderr || allHelp.stdout);
   assert.match(allHelp.stdout, /pullboard skills --update\s+refresh unchanged Claude Code skills from shipped versions/u);
   for (const [role, file] of files) {
-    const current = readFileSync(resolve(import.meta.dirname, `../skills/${ROLES[role]}/SKILL.md`), 'utf8');
+    const current = readFileSync(resolve(import.meta.dirname, `../../../../skills/${ROLES[role]}/SKILL.md`), 'utf8');
     assert.equal(readFileSync(file, 'utf8'), current, `${role} now matches current shipped bytes`);
   }
 });
