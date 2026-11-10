@@ -203,7 +203,7 @@ test('clause 1: main\'s committed plan places every process entry, packages/land
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
   const plan = readPlan(root);
   const original = 'bin/main-red-refresh.js';
-  assert.equal(cellReadPathMap(root)[original], 'packages/landing/src/io/main/red/refresh.js');
+  assert.equal(cellReadPathMap(root).get(original), 'packages/landing/src/io/main/red/refresh.js');
   assert.ok(plan.stays.some(stay => stay.path === original));
   assert.ok(plan.entries.some(entry => entry.path === original));
   assert.deepEqual(entryPlacementProblems(root, plan), []);
