@@ -22,7 +22,7 @@ function fixture(t) {
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(directory, name)]));
   for (const path of Object.values(paths)) mkdirSync(path);
   const env = { PATH: `${paths.bin}:${process.env.PATH}`, HOME: paths.home, PULLBOARD_HOME: paths.home, PULLBOARD_MACHINE_HOME: paths.machine,
-    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Requeue fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Requeue fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Requeue fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: paths.repo, env });
   writeFileSync(join(paths.repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
