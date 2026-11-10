@@ -5,6 +5,7 @@
  "root": "packages/seats",
  "frontDoor": "packages/seats/index.js",
  "lightFrontDoor": "packages/seats/core.js",
+ "pureDoor": "packages/seats/pure.js",
  "paths": [
   ["src/seat-timing.js","packages/seats/src/shell/seat-timing.js","rule"],
   ["src/github-origin.js","packages/seats/src/core/github-origin.js","rule"],

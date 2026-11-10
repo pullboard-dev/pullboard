@@ -1,6 +1,6 @@
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/core.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../state/core.js';
-import { localDependencyIds } from '../../../../seats/core.js';
+import { localDependencyIds } from '../../../../seats/pure.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../state/core.js';
 import { PIPELINE_CAUSE_ENGINE } from "../../../../state/core.js";
 import { EXIT_RULES_ENGINE } from "../../../../state/core.js";
