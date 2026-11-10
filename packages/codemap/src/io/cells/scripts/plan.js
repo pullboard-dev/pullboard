@@ -484,11 +484,13 @@ function main(argv) {
     return 0;
   }
   if (mode === '--move-tests') {
-    const [cell, ...paths] = rest;
+    const [cell, ...options] = rest;
+    const helpers = options.includes('--helpers');
+    const paths = options.filter(value => value !== '--helpers');
     const listed = tryGit(root, ['ls-files', '-z']);
     if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --move-tests');
     const tracked = listed.stdout.split('\0').filter(Boolean);
-    const planned = planTestMove({ tracked, inventory: cellInventory(root, { importsIn, commonJsIn }), plan: readPlan(root), cell, paths, lex });
+    const planned = planTestMove({ tracked, inventory: cellInventory(root, { importsIn, commonJsIn }), plan: readPlan(root), cell, paths, lex, helpers });
     if (planned.refused) throw new Refused(planned.refused.code, planned.refused.message);
     /** Run one git step of the move, refusing with git's own words when it fails. */
     const git = args => {

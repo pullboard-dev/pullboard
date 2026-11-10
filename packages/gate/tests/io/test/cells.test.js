@@ -255,7 +255,7 @@ test('clause 2: a move rewrites exact quoted moved paths in the declared test pa
   assert.equal(git(root, 'diff', '--name-only'), '', 'the table rewrite is staged');
 });
 
-test('clause 1: --place-tests --batches plans cell and component moves in plan order, keeps helpers with outside importers; clause 2: its dry run applies them [C7,CD64]', async t => {
+test('clause 1: --place-tests --batches plans helpers separately and cell moves in plan order; clause 2: its dry run applies them [C7,CD64]', async t => {
   const { writeFileSync, existsSync } = await import('node:fs');
   const { join } = await import('node:path');
   const { root, cli } = await moverFixture(t);
@@ -263,19 +263,44 @@ test('clause 1: --place-tests --batches plans cell and component moves in plan o
   assert.equal(planned.failure, null, planned.context);
   const plan = JSON.parse(planned.stdout);
   assert.deepEqual(plan.batches.map(batch => [batch.cell, batch.files]), [
+    ['kernel', ['test/helper.js']],
     ['kernel', ['test/one.test.js']],
     ['store', ['test/journey.test.js']],
     ['app:cli', ['test/cli.test.js']],
   ], 'one cell per batch in plan order; the two-cell test goes to the last of its cells');
-  assert.equal(plan.batches[1].tiers.component, 1);
-  assert.deepEqual(plan.stays, [{ file: 'test/helper.js', reason: 'helper with an importer that does not move to its cell' }]);
+  assert.equal(plan.batches[0].tiers.helper, 1);
+  assert.equal(plan.batches[2].tiers.component, 1);
+  assert.deepEqual(plan.stays, []);
   writeFileSync(join(root, 'batches.json'), planned.stdout);
   const dry = cli('--place-tests', '--batches', '--dry-run', '--plan', 'batches.json');
   assert.equal(dry.failure, null, dry.context);
-  assert.deepEqual(JSON.parse(dry.stdout).dryRun.map(row => [row.cell, row.moved, row.planned]), [['kernel', 1, 1], ['store', 1, 1], ['app:cli', 1, 1]]);
+  assert.deepEqual(JSON.parse(dry.stdout).dryRun.map(row => [row.cell, row.moved, row.planned]), [['kernel', 1, 1], ['kernel', 1, 1], ['store', 1, 1], ['app:cli', 1, 1]]);
+  assert.ok(existsSync(join(root, 'packages/kernel/tests/fixtures/helper.js')), 'the shared helper gets its own fixture home');
   for (const file of ['packages/kernel/tests/one.test.js', 'packages/store/tests/journey.test.js', 'apps/cli/tests/cli.test.js']) {
     assert.ok(existsSync(join(root, file)), `${file} is home`);
     const ran = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
     assert.equal(ran.failure, null, `${file} still runs after its batch\n${ran.context}`);
+  }
+});
+
+
+test('clause 1: --helpers moves one shared helper and repoints importers in two cells; unsafe location reads refuse [C7,CD64]', async t => {
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root, git, cli, state } = await moverFixture(t);
+  writeFileSync(join(root, 'test/unsafe-helper.js'), "import { a } from '../packages/kernel/a.js'; export const where = [a, import.meta.dirname];\n");
+  git(root, 'add', 'test/unsafe-helper.js');
+  const before = state();
+  const unsafe = cli('--move-tests', 'kernel', '--helpers', 'test/unsafe-helper.js');
+  assert.notEqual(unsafe.status, 0, 'unsupported helper location reads refuse');
+  assert.match(unsafe.stderr, /CELLS_TESTS_UNSAFE|reads paths relative to its own location/u);
+  assert.equal(state(), before, 'refusal moves nothing');
+  const moved = cli('--move-tests', 'kernel', '--helpers', 'test/helper.js');
+  assert.equal(moved.failure, null, moved.context);
+  assert.match(moved.stdout, /moved test\/helper\.js -> packages\/kernel\/tests\/fixtures\/helper\.js/u);
+  for (const file of ['test/one.test.js', 'test/journey.test.js']) {
+    assert.match(readFileSync(join(root, file), 'utf8'), /packages\/kernel\/tests\/fixtures\/helper\.js/u);
+    const run = runFixtureChild(process.execPath, [file], { cwd: root, encoding: 'utf8' });
+    assert.equal(run.failure, null, run.context);
   }
 });
