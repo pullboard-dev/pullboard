@@ -350,7 +350,7 @@
   "packages/store/tests/file-growth-notice.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/flakes-ledger.test.js": {
+  "packages/flakes/tests/flakes-ledger.test.js": {
     "raw-board": 5
   },
   "packages/state/tests/flow-submit-size.test.js": {
