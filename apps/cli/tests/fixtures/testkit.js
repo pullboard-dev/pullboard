@@ -264,5 +264,5 @@ export function fixtureJoinRoute(args, defaultModel) {
 export function requireSessionIndependence(dir) {
   const file = join(dir, 'pullboard.json');
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), review: { independence: 'session' } }, null, 2) + '\n');
-  runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'chore: ask for strict review independence'], { cwd: dir });
+  runFixtureGit(['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'chore: ask for strict review independence'], { cwd: dir });
 }
