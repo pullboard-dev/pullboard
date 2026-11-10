@@ -952,7 +952,7 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/relay/reset.js": {
+    "packages/link/tests/fixtures/relay/reset.js": {
       "cells": 1,
       "deep": 0
     },

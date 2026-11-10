@@ -1,8 +1,8 @@
 /** A relay read survives one reset connection, resets never repeat writes, and read recovery stays bounded [H3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { relayResetSample } from '../../../tests/fixtures/relay/reset.js';
-import { request as relayRequest } from '../../../../../packages/link/index.js';
+import { relayResetSample } from '../../fixtures/relay/reset.js';
+import { request as relayRequest } from '../../../index.js';
 
 /** A real worker closes the pooled socket while the client cannot process that closure. */
 test('a relay read survives one reset connection [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for real TCP fault and closure-control fixtures.
