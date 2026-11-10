@@ -47,7 +47,7 @@ import {readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {prepareItemPatchSubmit,withItemPatchSubmit} from './tooling/src/item-patch-submit.js';
 import {submitGateConfig} from './tooling/packages/gate/index.js';
-import {policyAt} from './tooling/src/trusted-policy-read.js';
+import {policyAt} from './tooling/packages/sandbox/index.js';
 import {git} from './tooling/src/git.js';
 import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
 import {receiptRecorder} from './tooling/packages/flakes/index.js';
