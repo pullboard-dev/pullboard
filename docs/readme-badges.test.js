@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
 import { runFixtureGit } from '../apps/cli/tests/fixtures/child.js';
+import { joinFixtureSeat } from '../apps/cli/tests/fixtures/testkit.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const e2e = createE2eHelpers();
@@ -39,8 +40,9 @@ test('landing rewrites stale tracked board badge counts inside the containing me
   const box = e2e.project(check);
   // These are fresh fixture CLIs; retain native admission while avoiding nested Node worker suppression.
   delete box.env.NODE_TEST_CONTEXT;
-  assert.equal(box.run(box.web, 'join', 'web', '--model', 'Badge fixture', '--parent', 'readme-badge-builder').code, 0);
-  assert.equal(box.run(box.repo, 'join', 'coordinator', '--model', 'Badge fixture', '--parent', 'readme-badge-reviewer').code, 0);
+  // The fixture already joined the web worktree as web-1.
+  const reviewer = joinFixtureSeat(box, box.repo, 'coordinator');
+  assert.equal(reviewer.code, 0, reviewer.err || reviewer.out);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, landing: { publish: 'separate', manualOverride: true } }, null, 2));
