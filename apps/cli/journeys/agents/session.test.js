@@ -367,7 +367,7 @@ test('a remote shell is recognized by any SSH marker [B26,E22]', () => {
   assert.equal(local.status, 0, `no SSH marker allows the person move: ${local.stdout}${local.stderr}`);
 
   box.git(box.repo, 'remote', 'add', 'origin', 'https://github.com/example/session-fixture.git');
-  const relay = box.run(box.repo, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', 'http://127.0.0.1:9', '--json'], { agent: false, extra: { SSH_CLIENT: markers.SSH_CLIENT } });
+  const relay = box.run(box.repo, ['relay', 'on', '--url', 'http://127.0.0.1:9', '--json'], { agent: false, extra: { SSH_CLIENT: markers.SSH_CLIENT } });
   const relayError = JSON.parse(relay.stdout || '{}').error;
   assert.notEqual(relayError?.code, 'B26_PERSON_CHANNEL', `relay on over SSH keeps its own channel: ${relay.stdout}${relay.stderr}`);
   assert.equal(relayError?.code, 'RELAY_UNAVAILABLE', 'relay on over SSH reaches the relay');
