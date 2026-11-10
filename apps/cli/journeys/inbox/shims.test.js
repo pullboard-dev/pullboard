@@ -41,7 +41,7 @@ const SEED = { source: 'fixture', sha256: 'none', order: ['kernel', 'stats', 'mi
 function shimmed(t) {
   const box = fixture(t);
   box.put('pullboard.json', CONFIG);
-  box.put('bin/cells-plan/seed.json', JSON.stringify(SEED));
+  box.put('packages/codemap/data/plan/seed.json', JSON.stringify(SEED));
   for (const file of ['src/board.js', 'src/claims.js', 'src/stats-flow.js']) box.put(file, 'export const unused = 1;\n');
   box.put('src/stats.js', 'export const stats = 1;\n');
   box.put('src/mid.js', "import { leaf } from './stats-leaf.js';\nexport const mid = leaf;\n");
