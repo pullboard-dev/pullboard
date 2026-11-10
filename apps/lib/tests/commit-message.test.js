@@ -12,7 +12,7 @@ import {
   parseCommitMessage,
   specOrder,
 } from '../../../packages/commits/index.js';
-import { landingRows } from '../../../packages/commits/src/core/landing-rows.js';
+import { landingRows } from '../../../packages/commits/index.js';
 import { checkLandingMessages } from '../../../packages/landing/index.js';
 import { itemCommitType } from '../../../packages/landing/index.js';
 import { landingMessage } from '../../../packages/landing/index.js';
