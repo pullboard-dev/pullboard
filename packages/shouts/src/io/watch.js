@@ -109,8 +109,10 @@ async function* streamFrames(body) {
  * Open the board's live events after `after`: the running view's stream when it serves this board,
  * otherwise the private API's. Returns null when the view could not give it, so the caller falls back.
  */
-async function openStream(base, key, boardId, after, signal) {
+async function openStream(base, key, boardId, after, signal, { signals = true } = {}) {
   const url = new URL(`/api/v1/boards/${encodeURIComponent(boardId)}/events`, base);
+  // Only --work reads the changed notices (a lane's work can change with no event); every other watcher asks for events alone.
+  if (!signals) url.searchParams.set('signals', 'none');
   const response = await fetchLocal(url, {
     headers: { accept: 'text/event-stream', 'x-pullboard-key': key, 'last-event-id': String(after) },
     signal, redirect: 'error',
@@ -267,11 +269,11 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
     while (!both.aborted) {
       let body = null;
       const view = await viewSource(commonDir, runningView).catch(() => null);
-      if (view) body = await openStream(view.base, view.key, start.id, cursor, both).catch((error) => { if (both.aborted) throw error; return null; });
+      if (view) body = await openStream(view.base, view.key, start.id, cursor, both, { signals: options.work !== null }).catch((error) => { if (both.aborted) throw error; return null; });
       const name = body ? view.name : direct.name;
       if (!body) {
         const own = await direct.open();
-        body = await openStream(own.base, own.key, start.id, cursor, both);
+        body = await openStream(own.base, own.key, start.id, cursor, both, { signals: options.work !== null });
         if (!body) throw new Refused('BOARD_UNAVAILABLE', 'this board\'s own event stream did not open; run pullboard doctor, then pullboard watch again');
       }
       if (name !== source) note(`watch: following ${name} after sequence ${cursor}`);

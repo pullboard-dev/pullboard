@@ -314,6 +314,21 @@ function openRoadmapInputs(root, milestones, localDb, { scopeCommonDir = null } 
   };
 }
 
+/**
+ * A watcher for a client that wants events only: it wakes on a board write like the full watcher, but
+ * builds no state revision, so each write costs one event read instead of a read of every item, agent and file.
+ */
+function watchEventSignals(board) {
+  const info = repoInfo(board.root);
+  const dbPath = join(info.commonDir, 'pullboard', 'board.sqlite');
+  const notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
+  return {
+    revision: () => '',
+    subscribe: (listener) => notifications.subscribe(listener),
+    close: () => notifications.close(),
+  };
+}
+
 /** Watch the same named state inputs as the cache without rebuilding a board-state response. */
 function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   const info = repoInfo(board.root);
@@ -1314,7 +1329,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const sent = localState(board, seen, options);
       return { json: sent.json, validator: sent.validator, reportValidator: sent.reportValidator };
     })),
-    watchRevision: (board) => {
+    watchRevision: (board, who, { signals = true } = {}) => {
+      if (!signals) return projectRead(board, () => watchEventSignals(board));
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
       return watched;
