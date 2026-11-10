@@ -32,6 +32,27 @@ import { prepareTestResultExchange } from '../../../../gate/index.js';
 const runner = fileURLToPath(new URL('../../../../gate/src/io/run/tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../../../src', import.meta.url));
 
+test('runner source scan reuses only clean matching verdicts from the export root manifest [C7]', t => {
+  const { root } = makeFixture(t);
+  writeFileSync(join(root, '.pullboard-runner-source.json'), JSON.stringify({ tree: 'a'.repeat(40) }));
+  const script = `import assert from 'node:assert/strict';
+import { cachedScan } from './packages/runners/src/io/source/scan.js';
+let calls = 0;
+const scan = () => ({ count: ++calls });
+assert.deepEqual(cachedScan('source', ['one'], scan), { count: 1 });
+assert.deepEqual(cachedScan('source', ['one'], scan), { count: 1 });
+assert.deepEqual(cachedScan('source', ['two'], scan), { count: 2 });
+let refused = 0;
+for (let i = 0; i < 2; i++) assert.throws(() => cachedScan('refusal', [], () => { refused++; throw new Error('refused'); }), /refused/);
+assert.equal(refused, 2);
+`;
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: root, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine') }, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(join(root, 'packages/.pullboard-runner-source.json')), false);
+});
+
 /** A fixture test that records its own name, then passes when its module says so. */
 function fixtureTest(name, module) {
   return `import { appendFileSync } from 'node:fs';
