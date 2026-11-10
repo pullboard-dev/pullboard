@@ -39,7 +39,7 @@ export function rootAllowed(file) {
  */
 export function strayNextStep(file) {
   const top = file.split('/')[0];
-  if (top === 'packages' || top === 'apps') return `move ${file} into its cell's index.js, src/core/, src/shell/, tests/ or contract/`;
+  if (top === 'packages' || top === 'apps') return `move ${file} into its cell's index.js, src/logic/, src/io/, tests/ or data/`;
   if (top === 'test') return `put ${file} in packages/<cell>/tests/ beside the code it proves`;
   if (top === 'bin') return `put ${file}'s code in packages/<cell>/src/io/ or apps/<app>/, keeping only a thin launcher in bin/`;
   return `move ${file} under apps/<app>/ or packages/<cell>/, or, with the person's OK, add it to ROOT_FILES or ROOT_FOLDERS in packages/codemap/src/logic/allowlist.js`;

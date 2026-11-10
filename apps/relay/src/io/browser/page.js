@@ -57,12 +57,7 @@ const BROWSER_MODULES = {
  * door that has no pure core.js. A cell front door with a pure core.js is read as that core.js without an entry here.
  */
 const BROWSER_STANDINS = {
-  'src/relay-device-keys.js': new URL('../../../../../packages/keys/src/logic/device.js', import.meta.url),
   'packages/keys/index.js': new URL('../../../../../packages/keys/src/logic/device.js', import.meta.url),
-  'src/relay-page-layout.js': new URL('../../../../../packages/pages/src/logic/relay/layout.js', import.meta.url),
-  'src/sealed-pages.js': new URL('../../../../../packages/pages/src/logic/sealed.js', import.meta.url),
-  'src/lifecycle-move.js': new URL('../../../../../packages/items/src/logic/lifecycle.js', import.meta.url),
-  'src/person-pairing-limit.js': new URL('../../../../../packages/person/src/io/pairing/limit.js', import.meta.url),
   // The moved relay limits read PAIR_PACKAGE_BYTES through the person door; its pure core.js does not carry that body.
   'packages/person/index.js': new URL('../../../../../packages/person/src/io/pairing/limit.js', import.meta.url),
   // The kernel door also carries Node-only pieces (machineHome imports node:path); a browser module reads the browser-safe pure.js instead, which exports every name a page imports.

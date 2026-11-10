@@ -38,13 +38,16 @@ function configEntries(lines, start, end) {
   return pending.length ? null : entries;
 }
 
+/** The defaults() file: its place now, and the old root path so a replay of an older landing reads the same region. */
+const CONFIG_DEFAULTS_FILES = new Set(['packages/config/src/io/main.js', 'src/config.js']);
+
 /** Locate a known keyed region without interpreting or executing candidate JavaScript. */
 function region(path, source, version = MECHANICAL_VERSION) {
   const lines = source.split('\n');
   let start;
   let end;
   let key;
-  if (path === 'src/config.js' && version >= 4) {
+  if (CONFIG_DEFAULTS_FILES.has(path) && version >= 4) {
     start = lines.indexOf('export function defaults() {') + 1;
     if (lines[start] !== '  return {') return null;
     end = lines.indexOf('  };', start + 1);
@@ -257,7 +260,7 @@ function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION
   }
   const keyed = mergeMechanicalSources(path, base, ours, theirs, version);
   // A defaults object has one value per key: two differing additions of a key never union into a duplicate.
-  if (!keyed && path === 'src/config.js' && version >= 4 && region(path, base, version)) return null;
+  if (!keyed && CONFIG_DEFAULTS_FILES.has(path) && version >= 4 && region(path, base, version)) return null;
   const source = keyed?.source ?? additiveSource(base, ours, theirs);
   if (source === null) return null;
   if (/\.(?:js|mjs|cjs)$/u.test(path)) {

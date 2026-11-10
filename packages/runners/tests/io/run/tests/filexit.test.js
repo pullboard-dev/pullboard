@@ -25,17 +25,15 @@ const fixtureCleanupMs = '100';
 /** Build an isolated production-runner fixture with the source imports it needs. */
 function makeFileExitFixture(t, source) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-file-exit-')));
-  const bin = join(root, 'bin');
   const tests = join(root, 'test');
-  mkdirSync(bin);
   mkdirSync(tests);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../../..'), root);
   const testFile = join(tests, 'file-exit.test.js');
   writeFileSync(testFile, source);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return {
-    root, runner: join(bin, 'run-tests.js'), testFile,
+    root, runner: join(root, 'packages/gate/src/io/run/tests.js'), testFile,
     cleanupFile: join(root, 'cleanup.txt'), portFile: join(root, 'port.txt'),
   };
 }
@@ -189,15 +187,13 @@ async function waitForFocusedPoolState(predicate, description, timeoutMs = 30_00
 /** Create fixture files that exercise direct and nested focused runner processes. */
 function makeFocusedPoolFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-focused-pool-')));
-  const bin = join(root, 'bin');
   const tests = join(root, 'test');
   const machine = join(root, 'machine');
-  mkdirSync(bin);
   mkdirSync(tests);
   mkdirSync(machine);
   writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../../..'), root);
   const ready = join(root, 'first-ready');
   const nestedDone = join(root, 'nested-done');
   const release = join(root, 'release-first');
@@ -238,7 +234,7 @@ test('second focused run starts after the slot is released [C7]', () => {
 });
 `);
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, runner: join(bin, 'run-tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
+  return { root, runner: join(root, 'packages/gate/src/io/run/tests.js'), machine, ready, nestedDone, release, firstDone, secondStarted };
 }
 
 /** Launch one direct fixture runner with an explicit, cleared inherited-slot marker. */

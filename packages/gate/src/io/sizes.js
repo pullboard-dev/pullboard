@@ -2,11 +2,11 @@
 /**
  * Rigor check: sizes in the stylesheets come from the scale [N26,C12].
  *
- * The view, the Dashboard and the phone pages share one scale of tokens in src/view.css: --text-* for
+ * The view, the Dashboard and the phone pages share one scale of tokens in apps/view/src/io/main.css: --text-* for
  * font sizes, --space-* for padding, margin and gap, and --radius-* for corners. A size typed by hand
  * in px is a problem: a font size, a padding, margin or gap above 1px (a 1px hairline is a border
  * trick, not spacing), or a corner radius. Custom property declarations are where the scale is
- * defined, so they never count, and neither does a comment. Every .css file under src/, apps/ and relay/ is
+ * defined, so they never count, and neither does a comment. Every .css file under apps/ is
  * read; docs/demo/view.css is a generated copy and is not. One problem per size, at its line.
  */
 import { existsSync } from 'node:fs';
@@ -45,7 +45,7 @@ function scaleOf(property) {
  */
 export function uiSizeProblems(root) {
   const problems = [];
-  for (const path of walk(root, /^(src|relay|apps)\/.*\.css$/u)) {
+  for (const path of walk(root, /^apps\/.*\.css$/u)) {
     const source = readText(root, path);
     // Blank out comments, keeping their length, so offsets still map to lines.
     const code = source.replace(/\/\*[\s\S]*?\*\//gu, (comment) => comment.replace(/[^\n]/gu, ' '));
@@ -58,7 +58,7 @@ export function uiSizeProblems(root) {
         if (scale === 'space' && Number(length[1]) <= 1) continue;
         if (scale === 'text' && property === 'font' && length.index !== value.search(LENGTH)) continue;
         problems.push({ path, line: lineAt(source, start + length.index),
-          text: `${property} ${length[1]}px is typed by hand: use a --${scale}-* token from src/view.css` });
+          text: `${property} ${length[1]}px is typed by hand: use a --${scale}-* token from apps/view/src/io/main.css` });
       }
     }
   }
@@ -67,7 +67,7 @@ export function uiSizeProblems(root) {
 
 /** Count the same raw sizes per actual stylesheet, retaining files with no problems [N26]. */
 export function uiSizeCounts(root) {
-  const counts = Object.fromEntries(walk(root, /^(src|relay|apps)\/.*\.css$/u).map(path => [path, 0]));
+  const counts = Object.fromEntries(walk(root, /^apps\/.*\.css$/u).map(path => [path, 0]));
   for (const problem of uiSizeProblems(root)) counts[problem.path] += 1;
   return counts;
 }
