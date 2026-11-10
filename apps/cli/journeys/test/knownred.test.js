@@ -98,3 +98,15 @@ test('a candidate cannot invent a main-red alias with its own path map [C7]', ()
   const known = knownRedCheck(box.web, () => [{ item_id: 7, item_status: 'open', item_title: 'Main red: test/other.test.js' }]);
   assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
 });
+
+test('an unsigned generic red cache cannot suppress an executor-bound comparison [C7]', { timeout: 240_000 }, () => { // budget: candidate and main runner runs.
+  const box = redProject();
+  const main = String(box.git(box.repo, 'rev-parse', 'HEAD')).trim();
+  const folder = join(box.repo, '.git/pullboard');
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  const failure = { file: 'test/red.test.js', name: 'red case', signature: 'a'.repeat(64) };
+  writeFileSync(join(folder, 'main-red.json'), JSON.stringify({ version: 2, entries: { [main]: { 'test/red.test.js': { result: 'red', failures: [failure], signatureVersion: 4 } } } }), { mode: 0o600 });
+  const result = compare(box);
+  assert.equal(result.main, main, 'unbound generic cache must not suppress the main comparison');
+  assert.equal(result.known[0].result, 'red');
+});
