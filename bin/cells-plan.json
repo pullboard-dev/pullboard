@@ -1971,6 +1971,7 @@
     "drive->jobs",
     "drive->kernel",
     "resources->jobs",
+    "resources->git",
     "codemap->git",
     "codemap->kernel",
     "gate->codemap",

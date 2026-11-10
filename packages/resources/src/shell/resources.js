@@ -37,7 +37,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { repoInfo } from '../../../../src/git.js';
+import { repoInfo } from '../../../git/core.js';
 import {
   machineHome,
   machineSettingsFile,
