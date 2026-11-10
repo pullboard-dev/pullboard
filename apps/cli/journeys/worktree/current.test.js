@@ -2,12 +2,15 @@
 import assert from 'node:assert/strict';
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -73,7 +76,13 @@ async function project(t, { predates = false } = {}) {
     rmSync(join(root, 'apps/cli/src/io/current.js'));
   }
   // The hook launcher runs the staged static checks before the entry, so their folder is linked too.
-  for (const folder of ['src', 'packages', 'apps', 'bin/checks']) symlinkSync(join(SOURCE, folder), join(root, folder));
+  function linkRemaining(relative) {
+    const destination = join(root, relative);
+    if (!existsSync(destination)) return symlinkSync(join(SOURCE, relative), destination);
+    if (!statSync(destination).isDirectory()) return;
+    for (const name of readdirSync(join(SOURCE, relative))) linkRemaining(join(relative, name));
+  }
+  for (const folder of ['src', 'packages', 'apps', 'bin/checks']) linkRemaining(folder);
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
   Object.assign(env, { PULLBOARD_RESIDENT: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Current fixture', GIT_AUTHOR_EMAIL: 'current@example.invalid',
