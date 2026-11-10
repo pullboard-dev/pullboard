@@ -12,6 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { knownRedCheck } from '../../src/io/test/known.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import {
   HOST,
@@ -88,3 +89,14 @@ test('clause 1: an open Main red item under the file\'s pre-move name counts too
   assert.match(result.mainSkipped, /known red/u);
 });
 
+
+test('a candidate cannot invent a main-red alias with its own path map [C7]', () => {
+  const box = redProject();
+  const directory = join(box.web, 'packages/codemap/data/plan/path-map');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'invented.json'), JSON.stringify({ 'test/other.test.js': 'test/red.test.js' }));
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, 'commit', '-q', '-m', 'test: candidate-only mapping');
+  const known = knownRedCheck(box.web, () => [{ item_id: 7, item_status: 'open', item_title: 'Main red: test/other.test.js' }]);
+  assert.equal(known('test/red.test.js'), null, 'only the accepted main map can establish a moved identity');
+});

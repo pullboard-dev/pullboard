@@ -1,10 +1,6 @@
-import {
-  readFileSync,
-  readdirSync,
-} from 'node:fs';
-import { join } from 'node:path';
+import { cellReadPathMap } from '../../../../../packages/codemap/index.js';
+import { mainCheckout } from '../../../../../packages/git/light.js';
 
-const MAP_DIR = 'packages/codemap/data/plan/path-map';
 const LIVE = new Set(['open', 'claimed', 'submitted', 'verified']);
 
 /**
@@ -12,11 +8,11 @@ const LIVE = new Set(['open', 'claimed', 'submitted', 'verified']);
  * Why: a Main red item filed before the freeze names the file by its old path.
  */
 function oldNames(root, file) {
-  const moves = [];
+  let moves;
   try {
-    for (const name of readdirSync(join(root, MAP_DIR))) {
-      try { moves.push(...Object.entries(JSON.parse(readFileSync(join(root, MAP_DIR, name), 'utf8')))); } catch { /* An unreadable map names nothing. */ }
-    }
+    const main = mainCheckout(root);
+    if (!main?.commit) return [file];
+    moves = [...cellReadPathMap(root, { commit: main.commit })];
   } catch { return [file]; }
   const names = new Set([file]);
   for (let grew = true; grew;) {
