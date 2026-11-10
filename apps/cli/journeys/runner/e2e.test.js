@@ -240,6 +240,14 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.equal(next, 'Fix the check so flagged files make it fail, then run pullboard sweep again.');
   const refusalLine = blind.err.split('\n').find((line) => line.startsWith('stderr: ')) ?? blind.err;
   assert.ok(refusalLine.trimEnd().endsWith(next), blind.err);
+
+  const checker = join(box.dir, 'novar.mjs');
+  writeFileSync(checker, readFileSync(checker, 'utf8').replace('no-var Unexpected var', 'unknown-rule Unexpected var'));
+  const unsupported = box.run(box.repo, ...sweep);
+  assert.equal(unsupported.code, 0, unsupported.err);
+  assert.match(unsupported.out, /filed 1/);
+  const pending = JSON.parse(box.run(box.repo, 'show', '3', '--json').out);
+  assert.equal(pending.item_route, 'mid', 'unknown checker rules stay mid until actually diagnosed');
 });
 
 test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
