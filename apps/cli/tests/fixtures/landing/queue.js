@@ -351,7 +351,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate', 60_000); // budget: ceiling for a loaded runner starting the first landing CLI; no speed target.
   assert.ok(existsSync(entered), first.failure ?? first.stderrText);
   const firstBatch = readBoard(box, board => store.landingBatches(board).at(-1));
-  assert.equal(firstBatch.state, 'gating');
+  assert.equal(firstBatch.state, 'gating', `marker cwd=${readFileSync(entered, 'utf8')} batch=${JSON.stringify(firstBatch)} stdout=${first.stdoutText} stderr=${first.stderrText}`);
   assert.deepEqual(firstBatch.items.map(entry => entry.id), [entries[1].id], 'verdict order precedes numeric item order');
   if (suspendParent) rmSync(arm); // Only later gates become unblocked; the current one still requires its unreleased marker.
   const second = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', ...(suspendParent ? ['--adopt'] : ['--max', '1'])]);
