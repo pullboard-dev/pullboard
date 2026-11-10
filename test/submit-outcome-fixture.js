@@ -100,7 +100,7 @@ function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSu
 function fileMainRed(box) {
   return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
     criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
-    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
+    brief: 'Files: test/inherited.test.js\nChange: repair the assertion\nTest: inherited assertion', run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */
