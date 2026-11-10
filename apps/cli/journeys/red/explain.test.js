@@ -38,12 +38,12 @@ test('red explain reads receipt history through the real CLI [C7]', () => {
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   writeFileSync(join(box.repo, file), "import '../src/logic.js';\n");
   writeFileSync(join(box.repo, source), 'export const n = 1;\n');
-  box.git('add', '-A'); box.git('commit', '-qm', 'fixture green');
+  box.git('add', '-A'); box.git('commit', '-qm', 'test(fixture): green baseline [C7]');
   const green = box.git('rev-parse', 'HEAD'), greenTree = box.git('rev-parse', 'HEAD^{tree}');
   writeFileSync(join(box.repo, 'unrelated.txt'), 'unrelated\n');
-  box.git('add', '-A'); box.git('commit', '-qm', 'unrelated');
+  box.git('add', '-A'); box.git('commit', '-qm', 'test(fixture): unrelated change [C7]');
   writeFileSync(join(box.repo, source), 'export const n = 2;\n');
-  box.git('add', '-A'); box.git('commit', '-qm', 'break #123');
+  box.git('add', '-A'); box.git('commit', '-qm', 'fix(fixture): break #123 [C7]');
   const red = box.git('rev-parse', 'HEAD'), redTree = box.git('rev-parse', 'HEAD^{tree}');
   const folder = join(box.repo, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(folder, { recursive: true });
