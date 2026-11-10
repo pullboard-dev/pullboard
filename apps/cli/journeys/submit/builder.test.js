@@ -63,6 +63,7 @@ function fixture(t) {
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true },
     lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'bin/'] } } }, null, 2) + '\n');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
   box.git(box.repo, 'add', 'pullboard.json', 'packages/codemap/data/plan/cells.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queued submit with a cells plan [G1]');
