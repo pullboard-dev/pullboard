@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells as preflight } from '../apps/cli/index.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { placePath } from '../bin/cells-plan.js';
 import { retirePath } from '../bin/cells-plan.js';

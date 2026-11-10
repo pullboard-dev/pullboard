@@ -1,57 +1,57 @@
-import { withImportParseCache as withSubmitParseCache } from '../packages/gate/index.js';
-import { withCellGitObjects } from './cells-snapshot-git.js';
-import { cellsObjectSnapshots } from './cells-object-snapshots.js';
-import { withCellSourceSnapshots } from '../packages/codemap/index.js';
-import { shimCountProblems } from '../packages/codemap/core.js';
-import { shimImportProblems } from '../packages/codemap/index.js';
-import { withCellLintParser } from '../packages/codemap/index.js';
-import { cellsCacheDirectory } from './cells-inventory-cache.js';
-import { inventoryCache } from './cells-inventory-cache.js';
-import { observationCache } from './cells-inventory-cache.js';
-import { acceptedCellsIdentity } from '../packages/gate/index.js';
-import { readAcceptedCells } from '../packages/gate/index.js';
-import { inventoryPending } from './cells-inventory-cache.js';
-import { withBindingReadCache } from '../packages/codemap/index.js';
+import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/index.js';
+import { withCellGitObjects } from '../../../../bin/cells-snapshot-git.js';
+import { cellsObjectSnapshots } from '../../../../bin/cells-object-snapshots.js';
+import { withCellSourceSnapshots } from '../../../../packages/codemap/index.js';
+import { shimCountProblems } from '../../../../packages/codemap/core.js';
+import { shimImportProblems } from '../../../../packages/codemap/index.js';
+import { withCellLintParser } from '../../../../packages/codemap/index.js';
+import { cellsCacheDirectory } from '../../../../bin/cells-inventory-cache.js';
+import { inventoryCache } from '../../../../bin/cells-inventory-cache.js';
+import { observationCache } from '../../../../bin/cells-inventory-cache.js';
+import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../packages/gate/index.js';
+import { inventoryPending } from '../../../../bin/cells-inventory-cache.js';
+import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
-import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
-import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
-import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
+import { cellExistsSync as existsSync } from '../../../../packages/codemap/index.js';
+import { cellLstatSync as lstatSync } from '../../../../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../../../../packages/codemap/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkReceiptKey } from '../packages/git/index.js';
-import { readCheckReceipt } from '../packages/git/index.js';
-import { writeCheckReceipt } from '../packages/git/index.js';
-import { receiptDigest } from '../packages/git/index.js';
-import { git } from './cells-snapshot-git.js';
-import { tryGit } from './cells-snapshot-git.js';
-import { cleanGitEnvironment } from '../src/git.js';
-import { Refused } from '../packages/kernel/index.js';
-import { cellInventory } from '../packages/codemap/index.js';
-import { cellLintReport } from '../packages/codemap/index.js';
-import { cellLintGrowth } from '../packages/codemap/index.js';
-import { cellLintBaseline } from '../packages/codemap/index.js';
-import { readPathMap } from './cells-snapshot-git.js';
-import { mappedPath } from '../packages/codemap/index.js';
-import { checkCuts } from './cells-plan-cuts.js';
-import { entryPlacementProblems } from './cells-plan-cuts.js';
-import { processEntry } from './cells-plan-cuts.js';
-import { cutTitle } from '../packages/codemap/index.js';
+import { checkReceiptKey } from '../../../../packages/git/index.js';
+import { readCheckReceipt } from '../../../../packages/git/index.js';
+import { writeCheckReceipt } from '../../../../packages/git/index.js';
+import { receiptDigest } from '../../../../packages/git/index.js';
+import { git } from '../../../../bin/cells-snapshot-git.js';
+import { tryGit } from '../../../../bin/cells-snapshot-git.js';
+import { cleanGitEnvironment } from '../../../../packages/git/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
+import { cellInventory } from '../../../../packages/codemap/index.js';
+import { cellLintReport } from '../../../../packages/codemap/index.js';
+import { cellLintGrowth } from '../../../../packages/codemap/index.js';
+import { cellLintBaseline } from '../../../../packages/codemap/index.js';
+import { readPathMap } from '../../../../bin/cells-snapshot-git.js';
+import { mappedPath } from '../../../../packages/codemap/index.js';
+import { checkCuts } from '../../../../bin/cells-plan-cuts.js';
+import { entryPlacementProblems } from '../../../../bin/cells-plan-cuts.js';
+import { processEntry } from '../../../../bin/cells-plan-cuts.js';
+import { cutTitle } from '../../../../packages/codemap/index.js';
 import {
   frontDoorBypasses,
   onlyForwards,
   withDeclaredLoads,
-} from './cells-plan-cuts.js';
-import { checkMoved } from './cells-plan.js';
-import { lightFrontDoorProblems } from './cells-pure-front-door.js';
-import { pureDoorProblems } from './cells-pure-front-door.js';
-import { pureFrontDoorProblems } from './cells-pure-front-door.js';
-import { readPlan } from './cells-plan.js';
-import { shardFile } from './cells-plan.js';
-import { unplanned } from './cells-plan.js';
-import { stalePlanRows } from './cells-plan.js';
-import { engineStayTransition } from './cells-engine-stays.js';
-import { scriptMentions } from './cells-remove-shims.js';
-import { testFile } from '../packages/codemap/index.js';
+} from '../../../../bin/cells-plan-cuts.js';
+import { checkMoved } from '../../../../bin/cells-plan.js';
+import { lightFrontDoorProblems } from '../../../../bin/cells-pure-front-door.js';
+import { pureDoorProblems } from '../../../../bin/cells-pure-front-door.js';
+import { pureFrontDoorProblems } from '../../../../bin/cells-pure-front-door.js';
+import { readPlan } from '../../../../bin/cells-plan.js';
+import { shardFile } from '../../../../bin/cells-plan.js';
+import { unplanned } from '../../../../bin/cells-plan.js';
+import { stalePlanRows } from '../../../../bin/cells-plan.js';
+import { engineStayTransition } from '../../../../bin/cells-engine-stays.js';
+import { scriptMentions } from '../../../../bin/cells-remove-shims.js';
+import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
@@ -550,8 +550,8 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
-    config: inputs, code: [import.meta.url, '../apps/cli/src/shell/commands/submit.js', '../packages/codemap/src/shell/module-imports.js',
-      '../packages/gate/src/shell/module-import-cache.js', '../packages/gate/src/shell/test-isolation.js', '../packages/landing/src/shell/main-red.js']
+    config: inputs, code: [import.meta.url, './commands/submit.js', '../../../../packages/codemap/src/shell/module-imports.js',
+      '../../../../packages/gate/src/shell/module-import-cache.js', '../../../../packages/gate/src/shell/test-isolation.js', '../../../../packages/landing/src/shell/main-red.js']
       .map(path => fileURLToPath(new URL(path, import.meta.url))), commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)

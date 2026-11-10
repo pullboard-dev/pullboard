@@ -16,7 +16,7 @@ import { cellLintReport, cellLintBaseline, writeCellLintBaseline, shimLifecycle 
 import { withMainCheckout } from '../packages/landing/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../apps/cli/index.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 import { runFixtureGit, privateFixtureFiles } from './fixture-child.js';
 

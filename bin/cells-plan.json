@@ -448,10 +448,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "bin/cells-submit-checks.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -767,10 +763,6 @@
     },
     {
       "path": "bin/current-cli.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "bin/cells-reorg.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -2134,6 +2126,7 @@
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
+    "apps/cli->codemap",
     "health->state",
     "moves->state",
     "moves->doctrine",

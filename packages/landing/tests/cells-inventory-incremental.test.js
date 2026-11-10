@@ -22,7 +22,7 @@ import { foreignNodeOptions } from '../../gate/index.js';
 import { withMainCheckout } from '../index.js';
 import { warmAcceptedCells } from '../../gate/index.js';
 import { withFileLock } from '../../outbox/index.js';
-import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../../../apps/cli/index.js';
 import { fixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
 

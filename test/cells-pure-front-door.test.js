@@ -11,7 +11,7 @@ import { checkMoved } from '../bin/cells-plan.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
-import { policyProblems } from '../bin/cells-submit-checks.js';
+import { policyProblems } from '../apps/cli/index.js';
 import { LIGHT_DOOR_BUDGET_MS } from '../bin/checks/cells-edges.js';
 import { lightDoorProblems } from '../bin/checks/cells-edges.js';
 import { coldLoadMs } from '../bin/checks/cells-edges.js';

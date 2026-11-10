@@ -78,7 +78,6 @@ process.exitCode = status;
 const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
-import * as cells from './bin/cells-submit-checks.js';
 import * as cellsCache from './bin/cells-inventory-cache.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
@@ -90,6 +89,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+// An accepted main that predates the cli-owned module still keeps the checks in bin/.
+const cells = await import(existsSync(join(tools, 'apps/cli/src/shell/cells-submit-checks.js')) ? './apps/cli/src/shell/cells-submit-checks.js' : './bin/cells-submit-checks.js');
 const input = JSON.parse(readFileSync(0, 'utf8')), result = { main: input.main, source: input.source, steps: {}, notes: [] };
 const memos = await import('./apps/cli/src/shell/fixture-memo-share.js').then(module => module.runnerFixtureMemos(cellsCache, process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT ?? null)).catch(() => null); // One fixture memo for every runner (#3981).
 const selected = name => !input.parts || input.parts.includes(name);

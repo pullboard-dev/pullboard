@@ -61,12 +61,12 @@ import { withImportParseCache } from '../../../../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commonJsIn } from '../../../../../packages/gate/index.js';
-import { requireSubmitCells } from '../../../../../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../cells-submit-checks.js';
 import { machineVerificationEligible } from '../../../../../packages/verify/index.js';
 import { checkNeedsBrowser } from '../../../../../packages/gate/index.js';
 import { checkNeedsGui } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
-import { landedCutItemRows } from '../../../../../bin/cells-submit-checks.js';
+import { landedCutItemRows } from '../cells-submit-checks.js';
 import {
   existsSync,
   readFileSync,
