@@ -28,6 +28,36 @@ import { legacyRelayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { relayWorkBudgetMs } from '../../tests/fixtures/relay/budget.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixture as dispatchFixture } from '../../tests/fixtures/next/take.js';
+import { cli as dispatchCli } from '../../tests/fixtures/next/take.js';
+
+test('ready work waiting past the limit while agents are idle warns the coordinator once [B3,N2,C7]', async t => {
+  const box = await dispatchFixture(t);
+  const ready = box.add('Ready idle-seat work');
+  const blocked = box.add('Dependent work', { after: [ready] });
+  const future = box.add('Future milestone work');
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Current', items: [ready, blocked] });
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange dispatch fixture', name: 'Later', items: [future] });
+  const warnings = () => store.allShouts(box.board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith('Stuck:') && row.shout_text.includes('UNPAIRED_WORK'));
+  box.advance(299999);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 0);
+  box.advance(1);
+  box.scan();
+  assert.equal(warnings().length, 1);
+  assert.match(warnings()[0].shout_text, new RegExp(`${box.seats.actor.id}.*#${ready}.*5 min`, 'u'));
+  box.scan();
+  assert.equal(warnings().length, 1, 'the same idle spell is reported once');
+  const selected = await dispatchCli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(selected.code, 0, selected.out + selected.err);
+  assert.equal(selected.document.item.item_id, ready);
+  box.scan();
+  box.advance(300000);
+  store.heartbeatSeat(box.board, box.seats.actor.id);
+  box.scan();
+  assert.equal(warnings().length, 1, 'dependent and future work do not count as ready');
+});
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
