@@ -2,3 +2,4 @@
 export { contributionSignoffProblem } from './src/shell/commit-signoff.js';
 export { planRowChange } from './src/core/plan-row-change.js';
 export { BASELINE_TABLES, TIER_TABLE, baselineRowChange, tierRowChange } from './src/core/tier-row-change.js';
+export { importOnlyChange, movedImportOnlyChange, movedImportTargets } from './src/core/import-only-change.js';
