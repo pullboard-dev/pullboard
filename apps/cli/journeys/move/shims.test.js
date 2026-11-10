@@ -163,11 +163,11 @@ test('each shim records its own Git landing when a cell gains a later move [C7,C
   const firstDate = git(box.root, 'log', '-1', '--format=%cI').trim();
   git(box.root, 'checkout', '-qb', 'later-move');
   const source = 'src/stats-flow.js';
-  const target = 'packages/kernel/src/core/stats-flow.js';
+  const target = 'packages/kernel/src/logic/stats-flow.js';
   git(box.root, 'mv', source, target);
   box.put(target, readFileSync(join(box.root, target), 'utf8').replace("'./stats.js'", "'../../../../src/stats.js'"));
   box.put(source, "export { flow } from '../../../../packages/kernel/index.js';\n");
-  box.put('packages/kernel/index.js', readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8') + "export { flow } from './src/core/stats-flow.js';\n");
+  box.put('packages/kernel/index.js', readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8') + "export { flow } from './src/logic/stats-flow.js';\n");
   const mapFile = 'packages/codemap/data/plan/path-map/kernel.json';
   box.put(mapFile, JSON.stringify({ ...JSON.parse(readFileSync(join(box.root, mapFile))), [source]: target }));
   git(box.root, 'add', '-A');
