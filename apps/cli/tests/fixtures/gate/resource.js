@@ -81,7 +81,7 @@ export function fixture() {
   delete env[GATE_SLOT_HELD_ENV];
   // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
   delete env[TEST_FILE_POOL_ENV];
-  for (const key of [GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV, 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_SELECTION', 'PULLBOARD_TEST_BROWSER_BY_LAUNCH']) delete env[key];
+  for (const key of [GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV, 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_SELECTION', 'PULLBOARD_TEST_BROWSER_BY_LAUNCH', 'NODE_OPTIONS']) delete env[key];
   return { dir, events, env };
 }
 
