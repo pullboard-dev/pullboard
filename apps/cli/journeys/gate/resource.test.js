@@ -209,7 +209,7 @@ test('a short check never waits behind whole suites [C7]', async () => {
     waiting.push(directory);
     await waitFor(() => directory.child.stderrText.includes('waiting for a gate slot:'), 'a directory run to queue');
     const queued = JSON.parse(pullboard(box, settingsRoot, ['resources', '--json'])).resources.find(resource => resource.name === 'gate').line;
-    assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'focused']);
+    assert.deepEqual(queued.map(waiter => waiter.kind), ['fixture-ordinary', 'gate', 'seat-test']);
     assert.equal(queued[1].requestedSlot, undefined, 'a whole suite is never offered a short slot');
     assert.equal(queued[2].requestedSlot, undefined, 'a directory run is never offered a short slot');
     const shortRoot = shortProbeSuite(box, 'short-run');
@@ -224,11 +224,11 @@ test('a short check never waits behind whole suites [C7]', async () => {
     assert.equal(status.shortSlots, 1, 'pool status reports gate.shortSlots');
     const gate = status.resources.find(resource => resource.name === 'gate');
     assert.equal(gate.capacity, 2, 'short slots do not raise gateSlots');
-    assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['focused', 'short'], ['gate', 'gate'], ['gate', 'gate']],
+    assert.deepEqual(gate.holders.map(holder => [holder.kind, holder.slot]).sort(), [['gate', 'gate'], ['gate', 'gate'], ['seat-test', 'short']],
       'pool status names the slot each run holds');
     const text = pullboard(box, settingsRoot, ['resources']);
     const gateText = text.slice(text.indexOf('\ngate (machine'));
-    assert.equal((gateText.match(/held by .*\(short slot, focused\)/gu) ?? []).length, 1, 'the text status names the short slot');
+    assert.equal((gateText.match(/held by .*\(short slot, seat-test\)/gu) ?? []).length, 1, 'the text status names the short slot');
     assert.equal((gateText.match(/held by .*\(gate slot, gate, browser\)/gu) ?? []).length, 2, 'the text status names each gate slot');
     const reuse = wholeSuiteInheritance(box, settingsRoot, JSON.parse(readFileSync(short.marker, 'utf8')));
     assert.equal(reuse.stdout, 'SHORT_SLOT_FULL_SUITE', 'a whole suite cannot reuse a short lease from inside the short check');
