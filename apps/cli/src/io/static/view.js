@@ -24,7 +24,7 @@ import { commonJsIn } from '../../../../../packages/gate/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { VIEW_RENDERER_COVERAGE } from '../../../../view/index.js';
 import { viewImportTarget } from '../../../../view/index.js';
-import { viewTestProblems } from '../../../../view/index.js';
+import { viewTestProblems } from '../../../../view/light.js';
 import { VIEW_TEST_ROLES } from '../../../../view/index.js';
 import { lex } from '../../../../../packages/gate/index.js';
 import { report } from '../../../../../packages/gate/index.js';

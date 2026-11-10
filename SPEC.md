@@ -91,7 +91,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - V16 [approved, must] Submit runs the gate itself on the exact tree it submits, never trusting an earlier stamp. | gate: apps/cli/journeys/gate/main.test.js | serves: P1
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: apps/cli/journeys/merged/e2e.test.js | serves: V6
 - V18 [draft, must] Accept runs the repo's install step before the frozen check; a failed install or timeout reads unverified, never red. | gate: apps/cli/journeys/merged/e2e.test.js | serves: V2
-- V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: packages/store/tests/verdict-check.test.js | serves: V8
+- V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: apps/cli/journeys/verify/check.test.js | serves: V8
 - V20 [draft, must] Gates check only the change: a gate runs the item's own tests and checks. Anything that measures the whole system (speed budgets, end-to-end runs, the full suite, stability) runs in a scheduled sentinel on main, never in a gate or a landing. | gate: apps/cli/journeys/gate/main.test.js | serves: P1
 - V21 [draft, must] A failing sentinel files an item carrying what it measured, its limit and the commits since it last passed, so the fix goes through the loop. | gate: apps/cli/journeys/merged/e2e.test.js | serves: V20
 - V22 [draft, must] Every test file has a runtime budget that only ratchets down: the default is 120 s, a file over it gets a recorded budget at its measured runner time, and a new or changed file over budget fails its gate naming the split. | gate: review

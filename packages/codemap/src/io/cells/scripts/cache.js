@@ -25,7 +25,6 @@ import { checkCommandDefinition } from '../../../../../git/index.js';
 import { fileURLToPath } from 'node:url';
 import { git } from '../git.js';
 import { Refused } from '../../../../../kernel/index.js';
-import { readAcceptedCells } from '../../../../../gate/index.js';
 import { temporaryCellEdges } from '../../../../index.js';
 
 /** A cache is never evidence for a moved or dirty immutable source. */
@@ -94,8 +93,11 @@ export function publishCacheEntry(directory, file, bytes) {
   } catch { /* Pruning failure only costs disk until the next write. */ }
 }
 
-/** Share only complete immutable inventories under their exact commit and checker identity. */
-export function inventoryCache(root, key, parsers, onMode = () => {}, eligible = () => true, { acceptedMain, artifact, artifacts, strict = false } = {}) {
+/**
+ * Share only complete immutable inventories under their exact commit and checker identity.
+ * `readAccepted(root, commit)` is the caller's reader of an accepted inventory (gate owns it, above codemap); strict mode needs it.
+ */
+export function inventoryCache(root, key, parsers, onMode = () => {}, eligible = () => true, { acceptedMain, artifact, artifacts, readAccepted = () => ({ available: false }), strict = false } = {}) {
   const memory = new Map();
   const checker = inventoryChecker(key);
   /** Read or construct the pinned base once; a malformed cache is never evidence. */
@@ -112,7 +114,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
       } else {
         const paths = git(checkout, ['diff', '--no-renames', '--name-only', '-z', acceptedMain, commit]).split('\0').filter(Boolean);
         if (needsFullCensus(paths)) {
-          const historical = artifacts?.get(commit) ?? readAcceptedCells(root, commit);
+          const historical = artifacts?.get(commit) ?? readAccepted(root, commit);
           if (!historical.available) throw inventoryPending(`merge base ${commit} needs an off-path inventory after discovery changed`, commit);
           value = historical.inventory;
           onMode('base-cache', 'historical discovery policy');

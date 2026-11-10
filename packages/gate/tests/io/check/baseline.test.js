@@ -6,6 +6,8 @@ import { startFixtureChild as spawn } from '../../../../../apps/cli/tests/fixtur
 import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -99,6 +101,15 @@ function project() {
   box.git(repo, 'init', '-q', '-b', 'main');
   const initialized = box.run(repo, ['init']);
   assert.equal(initialized.status, 0, initialized.stderr);
+  // Baseline --wait needs a registered runner; the isolated machine home starts without one.
+  const worker = join(box.dir, 'worker');
+  const remoteHome = join(box.dir, 'worker-home');
+  const remoteMachineHome = join(remoteHome, '.pullboard');
+  for (const folder of [worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
+  installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: remoteHome, machineHome: remoteMachineHome,
+    requests: join(box.dir, 'ssh-requests.jsonl') });
+  const registered = box.run(repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json']);
+  assert.equal(registered.status, 0, registered.stderr);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, `${JSON.stringify({

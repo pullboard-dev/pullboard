@@ -91,8 +91,7 @@ function requireParallelGateAdmission(root, config) {
  */
 export async function placedMerge(state, items) {
   if (!existsSync(join(state.root, 'packages/codemap/data/plan/cells.json')) || !existsSync(join(state.batch.root, 'packages/codemap/data/plan/cells.json'))) return true;
-  const { unplanned, readPlan } = await import('../../../../codemap/src/io/cells/scripts/plan.js');
-  const { addedPlacementProblems } = await import('../../../../codemap/src/io/cells/plan/cuts.js');
+  const { unplanned, readPlan, addedPlacementProblems } = await import('../../../../codemap/index.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
   if (!problems.length) return true;
   const touched = item => new Set(git(state.root, ['diff', '--name-only', '--no-renames', state.batch.base, item.commit]).split('\n'));

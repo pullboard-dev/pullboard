@@ -56,7 +56,7 @@
       "apps/cli/journeys/submit/steps.test.js",
       "apps/cli/journeys/merged/e2e.test.js",
       "docs/formats.test.js",
-      "packages/store/tests/verdict-check.test.js"
+      "apps/cli/journeys/verify/check.test.js"
     ]
   },
   "submit": {
