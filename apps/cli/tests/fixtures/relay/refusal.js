@@ -11,7 +11,7 @@ export async function recordedRelayRefusal(t) {
   assert.equal(linked.code, 0, linked.failure);
   const result = await box.script(`
     const { main } = await import(${JSON.stringify(box.mainURL)});
-    const { nativeBoardPorts, openBoard } = await import(${JSON.stringify(new URL('../../../../lib/index.js', import.meta.url).href)});
+    const { relaySenderIo } = await import(${JSON.stringify(new URL('../../../src/io/sender.js', import.meta.url).href)});
     const { relayOperation } = await import(${JSON.stringify(new URL('../../../../../packages/link/index.js', import.meta.url).href)});
     const { spawn } = await import('node:child_process');
     const { mkdirSync, writeFileSync, rmSync, readFileSync } = await import('node:fs');
@@ -48,7 +48,7 @@ export async function recordedRelayRefusal(t) {
         else {
           try {
             await relayOperation(process.cwd(), 'addItem', [{ by: 'coordinator', lane: ${JSON.stringify(box.lane)}, title: text }],
-              { ...streams, nativeBoardPorts, openBoard, err(value) { stderr += value; } });
+              await relaySenderIo(process.cwd(), { ...streams, err(value) { stderr += value; } }));
             code = 0;
           } catch (error) { code = 1; stderr += error.message; }
         }
