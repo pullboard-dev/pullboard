@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { writeTestTiers } from '../../../../packages/gate/index.js';
 import { requireTestTierAccount } from '../../../../packages/gate/index.js';
@@ -88,14 +89,16 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const reviewer = join(box.dir, 'account-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer', '--route', 'strong');
-  const accepted = await json(box, reviewer, 'verify', String(id), 'accept', '--no-next', '--read', 'all',
-    '--note', 'Both selected files have a native source-bound account.');
+  const review = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'verify', String(id), 'accept', '--no-next', '--read', 'all',
+    '--note', 'Both selected files have a native source-bound account.', '--json'], { cwd: reviewer, env: box.env, encoding: 'utf8' });
+  assert.equal(review.status, 0, review.failure ?? review.stderr);
+  const accepted = JSON.parse(review.stdout);
   assert.equal(accepted.decision, 'ACCEPT');
   const directory = join(box.repo, '.git/pullboard/check-output');
   const profiles = readdirSync(directory).filter(file => file.endsWith('.profile.json'))
     .map(file => JSON.parse(readFileSync(join(directory, file), 'utf8')));
   const checked = profiles.find(profile => profile.tests.length === 0 && profile.testOutcomes?.length === files.length);
-  assert.ok(checked, `private review persists its structured account even with no TAP/JUnit case timings: accepted=${JSON.stringify(accepted)} profiles=${JSON.stringify(profiles)}`);
+  assert.ok(checked, 'private review persists its structured account even with no TAP/JUnit case timings');
   assert.deepEqual([...new Set(checked.testOutcomes.map(row => row.file))].sort(), files);
   assert.throws(() => requireTestTierAccount({ green: true, profile: { ...checked,
     testOutcomes: checked.testOutcomes.filter(row => row.file === files[0]) } }, files),
