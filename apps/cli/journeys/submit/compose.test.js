@@ -86,7 +86,7 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
   rmSync(box.marker, { force: true });
-  const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
+  const refused = box.run(view, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
   assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
@@ -96,7 +96,7 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'restore', '--', 'packages/codemap/data/plan/cells.json', 'packages/codemap/data/plan');
   assert.equal(box.git(view, 'status', '--porcelain'), '', 'the builder keeps its clean original source');
   success(box, box.repo, 'patch', 'attach', String(id), patch, '--key', 'core-placement', '--author', author, '--source', source);
-  const submitted = success(box, view, 'submit', String(id));
+  const submitted = success(box, view, 'submit', String(id), '--wait');
   assert.equal(submitted.gate.green, true);
   assert.equal(submitted.gate.companion.source, source);
   assert.notEqual(submitted.gate.companion.commit, source, 'the actual gate proves the composed source');
