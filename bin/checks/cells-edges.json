@@ -49,7 +49,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli-main/run-main.js": {
-      "cells": 12,
+      "cells": 5,
       "deep": 0
     },
     "apps/cli/src/shell/cli-presence.js": {
@@ -81,7 +81,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/board-access.js": {
-      "cells": 8,
+      "cells": 6,
       "deep": 0
     },
     "apps/cli/src/shell/cli/claim.js": {
@@ -5376,6 +5376,7 @@
     "packages/doctrine/core.js": 50,
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15,
-    "packages/config/core.js": 9
+    "packages/config/core.js": 9,
+    "packages/seats/core.js": 27
   }
 }

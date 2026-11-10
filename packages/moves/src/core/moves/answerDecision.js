@@ -1,4 +1,4 @@
-import { laneAnswerFloor } from "../../../../seats/core.js";
+import { laneAnswerFloor } from "../../../../seats/pure.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by answerDecision, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
