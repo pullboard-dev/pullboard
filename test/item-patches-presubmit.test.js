@@ -71,6 +71,8 @@ function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs
   if (deferred) config.submitGate = 'landing';
   config.lanes.core = { owns: ['core/'], specs: ['G1'] };
   config.lanes.view = { owns: ['view/'], specs: ['G2'] };
+  // Seat routes come from the board's model table since b95e1aa538.
+  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-m', 'chore: private companion lane policy');
