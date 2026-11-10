@@ -28,7 +28,7 @@ import {
 import {
   movedImportOnlyChange,
   movedImportTargets,
-} from '../../../../src/import-only-change.js';
+} from '../../../commits/core.js';
 import {
   planRowChange,
 } from '../../../commits/core.js';

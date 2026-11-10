@@ -4352,7 +4352,7 @@
       "cells": 1,
       "deep": 0
     },
-    "src/import-only-change.js": {
+    "packages/commits/src/core/import-only-change.js": {
       "cells": 2,
       "deep": 0
     },

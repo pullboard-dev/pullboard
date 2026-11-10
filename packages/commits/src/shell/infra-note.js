@@ -10,7 +10,7 @@ import { Refused } from "../../../kernel/core.js";
 import { tryGit } from "../../../../src/git.js";
 import { gitChildEnv } from "../../../../src/git.js";
 import { gitExecFileSync } from "../../../../src/git-adapter.js";
-import { importOnlyChange } from "../../../../src/import-only-change.js";
+import { importOnlyChange } from "../core/import-only-change.js";
 
 /** A test file, by its name or by its folder. */
 const TEST_FILE = /^test\/|\.(?:test|spec)\.[cm]?js$/u;
