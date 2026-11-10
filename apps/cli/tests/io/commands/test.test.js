@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commandDocs } from '../../../src/io/docs.js';
+import { readTestOutcomes } from '../../../../../packages/gate/src/io/test/outcomes.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
@@ -132,7 +133,6 @@ function copyRunnerImports(sourceRoot, root) {
     const imports = importsIn(sources);
     for (const [index, file] of files.entries()) {
       copied.add(file);
-      copyPackageFiles(sourceRoot, root, { files: [file] });
       for (const request of imports[index]) {
         if (!request.startsWith('./') && !request.startsWith('../')) continue;
         const target = relative(sourceRoot, resolve(sourceRoot, dirname(file), request));
@@ -143,6 +143,7 @@ function copyRunnerImports(sourceRoot, root) {
       pending.push(...declaredRunnerModules(sources[index], sourceRoot));
     }
   }
+  copyPackageFiles(sourceRoot, root, { files: [...copied] });
   return copied;
 }
 
@@ -269,7 +270,9 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
   const box = discoveryFixture(t);
   const runner = realpathSync(join(box.root, 'packages/gate/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
+  const id = '12345678-1234-1234-1234-123456789abc';
   const env = { ...process.env };
+  env.PULLBOARD_TIMING_RUN_ID = id;
   delete env.NODE_TEST_CONTEXT;
   /** Execute the copied real runner with fixture inputs and preserve its native output. */
   const execute = (...args) => spawnSync(process.execPath, [runner, ...args], { cwd: box.root, env, encoding: 'utf8' });
@@ -293,6 +296,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
   const quietMatch = execute('--test-reporter', silent, '--test-name-pattern', 'one discovered test', file);
   assert.equal(quietMatch.status, 0, `${quietMatch.stdout}${quietMatch.stderr}`);
   assert.equal(quietMatch.stdout, '', 'observing selection adds no public reporter output');
+  assert.ok(readTestOutcomes(quietMatch.stdout + quietMatch.stderr, id)?.length, 'captured output retains authenticated native outcomes');
   assert.equal(readFileSync(box.marker, 'utf8'), 'xxx');
   const output = join(box.root, 'default-reporter.tap');
   const defaultDestination = execute('--test-name-pattern', 'one discovered test',

@@ -1186,7 +1186,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
     ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
-  if (process.env[TIMING_RUN_ID_ENV] || process.env[LANDING_SHARD_ENV]) process.stdout.write(formatTestOutcomes(timing.id, result.testOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, result.testOutcomes));
   timing.complete(result, explicitTestFiles(selectedArgs), performance.now() - attemptAt);
   return selectedTestResult(result, env.PULLBOARD_TEST_SELECTION, patterns, explicitTestFiles(selectedArgs));
 }
@@ -1239,7 +1239,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
-  if (process.env[TIMING_RUN_ID_ENV] || process.env[LANDING_SHARD_ENV]) process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
+  process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;
