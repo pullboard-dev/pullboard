@@ -92,6 +92,10 @@ test('a real remote submit retains the failing source file and exact main failur
   const box = fixture(t, { beforeMain: beforeMain({ phases: true }), check: 'node test/check-runner.js' });
   const requests = remote(box);
   const result = cli(box, box.builder, 'submit', String(box.item));
+  if (result.status !== 0) {
+    const refusal = JSON.parse(result.stdout);
+    if (refusal.logPath) console.error(readFileSync(refusal.logPath, 'utf8'));
+  }
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const report = JSON.parse(result.stdout), gate = report.gate;
   assert.equal(gate.green, false, 'the inherited assertion remains red');
