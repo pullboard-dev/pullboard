@@ -290,7 +290,7 @@ test('child launches from a process the test starts', () => {
   assert.equal(result.status, 0, result.stderr);
 });
 `,
-    'test/launch-helper.mjs': "import { launchChromeProcess } from '../../tests/fixtures/chrome.js';\nconst browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['child'] });\nawait browser.stopped;\nawait browser.close();\n",
+    'test/launch-helper.mjs': "import { launchChromeProcess } from '../apps/cli/tests/fixtures/chrome.js';\nconst browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['child'] });\nawait browser.stopped;\nawait browser.close();\n",
   });
   const ran = runner.run(['test/declared.test.js', 'test/undeclared.test.js', 'test/child.test.js']);
   assert.notEqual(ran.status, 0, ran.output);
