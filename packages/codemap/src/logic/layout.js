@@ -140,8 +140,8 @@ function nameViolations(cell, cellName, rel, parts, effective, add) {
   if (repeats) add('name-repeat', full, full);
   const siblings = [...effective].filter(other => other !== rel && other.startsWith(parts.slice(0, -1).join('/') + '/') && other.split('/').length === parts.length);
   const mates = siblings.map(other => words(other.split('/').at(-1)));
-  if (own.length > 2) add('name-length', full, full);
-  else if (own.length === 2 && !mates.some(other => other.at(-1) === own[1] || other[0] === own[0])) add('name-length', full, full);
+  if (folder !== 'engines' && own.length > 2) add('name-length', full, full);
+  else if (folder !== 'engines' && own.length === 2 && !mates.some(other => other.at(-1) === own[1] || other[0] === own[0])) add('name-length', full, full);
   if (own.length > 1 && 1 + mates.filter(other => other.length > 1 && other[0] === own[0]).length >= 3) {
     add('name-group', `${cell}/${parts.slice(0, -1).join('/')}/${own[0]}-`, `${cell}/${parts.slice(0, -1).join('/')}: files starting ${own[0]}-`);
   }
