@@ -56,7 +56,10 @@ test('clause 1: an open, released item whose last gate is GATE_INFRA_EXHAUSTED i
   store.release(box.board, id, seat.id, 'released after the infrastructure stop', undefined, 'BLOCKED');
   assert.equal(store.getItem(box.board, id).item_status, 'open');
 
+  const offer = store.nextFor(box.board, { agentId: seat.id, lane: 'web' });
+  assert.equal(offer.item, null, 'the stopped work is not offered as fresh builder work');
+  assert.ok(offer.reasons.some(line => new RegExp(`^#${id}: gate GATE_INFRA_EXHAUSTED at [0-9a-f]{12}; nothing to build$`, 'u').test(line)), offer.reasons.join(' | '));
+
   const next = await say(box, seat, ['next', '--build']);
   assert.doesNotMatch(next.text, new RegExp(`^(claimed|you hold) #${id}`, 'mu'), next.text);
-  assert.match(next.text, new RegExp(`#${id}: gate GATE_INFRA_EXHAUSTED at [0-9a-f]{12}; nothing to build`, 'u'));
 });
