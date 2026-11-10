@@ -419,7 +419,14 @@ test('the store move preserves every accepted production body except relocation 
   const identities = new Map(Object.entries(map).map(([old, moved]) => [moved, old]));
   const mismatches = [];
   for (const [old, digest] of Object.entries(STORE_BODY_HASHES)) {
-    assert.equal(typeof map[old], 'string', 'every accepted body retains its exact move identity: ' + old);
+    if (typeof map[old] !== 'string') {
+      mismatches.push({ file: old, error: 'missing move identity' });
+      continue;
+    }
+    if (!existsSync(join(root, map[old]))) {
+      mismatches.push({ file: old, error: 'moved body missing', path: map[old] });
+      continue;
+    }
     const source = readFileSync(join(root, map[old]), 'utf8');
     const actual = createHash('sha256').update(normalized(map[old], source, identities)).digest('hex');
     if (actual !== digest) mismatches.push({ file: old, expected: digest, actual });
