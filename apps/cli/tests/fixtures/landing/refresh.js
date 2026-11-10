@@ -59,10 +59,11 @@ function project(disableRefresh) {
   const env = box.env;
   // The archive goes to a file, not a captured buffer: the committed tree outgrew any fixed in-memory limit.
   const tarball = join(box.dir, 'candidate-archive.tar');
-  const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'packages', 'apps', 'docs', 'skills', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', '--output', tarball, 'HEAD', 'packages', 'apps', 'docs', 'skills', 'package.json',
+    ':(exclude,glob)packages/*/tests/**', ':(exclude,glob)apps/*/tests/**', ':(exclude,glob)apps/*/journeys/**'],
     { cwd: join(import.meta.dirname, '../../../../..'), env });
   assert.equal(archive.status, 0, archive.context);
-  const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', tarball, '-C', box.repo], { env });
+  const extracted = runFixtureChild('tar', ['-xf', tarball, '-C', box.repo], { env });
   assert.equal(extracted.status, 0, extracted.context);
   // The private project uses its own explicit gate, not this repository's generated test inventory.
   rmSync(join(box.repo, 'packages/gate/data/tests/tiers.json'), { force: true });
