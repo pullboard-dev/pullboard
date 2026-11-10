@@ -1,9 +1,9 @@
 /** A cells plan the cut tooling cannot read refuses the submit as CELLS_SUBMIT, never crashing the remote analysis [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readableCuts } from '../../../../../apps/cli/index.js';
-import { importCuts } from '../../../src/logic/cuts.js';
-import { Refused } from '../../../../kernel/index.js';
+import { readableCuts } from '../../index.js';
+import { importCuts } from '../../../../packages/codemap/src/logic/cuts.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 /** A renumbered plan whose cut link still names an importer ordered after its target, as #3689's did. */
 const RENUMBERED = { cells: [
