@@ -35,13 +35,13 @@ import {landingExecutionServices} from ${JSON.stringify(landing)};
 import {addRunner,setGateSlots,setBrowserSlots} from ${JSON.stringify(config)};
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 addRunner({host:'first',slots:1,browser:0,node:'/missing/node'});
-addRunner({host:'second',slots:1,browser:0,node:process.execPath});
 setBrowserSlots(0);
 setGateSlots(0);
 const seen=[];
 const value=await withGateSlot(process.cwd(), async lease=>{
   seen.push(lease.runner.host);
   if(seen.length===1) {
+    addRunner({host:'second',slots:1,browser:0,node:process.execPath});
     try { resultFrom({runner:lease.runner,spec:{id:'fixture'},phase:'connect'},
       {status:127,stderr:'/bin/sh: /missing/node: not found',stdout:Buffer.alloc(0)},{}); }
     catch(error) { if(error.code!=='RUNNER_SETUP' || !error.message.includes('/missing/node')) throw error; throw error; }
