@@ -68,6 +68,7 @@ function itemProject() {
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.web.owns.push('test/');
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false },
     gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
