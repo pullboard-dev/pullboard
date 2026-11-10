@@ -22,6 +22,7 @@ import { commonJsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 import { foreignNodeOptions } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
+import { publishAcceptedCells } from './cells-plan-fixture.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -32,10 +33,11 @@ const ORDINARY = 'Health counts work-free claim releases';
 const MOVE = 'Cells move 1/1: kernel moves into packages/kernel behind shims';
 
 /** Bind the real controller services the submit command passes. */
+const published = new Map();
 const requireSubmitCells = (root, main, commit, title) => preflight(root, main, commit,
   { item_title: title, item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) },
   { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems: (base, at) => acceptedCutItems(at, base),
-    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), acceptedArtifact: published.get(main) });
 
 /** The refusal a candidate draws, or null when it proceeds. */
 async function refusal(promise) {
@@ -43,7 +45,7 @@ async function refusal(promise) {
 }
 
 /** Commit the real plan and lint baseline of the small fixture; with moved, main has already moved the kernel cell. */
-function plannedFixture(t, { moved = false, prepare = () => {} } = {}) {
+async function plannedFixture(t, { moved = false, prepare = () => {} } = {}) {
   const box = fixture(t);
   prepare(box);
   writePlan(box.root, computePlan(box.root));
@@ -61,7 +63,9 @@ function plannedFixture(t, { moved = false, prepare = () => {} } = {}) {
   }
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture');
-  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim() };
+  const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  published.set(main, await publishAcceptedCells(t, box.root, main));
+  return { ...box, main };
 }
 
 /** Commit the exact candidate the submit cells stage inspects. */
@@ -75,7 +79,7 @@ function commitCandidate(box) {
 const UNPROVEN_READER = "const fs = await import('node:fs');\nfs.writeFileSync('fixture/src/refused.js', 'export {};\\n');\n";
 
 test('an ordinary item whose new test builds an unproven fixture path proceeds with a warning; a Cells move item is refused [C7,D3]', async t => {
-  const box = plannedFixture(t, { moved: true });
+  const box = await plannedFixture(t, { moved: true });
   box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error { kind = "ordinary"; }\n');
   box.put('test/fixture-reader.test.js', UNPROVEN_READER);
   const candidate = commitCandidate(box);
@@ -91,7 +95,7 @@ test('an ordinary item whose new test builds an unproven fixture path proceeds w
 });
 
 test('an ordinary title is still refused when the item changes a shim, the path map or plan rows [C7,D3]', async t => {
-  const box = plannedFixture(t, { moved: true });
+  const box = await plannedFixture(t, { moved: true });
   box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\nexport const shimEdit = 1;\n");
   box.put('test/fixture-reader.test.js', UNPROVEN_READER);
   const shim = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY));
@@ -105,7 +109,7 @@ test('an ordinary title is still refused when the item changes a shim, the path 
 });
 
 test('unplaced source warns on an ordinary item, refuses a Cells cut item, and placing its own file stays ordinary [C7,D3]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('src/unplanned.js', 'export const value = 1;\n');
   const candidate = commitCandidate(box);
   const ordinary = await requireSubmitCells(box.root, box.main, candidate, ORDINARY);
@@ -121,7 +125,7 @@ test('unplaced source warns on an ordinary item, refuses a Cells cut item, and p
 });
 
 test('a new later-cell import and a deleted path named in a test string warn on ordinary items and refuse reorg items [C7,D3]', async t => {
-  const box = plannedFixture(t);
+  const box = await plannedFixture(t);
   box.put('src/refused.js', "export class Refused extends Error {}\nimport './stats-flow.js';\n");
   const candidate = commitCandidate(box);
   const ordinary = await requireSubmitCells(box.root, box.main, candidate, ORDINARY);
@@ -130,7 +134,7 @@ test('a new later-cell import and a deleted path named in a test string warn on 
     ordinary.warnings.join('\n'));
   const moved = await refusal(requireSubmitCells(box.root, box.main, candidate, MOVE));
   assert.match(moved?.message ?? '', /kernel --cuts: kernel still imports later stats: src\/refused.js -> src\/stats-flow.js; import a lower cell or take a port/u);
-  const deleting = plannedFixture(t, { prepare: fixture => {
+  const deleting = await plannedFixture(t, { prepare: fixture => {
     fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
     fixture.put('test/child.test.js', "const script = `import('./src/doomed.js').then(m => m.doomed);`;\nexport { script };\n");
   } });
@@ -147,7 +151,7 @@ test('a new later-cell import and a deleted path named in a test string warn on 
 
 test('a singular Cells import cut title and an edited plan-data row are reorg; a data row for the item\'s own new test is not [C7,D3]', async t => {
   const read = (file, line) => ({ file, line, expression: 'fixture.path', kind: 'spec', why: 'reads a generated fixture' });
-  const box = plannedFixture(t, { prepare: fixture => {
+  const box = await plannedFixture(t, { prepare: fixture => {
     fixture.put('bin/cells-plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 3)] }, null, 2));
   } });
   box.put('src/refused.js', "export class Refused extends Error {}\nimport './stats-flow.js';\n");
@@ -165,11 +169,12 @@ test('a singular Cells import cut title and an edited plan-data row are reorg; a
   assert.match(edited?.message ?? '', /kernel --cuts: kernel still imports later stats/u, 'editing an existing data-reads row is reorg work');
 });
 
-test('native submit of an ordinary item with unplaced source prints the warning and runs its check [C7,V4]', t => {
+test('native submit of an ordinary item with unplaced source prints the warning and runs its check [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   // A detached child the submit starts may still be writing its sandbox; retry the removal until it settles.
   t.after(() => helpers.waitFor(() => { try { helpers.cleanup(); return true; } catch { return false; } }, 'sandbox removal', 60_000)); // budget: lingering detached child ceiling, not a performance assertion.
   const box = helpers.project('node check.cjs');
+  if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   box.env.TMPDIR = join(box.dir, 'tmp');
   mkdirSync(box.env.TMPDIR);
   const marker = join(box.dir, 'check-ran');
@@ -183,6 +188,7 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  await publishAcceptedCells(t, box.repo, box.git(box.repo, 'rev-parse', 'main').trim(), box.env.PULLBOARD_MACHINE_HOME);
   const added = fixtureAdd(box.run, box.repo, 'web', ORDINARY, '--specs', 'G1', '--criterion', 'An ordinary source lands.',
     '--check', 'node check.cjs', '--wait', '--no-next', '--json');
   assert.equal(added.code, 0, added.out + added.err);

@@ -6,7 +6,11 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureGit, privateFixtureFiles } from './fixture-child.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
+import assert from 'node:assert/strict';
 
 /** Git for this checkout or a fixture, never steered by a caller's GIT_* variables. */
 export function git(cwd, ...args) {
@@ -44,4 +48,20 @@ export function acceptedCutItems(root, main) {
   return plan.cells.map((cell, index) => ({ item_id: index + 1, item_lane: 'core',
     item_title: `Cells import cuts: ${cell.name} removes imports into later cells`,
     item_status: 'verified', item_merged_commit: main }));
+}
+
+/** Publish the background producer's accepted inventory for the fixture's immutable main. */
+export async function publishAcceptedCells(t, root, main, machineHome) {
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  const machine = machineHome ?? privateFixtureFiles('cells-fixture-machine-').root;
+  if (!machineHome) t.after(() => rmSync(machine, { recursive: true, force: true }));
+  process.env.PULLBOARD_MACHINE_HOME = machine;
+  try {
+    const artifact = await warmAcceptedCells(root, main, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: 'main' });
+    assert.equal(artifact.available, true, 'the producer published the accepted inventory');
+    return artifact;
+  } finally {
+    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previous;
+  }
 }
