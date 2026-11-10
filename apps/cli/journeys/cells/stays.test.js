@@ -24,8 +24,8 @@ import { foreignNodeOptions } from '../../../../packages/gate/index.js';
 /** Pin actual accepted source and complete lint authority before a candidate requests engine stays. */
 function accepted(t, cellName = 'state') {
   const box = fixture(t);
-  const paths = ['src/sample-engine.js', 'src/engine-next.js', 'packages/state/src/io/engine/numbers.js', 'src/ordinary.js',
-    'src/misleading-engine.js', 'src/forwarded-engine.js', 'packages/state/data/history/152.json'];
+  const paths = ['src/sample-engine.js', 'src/engine-next.js', 'src/engine-numbers.js', 'src/ordinary.js',
+    'src/misleading-engine.js', 'src/forwarded-engine.js', 'src/move-history/152.json'];
   box.put(paths[0], 'export const SAMPLE_ENGINE = 17;\n');
   box.put(paths[1], 'export function unassignedEngine() { return 18; }\n');
   box.put(paths[2], 'export function nextEngineNumber() { return 18; }\n');
