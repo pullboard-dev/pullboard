@@ -60,7 +60,7 @@ export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';
 const VERSION = TEST_RESULT_VERSION;
 const MODULE = /\.[cm]?js$/u;
-const RUNNER_INPUTS = ['bin/run-tests.js', 'packages/gate/src/shell/test-action-reporter.js', 'package.json'];
+const RUNNER_INPUTS = ['bin/run-tests.js', 'packages/gate/src/shell/run-tests.js', 'packages/gate/src/shell/run-tests-watchdog-source.js', 'packages/gate/src/shell/test-action-reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
 // Options that choose how a run reports or splits files, never what a file proves.

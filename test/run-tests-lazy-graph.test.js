@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-world-pin reads the real command modules to walk their static import graph. */
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
@@ -64,7 +65,7 @@ function staticGraph(entry) {
 }
 
 test('runner static graph avoids landing and legacy selection routes into the gate [C7]', () => {
-  const graph = staticGraph('../bin/run-tests.js');
+  const graph = staticGraph('../packages/gate/src/shell/run-tests.js');
   const root = fileURLToPath(new URL('..', import.meta.url));
   const paths = new Set([...graph].map(file => relative(root, file).split(sep).join('/')));
   const gate = resolve(root, 'packages/gate/src/shell/gate.js');
@@ -81,7 +82,7 @@ test('clause 2: the runner reads the worker process identity from the drive ligh
   const root = fileURLToPath(new URL('..', import.meta.url));
   const door = new Set([...staticGraph('../packages/drive/core.js')].map(file => relative(root, file).split(sep).join('/')));
   assert.ok(door.has('packages/drive/src/core/worker-process-identity.js'), 'the drive light door carries the identity helpers');
-  assert.match(readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/packages\/drive\/core\.js'/u);
+  assert.match(readFileSync(new URL('../packages/gate/src/shell/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/\.\.\/\.\.\/drive\/core\.js'/u);
 });
 
 const RUNNER_TARGETS = ['packages/store/index.js', 'packages/store/src/shell/board.js', 'packages/state/src/shell/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
@@ -106,7 +107,7 @@ function importParents(entry) {
 }
 
 test('clause 1: bin/run-tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
-  const runner = importParents('bin/run-tests.js');
+  const runner = importParents('packages/gate/src/shell/run-tests.js');
   for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {
     const graph = importParents(barrel);
