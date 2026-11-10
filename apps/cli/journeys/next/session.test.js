@@ -48,7 +48,7 @@ function seatIds(box) {
   return JSON.parse(box.run(box.repo, 'agents', '--json').out).agents.map(agent => agent.agent_id ?? agent.id).sort();
 }
 
-test('clause 1: next in an api seat never searches or claims the web lane when its session also holds a web seat [GH27]', () => {
+test('clause 1: next in an api seat never claims in the web lane or opens a seat when its session also holds a web seat [GH27]', () => {
   const box = e2e.project();
   const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
   const api = seat(box, 'api');
@@ -58,7 +58,7 @@ test('clause 1: next in an api seat never searches or claims the web lane when i
   const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
   assert.doesNotMatch(next.out, /claimed #/u, all);
-  assert.doesNotMatch(all, /is next, in the web lane/u, 'the session search for other lanes is gone');
+  assert.doesNotMatch(all, /you hold #|work in web-/u, all);
   assert.match(box.run(box.repo, 'show', String(web.item_id)).out, new RegExp(`^#${web.item_id}\\s+open\\b`, 'mu'));
   assert.deepEqual(seatIds(box), before, 'next opened no new seat');
   assert.ok(other.id);
