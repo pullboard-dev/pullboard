@@ -8,10 +8,8 @@
  "paths": [
   ["src/empty-submit.js","apps/cli/src/shell/empty-submit.js","rule"],
   ["src/runner-loss-health.js","apps/cli/src/core/runner-loss-health.js","rule"],
-  ["test/exit-rules.test.js","apps/cli/tests/exit-rules.test.js","rule"],
   ["src/exit-rules-runtime.js","apps/cli/src/shell/exit-rules-runtime.js","rule"],
   ["src/worktree-maintenance-diagnostics.js","apps/cli/src/shell/worktree-maintenance-diagnostics.js","rule"],
-  ["test/worktree-maintenance-scheduler.test.js","apps/cli/tests/worktree-maintenance-scheduler.test.js","rule"],
   ["test/worktree-maintenance-retention.fixture.js","apps/cli/tests/worktree-maintenance-retention.fixture.js","rule"],
   ["src/worktree-maintenance-retention.js","apps/cli/src/shell/worktree-maintenance-retention.js","rule"],
   ["src/worktree-maintenance-scheduler.js","apps/cli/src/shell/worktree-maintenance-scheduler.js","rule"],
@@ -281,12 +279,7 @@
   ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
   ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"]
  ],
- "reexports": [
-  "src/cli-read-context.js",
-  "src/commands/index.js",
-  "src/help.js",
-  "src/next-steps.js"
- ],
+ "reexports": ["src/cli-read-context.js","src/commands/index.js","src/help.js","src/next-steps.js"],
  "imports": [
   {"cell":"kernel","imports":68,"before":true},
   {"cell":"git","imports":34,"before":true},
