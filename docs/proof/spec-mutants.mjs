@@ -7,17 +7,17 @@
  */
 import { audit } from './harness.mjs';
 
-const PARSE = ['test/spec.test.js', 'rows parse with id, status, tier, text, gate, serves'];
-const NEVER_DROPPED = ['test/spec.test.js', 'a row-like line that does not parse is an error'];
-const UNIQUE = ['test/spec.test.js', 'ids are unique, retired ones included'];
-const SERVES = ['test/spec.test.js', 'serves links must name real ids and never cycle'];
-const GATES = ['test/spec.test.js', 'approved must-rows name their gate'];
-const SIGNOFF = ['test/spec.test.js', 'a sign-off holds the text it approved'];
-const BOTH_FILES = ['test/e2e.test.js', 'spec check lints both files'];
-const ONE_PAGE = ['test/view.test.js', 'one self-contained page with every tab and every row'];
-const PERMANENT = ['test/spec.test.js', 'an id once committed or cited never leaves the spec'];
-const DELETED = ['test/e2e.test.js', 'a deleted spec row is refused at commit'];
-const WONT = ['test/spec.test.js', 'a row marked wont stays with its id'];
+const PARSE = ['apps/cli/journeys/spec/main.test.js', 'rows parse with id, status, tier, text, gate, serves'];
+const NEVER_DROPPED = ['apps/cli/journeys/spec/main.test.js', 'a row-like line that does not parse is an error'];
+const UNIQUE = ['apps/cli/journeys/spec/main.test.js', 'ids are unique, retired ones included'];
+const SERVES = ['apps/cli/journeys/spec/main.test.js', 'serves links must name real ids and never cycle'];
+const GATES = ['apps/cli/journeys/spec/main.test.js', 'approved must-rows name their gate'];
+const SIGNOFF = ['apps/cli/journeys/spec/main.test.js', 'a sign-off holds the text it approved'];
+const BOTH_FILES = ['apps/cli/journeys/merged/e2e.test.js', 'spec check lints both files'];
+const ONE_PAGE = ['apps/cli/journeys/view/main.test.js', 'one self-contained page with every tab and every row'];
+const PERMANENT = ['apps/cli/journeys/spec/main.test.js', 'an id once committed or cited never leaves the spec'];
+const DELETED = ['apps/cli/journeys/merged/e2e.test.js', 'a deleted spec row is refused at commit'];
+const WONT = ['apps/cli/journeys/spec/main.test.js', 'a row marked wont stays with its id'];
 const ROW_PARSED = '      spec.rows.push({ id, status, tier: tier ?? \'\', ...fields, section: section.name, line: lineNo });';
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
@@ -34,8 +34,8 @@ const MUTANTS = [
   ['S5', 'a sign-off counts whatever the row says now', [['src/spec.js', '    if (textOf.get(signoff.id) === signoff.text) standing.met.push(signoff);', '    if (true) standing.met.push(signoff);']], SIGNOFF, 'red'],
   ['S5', 'a sign-off records no text', [['src/spec.js', 'JSON.stringify({ id, by, on, text: byId.get(id).text })', 'JSON.stringify({ id, by, on })']], SIGNOFF, 'red'],
   ['S5', 'a row that is not approved can be signed', [['src/spec.js', "    return row.status === 'approved' ? [] : [`${id} is ${row.status}; only approved rows are signed`];", '    return [];']], SIGNOFF, 'red'],
-  ['S6', 'spec check lints SPEC.md only', [['apps/cli/src/shell/commands/spec.js', 'const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];', 'const files = [[ctx.config.spec, spec]];']], BOTH_FILES, 'red'],
-  ['S7', 'the page leaves out its practice tab', [['apps/view/src/core/view.js', '<label for="t-practice">Practice</label>', '']], ONE_PAGE, 'red'],
+  ['S6', 'spec check lints SPEC.md only', [['apps/cli/src/io/commands/spec.js', 'const files = [[ctx.config.spec, spec], ...(practice.exists ? [[practice.name, practice]] : [])];', 'const files = [[ctx.config.spec, spec]];']], BOTH_FILES, 'red'],
+  ['S7', 'the page leaves out its practice tab', [['apps/view/src/logic/main.js', '<label for="t-practice">Practice</label>', '']], ONE_PAGE, 'red'],
   ['S8', 'a committed id may leave the spec', [['src/spec.js', "    .filter(([id]) => !present.has(id))\n    .map(([id, commit]) => ({", "    .filter(() => false)\n    .map(([id, commit]) => ({"]], PERMANENT, 'red'],
   ['S8', 'an id cited but never committed passes', [['src/spec.js', '    if (!present.has(id) && !committed.has(id)) {', '    if (false) {']], PERMANENT, 'red'],
   ['S8', 'commit lets a row be deleted', [['src/spec.js', '  return parseSpec(before).rows.map((row) => row.id).filter((id) => !kept.has(id));', '  return [];']], DELETED, 'red'],

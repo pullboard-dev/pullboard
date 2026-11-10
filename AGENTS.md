@@ -14,7 +14,7 @@ Pullboard keeps long, complex builds on track across many agents and sessions.
 
 - **Language:** plain JavaScript, ES modules, Node 22.13+.
 - **Dependencies:** none; no build step.
-- **Imports:** `node:` built-ins or repo files only (`test/package.test.js`).
+- **Imports:** `node:` built-ins or repo files only (`packages/doctrine/tests/package.test.js`).
 - **Functions:** JSDoc: what, then why if not obvious.
 - **Refusals:** `Refused(rule code, next step)`.
 - **Tests:** `node:test`, real git and SQLite; names cite spec ids.
