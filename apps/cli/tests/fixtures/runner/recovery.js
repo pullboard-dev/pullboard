@@ -160,7 +160,7 @@ console.log(JSON.stringify({aged,admittedAgain,admitted,probesAtAdmission,probes
       const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
       const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
       // Cancellation fences the installer before extraction, so the direct control uses the same source being pinned.
-      const directWorker = join(import.meta.dirname, '../../../../../apps/runner/runner-worker.js');
+      const directWorker = join(import.meta.dirname, '../../../../../apps/runner/src/io/scripts/worker.js');
       const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
 import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
 const runner=${JSON.stringify(runner)};let failure;
