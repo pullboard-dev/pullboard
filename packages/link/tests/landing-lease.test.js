@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
+import { openCellBoard as openBoard } from '../../../test/cell-fixture.js';
 import {
   assertLandingLease,
   guardLandingWrite,
@@ -18,12 +18,12 @@ import {
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../index.js';
+} from '../../state/index.js';
 import {
   exportBoard,
   importBoard,
 } from '../../store/index.js';
-import { landingRelayCallbacks } from '../../link/index.js';
+import { landingRelayCallbacks } from '../index.js';
 
 /** Create isolated physical databases sharing an initial board and a controllable receipt clock. */
 function fixture(t) {

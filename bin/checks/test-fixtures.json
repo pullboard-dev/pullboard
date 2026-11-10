@@ -1992,7 +1992,7 @@
   "test/landing-known-main.test.js": {
     "model": 1
   },
-  "packages/state/tests/landing-lease.test.js": {
+  "packages/link/tests/landing-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
