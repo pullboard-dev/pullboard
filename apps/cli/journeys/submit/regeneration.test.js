@@ -18,7 +18,9 @@ import { recordedToolCommits } from '../../../../packages/git/index.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
 function tool(box, name, ...args) {
-  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL(`../bin/${name}`, import.meta.url)), ...args],
+  const scripts = { 'cells-plan.js': 'cells/scripts/plan.js', 'cells-move.js': 'cells/move.js', 'cell-lints.js': 'cell/scripts/lints.js' };
+  assert.ok(scripts[name], `unknown cell tool: ${name}`);
+  const result = runFixtureChild(process.execPath, [fileURLToPath(new URL(`../../../../packages/codemap/src/io/${scripts[name]}`, import.meta.url)), ...args],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   return result.stdout;
