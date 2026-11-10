@@ -6,7 +6,7 @@ import { ordered } from '../cli.js';
 import { whoAmI } from '../cli.js';
 import { withBoard } from '../cli.js';
 import { tryGit } from '../../../../../packages/git/index.js';
-import { itemHandoff } from '../../../../../packages/state/src/core/handoff-state.js';
+import { itemHandoff } from '../../../../../packages/state/core.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 const STILL_TO_WRITE = ['what you own and what is unfinished', 'principles and taste behind decisions',

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { runnerIdleReply } from '../src/shell/runner-transport.js';
-import { parseProcessCensus } from '../../kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../kernel/index.js';
 
 /** A runner home whose resource queue still lists one gate holder under the given pid. */
 function homeWithHolder(pid) {

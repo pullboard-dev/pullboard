@@ -209,7 +209,7 @@
     "daemon-loop": 1,
     "state-file": 5
   },
-  "packages/gate/src/shell/module-imports.js": {
+  "packages/codemap/src/shell/module-imports.js": {
     "state-file": 3
   },
   "packages/gate/src/shell/refusal-trial.js": {
@@ -499,7 +499,7 @@
   "packages/verify/src/shell/verify-compare.js": {
     "state-file": 2
   },
-  "src/seat-timing.js": {
+  "packages/seats/src/shell/seat-timing.js": {
     "state-file": 2
   }
 }

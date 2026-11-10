@@ -1215,16 +1215,6 @@
         "spawns a child process (test/chrome-fixture.js)"
       ]
     },
-    "test/cockpit/dashboard-render.test.js": {
-      "cells": [
-        "app:view",
-        "stats"
-      ],
-      "reasons": [
-        "imports past app:view front door (apps/view/src/core/view/dashboard-render.js)",
-        "imports past stats front door (packages/stats/src/core/stats-flow.js)"
-      ]
-    },
     "test/cockpit/dashboard-row-visibility.test.js": {
       "cells": [
         "app:lib",
@@ -1863,15 +1853,6 @@
         "spawns a child process (test/chrome-fixture.js)"
       ]
     },
-    "test/cockpit/needs-data.test.js": {
-      "cells": [
-        "app:view",
-        "spec"
-      ],
-      "reasons": [
-        "imports past app:view front door (apps/view/src/shell/view/held-items.js)"
-      ]
-    },
     "test/cockpit/needs-panel.test.js": {
       "cells": [
         "app:lib",
@@ -1979,16 +1960,6 @@
         "imports past kernel front door (packages/kernel/src/core/discovery.js)",
         "runs the CLI (test/cockpit/machine-fixture.js)",
         "spawns a child process (test/chrome-fixture.js)"
-      ]
-    },
-    "test/cockpit/pipeline-pure.test.js": {
-      "cells": [
-        "app:view",
-        "items"
-      ],
-      "reasons": [
-        "imports past app:view front door (apps/view/src/core/view/pipeline-model.js)",
-        "imports past items front door (packages/items/src/core/lifecycle-move.js)"
       ]
     },
     "test/cockpit/plain-words.test.js": {

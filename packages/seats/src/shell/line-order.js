@@ -2,7 +2,7 @@
 import { localDependencyIds } from '../core/dependency-references.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { LINE_ORDER_ENGINE } from '../../../state/core.js';
-import { lineSettings } from '../../../state/src/core/line-settings-read.js';
+import { lineSettings } from '../../../state/core.js';
 
 /** Old recorded moves retain their previous ordering even when replayed beside newer policy records. */
 export function lineOrderEnabled(board) {

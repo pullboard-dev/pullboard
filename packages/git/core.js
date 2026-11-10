@@ -1,3 +1,4 @@
-/** Pure Git selection helpers remain usable without loading process-launching adapters [C7,CD60]. */
-export * from "./src/core/git-child-selectors.js";
-export * from "./src/core/git-landing-batches.js";
+/** Git light door: the process, identity and trunk reads the runner worker uses [C7]. */
+export * from "./src/shell/git-adapter.js";
+export { cleanGitEnvironment, gitPath, mainCheckout, repoInfo, tryGit } from "./src/shell/git.js";
+export { trunkRef } from "./src/shell/git-trunk-ref.js";

@@ -4,6 +4,9 @@ export { registerSeatWake } from './src/shell/seat-wake.js';
 export { wakeRoutedSeat } from './src/shell/seat-wake.js';
 export { hasSeatWake } from './src/shell/seat-wake.js';
 export {
+  timingSeat,
+  appendSeatTiming,
+  beginSeatTiming,
   laneLeads,
   routeLaneMessage,
   leadOwnsDecision,

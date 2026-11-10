@@ -424,7 +424,7 @@ export function listAgents(board) {
 const LISTED_AGENTS = new WeakMap();
 
 
-import { factFromEvent } from "../../../state/src/core/fact-projection.js";
+import { factFromEvent } from "../../../state/core.js";
 
 export const KEY = 'spec_approval_baseline';
 

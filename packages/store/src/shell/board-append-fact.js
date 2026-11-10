@@ -20,7 +20,7 @@ import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { requireNeverAgain } from "../core/board-rigor.js";
 import { factReference } from "../../../spec/index.js";
-import { factFromEvent } from "../../../state/src/core/fact-projection.js";
+import { factFromEvent } from "../../../state/core.js";
 import { tellFactImplications } from "../../../state/index.js";
 import { postRigorNotices } from "./board.js";
 

@@ -289,7 +289,7 @@
   "packages/store/tests/main-red-focus.test.js": {
     "raw-board": 6
   },
-  "packages/runners/tests/cleanup-diagnostics.test.js": {
+  "apps/runner/tests/cleanup-diagnostics.test.js": {
     "tempdir": 2
   },
   "packages/runners/tests/runner-controller-generation.test.js": {
@@ -298,7 +298,7 @@
   "packages/runners/tests/hang-resolves-at-cap.test.js": {
     "tempdir": 1
   },
-  "packages/runners/tests/runner-slots-measured.test.js": {
+  "test/runner-slots-cli.test.js": {
     "tempdir": 1,
     "hand-policy": 1
   },
@@ -323,18 +323,15 @@
   "test/trusted-policy.test.js": {
     "hand-policy": 1
   },
-  "packages/state/tests/bar-corrections.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 4
+  "packages/store/tests/bar-corrections.test.js": {
+    "raw-board": 3
   },
   "packages/state/tests/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/decision-queue.test.js": {
+  "packages/store/tests/decision-queue.test.js": {
     "tempdir": 1,
-    "raw-board": 7
+    "raw-board": 4
   },
   "packages/state/tests/engine-replay.test.js": {
     "tempdir": 1,
@@ -347,26 +344,16 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/state/tests/file-growth-notice.test.js": {
-    "raw-board": 6
-  },
-  "packages/state/tests/flakes-ledger.test.js": {
-    "raw-board": 5
-  },
-  "packages/state/tests/flow-submit-size.test.js": {
+  "packages/store/tests/file-growth-notice.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/implies.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 10
+  "packages/flakes/tests/flakes-ledger.test.js": {
+    "raw-board": 5
   },
-  "packages/state/tests/item-hold.test.js": {
-    "raw-board": 9,
-    "model": 1
+  "packages/store/tests/implies.test.js": {
+    "raw-board": 8
   },
-  "packages/state/tests/landing-waiver-replay.test.js": {
+  "packages/landing/tests/landing-waiver-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -374,21 +361,6 @@
     "tempdir": 2,
     "hand-policy": 2,
     "raw-board": 2
-  },
-  "packages/state/tests/milestone-limit.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "raw-board": 3,
-    "model": 1
-  },
-  "packages/state/tests/milestones.test.js": {
-    "tempdir": 4,
-    "hand-policy": 2,
-    "raw-board": 6,
-    "model": 1
-  },
-  "packages/state/tests/registry-merge.test.js": {
-    "tempdir": 2
   },
   "packages/state/tests/relay-activation.test.js": {
     "raw-board": 6,
@@ -832,7 +804,7 @@
   "packages/gate/tests/chrome-fixture.test.js": {
     "tempdir": 6
   },
-  "test/ci.test.js": {
+  "packages/gate/tests/ci.test.js": {
     "repo-read": 3,
     "tempdir": 2
   },
@@ -1995,7 +1967,7 @@
   "test/landing-known-main.test.js": {
     "model": 1
   },
-  "packages/state/tests/landing-lease.test.js": {
+  "packages/link/tests/landing-lease.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -2684,7 +2656,7 @@
     "tempdir": 1,
     "raw-board": 3
   },
-  "packages/state/tests/relay-machine-auth.test.js": {
+  "apps/relay/tests/relay-machine-auth.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-machine-journal.test.js": {
@@ -2795,7 +2767,7 @@
   "test/relay-snapshot-size.test.js": {
     "raw-board": 5
   },
-  "packages/state/tests/relay-storage-quota.test.js": {
+  "apps/relay/tests/relay-storage-quota.test.js": {
     "tempdir": 1
   },
   "test/relay-study-delta.study.js": {
@@ -2821,7 +2793,7 @@
   "test/relay-upload-pause.test.js": {
     "raw-board": 1
   },
-  "packages/state/tests/relay-version.test.js": {
+  "apps/relay/tests/relay-version.test.js": {
     "tempdir": 1
   },
   "test/relay.test.js": {
@@ -2961,7 +2933,7 @@
     "hand-policy": 2,
     "raw-board": 7
   },
-  "packages/kernel/tests/review-route-skips-author-session.test.js": {
+  "apps/lib/tests/review-route-skips-author-session.test.js": {
     "raw-board": 2
   },
   "test/review-tier-default.test.js": {
@@ -3273,7 +3245,7 @@
     "hand-policy": 4,
     "env-spread": 2
   },
-  "test/runners-capsule.test.js": {
+  "packages/runners/tests/runners-capsule.test.js": {
     "tempdir": 1
   },
   "packages/gate/tests/runners-check-failover.test.js": {
@@ -3643,7 +3615,7 @@
   "packages/runners/tests/test-action-cache.test.js": {
     "tempdir": 2
   },
-  "packages/runners/tests/test-cache-receipts.test.js": {
+  "packages/gate/tests/test-cache-receipts.test.js": {
     "tempdir": 2
   },
   "test/test-command.test.js": {
@@ -3942,5 +3914,15 @@
   },
   "packages/store/tests/merge-read-ports.test.js": {
     "raw-board": 2
+  },
+  "packages/runners/tests/registry-merge.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/tests/flow-submit-size.test.js": {
+    "raw-board": 1
+  },
+  "packages/moves/tests/item-hold.test.js": {
+    "raw-board": 3,
+    "model": 1
   }
 }

@@ -7,7 +7,7 @@ import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
 import { eligibilityProblem } from '../../../verify/index.js';
-import { lineSettings } from '../../../state/src/core/line-settings-read.js';
+import { lineSettings } from '../../../state/core.js';
 import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';

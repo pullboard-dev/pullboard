@@ -31,14 +31,14 @@ import { pruneLines } from '../disk-use.js';
 import { refusingBadPolicy } from '../disk-use.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../../../../../packages/stats/index.js';
-import { boardHoldLines } from '../../../../../src/board-hold-log.js';
-import { boardHoldStats } from '../../../../../src/board-hold-log.js';
-import { readBoardHoldBaseline } from '../../../../../src/board-hold-ratchet.js';
+import { boardHoldLines } from '../../../../../packages/store/index.js';
+import { boardHoldStats } from '../../../../../packages/store/index.js';
+import { readBoardHoldBaseline } from '../../../../../packages/store/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
 import { counterProofStats } from '../../../../../packages/verify/index.js';
 import {
   barStatsLines,
-} from '../../../../../src/bar-corrections.js';
+} from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { caughtLines } from '../../../../../packages/items/index.js';
 import * as gateReceipt from '../../../../../packages/gate/index.js';

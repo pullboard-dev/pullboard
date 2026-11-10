@@ -159,7 +159,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - C4 [retired] Merged into P4, which now also says a refusal shows what it saw.
 - C5 [approved, must] Pre-commit runs the configured fixers on fully staged files and restages what they fix. | gate: test/e2e.test.js
 - C6 [draft, must] Submit refuses unless the item's commits since claim, together, cite every spec row the item cites. | gate: test/e2e.test.js | serves: C2
-- C7 [approved, must] CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux and, once public, macOS. | gate: test/ci.test.js | serves: C3
+- C7 [approved, must] CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux and, once public, macOS. | gate: packages/gate/tests/ci.test.js | serves: C3
 
 ## R · Receipts
 - R1 [approved, must] The ledger lists built items: lane, spec, builder, verifier, verdict, commit. | gate: test/board.test.js
@@ -237,7 +237,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - A5 [approved, must] SPEC.md's grammar, the board's schema and its event log are documented, versioned, and upgraded in place. | gate: test/api.test.js
 - A6 [approved, must] `pullboard doctor` checks a board's integrity and names how to repair each thing it finds. | gate: test/api.test.js
 - A7 [approved, aim] `pullboard export` writes a whole board as JSON, and `import` rebuilds it, losing nothing. | gate: test/api.test.js
-- A8 [approved, aim] The gate passes on macOS, Linux and Windows. | gate: test/ci.test.js | serves: C7
+- A8 [approved, aim] The gate passes on macOS, Linux and Windows. | gate: packages/gate/tests/ci.test.js | serves: C7
 - A9 [approved, aim] An agent can work the board through MCP tools, with the same moves and refusals as the CLI. | gate: test/api.test.js
 - A10 [draft, aim] The view exports a board as a read-only static snapshot that replays its events, for any static host. | gate: test/cockpit.test.js | serves: A3
 

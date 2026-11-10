@@ -239,8 +239,7 @@
     "sleep": 6
   },
   "test/relay-client-fixture.js": {
-    "poll": 1,
-    "sleep": 2
+    "poll": 1
   },
   "test/relay-deploy.test.js": {
     "sleep": 2
@@ -351,5 +350,8 @@
   "apps/cli/tests/worktree-maintenance-scheduler.fixture.js": {
     "poll": 2,
     "sleep": 3
+  },
+  "test/relay-server-fixture.js": {
+    "sleep": 2
   }
 }

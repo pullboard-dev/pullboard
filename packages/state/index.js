@@ -18,6 +18,7 @@ export { GRANT_ACTIVATION_INDEX } from './src/core/relay-activation.js';
 export { missingGrantActivationIndex } from './src/core/relay-activation.js';
 export { ensureGrantActivationIndex } from './src/core/relay-activation.js';
 export { recordedGrantActivation } from './src/core/relay-activation.js';
+export { operationIntent } from './src/core/relay-sender-policy.js';
 export { relaySenderPolicy } from './src/core/relay-sender-policy.js';
 export { recordReviewPolicyActivation } from './src/core/review-policy.js';
 export { boundedProofReason } from './src/core/submission-proof.js';

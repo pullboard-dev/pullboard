@@ -34,7 +34,7 @@ test('one seat builds, submits and lands two items from the folders next prints 
   const seat = opened.path, seatId = json(box.run(seat, 'whoami', '--json')).id;
   const reviewer = join(box.dir, 'folders-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'folder-reviewer').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'folder-reviewer', '--route', 'strong').code, 0);
   const landed = [];
   for (const [index, name] of ['first', 'second'].entries()) {
     const next = json(box.run(seat, 'next', '--build', '--json'));

@@ -49,7 +49,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli-main/run-main.js": {
-      "cells": 12,
+      "cells": 5,
       "deep": 0
     },
     "apps/cli/src/shell/cli-presence.js": {
@@ -81,7 +81,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/board-access.js": {
-      "cells": 8,
+      "cells": 6,
       "deep": 0
     },
     "apps/cli/src/shell/cli/claim.js": {
@@ -441,7 +441,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/show.js": {
-      "cells": 15,
+      "cells": 11,
       "deep": 0
     },
     "apps/cli/src/shell/commands/skills.js": {
@@ -457,12 +457,12 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/stats.js": {
-      "cells": 8,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/commands/status.js": {
-      "cells": 16,
-      "deep": 2
+      "cells": 12,
+      "deep": 0
     },
     "apps/cli/src/shell/commands/submit.js": {
       "cells": 21,
@@ -945,7 +945,7 @@
       "deep": 0
     },
     "bin/cells-inventory-cache.js": {
-      "cells": 5,
+      "cells": 4,
       "deep": 0
     },
     "bin/cells-move-fixtures.js": {
@@ -993,7 +993,7 @@
       "deep": 0
     },
     "bin/cells-submit-checks.js": {
-      "cells": 4,
+      "cells": 3,
       "deep": 0
     },
     "bin/check-baseline.js": {
@@ -1397,11 +1397,7 @@
       "deep": 0
     },
     "packages/gate/src/shell/accepted-cells-inventory.js": {
-      "cells": 4,
-      "deep": 0
-    },
-    "packages/gate/src/shell/affected-tests.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 0
     },
     "packages/gate/src/shell/browser-admission.js": {
@@ -1484,10 +1480,6 @@
       "cells": 4,
       "deep": 0
     },
-    "packages/gate/src/shell/module-imports.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/gate/src/shell/proof-shards.js": {
       "cells": 2,
       "deep": 0
@@ -1507,10 +1499,6 @@
     "packages/gate/src/shell/run-timing.js": {
       "cells": 1,
       "deep": 1
-    },
-    "packages/gate/src/shell/seals.js": {
-      "cells": 3,
-      "deep": 0
     },
     "packages/gate/src/shell/seat-keepalive.js": {
       "cells": 1,
@@ -1569,10 +1557,6 @@
       "deep": 1
     },
     "packages/gate/src/shell/test-tier-selection.js": {
-      "cells": 2,
-      "deep": 0
-    },
-    "packages/gate/src/shell/test-tiers.js": {
       "cells": 2,
       "deep": 0
     },
@@ -2058,7 +2042,7 @@
     },
     "packages/landing/src/shell/landing-shards.js": {
       "cells": 5,
-      "deep": 11
+      "deep": 0
     },
     "packages/landing/src/shell/landing-static-checks.js": {
       "cells": 2,
@@ -2358,10 +2342,6 @@
     },
     "packages/moves/src/core/moves/claim.js": {
       "cells": 3,
-      "deep": 0
-    },
-    "packages/moves/src/core/moves/editItem.js": {
-      "cells": 1,
       "deep": 0
     },
     "packages/moves/src/core/moves/maintainStaleState.js": {
@@ -2732,6 +2712,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/runners/src/shell/runner-probe.js": {
+      "cells": 2,
+      "deep": 1
+    },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
       "deep": 1
@@ -2753,8 +2737,8 @@
       "deep": 0
     },
     "packages/runners/src/shell/runner-transport.js": {
-      "cells": 3,
-      "deep": 2
+      "cells": 2,
+      "deep": 1
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
@@ -3429,8 +3413,8 @@
       "deep": 0
     },
     "packages/store/src/shell/board-edit-item.js": {
-      "cells": 7,
-      "deep": 2
+      "cells": 6,
+      "deep": 0
     },
     "packages/store/src/shell/board-engine-ports.js": {
       "cells": 4,
@@ -3649,7 +3633,7 @@
       "deep": 0
     },
     "packages/store/src/shell/board-write-lock.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 1
     },
     "packages/store/src/shell/board-write-preparation.js": {
@@ -3849,7 +3833,7 @@
       "deep": 0
     },
     "packages/verify/src/shell/bar-readiness.js": {
-      "cells": 3,
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/check-accept.js": {
@@ -3941,10 +3925,6 @@
       "deep": 0
     },
     "src/audit-failure-item.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/bar-corrections.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4041,10 +4021,6 @@
       "deep": 0
     },
     "src/board-hold-lane.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/board-hold-log.js": {
       "cells": 1,
       "deep": 0
     },
@@ -4378,7 +4354,7 @@
     },
     "src/import-only-change.js": {
       "cells": 2,
-      "deep": 1
+      "deep": 0
     },
     "src/item-offer-contract.js": {
       "cells": 1,
@@ -5388,6 +5364,10 @@
     "packages/doctrine/core.js": 50,
     "packages/gate/core.js": 10,
     "packages/sandbox/core.js": 15,
-    "packages/config/core.js": 9
+    "packages/config/core.js": 9,
+    "packages/seats/core.js": 27,
+    "packages/runners/core.js": 40,
+    "packages/git/core.js": 12,
+    "packages/resources/core.js": 27
   }
 }

@@ -35,7 +35,7 @@ import { cellLintBaseline } from '../../codemap/index.js';
 import { writeCellLintBaseline } from '../../codemap/index.js';
 import { withMainCheckout } from '../index.js';
 import { landingExecutionServices } from '../index.js';
-import { landingBatches as pureLandingBatches } from '../../git/core.js';
+import { landingBatches as pureLandingBatches } from '../../git/pure.js';
 import { landingBatches } from '../index.js';
 
 const parsers = { importsIn, commonJsIn };
@@ -66,7 +66,7 @@ test('landing history uses its existing pure port without growing any move closu
   };
   /** Restore only the former forwarding layout around the same canonical provider. */
   const oldCallers = () => {
-    for (const [file, source] of current) writeFileSync(join(fixture, file), source.replace('../../../../git/core.js', posix.relative(posix.dirname(file), old)));
+    for (const [file, source] of current) writeFileSync(join(fixture, file), source.replace('../../../../git/pure.js', posix.relative(posix.dirname(file), old)));
   };
   oldCallers();
   writeFileSync(join(fixture, old), "export { landingBatches } from '../packages/landing/src/core/landing-batch-history.js';\n");
@@ -75,7 +75,7 @@ test('landing history uses its existing pure port without growing any move closu
   rmSync(join(fixture, old));
   const after = closure();
   assert.equal(landingBatches, pureLandingBatches, 'the public Landing binding is the same pure Git projection');
-  assert.ok(after.has('packages/git/core.js'));
+  assert.ok(after.has('packages/git/pure.js'));
   assert.equal([...after.keys()].filter(file => file.startsWith('packages/landing/')).length, 0);
   assert.ok(after.size < before.size, 'removing forwards reduces the real registry module count');
   assert.ok([...after.values()].reduce((sum, bytes) => sum + bytes.length, 0)

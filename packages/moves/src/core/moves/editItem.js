@@ -12,9 +12,9 @@ import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/core.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
 import {
-  BAR_ENGINE,
   carriesBarReason,
-} from "../../../../../src/bar-corrections.js";
+} from "../../../../verify/index.js";
+import { BAR_ENGINE } from "../../../../state/core.js";
 import { BAR_READY_ENGINE } from "../../../../state/core.js";
 import { barReadySetting } from "../bar-ready-setting.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
