@@ -1,5 +1,3 @@
-import { readdirSync as diagRead } from 'node:fs';
-import { execFileSync as diagExec } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { submitFixture } from './board/submit.js';
 import assert from 'node:assert/strict';
@@ -54,19 +52,15 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
-    // Node increases the delay on each retry: 200 * (1 + ... + 17) = 30.6 seconds.
     for (const dir of sandboxes) {
-      try { rmSync(dir, { recursive: true, force: true, maxRetries: 17, retryDelay: 200 }); }
-      catch (error) {
-        for (const file of ['repo/.git/pullboard/seat-timing.jsonl', 'machine-home/board-writes.jsonl']) {
-          try { process.stderr.write(`DIAG log ${file} ${readFileSync(join(dir, file), 'utf8').slice(-8000)}\n`); }
-          catch { /* Logs may not exist after removal. */ }
+      const deadline = Date.now() + 30_000;
+      for (;;) {
+        try { rmSync(dir, { recursive: true, force: true }); break; }
+        catch (error) {
+          if (!['ENOTEMPTY', 'EBUSY', 'EPERM', 'EMFILE', 'ENFILE'].includes(error.code) || Date.now() >= deadline) throw error;
+          // A writer can recreate files after traversal; retry the whole tree, not just the failed rmdir.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(200, deadline - Date.now()));
         }
-        try { process.stderr.write(`DIAG residual ${JSON.stringify(diagRead(dir, { recursive: true }).slice(0, 80))}\n`); } catch (diag) { process.stderr.write(`DIAG residual error ${diag.message}\n`); }
-        try { process.stderr.write(`DIAG ps ${diagExec('ps', ['-axo', 'pid,ppid,command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(dir)).join('\n')}\n`); } catch { /* Optional process inventory can be unavailable. */ }
-        try { process.stderr.write(`DIAG lsof ${dir}\n${diagExec('lsof', ['-n', '+D', dir], { encoding: 'utf8', timeout: 5000 })}\n`); }
-        catch (diag) { process.stderr.write(`DIAG lsof result ${diag.stdout || ''} ${diag.message}\n`); }
-        throw error;
       }
     }
   };
