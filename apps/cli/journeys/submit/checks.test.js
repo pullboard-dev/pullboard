@@ -180,22 +180,22 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'temporary exceptions are disabled in both snapshots and the old exact edge is still equal debt');
   const clean = await plannedFixture(t);
-  clean.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
+  clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
   clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-  clean.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
+  clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   clean.put('apps/cli/index.js', "import '../../src/cli.js';\n");
-  clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
+  clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
   assert.deepEqual((await requireSubmitCells(clean.root, clean.main, commitCandidate(clean), clean.item)).problems, [],
     'the actual reachable named front door and body satisfy the canonical move check');
 });
 
 /** Move the real kernel body through its named front door and a committed per-cell path-map shard. */
 function moveFixtureKernel(box, body) {
-  box.put('packages/kernel/src/logic/refused.js', body);
+  box.put('packages/kernel/src/core/refused.js', body);
   box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-  box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
+  box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
-  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
+  box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
 }
 
 test('submit preserves an existing cut across a real importer relocation [C7,D3,CD64]', async t => {
@@ -213,7 +213,7 @@ test('submit still refuses a genuinely new cut after an importer relocation [C7,
   const box = await plannedFixture(t);
   moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
-    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/logic\/refused\.js -> src\/stats-flow\.js/u,
+    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/core\/refused\.js -> src\/stats-flow\.js/u,
     'a rename cannot lend an old allowance to a new dependency');
 });
 
@@ -328,7 +328,7 @@ test('a newly reachable unchanged module reuses its cold census observation [C7,
 test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
   const { root } = fixture(t), calls = bindingCompilerCalls(t);
   // The checker's identity is the bytes of its code files (#2601), so the key names real files of this tool.
-  const tool = path => fileURLToPath(new URL(`../../tests/io/submit/${path}`, import.meta.url));
+  const tool = path => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
   const key = { code: [tool('packages/codemap/src/io/cells/scripts/cache.js')], config: { acceptedMain: 'main', preloads: [] } };
   const cache = observationCache(root, key, () => true), modules = bindingModules();
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
@@ -423,10 +423,10 @@ test('eligible runtime context changes require a fresh real binding compiler obs
 
 test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
   const box = await plannedFixture(t, box => {
-    box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
+    box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
     box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-    box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
-    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
+    box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
     box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
   });
@@ -497,7 +497,7 @@ test('scheduled rows stay unmoved while mapped cells retain real missing-body ch
   writePlan(box.root, plan);
   assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
     'a scheduled asset in an unmoved cell does not require its future body');
-  box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
+  box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --moved: missing/u,
     'an actual mapped move still refuses missing implementation bytes');
 });
@@ -672,7 +672,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
     moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
   });
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
-  box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {} // one-cell change\n');
+  box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
   const candidate = commitCandidate(box);
   const compilerCalls = bindingCompilerCalls(t);
   const spawn = childProcess.spawn;
@@ -690,7 +690,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   assert.ok(compilerCalls() <= 4, 'compiler setup is bounded independently of the number of source files');
   assert.ok(workers <= 2, `the census uses at most two shared parser workers, got ${workers}`);
   assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
-  box.put('packages/kernel/src/logic/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
     'the same many-cell board still refuses a new cut in a touched cell');
 });

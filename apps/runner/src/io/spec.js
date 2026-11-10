@@ -39,6 +39,7 @@ export const SPEC_RULES = new Set([
   'work specification originBase is malformed or has no origin',
   'invalid tag manifest',
   'invalid trusted runtime paths',
+  'trusted runtime cache does not match the request',
   'invalid trusted runtime',
   'invalid trusted tooling identity',
   'invalid timing invocation',

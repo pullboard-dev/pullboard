@@ -26,14 +26,14 @@ function engineTree(t, shims) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), text);
   };
-  put('src/move-history/legacy.json', '{}');
-  put('packages/state/src/core/engines/base-engine.js', 'export const BASE_ENGINE = 40;\n');
-  put('packages/state/src/core/engines/alpha-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
-  put('packages/moves/src/core/moves/addThing.js', 'export default { operation: "addThing", engine: 40 };\n');
-  put('packages/moves/src/shell/moves/recordThing.js', 'export default { operation: "recordThing", engine: 40 };\n');
+  put('packages/state/data/history/legacy.json', '{}');
+  put('packages/state/src/logic/engines/base-engine.js', 'export const BASE_ENGINE = 40;\n');
+  put('packages/state/src/logic/engines/alpha-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
+  put('packages/moves/src/logic/moves/addThing.js', 'export default { operation: "addThing", engine: 40 };\n');
+  put('packages/moves/src/io/moves/recordThing.js', 'export default { operation: "recordThing", engine: 40 };\n');
   if (shims) {
-    put('src/moves/addThing.js', 'export { default } from "../../packages/moves/src/core/moves/addThing.js";\n');
-    put('src/moves/recordThing.js', 'export { default } from "../../packages/moves/src/shell/moves/recordThing.js";\n');
+    put('src/moves/addThing.js', 'export { default } from "../../packages/moves/src/logic/moves/addThing.js";\n');
+    put('src/moves/recordThing.js', 'export { default } from "../../packages/moves/src/io/moves/recordThing.js";\n');
   }
   return root;
 }
@@ -42,7 +42,7 @@ test('engine numbers and their frozen history are the same with or without the s
   const results = [true, false].map(shims => {
     const root = engineTree(t, shims);
     const { assigned } = assignEngineNumbers(root);
-    return { assigned, history: readFileSync(join(root, 'src/move-history/41.json'), 'utf8') };
+    return { assigned, history: readFileSync(join(root, 'packages/state/data/history/41.json'), 'utf8') };
   });
   assert.deepEqual(results[0].assigned, [{ name: 'ALPHA_ENGINE', number: 41 }]);
   assert.deepEqual(results[1], results[0], 'a tree without src/moves numbers and records exactly like one with the shims');
@@ -59,7 +59,7 @@ test('the real move closure without src/moves is the shimmed closure minus its s
   /** The bounded declaration closure of the fixture tree as a sorted list. */
   const closure = () => [...moveDeclarationFiles(fixture, { files, importsIn, commonJsIn })].sort();
   const withShims = closure();
-  assert.ok(withShims.some(file => file.startsWith('packages/moves/src/core/moves/')), 'the packaged bodies are reached');
+  assert.ok(withShims.some(file => file.startsWith('packages/moves/src/logic/moves/')), 'the packaged bodies are reached');
   rmSync(join(fixture, 'src/moves'), { recursive: true, force: true });
   const withoutShims = closure();
   assert.deepEqual(withoutShims, withShims.filter(file => !file.startsWith('src/moves/')),

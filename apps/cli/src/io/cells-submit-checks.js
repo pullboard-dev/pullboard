@@ -30,7 +30,7 @@ import { cellInventory } from '../../../../packages/codemap/index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintGrowth } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
-import { readPathMap } from '../../../../packages/codemap/index.js';
+import { cellReadPathMap as readPathMap } from '../../../../packages/codemap/index.js';
 import { mappedPath } from '../../../../packages/codemap/index.js';
 import { checkCuts } from '../../../../packages/codemap/index.js';
 import { entryPlacementProblems } from '../../../../packages/codemap/index.js';

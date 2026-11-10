@@ -38,7 +38,7 @@ export function committedCellTransition(root) {
   const options = { cwd: root, env: gitChildEnv(root), encoding: 'utf8' };
   const entry = gitSpawnSync(['ls-tree', '-z', 'HEAD', '--', file], options);
   if (entry.status !== 0 || !entry.stdout) return { present: false, active: false };
-  if (!/^100(?:644|755) blob [a-f0-9]+\tbin\/cells-plan\/transition\.json\0$/u.test(entry.stdout)) {
+  if (!/^100(?:644|755) blob [a-f0-9]+\tpackages\/codemap\/data\/plan\/transition\.json\0$/u.test(entry.stdout)) {
     return { present: true, active: false, problem: 'transition marker must be a committed regular file' };
   }
   const source = gitSpawnSync(['show', `HEAD:${file}`], options);
