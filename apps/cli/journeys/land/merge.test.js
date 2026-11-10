@@ -289,7 +289,8 @@ test('a failing lifecycle generator blocks landing without reopening accepted wo
   assert.equal(result.code, 1, `${result.out}\n${result.err}`);
   const error = JSON.parse(result.out).error;
   assert.equal(error.code, 'LAND_MERGE');
-  assert.match(error.message, new RegExp(`#${right}.*update-docs\\.js.*docs/lifecycle\\.md|update-docs\\.js.*docs/lifecycle\\.md.*#${right}`, 'u'));
+  // The generator refusal names the generator command; it is the one landing step that runs it (packages/landing/src/io/docs.js).
+  assert.match(error.message, /node docs\/tools\/update-docs\.js failed in the merged tree/u);
   for (const id of [left, right]) assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'verified');
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'generator failure publishes nothing');
 });
