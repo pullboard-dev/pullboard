@@ -37,6 +37,8 @@ import * as store from '../../../../packages/store/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { HOST } from '../../tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -62,6 +64,19 @@ function addDiagnosedLight(box, ...args) {
 
 test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', () => {
   const box = project();
+  const bin = join(box.dir, 'runner-bin');
+  const worker = join(box.dir, 'runner-worker');
+  const home = join(box.dir, 'runner-home');
+  for (const folder of [bin, worker, home, join(home, '.pullboard')]) mkdirSync(folder, { recursive: true });
+  box.env.PATH = `${bin}:${box.env.PATH}`;
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.dir, 'runner-requests.jsonl') });
+  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '1');
+  assert.equal(registered.code, 0, registered.err || registered.out);
+  for (const [key, value] of [['gate.runnersFirst', 'on'], ['gate.loadAwareDispatch', 'off'], ['browserSlots', '0'], ['gateSlots', '0']]) {
+    const configured = box.run(box.repo, 'settings', key, value);
+    assert.equal(configured.code, 0, configured.err || configured.out);
+  }
+
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
   assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
