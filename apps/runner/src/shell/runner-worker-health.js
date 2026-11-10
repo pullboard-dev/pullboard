@@ -7,7 +7,7 @@ import { runnerJobReply } from '../../../../packages/runners/core.js';
 import { runnerProcessesIdle } from '../../../../packages/runners/core.js';
 import { runnerWorkerMatcher } from '../../../../packages/runners/core.js';
 import { parseProcessCensus } from '../../../../packages/kernel/src/core/process-census.js';
-import { exactStart } from '../../../../packages/gate/src/shell/child-journal-preload.js';
+import { exactStart } from '../../../../packages/gate/core.js';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
