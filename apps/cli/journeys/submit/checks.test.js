@@ -182,7 +182,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
   const clean = await plannedFixture(t);
   clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
   clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-  clean.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
+  clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   clean.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
   assert.deepEqual((await requireSubmitCells(clean.root, clean.main, commitCandidate(clean), clean.item)).problems, [],
@@ -193,7 +193,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
 function moveFixtureKernel(box, body) {
   box.put('packages/kernel/src/core/refused.js', body);
   box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-  box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
+  box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
 }
@@ -425,7 +425,7 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   const box = await plannedFixture(t, box => {
     box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
     box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-    box.put('src/refused.js', "export { Refused } from '../../../../../../packages/kernel/index.js';\n");
+    box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
     box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
     box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');

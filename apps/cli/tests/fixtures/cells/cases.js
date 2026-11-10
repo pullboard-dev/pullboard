@@ -151,7 +151,7 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     /** Invoke the production plan CLI with the private real board and unchanged joined CLI shim. */
     const file = () => runFixtureChild(process.execPath, [BIN, '--file-cuts', '--yes'], { cwd: box.repo, env: box.env, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     const first = file();
-    assert.equal(first.status, 0, 'PROBE ' + first.stderr.slice(first.stderr.lastIndexOf('[CELLS_PLAN_FILE]'), first.stderr.lastIndexOf('[CELLS_PLAN_FILE]') + 600).replace(/\s+/gu, ' ')); // PROBE
+    assert.equal(first.status, 0, first.stdout + first.stderr);
     const before = JSON.parse(box.run(box.repo, 'list', 'core', '--all', '--json').out).items;
     assert.equal(before.length, 1);
     assert.equal(before[0].item_after, '', 'the actual filed item can start before move tooling');
