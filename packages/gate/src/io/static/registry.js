@@ -16,6 +16,11 @@ import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
+import {
+  missingPathFindings,
+  missingPathGrowth,
+  readMissingPathBaseline,
+} from '../paths/lint.js';
 import { STATIC_CHECKS } from '../../../index.js';
 import { cliReachRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
@@ -55,6 +60,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'cli-reach', run: root => cliReachRows(root) },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'test-cells', run: root => testCellsProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // Repository paths in code that do not exist; the per-file count may only fall (#5302).
+  { name: 'missing-paths', run: root => missingPathGrowth(missingPathFindings(root), readMissingPathBaseline(root)) },
   { name: 'import-style', run: (root, sources) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   { name: 'engine-folder', run: root => engineFolderProblems(root).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', run: (root, sources) => boardWriteIoProblems(sources)
