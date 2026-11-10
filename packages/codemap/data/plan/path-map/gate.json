@@ -73,7 +73,7 @@
   "test/gate-timing-output.test.js": "packages/gate/tests/io/main/output.test.js",
   "test/gui-admission.test.js": "packages/gate/tests/io/gui/admission.test.js",
   "test/gui-marker-guard.test.js": "packages/gate/tests/io/gui/admission/guard.test.js",
-  "test/land-affected.test.js": "packages/gate/tests/land-affected.test.js",
+  "test/land-affected.test.js": "apps/cli/journeys/land/affected.test.js",
   "test/landing-stage-composition.test.js": "packages/gate/tests/landing-stage-composition.test.js",
   "test/resources.test.js": "packages/gate/tests/io/browser/admission/resources.test.js",
   "test/runner-timing.test.js": "packages/gate/tests/io/run/timing.test.js",

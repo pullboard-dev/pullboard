@@ -41,13 +41,13 @@
   "src/relay-storage.js": "packages/link/src/logic/relay/storage.js",
   "src/relay-upload-pause.js": "packages/link/src/io/relay/pause.js",
   "src/relay.js": "packages/link/src/io/relay.js",
-  "test/relay-canary-history.test.js": "packages/link/tests/relay-canary-history.test.js",
-  "test/relay-device-confirmation.test.js": "packages/link/tests/relay-device-confirmation.test.js",
+  "test/relay-canary-history.test.js": "apps/cli/journeys/relay/canary/history.test.js",
+  "test/relay-device-confirmation.test.js": "apps/cli/journeys/relay/confirmation.test.js",
   "test/relay-device-keys.test.js": "packages/link/tests/logic/relay/poll.test.js",
   "test/relay-lock.test.js": "packages/link/tests/io/relay/lock.test.js",
-  "test/relay-machine-storage.test.js": "packages/link/tests/relay-machine-storage.test.js",
+  "test/relay-machine-storage.test.js": "apps/cli/journeys/relay/machine/storage.test.js",
   "test/relay-phone-crypto.test.js": "packages/link/tests/io/relay/phone.test.js",
-  "test/relay-setup-once.test.js": "packages/link/tests/relay-setup-once.test.js",
-  "test/relay-stall-phases.test.js": "packages/link/tests/relay-stall-phases.test.js",
-  "test/relay-sync.test.js": "packages/link/tests/relay-sync.test.js"
+  "test/relay-setup-once.test.js": "apps/cli/journeys/relay/setup/once.test.js",
+  "test/relay-stall-phases.test.js": "apps/cli/journeys/relay/phases.test.js",
+  "test/relay-sync.test.js": "apps/cli/journeys/relay/sync.test.js"
 }

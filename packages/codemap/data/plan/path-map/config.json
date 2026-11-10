@@ -15,7 +15,7 @@
   "test/submit-infra.test.js": "packages/config/tests/submit/infra.test.js",
   "test/submit-registry-guards.test.js": "packages/config/tests/submit/guards.test.js",
   "test/submit-size.test.js": "packages/config/tests/submit/size.test.js",
-  "test/watch.test.js": "packages/config/tests/watch.test.js",
+  "test/watch.test.js": "apps/cli/journeys/watch/main.test.js",
   "src/release-headlines.js": "packages/config/src/io/headlines.js",
   "src/release-version.js": "packages/config/src/logic/version.js",
   "src/git-sync-files.js": "packages/config/src/io/git/sync.js",

@@ -26,7 +26,7 @@
   "src/cost-shared.js": "packages/stats/src/io/cost/shared.js",
   "src/cost.js": "packages/stats/src/io/cost.js",
   "src/cost-usage-batch.js": "packages/stats/src/io/cost/batch.js",
-  "test/usage-publish-batch.test.js": "packages/stats/tests/usage-publish-batch.test.js",
+  "test/usage-publish-batch.test.js": "apps/cli/journeys/publish/usage/batch.test.js",
   "src/stats-pipeline.js": "packages/stats/src/logic/pipeline.js",
   "src/stats-moves.js": "packages/stats/src/logic/moves.js",
   "src/stats-build-time.js": "packages/stats/src/logic/build/time.js",

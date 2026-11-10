@@ -44,7 +44,7 @@
   "src/submit-size.js": "packages/items/src/logic/submit/size.js",
   "src/submit-wait.js": "packages/items/src/io/submit/wait.js",
   "src/work-order.js": "packages/items/src/logic/order/work.js",
-  "test/bar-native-session.test.js": "packages/items/tests/bar-native-session.test.js",
+  "test/bar-native-session.test.js": "apps/cli/journeys/bar/session.test.js",
   "test/decision-handoff.test.js": "packages/items/tests/io/decision.test.js",
   "test/item-offer.test.js": "packages/items/tests/item-offer.test.js",
   "src/check-timing.js": "packages/items/src/logic/check/timing.js",
