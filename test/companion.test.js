@@ -23,7 +23,7 @@ function run(box, cwd, ...args) {
 function seat(box, name, lane) {
   const path = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
-  run(box, path, 'join', lane, '--model', 'fixture-companion');
+  run(box, path, 'join', lane, '--model', 'fixture-companion-opus');
   return path;
 }
 
