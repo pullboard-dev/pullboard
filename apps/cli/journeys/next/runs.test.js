@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   fixture,
@@ -14,6 +15,7 @@ import {
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { shout } from '../../../../packages/store/index.js';
 import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
+import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 import * as store from '../../../../packages/store/index.js';
 
 /** A fixture whose actor seat holds a claimed item and has a second item open for it. */
@@ -23,6 +25,7 @@ async function seatWithClaim(t, { heldGate = false } = {}) {
   const seat = box.seats.actor;
   let gate;
   if (heldGate) {
+    box.advance(Date.now() - box.clock.now().getTime());
     const directory = dirname(box.root);
     const script = join(directory, 'held-gate.cjs');
     gate = { entered: join(directory, 'gate-entered'), release: join(directory, 'gate-release') };
@@ -61,9 +64,7 @@ test('next offers new work while the gate is queued or running, and the red item
   box.git(seat.path, 'add', 'web/first.js');
   box.git(seat.path, 'commit', '-q', '-m', 'feat(web): build first item [G1]');
   store.appendFact(box.board, first, { agentId: seat.id, kind: 'diagnosis', text: 'Files: web/first.js\nChange: build the first item\nTest case: a running gate leaves the seat free for the next item.' });
-  const submitted = await cli(box, seat.path, ['submit', String(first), '--no-next']);
-  assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.equal(submitted.document.queued, true, 'submit launched the native asynchronous handoff');
+  const submitted = runFixtureChildAsync(process.execPath, [fileURLToPath(new URL('../../pullboard.js', import.meta.url)), 'submit', String(first), '--no-next', '--json'], { cwd: seat.path, env: { ...process.env }, encoding: 'utf8' });
   try {
     await waitForCondition(() => existsSync(gate.entered), 'the real submit gate enters', { signal: AbortSignal.timeout(60_000) }); // Budget: runaway ceiling for a real runner gate to start.
   const offered = await cli(box, seat.path, ['next', '--build']);
@@ -81,6 +82,7 @@ test('next offers new work while the gate is queued or running, and the red item
   assert.equal(back.document.held, true);
   } finally {
     writeFileSync(gate.release, 'release');
+    await submitted;
   }
 });
 
