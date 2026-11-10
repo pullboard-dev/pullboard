@@ -79,6 +79,34 @@ function shellWord(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+/** Stop only this fixture repo's registered landing workers before removing their machine home. */
+async function stopFixtureLanding(root) {
+  const directory = join(root, '.git', 'pullboard', 'automatic-landing');
+  const owners = [];
+  for (const name of ['timer.json', 'pending.json']) {
+    let record;
+    try { record = JSON.parse(readFileSync(join(directory, name), 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (record.root !== root) continue;
+    const owner = name === 'timer.json' ? record : record.running;
+    if (owner) {
+      if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0 || !owner.started) throw new Error('MCP fixture landing worker lacks process identity');
+      owners.push(owner);
+    }
+  }
+  /** A PID is owned only while its recorded OS start identity and exact fixture command match. */
+  const live = owner => {
+    const start = runFixtureChild('/bin/ps', ['-p', String(owner.pid), '-o', 'lstart='], { encoding: 'utf8' });
+    if (start.status !== 0 || start.stdout.trim() !== owner.started) return false;
+    const command = runFixtureChild('/bin/ps', ['-p', String(owner.pid), '-o', 'command='], { encoding: 'utf8' });
+    return command.status === 0 && command.stdout.includes('/landing/automatic.js ') && command.stdout.includes(` ${root} `);
+  };
+  for (const owner of owners) if (live(owner)) {
+    try { process.kill(owner.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
+  await createE2eHelpers().waitFor(() => owners.every(owner => !live(owner)), 'MCP fixture landing workers exit');
+}
+
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
@@ -100,6 +128,7 @@ function project(t) {
       try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { return false; }
       return !existsSync(join(jobs, job, 'source')) && (!tools || !existsSync(tools));
     }), 'MCP fixture submit worker cleanup');
+    await stopFixtureLanding(join(dir, 'repo'));
     try { rmSync(dir, { recursive: true, force: true }); }
     catch (error) {
       // Report only fixture-owned paths and processes; preserve the original cleanup failure.
