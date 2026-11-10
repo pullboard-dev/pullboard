@@ -49,7 +49,8 @@ const value=await withGateSlot(process.cwd(), async lease=>{
   return lease.runner.host;
 }, {executionServices,remote:true,runnerOnly:true,kind:'runner-setup-test'});
 console.log(JSON.stringify({seen,value}));`;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 30000 });
+  const env = { ...box.env, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0' };
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(result.status, 0, result.context);
   const record = JSON.parse(result.stdout.trim());
   assert.deepEqual(record.seen, ['first', 'second']);
