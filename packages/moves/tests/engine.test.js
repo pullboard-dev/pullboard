@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads packages/state/src/shell/engine.js packages/state/src/shell/machine.js */
+/** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/io/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -12,8 +12,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
-import { fixtureBoard } from '../../../test/board-fixture.js';
-import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
 import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { restoreRelaySnapshot } from '../../store/index.js';
@@ -32,8 +32,8 @@ import { discovered } from '../../kernel/index.js';
 import { ENGINE_REGISTRY } from '../../state/index.js';
 import { ENGINE_VERSION } from '../../state/index.js';
 import { discoverEngines } from '../../state/index.js';
-import { Refused } from '../../kernel/core.js';
-import { unpackRelease } from '../../../test/release-archive.js';
+import { Refused } from '../../kernel/light.js';
+import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
 
 const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
@@ -676,7 +676,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   assert.ok(entries.length > 0, 'the registry names at least one feature engine');
   for (const [name, engine] of entries) assert.ok(Number.isSafeInteger(engine) && engine > 0, `feature ${name} declares a positive whole engine number`);
   assert.equal(ENGINE_VERSION, Math.max(...entries.map(([, engine]) => engine)), 'the engine version is the highest number any feature declares');
-  const source = new URL('../../state/src/core/engines/', import.meta.url);
+  const source = new URL('../../state/src/logic/engines/', import.meta.url);
   const files = readdirSync(source).filter((file) => /-engine\.js$/u.test(file));
   assert.deepEqual(Object.keys(ENGINE_REGISTRY), files.map((file) => file.slice(0, -'-engine.js'.length)).sort(), 'every engines-folder *-engine.js leaf is a feature engine, discovered by its file name');
   const declarations = files.map(file => {
@@ -690,7 +690,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   });
   const next=Math.max(0,...declarations.map(row=>row.number??0))+1;
   for (const row of declarations) assert.equal(ENGINE_REGISTRY[row.file.slice(0,-'-engine.js'.length)],row.number??next,'unlanded branches read one above the highest assigned engine');
-  assert.doesNotMatch(readFileSync(new URL('../../state/src/shell/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/shell/machine.js lists no engine by name');
+  assert.doesNotMatch(readFileSync(new URL('../../state/src/io/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/io/machine.js lists no engine by name');
 });
 
 test('a feature engine or command file name outside letters, digits, underscore and hyphen is refused by discovery [C7,V4]', () => {
@@ -733,13 +733,13 @@ test('engine 93 item messages replay and older broadcasts keep their recorded me
 
 test('outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
   const { createHash } = await import('node:crypto');
-  const outsideIntake = await import('../../state/core.js');
+  const outsideIntake = await import('../../state/light.js');
   const { copies: [one, two] } = engineCopies(t);
   // These object IDs exercise deterministic storage only; no outside program or sandbox execution is claimed.
   const text = JSON.stringify({ title: 'Outside replay fixture', criterion: 'record the source', rows: [], check: 'true' });
   const frozen = { text, digest: createHash('sha256').update(text).digest('hex') };
   const source = { kind: 'pull-request', repository: 'fixture/project', number: 7, author: 'outside-contributor', state: 'open', maintainerReplied: true,
-    commit: 'a'.repeat(40), tree: 'b'.repeat(40), base: 'c'.repeat(40), files: ['relay/outside.js'], sensitive: true };
+    commit: 'a'.repeat(40), tree: 'b'.repeat(40), base: 'c'.repeat(40), files: ['apps/relay/src/io/deploy/outside.js'], sensitive: true };
   const move = prepareEngineMove(one, 'intakeOutside', [{ agentId: 'coordinator', source, frozen,
     item: { lane: 'web', title: 'Outside replay fixture', criterion: 'record the source', check: 'true' } }], { id: 'outside-replay-intake' });
   for (const board of [one, two]) {

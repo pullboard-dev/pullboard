@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
   runFixtureChild as spawnSync,
-} from '../../../test/fixture-child.js';
+} from '../../../apps/cli/tests/fixtures/child.js';
 import { once } from 'node:events';
 import {
   mkdtempSync,
@@ -22,7 +22,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
-import { repoPath } from '../../kernel/core.js';
+import { repoPath } from '../../kernel/light.js';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -222,7 +222,7 @@ test('the import scan finds a package however it is imported, and nothing that i
  */
 function packageSource(file, source) {
   const loaders = {
-    [join(ROOT, 'packages/moves/src/shell/move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
+    [join(ROOT, 'packages/moves/src/io/registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
     [join(ROOT, 'src/commands/index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
   };
   const loader = loaders[file];
@@ -235,9 +235,9 @@ function importsForPackageFile(file, source) { return importsIn([packageSource(f
 test('every import is a node: built-in or a relative file [P3]', () => {
   const files = [
     ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => repoPath(ROOT, `src/${name}`)),
-    join(ROOT, 'bin/pullboard.js'),
+    join(ROOT, 'apps/cli/pullboard.js'),
   ];
-  const moveDirectory = join(ROOT, 'packages/moves/src/core/moves');
+  const moveDirectory = join(ROOT, 'packages/moves/src/logic/moves');
   const moveFiles = readdirSync(moveDirectory).filter(name => name.endsWith('.js'));
   files.push(...moveFiles.map(name => join(moveDirectory, name)));
   assert.ok(moveFiles.length > 0, 'all discovered move modules remain inside the no-dependencies scan');
@@ -250,7 +250,7 @@ test('every import is a node: built-in or a relative file [P3]', () => {
 });
 
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
-  const file = join(ROOT, 'packages/moves/src/shell/move-registry.js');
+  const file = join(ROOT, 'packages/moves/src/io/registry.js');
   const source = readFileSync(file, 'utf8');
   const site = 'import(new URL(file, directory).href)';
   assert.ok(source.includes(site), 'the constrained discovery site is present');
@@ -264,8 +264,8 @@ test('the installable package includes the single inherited doctrine file [D1]',
   const packed = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(packed.status, 0, packed.stderr);
   const files = JSON.parse(packed.stdout)[0].files.map(file => file.path);
-  assert.equal(files.filter(file => file === 'packages/doctrine/src/shell/standard-doctrine.md').length, 1);
-  assert.ok(files.includes('packages/doctrine/src/shell/doctrine.js'));
+  assert.equal(files.filter(file => file === 'packages/doctrine/src/io/standard.md').length, 1);
+  assert.ok(files.includes('packages/doctrine/src/io/main.js'));
   assert.ok(files.includes('CHANGELOG.md'), 'resume release headlines require the shipped changelog');
 });
 

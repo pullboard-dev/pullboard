@@ -1,8 +1,8 @@
 /** Seat identity, local sessions and lane policy behind their canonical front door [C7,CD60,CD64]. */
-export { seatWakeCommand } from './src/shell/seat-wake.js';
-export { registerSeatWake } from './src/shell/seat-wake.js';
-export { wakeRoutedSeat } from './src/shell/seat-wake.js';
-export { hasSeatWake } from './src/shell/seat-wake.js';
+export { seatWakeCommand } from './src/io/wake.js';
+export { registerSeatWake } from './src/io/wake.js';
+export { wakeRoutedSeat } from './src/io/wake.js';
+export { hasSeatWake } from './src/io/wake.js';
 export {
   timingSeat,
   appendSeatTiming,
@@ -14,23 +14,23 @@ export {
   laneAnswerFloor,
   laneMessageFloor,
   flowWindowBounds,
-} from './core.js';
+} from './light.js';
 export {
   work,
-} from './src/core/agent-hook-work.js';
+} from './src/logic/agent/steps.js';
 export {
   runAgentHook,
-} from './src/shell/agent-hook.js';
+} from './src/io/agent/hook.js';
 export {
   AGENT_HOOK_EVENTS,
   LEGACY_RESUME_HOOK,
   agentHookCommand,
   configureAgentHooks,
   agentHookStatus,
-} from './src/shell/agent-hooks.js';
+} from './src/io/agent/events.js';
 export {
   displayAgentName,
-} from './src/core/agent-names.js';
+} from './src/logic/agent/names.js';
 export {
   CHECKOUT_SESSION_TOKEN_ENV,
   HOOK_CHECKOUT_WAIT_MS,
@@ -45,25 +45,25 @@ export {
   recordParentSession,
   noteHelperParent,
   seatLinks,
-} from './src/shell/agent-session.js';
+} from './src/io/agent/session.js';
 export {
   agentTree,
   agentTreeLines,
   agentsReport,
-} from './src/shell/agent-tree.js';
+} from './src/io/agent/tree.js';
 export {
   computerName,
-} from './src/core/computer-name.js';
+} from './src/logic/computer.js';
 export {
   computerLabel,
   stampCoordinatorHolder,
   coordinatorHolder,
   requireCoordinatorHold,
   takeCoordinator,
-} from './src/shell/coordinator-hold.js';
+} from './src/io/hold.js';
 export {
   applyLaneLead,
-} from './src/core/lane-lead-policy.js';
+} from './src/logic/lane/lead/policy.js';
 export {
   laneNames,
   isLane,
@@ -71,34 +71,34 @@ export {
   outOfLane,
   lanePath,
   addLane,
-} from './src/shell/lanes.js';
+} from './src/io/lanes.js';
 export {
   reviewOffer,
   claimProblem,
-} from './src/core/line-capacity-board.js';
+} from './src/logic/line/capacity/board.js';
 export {
   capacitySettings,
   lineCapacitySnapshot,
   lineCapacityProblem,
   takeoverReady,
-} from './src/core/line-capacity.js';
+} from './src/logic/line/capacity.js';
 export {
   lineOrderEnabled,
   waitedOnItems,
   reviewerScarcity,
   lineBuildOrder,
   barReadyForOrder,
-} from './src/shell/line-order.js';
+} from './src/io/order.js';
 export {
   lineSettingsCommand,
-} from './src/core/line-settings-cli.js';
+} from './src/logic/line/settings/cli.js';
 export {
   setLineSetting,
-} from './src/core/line-settings.js';
+} from './src/logic/line/settings.js';
 export {
   ACTIVE_REVIEWER_WINDOW_MINUTES,
   lineWipLimit,
-} from './src/core/line-wip-limit.js';
+} from './src/logic/line/limit.js';
 export {
   registryFile,
   projectBoardIdentity,
@@ -112,28 +112,28 @@ export {
   registerProject,
   forgetProject,
   registerProjectAndLink,
-} from './src/shell/projects.js';
+} from './src/io/projects.js';
 export {
   routeWorkShortages,
-} from './src/core/route-capacity.js';
+} from './src/logic/route/capacity.js';
 export {
   ROUTES,
   canTake,
   cappedRoute,
   rejectedItemEscalation,
   recordRejectedItemRoute,
-} from './src/core/route-escalation.js';
+} from './src/logic/route/escalation.js';
 export {
   seatAddress,
   addressedSeat,
-} from './src/core/seat-address.js';
+} from './src/logic/address.js';
 export {
   unjoinedRefusal,
   refuseHeldElsewhere,
   seatLeadLine,
   laneSeatContext,
   nextSessionSeats,
-} from './src/shell/seat-checkout.js';
+} from './src/io/checkout.js';
 export {
   saveAgentModel,
   routeOf,
@@ -142,44 +142,44 @@ export {
   withVerifierStanding,
   saveAgentSession,
   saveAgentParent,
-} from './src/shell/seats.js';
+} from './src/io/main.js';
 export {
   liveRouteProblem,
   idleReason,
-} from './src/core/routing-presence.js';
+} from './src/logic/presence.js';
 export {
   agentCreator,
   seatEnrolled,
   seatLineage,
   standingProblem,
   effectiveAgentParent,
-} from './src/core/seat-review-read.js';
+} from './src/logic/review/lineage.js';
 export {
   parseDependency,
   validateNativeDependencies,
   dependencyReferences,
   localDependencyIds,
-} from './core.js';
+} from './light.js';
 export {
   reviewRoutingEnabled,
-} from './src/core/review-routing-enabled.js';
+} from './src/logic/review/routing.js';
 export {
   verdictRows,
-} from './src/core/verdict-rows.js';
+} from './src/logic/rows.js';
 export {
   agentParent,
-} from './src/core/seat-parent.js';
+} from './src/logic/parent.js';
 export {
   remoteRepository,
-} from './src/core/github-remote.js';
+} from './src/logic/github/remote.js';
 export {
   originRepository,
-} from './src/core/github-origin.js';
-export { MODEL_TIERS, modelTier } from './src/core/model-tier.js';
+} from './src/logic/github/origin.js';
+export { MODEL_TIERS, modelTier } from './src/logic/tier.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,
   runClaimWatchdog,
-} from './src/shell/claim-watchdog.js';
-export { claimWorktreeSnapshot } from './src/shell/untouched-claim-observation.js';
-export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/shell/seat-ledger.js';
+} from './src/io/watchdog.js';
+export { claimWorktreeSnapshot } from './src/io/untouched.js';
+export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/io/ledger.js';

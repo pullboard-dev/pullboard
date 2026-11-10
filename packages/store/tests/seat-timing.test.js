@@ -10,11 +10,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { beginSeatTiming } from '../../seats/core.js';
+import { beginSeatTiming } from '../../seats/light.js';
 import { seatLedger } from '../../seats/index.js';
 import { seatLines } from '../../seats/index.js';
 import { worktreeActivity } from '../../seats/index.js';
-import { beginImmediateQueued } from '../src/shell/board-busy.js';
+import { beginImmediateQueued } from '../src/io/board/busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-timing-'));

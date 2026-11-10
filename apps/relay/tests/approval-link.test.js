@@ -14,13 +14,13 @@ import { autoLinkProject } from '../../../packages/link/index.js';
 import { readRelayMachine } from '../../../packages/link/index.js';
 import { relayOnAll } from '../../../packages/link/index.js';
 import { registerProject } from '../../../packages/seats/index.js';
-import { closeCellBoard } from '../../../test/cell-fixture.js';
-import { CELL_CONFIG } from '../../../test/cell-fixture.js';
-import { cellItem } from '../../../test/cell-fixture.js';
-import { cellRepo } from '../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../test/cell-fixture.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
-import { findChromeExecutable } from '../../../test/relay-browser-fixture.js';
+import { closeCellBoard } from '../../../packages/store/tests/fixtures/cell.js';
+import { CELL_CONFIG } from '../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../packages/store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../packages/store/tests/fixtures/cell.js';
+import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
+import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
 
 /** The first board's own item, which the phone must not leave on screen once it selects the approved board. */
 const FIRST_TITLE = 'private cleanup fixture item';

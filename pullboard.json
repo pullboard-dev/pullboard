@@ -2,7 +2,7 @@
   "name": "pullboard",
   "itemSizeBudget": 150,
   "gate": "npm run gate",
-  "affectedTests": "node bin/run-tests.js",
+  "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
@@ -52,9 +52,9 @@
       3176
     ],
     "auditOnly": [
-      "test/machine.test.js",
-      "test/refusal-next-steps.test.js",
-      "test/e2e.test.js",
+      "apps/cli/journeys/verify/machine.test.js",
+      "apps/cli/journeys/submit/steps.test.js",
+      "apps/cli/journeys/merged/e2e.test.js",
       "docs/formats.test.js",
       "packages/store/tests/verdict-check.test.js"
     ]
@@ -68,47 +68,46 @@
     "returnToBoard": true
   },
   "submitInvariants": [
-    "test/refusal-next-steps.test.js",
-    "test/machine.test.js"
+    "apps/cli/journeys/submit/steps.test.js",
+    "apps/cli/journeys/verify/machine.test.js"
   ],
   "registryGuards": [
     {
       "inputs": [
-        "packages/api/src/shell/api.js",
-        "apps/view/src/shell/serve.js",
-        "packages/store/src/shell/native-board-state.js",
-        "packages/store/src/core/native-state-clock.js",
-        "packages/pages/src/shell/relay-presentation.js",
-        "packages/store/src/shell/exchange.js",
-        "packages/store/src/shell/board-schema.js",
-        "packages/store/src/shell/board-schema-source.js",
-        "packages/state/src/shell/formats/board-schema.json",
-        "packages/state/src/shell/machine.js",
-        "packages/moves/src/shell/move-registry.js",
-        "apps/relay/src/shell/browser-model.js"
+        "packages/api/src/io/main.js",
+        "apps/view/src/io/serve.js",
+        "packages/store/src/io/board/state.js",
+        "packages/store/src/logic/clock.js",
+        "packages/pages/src/io/relay/presentation.js",
+        "packages/store/src/io/exchange.js",
+        "packages/store/src/io/board/schema.js",
+        "packages/store/src/io/board/schema/source.js",
+        "packages/state/src/io/formats/schema.json",
+        "packages/state/src/io/machine.js",
+        "packages/moves/src/io/registry.js",
+        "apps/relay/src/io/browser/model.js"
       ],
       "tests": [
-        "test/relay-parity.test.js",
-        "test/relay-parity-clock.test.js"
+        "apps/cli/journeys/relay/parity.test.js",
+        "apps/cli/journeys/relay/parity/clock.test.js"
       ]
     },
     {
       "inputs": [
-        "packages/moves/src/core/moves/**",
-        "packages/moves/src/shell/moves/**",
-        "packages/state/src/core/recorded-move.js",
-        "src/api-moves.js",
-        "packages/moves/src/shell/move-registry.js",
-        "src/discovery.js"
+        "packages/moves/src/logic/moves/**",
+        "packages/moves/src/io/moves/**",
+        "packages/state/src/logic/recorded/move.js",
+        "packages/moves/src/io/registry.js"
       ],
       "tests": [
-        "test/relay-credential.test.js",
-        "test/move-registry.test.js"
+        "apps/cli/journeys/relay/credential.test.js",
+        "apps/cli/journeys/move/registry.test.js"
       ]
     },
     {
       "inputs": [
-        "src/**",
+        "apps/**",
+        "packages/**",
         "docs/formats.md"
       ],
       "tests": [
@@ -117,17 +116,15 @@
     },
     {
       "inputs": [
-        "src/help.js",
-        "src/commands/**",
-        "src/cli-main.js"
+        "apps/cli/src/io/**"
       ],
       "tests": [
-        "test/readme.test.js"
+        "apps/cli/journeys/doctrine/readme.test.js"
       ]
     },
     {
       "inputs": [
-        "relay/**",
+        "apps/relay/**",
         "docs/architecture.md"
       ],
       "tests": [
@@ -150,14 +147,10 @@
   "lanes": {
     "core": {
       "owns": [
-        "src/",
-        "bin/",
-        "test/",
         "packages/",
         "apps/",
         "package.json",
         ".github/workflows/",
-        "relay/",
         "docs/api.md",
         "docs/api.test.js",
         "docs/lifecycle.md",
@@ -195,7 +188,7 @@
       "owns": [
         "docs/",
         "README.md",
-        "test/readme.test.js",
+        "apps/cli/journeys/doctrine/readme.test.js",
         "skills/",
         "DOCTRINE.md",
         "PRACTICE.md",
@@ -212,13 +205,9 @@
     },
     "view": {
       "owns": [
-        "src/view.css",
-        "src/view/",
         "apps/view/",
-        "bin/cells-plan/45-app-view.json",
-        "test/cockpit.test.js",
-        "test/cockpit/",
-        "test/journeys.test.js"
+        "packages/codemap/data/plan/45-app-view.json",
+        "apps/cli/journeys/shout/journeys.test.js"
       ],
       "specs": [
         "N26",
@@ -229,8 +218,8 @@
     }
   },
   "shared": [
-    "test/chrome-fixture.js",
-    "test/cockpit/fixture.js"
+    "apps/cli/tests/fixtures/chrome.js",
+    "apps/cli/tests/fixtures/cockpit/harness.js"
   ],
   "commits": {
     "requireIds": [
@@ -240,7 +229,7 @@
     "noEmoji": true,
     "noHostName": true
   },
-  "staticChecks": "node --experimental-vm-modules --disable-warning=ExperimentalWarning bin/static-style-checks.js",
+  "staticChecks": "node --experimental-vm-modules --disable-warning=ExperimentalWarning apps/cli/src/io/static/checks.js",
   "flakes": {
     "rerun": true,
     "quarantine": true

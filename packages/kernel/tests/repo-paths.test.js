@@ -6,25 +6,25 @@ import { join } from 'node:path';
 import { sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { repoPath } from '../core.js';
+import { repoPath } from '../light.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const ROOT_SEGMENTS = new Set(['bin', 'src', 'test', 'relay']);
 
 /** Files allowed to pass a root segment followed by more segments, each with the reason. */
 const EXCEPTIONS = new Map([
-  ['packages/doctrine/tests/merge-hooks.test.js', 'spawns the CLI; naming bin/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
-  ['packages/gate/tests/precommit-lane-merged-main.test.js', 'spawns the CLI; naming bin/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
+  ['packages/doctrine/tests/hooks.test.js', 'spawns the CLI; naming apps/cli/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
+  ['packages/gate/tests/io/receipts.test.js', 'spawns the CLI; naming apps/cli/pullboard.js as one string makes the cell-test ratchet count it as a new finding, so the coordinator moves it to the journeys'],
   ['docs/shots/demo.mjs', 'docs lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
   ['docs/shots/video.mjs', 'docs lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/item-panel.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/machine-fixture.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/perf/generate.mjs', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/perf/run.mjs', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/prose.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/provenance.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/relay.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
-  ['test/cockpit/search.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/journeys/verify/item/panel.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/tests/fixtures/cockpit/machine.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/tests/fixtures/cockpit/perf/generate.mjs', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/tests/fixtures/cockpit/perf/run.mjs', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/journeys/shout/prose.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/journeys/init/provenance.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/journeys/relay/cockpit.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/cli/journeys/shout/search.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
 ]);
 
 /** The index just past a quoted string or template literal that starts at `at`, or -1. */
@@ -82,7 +82,7 @@ function segmentBuiltCalls(file, text) {
 }
 
 test('repoPath joins a slash-separated repository path under the root [C7]', () => {
-  assert.equal(repoPath('/work/repo', 'bin/checks/cells-edges.json'), join('/work/repo', 'bin', 'checks', 'cells-edges.json'));
+  assert.equal(repoPath('/work/repo', 'packages/gate/data/ceilings/cells-edges.json'), join('/work/repo', 'packages', 'gate', 'data', 'ceilings', 'cells-edges.json'));
   assert.equal(repoPath('/work/repo', 'src'), `/work/repo${sep}src`);
   assert.equal(repoPath('/work/repo', 'src/'), `/work/repo${sep}src`);
   assert.equal(repoPath('/work/repo', 'test/a b/c.test.js'), join('/work/repo', 'test', 'a b', 'c.test.js'));

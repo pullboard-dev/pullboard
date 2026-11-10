@@ -6,7 +6,7 @@
  * code?: string }`. A missing or invalid section judges as infra. The verdict is red if any section failed, else
  * infra if any was lost, else green. A receipt for reuse is `{ candidate, base, verdict }` with tree ids.
  */
-export { SECTIONS, OUTCOMES, judge, verdictStep, settle } from './src/core/judge.js';
-export { receiptKey, reusable, receiptByKey } from './src/core/reuse.js';
-export { mainRedKey, mainReceiptByKey, mainRedStatus, classifyMainRed, comparisonStatus, MAIN_TEST_JOB, mainTestJobId } from './src/core/main-red.js';
-export { resultStatement, runnerKeyId, checkSignedResult } from './src/core/signed-result.js';
+export { SECTIONS, OUTCOMES, judge, verdictStep, settle } from './src/logic/judge.js';
+export { receiptKey, reusable, receiptByKey } from './src/logic/reuse.js';
+export { mainRedKey, mainReceiptByKey, mainRedStatus, classifyMainRed, comparisonStatus, MAIN_TEST_JOB, mainTestJobId } from './src/logic/main/red.js';
+export { resultStatement, runnerKeyId, checkSignedResult } from './src/logic/signed.js';

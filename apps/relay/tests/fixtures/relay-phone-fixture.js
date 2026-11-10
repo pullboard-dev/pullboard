@@ -12,7 +12,7 @@ import { revokeRelayPersonSession } from '../../../../packages/link/index.js';
 import { createDeviceKeys } from '../../../../packages/keys/index.js';
 import { signDeviceEnrollment } from '../../../../packages/keys/index.js';
 import { registerProject } from '../../../../packages/seats/index.js';
-import { startChrome } from '../../../../test/relay-browser-fixture.js';
+import { startChrome } from '../../../cli/tests/fixtures/relay/browser.js';
 
 /** Poll an actual fixture state transition without retrying the operation under test. */
 export async function waitFor(read, message, timeoutMs = 20_000) {

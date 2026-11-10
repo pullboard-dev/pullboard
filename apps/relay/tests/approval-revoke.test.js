@@ -12,7 +12,7 @@ import {
   pairChromePhone,
   waitFor,
 } from './fixtures/relay-phone-fixture.js';
-import { findChromeExecutable } from '../../../test/relay-browser-fixture.js';
+import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 
 /** Issue a real board-scoped token through the fixture's persistent relay-auth database. */

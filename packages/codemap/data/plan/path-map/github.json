@@ -1,0 +1,12 @@
+{
+  "src/pr-proof-graph.js": "packages/github/src/io/pr/graph.js",
+  "src/ci-flakes.js": "packages/github/src/io/flakes.js",
+  "src/intake-github.js": "packages/github/src/io/intake.js",
+  "src/pr-findings.js": "packages/github/src/io/pr/findings.js",
+  "src/pr-github.js": "packages/github/src/io/pr.js",
+  "src/pr-proof-snapshot.js": "packages/github/src/logic/snapshot.js",
+  "src/pr-publish.js": "packages/github/src/io/pr/publish.js",
+  "src/pr-verification.js": "packages/github/src/io/pr/verification.js",
+  "src/private-board.js": "packages/github/src/logic/private.js",
+  "src/publish.js": "packages/github/src/io/publish.js"
+}
