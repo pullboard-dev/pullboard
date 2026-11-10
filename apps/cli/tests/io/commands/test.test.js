@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commandDocs } from '../../../src/io/docs.js';
-import { readTestOutcomes } from '../../../../../packages/gate/src/io/test/outcomes.js';
+import { readTestOutcomes } from '../../../../../packages/gate/index.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
