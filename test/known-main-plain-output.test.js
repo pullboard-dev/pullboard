@@ -35,13 +35,13 @@ function notice(value, box, { owner, only = false } = {}) {
 
 test('identical main case is first in text and structured in test and submit, with real receipt [V4,B3,C7]', t => {
   const box = fixture(t);
-  const tested = cli(box, box.builder, 'test', FILE);
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   const report = JSON.parse(tested.stdout);
   assert.equal(report.green, false, 'guidance does not turn a red test green');
   assert.equal(report.mainFailures.length, 1, JSON.stringify(report));
   notice(report.mainFailures[0], box);
-  const plain = text(box, 'test', FILE);
+  const plain = text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], new RegExp(`^also fails on main at ${box.main}:`));
   assert.ok(plain.stdout.split('\n')[0].includes('[main receipt '));
@@ -68,7 +68,7 @@ test('identical main case is first in text and structured in test and submit, wi
 test('a unique repair owner appears at the top of submit text and in test JSON [V4,B3,C7]', t => {
   const box = fixture(t);
   const owner = fileMainRed(box);
-  const tested = cli(box, box.builder, 'test', FILE);
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
   notice(JSON.parse(tested.stdout).mainFailures[0], box, { owner });
@@ -83,17 +83,17 @@ test('a unique repair owner appears at the top of submit text and in test JSON [
 
 test('candidate-only failures stay red, are first in text, and remain structured on refusal [V4,B3,C7]', t => {
   const box = fixture(t, { main: 1, candidate: 2 });
-  const tested = cli(box, box.builder, 'test', FILE);
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
   notice(JSON.parse(tested.stdout).mainFailures[0], box, { only: true });
-  const plain = text(box, 'test', FILE);
+  const plain = text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails only with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
   const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'GATE_RED');
+  assert.equal(refusal.error.code, 'SUBMISSION_PROOF');
   assert.match(refusal.error.message, /^fails only with your change:/u);
   assert.equal(refusal.mainFailures.length, 1);
   notice(refusal.mainFailures[0], box, { only: true });
@@ -102,20 +102,20 @@ test('candidate-only failures stay red, are first in text, and remain structured
 
 test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', t => {
   const box = fixture(t, { main: 2, candidate: 3 });
-  const tested = cli(box, box.builder, 'test', FILE);
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   const report = JSON.parse(tested.stdout);
   assert.equal(report.mainFailures.length, 1, tested.stdout);
   assert.equal(report.mainFailures[0].status, 'different-on-main');
   assert.match(report.mainFailures[0].message, /^fails differently with your change:/u);
   assert.doesNotMatch(report.mainFailures[0].message, /not yours|fails only/u);
-  const plain = text(box, 'test', FILE);
+  const plain = text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.match(plain.stdout.split('\n')[0], /^fails differently with your change:/u);
   const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 1, submitted.stdout + submitted.stderr);
   const refusal = JSON.parse(submitted.stdout);
-  assert.equal(refusal.error.code, 'GATE_RED');
+  assert.equal(refusal.error.code, 'SUBMISSION_PROOF');
   assert.equal(refusal.mainFailures[0].status, 'different-on-main');
   assert.match(refusal.error.message, /^fails differently with your change:/u);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
@@ -154,7 +154,7 @@ test('async named accounting retains producer status, opaque unknowns and event-
 
 test('an unaccountable cancelled main file retains a coarse verdict without accepted-case words [V4,B3,C7]', t => {
   const box = fixture(t, { cancelled: true });
-  const tested = cli(box, box.builder, 'test', FILE);
+  const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   const report = JSON.parse(tested.stdout);
   assert.equal(report.green, false);
@@ -163,7 +163,7 @@ test('an unaccountable cancelled main file retains a coarse verdict without acce
   assert.equal(report.mainFileFailures.length, 1);
   assert.equal(report.mainFileFailures[0].result, 'red');
   assert.equal(report.mainFileFailures[0].message, `file also fails on main at ${box.main}: ${FILE} (case comparison unavailable)`);
-  const plain = text(box, 'test', FILE);
+  const plain = text(box, 'test', FILE, '--compare-main');
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
   assert.equal(plain.stdout.split('\n')[0], report.mainFileFailures[0].message);
   assert.doesNotMatch(plain.stdout, /not yours; accepted/u);

@@ -123,7 +123,7 @@ test('opt-in cannot excuse a candidate failure green on main or file a repair fo
   const box = fixture(t, { main: 1, candidate: 2, autoFileMainReds: true });
   const result = submit(box);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  assert.equal(JSON.parse(result.stdout).error.code, 'SUBMISSION_PROOF');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
 });
@@ -132,7 +132,7 @@ test('opt-in does not match changed assertion diagnostics merely because the cas
   const box = fixture(t, { main: 2, candidate: 3, autoFileMainReds: true });
   const result = submit(box);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED');
+  assert.equal(JSON.parse(result.stdout).error.code, 'SUBMISSION_PROOF');
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0);
 });
 
