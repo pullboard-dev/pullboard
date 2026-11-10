@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixture as planFixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
+import { publishAcceptedCells } from '../../../test/cells-plan-fixture.js';
 import { acceptedCutItems } from '../../../test/cells-plan-fixture.js';
 import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
@@ -39,7 +40,7 @@ const LINTS = fileURLToPath(new URL('../../../bin/cell-lints.js', import.meta.ur
  * Build a real repo whose main records a cell-lint baseline, then lands a cells move that adds a shim
  * without touching any baseline file, so main's committed snapshot no longer matches main's own source.
  */
-function staleMain(t) {
+async function staleMain(t) {
   const box = planFixture(t);
   box.root = realpathSync(box.root);
   box.put('package.json', JSON.stringify({ type: 'module', bin: 'src/cli.js' }));
@@ -60,8 +61,9 @@ function staleMain(t) {
   assert.equal(existsSync(join(box.root, 'bin/cell-lint-baselines/shim-counts.json')), false);
   assert.ok(cellLintReport(box.root, parsers).metrics.shims.findings.some(row => row.key === 'src/refused.js'), 'main really gained a shim');
   const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const artifact = await publishAcceptedCells(t, box.root, main);
   git(box.root, 'checkout', '-qb', 'candidate');
-  return { ...box, main };
+  return { ...box, main, artifact };
 }
 
 /** Commit the candidate and run the exact native cells submit guard against main. */
@@ -71,18 +73,18 @@ async function submit(box) {
   const commit = git(box.root, 'rev-parse', 'HEAD').trim();
   await requireSubmitCells(box.root, box.main, commit, { item_frozen: JSON.stringify({ criterion: 'Change the stats cell.' }) },
     { withMainCheckout, parsers, withImportParseCache, readCutItems: () => acceptedCutItems(box.root, box.main),
-      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), acceptedArtifact: box.artifact });
   return commit;
 }
 
 test('main gains a shim without touching any baseline file and an unrelated item still submits [C7]', async t => {
-  const box = staleMain(t);
+  const box = await staleMain(t);
   box.put('src/stats.js', readFileSync(join(box.root, 'src/stats.js'), 'utf8') + '// an unrelated edit in a planned cell\n');
   assert.match(await submit(box), /^[0-9a-f]{40}$/u);
 });
 
 test('an item that adds a shim over main is refused naming the shim file [C7]', async t => {
-  const box = staleMain(t);
+  const box = await staleMain(t);
   box.put('src/stats-flow.js', "export { stats as flow } from './stats.js';\n");
   await assert.rejects(submit(box), error => error.code === 'CELLS_SUBMIT'
     && /shim count rose without a cells move: src\/stats-flow\.js/u.test(error.message)

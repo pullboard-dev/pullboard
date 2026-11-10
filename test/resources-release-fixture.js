@@ -1,15 +1,19 @@
-import { openBoard } from '../apps/lib/src/core/native-board.js';
-import { addItem, addMilestone, closeBoard } from '../packages/store/index.js';
+import { addItem } from '../packages/store/index.js';
+import { addMilestone } from '../packages/store/index.js';
+import { closeBoard } from '../packages/store/index.js';
+import { moveMilestone } from '../packages/store/index.js';
+import { openKitBoard } from './testkit-fixture.js';
+import { machineSettings } from './resources-settings-fixture.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild } from './fixture-child.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href;
 const RELEASE_WORKER = `
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
@@ -24,22 +28,26 @@ await withGateSlot(root, async () => {
 } });
 `;
 
-/** Run the actual CLI in a private board and preserve its named refusal on failure. */
-function command(box, root, ...args) {
-  const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  return result.stdout;
+/** Open the fixture repository's board file in process; the first open creates the production schema. */
+function openFixtureBoard(root) {
+  mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
+  return openKitBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: root });
 }
 
-/** Initialize through the real CLI, then seed the queue's real SQLite roadmap through canonical public writes. */
+/** Seed the queue's real SQLite roadmap through canonical public writes on a board the fixture opens itself. */
 function board(box, root) {
-  command(box, root, 'init');
-  const state = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const state = openFixtureBoard(root);
   try {
     for (const title of ['Current work', 'Later work', 'Unplanned work']) addItem(state, { by: 'coordinator', lane: 'coordinator', title });
     addMilestone(state, { agentId: 'coordinator', name: 'current', items: [1], reason: 'Arrange current release for queue fixture' });
     addMilestone(state, { agentId: 'coordinator', name: 'later', items: [2], reason: 'Arrange later release for queue fixture' });
   } finally { closeBoard(state); }
+}
+
+/** Move a milestone ahead of another, as `pullboard milestone move` does, through the store move. */
+function moveBefore(root, name, before) {
+  const state = openFixtureBoard(root);
+  try { moveMilestone(state, name, { agentId: 'coordinator', before }); } finally { closeBoard(state); }
 }
 
 /** Change only this test's private machine settings, preserving both gate slots. */
@@ -118,12 +126,12 @@ export async function releaseQueueProof({ fixture, poolWorker, privateList, even
   const landing = await queue(on, on.first, 'A-landing', 3, 'landing', true);
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'landing stays first and each board retains its opportunity positions');
-  assert.match(command(off, off.first, 'settings'), /^gate\.queue\.currentReleaseFirst: false\b/mu);
-  command(on, on.first, 'milestone', 'move', 'later', '--before', 'current');
+  assert.equal(machineSettings(off, 'gateQueueSettings').value.currentReleaseFirst, false);
+  moveBefore(on.first, 'later', 'current');
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'queued ranks remain captured despite a roadmap reorder');
   await drain(on, onHolders, [landing, current, foreign, later, unplanned]);
-  assert.match(command(on, on.first, 'settings'), /^gate\.queue\.currentReleaseFirst: true$/mu);
+  assert.equal(machineSettings(on, 'gateQueueSettings').value.currentReleaseFirst, true);
 
   const aging = fixture();
   board(aging, aging.first);
@@ -150,7 +158,7 @@ export async function releaseQueueProof({ fixture, poolWorker, privateList, even
   await drain(mixed, mixedHolders, [old, newReview]);
 
   settings(aging, { currentReleaseFirst: 'yes' });
-  const bad = runFixtureChild(process.execPath, [BIN, 'settings', '--json'], { cwd: aging.first, env: aging.env, encoding: 'utf8' });
-  assert.equal(bad.status, 1);
-  assert.match(JSON.parse(bad.stdout).error.message, /gate\.queue\.currentReleaseFirst/u);
+  const bad = machineSettings(aging, 'loadMachineSettings');
+  assert.ok(bad.error, 'a non-boolean release setting is refused');
+  assert.match(bad.error.message, /gate\.queue\.currentReleaseFirst/u);
 }

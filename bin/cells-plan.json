@@ -382,15 +382,7 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-move-fixtures.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/cells-move-tool.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-transaction.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
@@ -424,14 +416,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/cells-data-reads.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
-      "path": "bin/cells-move-mentions.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "src/git-sync-format.js",
       "reason": "Retired by #1619: consolidated into packages/commits/src/core/board-format.js; no source remains for the sync move."
     },
@@ -445,10 +429,6 @@
     },
     {
       "path": "bin/cells-inventory-cache.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "bin/cells-engine-stays.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1667,6 +1647,22 @@
       "row": [
         "test/runner-slots-measured.test.js",
         "packages/runners/tests/runner-slots-measured.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/exit-rules.test.js",
+        "apps/cli/tests/exit-rules.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/worktree-maintenance-scheduler.test.js",
+        "apps/cli/tests/worktree-maintenance-scheduler.test.js",
         "rule"
       ]
     }

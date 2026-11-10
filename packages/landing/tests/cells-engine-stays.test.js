@@ -8,7 +8,7 @@ import { fixture } from '../../../test/cells-plan-fixture.js';
 import { git } from '../../../test/cells-plan-fixture.js';
 import { computePlan } from '../../../bin/cells-plan.js';
 import { writePlan } from '../../../bin/cells-plan.js';
-import { retainEnginePaths } from '../../../bin/cells-engine-stays.js';
+import { retainEnginePaths } from '../../../packages/codemap/index.js';
 import { requireSubmitCells } from '../../../apps/cli/index.js';
 import { cellLintReport } from '../../codemap/index.js';
 import { cellLintBaseline } from '../../codemap/index.js';

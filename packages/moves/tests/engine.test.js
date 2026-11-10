@@ -11,29 +11,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { fixtureBoard } from './board-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard } from '../packages/store/index.js';
-import { importBoard } from '../packages/store/index.js';
-import { restoreRelaySnapshot } from '../packages/store/index.js';
-import { applyEngineMove } from '../packages/state/index.js';
-import { applyRelayMove } from '../packages/state/index.js';
-import { prepareEngineMove } from '../packages/state/index.js';
-import { appliedSequence } from '../packages/state/index.js';
-import { engineReceipt } from '../packages/state/index.js';
-import { refuseRelayMove } from '../packages/state/index.js';
-import { startRelayEpoch } from '../packages/state/index.js';
-import { checkpointSequence } from '../packages/state/index.js';
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
-import { COMMAND_CANDIDATE } from '../packages/kernel/index.js';
-import { COMMAND_FILE } from '../packages/kernel/index.js';
-import { discovered } from '../packages/kernel/index.js';
-import { ENGINE_REGISTRY } from '../packages/state/index.js';
-import { ENGINE_VERSION } from '../packages/state/index.js';
-import { discoverEngines } from '../packages/state/index.js';
-import { Refused } from '../packages/kernel/core.js';
-import { unpackRelease } from './release-archive.js';
+import * as store from '../../store/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
+import { exportBoard } from '../../store/index.js';
+import { importBoard } from '../../store/index.js';
+import { restoreRelaySnapshot } from '../../store/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { applyRelayMove } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { appliedSequence } from '../../state/index.js';
+import { engineReceipt } from '../../state/index.js';
+import { refuseRelayMove } from '../../state/index.js';
+import { startRelayEpoch } from '../../state/index.js';
+import { checkpointSequence } from '../../state/index.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../index.js';
+import { COMMAND_CANDIDATE } from '../../kernel/index.js';
+import { COMMAND_FILE } from '../../kernel/index.js';
+import { discovered } from '../../kernel/index.js';
+import { ENGINE_REGISTRY } from '../../state/index.js';
+import { ENGINE_VERSION } from '../../state/index.js';
+import { discoverEngines } from '../../state/index.js';
+import { Refused } from '../../kernel/core.js';
+import { unpackRelease } from '../../../test/release-archive.js';
 
 const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';
@@ -676,7 +676,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   assert.ok(entries.length > 0, 'the registry names at least one feature engine');
   for (const [name, engine] of entries) assert.ok(Number.isSafeInteger(engine) && engine > 0, `feature ${name} declares a positive whole engine number`);
   assert.equal(ENGINE_VERSION, Math.max(...entries.map(([, engine]) => engine)), 'the engine version is the highest number any feature declares');
-  const source = new URL('../packages/state/src/core/engines/', import.meta.url);
+  const source = new URL('../../state/src/core/engines/', import.meta.url);
   const files = readdirSync(source).filter((file) => /-engine\.js$/u.test(file));
   assert.deepEqual(Object.keys(ENGINE_REGISTRY), files.map((file) => file.slice(0, -'-engine.js'.length)).sort(), 'every engines-folder *-engine.js leaf is a feature engine, discovered by its file name');
   const declarations = files.map(file => {
@@ -685,12 +685,12 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
     assert.equal(lines.length,1,`${file} has exactly one exported engine declaration`);
     const match=/^export const [A-Z][A-Z0-9_]*_ENGINE = (?:(\d+)|unassignedEngine\(\));$/u.exec(lines[0]);
     assert.ok(match,`${file} declares its landed number or the accepted unassigned placeholder`);
-    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from './engine-next.js';"),`${file} imports its real placeholder`);
+    if (match[1]===undefined) assert.ok(text.split('\n').includes("import { unassignedEngine } from '../../../test/engine-next.js';"),`${file} imports its real placeholder`);
     return {file,number:match[1]===undefined ? null : Number(match[1])};
   });
   const next=Math.max(0,...declarations.map(row=>row.number??0))+1;
   for (const row of declarations) assert.equal(ENGINE_REGISTRY[row.file.slice(0,-'-engine.js'.length)],row.number??next,'unlanded branches read one above the highest assigned engine');
-  assert.doesNotMatch(readFileSync(new URL('../packages/state/src/shell/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/shell/machine.js lists no engine by name');
+  assert.doesNotMatch(readFileSync(new URL('../../state/src/shell/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/shell/machine.js lists no engine by name');
 });
 
 test('a feature engine or command file name outside letters, digits, underscore and hyphen is refused by discovery [C7,V4]', () => {
@@ -733,7 +733,7 @@ test('engine 93 item messages replay and older broadcasts keep their recorded me
 
 test('outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
   const { createHash } = await import('node:crypto');
-  const { OUTSIDE_INTAKE_ENGINE } = await import('../packages/state/core.js');
+  const outsideIntake = await import('../../state/core.js');
   const { copies: [one, two] } = engineCopies(t);
   // These object IDs exercise deterministic storage only; no outside program or sandbox execution is claimed.
   const text = JSON.stringify({ title: 'Outside replay fixture', criterion: 'record the source', rows: [], check: 'true' });
@@ -744,7 +744,7 @@ test('outside author facts and exact owner approval replay without manufacturing
     item: { lane: 'web', title: 'Outside replay fixture', criterion: 'record the source', check: 'true' } }], { id: 'outside-replay-intake' });
   for (const board of [one, two]) {
     const before = exportBoard(board);
-    assert.throws(() => applyEngineMove(board, { ...move, engine: OUTSIDE_INTAKE_ENGINE - 1 }, { sequence: 1, at: CLAIM_AT }), /RELAY_MOVE/);
+    assert.throws(() => applyEngineMove(board, { ...move, engine: outsideIntake.OUTSIDE_INTAKE_ENGINE - 1 }, { sequence: 1, at: CLAIM_AT }), /RELAY_MOVE/);
     assert.deepEqual(exportBoard(board), before, 'an older engine cannot partially introduce outside semantics');
   }
   const ids = [one, two].map(board => applyEngineMove(board, move, { sequence: 1, at: CLAIM_AT }).result);

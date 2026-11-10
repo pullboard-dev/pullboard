@@ -237,7 +237,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
-import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
 import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
 import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';

@@ -29,6 +29,7 @@ import { runFixtureChildAsync } from './fixture-child.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { fixture as cellFixture } from './cells-plan-fixture.js';
 import { git as cellGit } from './cells-plan-fixture.js';
+import { publishAcceptedCells } from './cells-plan-fixture.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
@@ -203,12 +204,13 @@ test('collected placement diagnostics preserve complete source checks and cached
   writePlan(box.root, computePlan(box.root));
   cellGit(box.root, 'add', '-A'); cellGit(box.root, 'commit', '-q', '-m', 'private accepted placement');
   const main = cellGit(box.root, 'rev-parse', 'HEAD');
+  const artifact = await publishAcceptedCells(t, box.root, main);
   box.put('src/new-trial-leaf.js', 'export const value = 1;\n');
   cellGit(box.root, 'add', '-A'); cellGit(box.root, 'commit', '-q', '-m', 'private missing placement');
   const candidate = cellGit(box.root, 'rev-parse', 'HEAD');
   const item = { item_title: 'Cells shim removal fixture', item_frozen: JSON.stringify({ criterion: 'Cells shim removal fixture.' }) };
   const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => acceptedCutItems(box.root, main) };
+    acceptedArtifact: artifact, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => acceptedCutItems(box.root, main) };
   await assert.rejects(requireSubmitCells(box.root, main, candidate, item, services), { code: 'CELLS_PLAN_UNPLACED' });
   const result = await requireSubmitCells(box.root, main, candidate, item, { ...services, collectMachinery: true });
   const placement = result.machinery.find(row => row.kind === 'placement');
