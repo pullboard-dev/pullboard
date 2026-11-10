@@ -116,7 +116,8 @@ export function itemsNeedingRescope(board, lane, route) {
   for (const row of rows) {
     let detail = {};
     try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
-    if (detail?.review === true || !RESCOPE_REASONS.includes(detail?.reasonCode)) continue;
+    // An automatic claim given back before any work touched the seat says nothing about the scope (#3014, H16).
+    if (detail?.review === true || detail?.untouchedAutoClaim === true || !RESCOPE_REASONS.includes(detail?.reasonCode)) continue;
     if (rescopeExpired(detail, row, seats.get(row.event_by), clock)) { byItem.delete(row.item_id); continue; }
     const changed = board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_id > ? AND event_kind IN ('edit','refreeze','route','reroute') LIMIT 1").get(row.item_id, row.event_id);
     if (changed) { byItem.delete(row.item_id); continue; }
