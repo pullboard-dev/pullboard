@@ -235,7 +235,7 @@ function anatomy(placed, edges, sources) {
 function targetPath(file, cell, shell) {
   const root = cellRoot(cell);
   if (testFile(file)) return `${root}/tests/${posix.basename(file)}`;
-  return `${root}/src/${shell.has(file) ? 'io' : 'logic'}/${innerPath(file)}`;
+  return `${root}/src/${shell.has(file) ? 'shell' : 'core'}/${innerPath(file)}`;
 }
 
 /**

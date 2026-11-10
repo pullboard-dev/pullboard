@@ -46,7 +46,7 @@ function box(t, { bin = false } = {}) {
     root: name === 'low' ? 'packages/low' : 'apps/lib', frontDoor: name === 'low' ? 'packages/low/index.js' : 'apps/lib/index.js',
     paths, reexports: [], imports: [], cuts: [], ratchets: {}, item: { after: [] } });
   writePlan(root, { version: 1, base: git(root, 'rev-parse', 'HEAD').trim(),
-    cells: [cell('low', 1, bin ? [] : [[path, 'packages/low/src/io/entry.js', 'rule']]),
+    cells: [cell('low', 1, bin ? [] : [[path, 'packages/low/src/shell/entry.js', 'rule']]),
       cell('app:lib', 2, [['src/native.js', 'apps/lib/src/logic/native.js', 'rule']])],
     stays: bin ? [{ path, reason: 'the public executable stays in place' }] : [] });
   return { ...value, path, source };
@@ -60,7 +60,7 @@ test('a guarded process module leaves its old cell and keeps its exact body [C7,
   const after = readPlan(root);
   assert.deepEqual(after.entries, [{ path, cell: 'app:lib' }]);
   assert.equal(after.cells[0].paths.length, 0);
-  assert.ok(after.cells[1].paths.some(row => row[0] === path && row[1] === 'apps/lib/src/io/entry.js'));
+  assert.ok(after.cells[1].paths.some(row => row[0] === path && row[1] === 'apps/lib/src/shell/entry.js'));
   assert.equal(after.totals.movedPaths, before.totals.movedPaths);
   assert.deepEqual(checkCuts(root, after, 'low', { allLaterCells: true }), []);
   assert.deepEqual(checkCuts(root, after, 'app:lib', { allLaterCells: true }), []);
@@ -117,7 +117,7 @@ test('entry ownership never hides a lower caller importing the higher process ro
   placePath(root, path, { cell: 'app:lib', entry: true });
   put('src/caller.js', "import '../bin/entry.js';\n");
   const plan = readPlan(root);
-  plan.cells[0].paths.push(['src/caller.js', 'packages/low/src/io/caller.js', 'rule']);
+  plan.cells[0].paths.push(['src/caller.js', 'packages/low/src/shell/caller.js', 'rule']);
   writePlan(root, plan);
   const problems = checkCuts(root, readPlan(root), 'low', { allLaterCells: true });
   assert.ok(problems.some(problem => problem.includes('src/caller.js -> bin/entry.js')), problems.join('\n'));
