@@ -36,7 +36,7 @@ export function childJournalPreloadSource(directory) {
   return `
 import diagnostics from 'node:diagnostics_channel';
 import { spawnSync } from 'node:child_process';
-import { closeSync, openSync, readFileSync, statSync, writeSync, writeFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, writeSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 const PERL_START = ${JSON.stringify(PERL_START)};
@@ -45,29 +45,46 @@ const directory = ${JSON.stringify(journalDirectory)};
 const overflowPath = ${JSON.stringify(overflowPath)};
 const instance = randomUUID();
 process.env.PULLBOARD_RUNNER_INSTANCE = instance;
-const file = join(directory, 'children-' + process.pid + '.jsonl');
-const fd = openSync(file, 'a', 0o600);
-let bytes = statSync(file).size;
-let overflow = false;
 const limit = 131072;
-function record(value) {
-  if (overflow) return;
-  try {
-    const line = JSON.stringify(value) + '\\n';
-    const size = Buffer.byteLength(line);
-    if (bytes + size > limit) {
-      overflow = true;
-      try { writeFileSync(overflowPath, 'journal limit reached\\n', { flag: 'wx', mode: 0o600 }); } catch {}
-      return;
-    }
-    writeSync(fd, line);
-    bytes += size;
-  } catch {
-    try { writeFileSync(overflowPath, 'journal write failed\\n', { flag: 'wx', mode: 0o600 }); } catch {}
-    overflow = true;
+// A journal file is the reader's unit: at most 128 KiB, owned by exactly one thread (created exclusively), so a full
+// file rotates to the next sequence instead of ending custody. Worker threads share this pid and run this preload
+// too, so a thread writes nothing, and creates no file, until it records its first spawn.
+const MAX_FILES = 48;
+let fd = -1;
+let bytes = 0;
+let sequence = 0;
+let overflow = false;
+function failed(message) {
+  overflow = true;
+  try { writeFileSync(overflowPath, message + '\\n', { flag: 'wx', mode: 0o600 }); } catch {}
+}
+function openNext() {
+  for (;;) {
+    if (sequence >= MAX_FILES) return false;
+    const name = 'children-' + process.pid + (sequence ? '-' + sequence : '') + '.jsonl';
+    sequence += 1;
+    try { fd = openSync(join(directory, name), 'wx', 0o600); } catch (error) { if (error.code === 'EEXIST') continue; throw error; }
+    bytes = 0;
+    return true;
   }
 }
-record({ type: 'boot', pid: process.pid, ppid: process.ppid, instance });
+function append(line) {
+  const size = Buffer.byteLength(line);
+  if (fd < 0 || bytes + size > limit) {
+    if (fd >= 0) { try { closeSync(fd); } catch {} fd = -1; }
+    if (!openNext()) return failed('journal limit reached');
+    const boot = JSON.stringify({ type: 'boot', pid: process.pid, ppid: process.ppid, instance }) + '\\n';
+    writeSync(fd, boot);
+    bytes += Buffer.byteLength(boot);
+  }
+  writeSync(fd, line);
+  bytes += size;
+}
+function record(value) {
+  if (overflow) return;
+  try { append(JSON.stringify(value) + '\\n'); }
+  catch { failed('journal write failed'); }
+}
 const channel = diagnostics.channel('child_process');
 const seen = new WeakSet();
 // The spawn event comes a tick later; a parent that exits in the same tick still owes those children a receipt.
@@ -94,7 +111,7 @@ channel.subscribe(message => {
 process.once('exit', () => {
   // Still unreaped while this process exits, so each pid is still its child's own.
   for (const writeReceipt of [...unrecorded.values()]) writeReceipt();
-  try { closeSync(fd); } catch {}
+  try { if (fd >= 0) closeSync(fd); } catch {}
 });
 `;
 }
