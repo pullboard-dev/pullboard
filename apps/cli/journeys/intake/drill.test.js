@@ -131,6 +131,7 @@ test('a local developer, a runner developer and a pull-request developer share o
   assert.equal(outsideStatus.state, 'failure');
   assert.match(outsideStatus.description, /not verified/u);
   const intaken = await runBridgeCLI(box, 'intake', 'https://github.com/fixture/repository/pull/70', '--lane', 'web',
+    '--brief', 'Files: web/pull-request.js\nTest: node web/drill-check.cjs exits 0 with this file present.',
     '--criterion', 'outside tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
   assert.equal(intaken.code, 0, intaken.out + intaken.err);
   const outside = JSON.parse(intaken.out).item;
