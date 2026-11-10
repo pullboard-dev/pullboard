@@ -25,6 +25,15 @@ export async function waitFor(read, message, timeoutMs = 20_000) {
   assert.fail(message);
 }
 
+/** Settle with a work promise, or fail naming the stage and what the page showed when a finite hang ceiling passes. */
+export async function within(work, ms, stage, diagnose = async () => '') {
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(async () => reject(new Error(`${stage} did not finish within ${ms}ms; ${await diagnose().catch(error => 'no diagnosis: ' + error.message)}`)), ms);
+  });
+  try { return await Promise.race([work, expired]); } finally { clearTimeout(timer); }
+}
+
 /**
  * Run the foreground machine setup (relay on --all) in process and pair one real Chrome device through the real relay.
  * Why: the phone needs the one-use pairing the setup publishes, handed over by its typed onPairingURL callback.
@@ -37,19 +46,23 @@ export async function pairChromePhone(box, t) {
   registerProject(box.root);
   let offer;
   const offered = new Promise(resolveOffer => { offer = resolveOffer; });
-  const running = relayOnAll(box.origin, box.io, { onPairingURL: offer });
+  const stop = new AbortController();
+  const running = relayOnAll(box.origin, box.io, { onPairingURL: offer, signal: stop.signal });
   let chrome;
   t.after(async () => {
+    stop.abort();
     await running.catch(() => {});
     await chrome?.close();
   });
-  const pairing = await Promise.race([offered, running.then(() => assert.fail('foreground setup publishes a real one-use phone enrollment'))]);
+  const pairing = await within(Promise.race([offered, running.then(() => assert.fail('foreground setup publishes a real one-use phone enrollment'))]),
+    60_000, 'the foreground setup offering its pairing'); // budget: hang ceiling for sign-in and linking; no throughput claim.
   chrome = await startChrome();
-  const session = await box.server.phoneSession();
+  const session = await within(box.server.phoneSession(), 30_000, 'the independent phone sign-in'); // budget: hang ceiling for one OAuth round trip; no throughput claim.
   assert.equal((await chrome.send('Network.setCookie', { name: 'pb_session', value: session.token, url: box.origin,
     httpOnly: true, sameSite: 'Lax' })).success, true);
-  await chrome.navigate(pairing.url);
-  const setup = await running;
+  await within(chrome.navigate(pairing.url), 60_000, 'the phone page loading its pairing link'); // budget: hang ceiling for one page load; no throughput claim.
+  const setup = await within(running, 60_000, 'the real phone enrollment', () => chrome.evaluate( // budget: hang ceiling for the enrollment handshake; no throughput claim.
+    '[location.href, document.readyState, document.body.innerText.slice(0, 400)].join(" | ")'));
   assert.equal(setup.paired, true, 'the real phone enrollment completes native setup');
   assert.equal(setup.failed.length, 0, 'the setup links every registered board');
   await chrome.waitFor("document.querySelector('#phone-approvals') !== null");
