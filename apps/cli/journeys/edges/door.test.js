@@ -221,7 +221,9 @@ test('every real light door is recorded in the edge ceilings within its budget [
   assert.deepEqual(Object.keys(recorded).sort(), lightDoorsOf(REPO).sort());
   for (const [door, ms] of Object.entries(recorded)) assert.ok(Number.isInteger(ms) && ms > 0 && ms <= LIGHT_DOOR_BUDGET_MS, `${door} recorded at ${ms} ms`);
   assert.ok(lightDoorsOf(REPO).includes('packages/gate/light.js'));
-  assert.ok(!lightDoorsOf(REPO).some(door => door.includes('/kernel/')), 'a pure door stays off the light list');
+  const pureDoors = readPlan(REPO).cells.flatMap(cell => [cell.pureDoor, cell.pureFrontDoor].filter(Boolean));
+  assert.ok(pureDoors.length > 0, 'the real plan declares pure doors');
+  for (const door of pureDoors) assert.ok(!lightDoorsOf(REPO).includes(door), `${door} is pure and stays off the light list`);
 });
 
 test('declared app light doors load within the existing cold budget [C7]', async t => {
