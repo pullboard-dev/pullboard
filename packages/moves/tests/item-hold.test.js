@@ -105,8 +105,8 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   cellSeat(board, { lane: 'web', path: web });
   const id = addMidItem(board, 'web', 'Held item');
   const peer = cellBoard(t, ':memory:');
-  store.register(peer, { lane: 'coordinator', path: '/peer' });
-  store.register(peer, { lane: 'web', path: '/peer-web' });
+  cellSeat(peer, { lane: 'coordinator', path: '/peer' });
+  cellSeat(peer, { lane: 'web', path: '/peer-web' });
   assert.equal(addMidItem(peer, 'web', 'Held item'), id);
   const initial = store.getItem(board, id);
   const hold = prepareEngineMove(board, 'holdItem', [id, { agentId: 'coordinator', reason: 'review the release' }]);
