@@ -1681,6 +1681,126 @@
         "packages/state/tests/relay-key-file.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/check-baseline-worker.test.js",
+        "packages/state/tests/logic/engines/check-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/engine-replay.test.js",
+        "packages/state/tests/io/engine/replay.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/exchange.test.js",
+        "packages/state/tests/logic/engines/grant-engine/exchange.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/merged.test.js",
+        "packages/state/tests/io/engine/merged.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-activation.test.js",
+        "packages/state/tests/logic/relay/activation.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-browser-fixture.test.js",
+        "packages/state/tests/logic/relay/activation/browser.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-client-fixture.test.js",
+        "packages/state/tests/logic/relay/activation/client.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/reopen.test.js",
+        "packages/state/tests/logic/engine/move/reopen.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/review-grant-replay.test.js",
+        "packages/state/tests/logic/engines/review-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/review-queue-replay.test.js",
+        "packages/state/tests/logic/engines/queue-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/settings.test.js",
+        "packages/state/tests/logic/engines/settings-engine.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/team-engine.test.js",
+        "packages/state/tests/logic/engines/grant-engine/team.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/team-grants.test.js",
+        "packages/state/tests/logic/engines/grant-engine/grants.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/check-baseline-delivery.test.js",
+        "packages/gate/tests/io/check/baseline/delivery.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/check.test.js",
+        "packages/gate/tests/io/check/baseline.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

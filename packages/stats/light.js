@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { AGENT_SESSION_IDS } from '../kernel/index.js';
-import { AGENT_SHELL_MARKERS } from '../kernel/index.js';
+import { AGENT_SESSION_IDS } from '../kernel/light.js';
+import { AGENT_SHELL_MARKERS } from '../kernel/light.js';
 
 /** Distinguish agent sessions, including one stable session for an agent shell with no identifier. */
 export function agentSessionDigest(environment = process.env) {
@@ -12,4 +12,4 @@ export function agentSessionDigest(environment = process.env) {
 
 export {
   hasInputSplit,
-} from './src/io/cost/usage.js';
+} from './src/logic/split.js';

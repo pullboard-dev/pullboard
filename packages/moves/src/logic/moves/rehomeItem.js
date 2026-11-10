@@ -1,5 +1,5 @@
 import { checkTimingEngine } from "../../../../items/light.js";
-import { itemReviewPolicy } from "../../../../verify/index.js";
+import { itemReviewPolicy } from "../../../../verify/browser.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { PRIVATE_REHOME_ENGINE } from "../../../../state/light.js";
 

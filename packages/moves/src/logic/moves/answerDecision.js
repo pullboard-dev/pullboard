@@ -2,7 +2,7 @@ import { laneAnswerFloor } from "../../../../seats/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by answerDecision, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
-import { IMPLIES_ENGINE } from "../../../../state/index.js";
+import { IMPLIES_ENGINE } from "../../../../state/light.js";
 import { DECISION_ORIGIN_ENGINE } from "../../../../state/light.js";
 import { carriesOrigin } from "../../../../items/light.js";
 import { carriesImplies } from "../../../../state/light.js";

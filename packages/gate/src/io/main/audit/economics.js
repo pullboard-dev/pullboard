@@ -38,7 +38,7 @@ import {
 
 /** Include installed audit semantics in cache keys so a tooling change cannot reuse old audit behavior. */
 function semantics(config) {
-  const files = ['main-audit-economics.js', 'main-audit-worker.js', '../../../logic/reporter/coverage.js', 'test-placement.js', 'gate.js'];
+  const files = ['economics.js', 'worker.js', '../../../logic/reporter/coverage.js', '../../test/placement.js', '../../main.js'];
   return createHash('sha256').update(JSON.stringify([config.gate, ...files.map(file => readFileSync(new URL(file, import.meta.url), 'utf8'))])).digest('hex');
 }
 
