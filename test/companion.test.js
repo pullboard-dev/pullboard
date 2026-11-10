@@ -36,7 +36,7 @@ test('a companion request becomes one claimable child item and a second request 
   // Concurrent independent processes must observe one creation, not merely converge after serial retries.
   const children = [box.web, other].map(cwd => helpers.launch(box, cwd, process.execPath, [helpers.BIN, ...args]));
   const completed = await Promise.all(children.map(child => child.closed));
-  completed.forEach((result, index) => assert.equal(result.code, 0, children[index].stderrText));
+  completed.forEach((result, index) => assert.equal(result.code, 0, children[index].stderrText + children[index].stdoutText));
   const results = children.map(child => JSON.parse(child.stdoutText));
   assert.equal(results[0].item.item_id, results[1].item.item_id);
   assert.deepEqual(results.map(result => result.created).sort(), [false, true]);
