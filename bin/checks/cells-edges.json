@@ -2058,7 +2058,7 @@
     },
     "packages/landing/src/shell/landing-shards.js": {
       "cells": 5,
-      "deep": 11
+      "deep": 0
     },
     "packages/landing/src/shell/landing-static-checks.js": {
       "cells": 2,
