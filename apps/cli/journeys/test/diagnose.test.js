@@ -21,7 +21,7 @@ test('clause 1: diagnose runs one file and prints its full failure and repositor
   box.git(box.repo, 'commit', '-q', '-m', 'test: diagnostic fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const result = box.run(box.web, 'test', 'test/fail.test.js', '--diagnose', '--json');
-  assert.equal(result.code, 1, result.err);
+  assert.equal(result.code, 1, result.out + result.err);
   const output = JSON.parse(result.out).output;
   assert.ok(output.includes(long), 'failure is not truncated');
   assert.match(output, /test\/fail\.test\.js:\d+:\d+/u, 'the repository frame is retained');
