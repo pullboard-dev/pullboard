@@ -46,7 +46,7 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   command(box, reviewer, 'join', 'web', '--model', 'fixture-model', '--route', 'strong', '--parent', 'notes-reviewer-parent');
   const added = document(box, box.repo, 'add', 'web', 'Read the item conversation', '--specs', 'G1',
-    '--route', 'light', '--criterion', 'the page exists', '--check', 'test -f web/page.js',
+    '--route', 'strong', '--criterion', 'the page exists', '--check', 'test -f web/page.js',
     '--brief', helpers.LIGHT_BRIEF, '--wait');
   const id = added.item.item_id;
   const other = document(box, box.repo, 'add', 'api', 'An unrelated conversation', '--specs', 'G2',
@@ -78,7 +78,7 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
     `fs.writeFileSync(${JSON.stringify(captured)}, fs.readFileSync(process.env.PULLBOARD_PACK));`,
     "fs.mkdirSync('web', { recursive: true }); fs.writeFileSync('web/page.js', 'PASS\\n');",
   ].join('\n'));
-  const ran = command(box, box.web, 'run', '--agent-light', `"${process.execPath}" "${script}"`,
+  const ran = command(box, box.web, 'run', '--agent-strong', `"${process.execPath}" "${script}"`,
     '--attempts', '1', '--items', '1');
   assert.match(ran.out, new RegExp(`submitted #${id}`));
   const pack = readFileSync(captured, 'utf8');
