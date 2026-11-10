@@ -495,7 +495,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
-    'apps/view/tests/io/coverage.test.js',
+    'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
@@ -511,7 +511,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'packages/sandbox/tests/privacy/guard.test.js',
     'packages/gate/tests/logic/wait.test.js',
     'packages/gate/tests/io/test/waits.test.js',
-    'apps/view/tests/io/coverage.test.js',
+    'apps/cli/journeys/check/view.test.js',
     'packages/gate/tests/io/budgets.test.js',
   ];
   assert.equal(guards.length, 8, 'all selected guards are scanned');
