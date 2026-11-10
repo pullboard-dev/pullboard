@@ -146,7 +146,7 @@ test('a real CLI child of a runner job, with maintenance enabled, leaves no watc
 });
 
 test('run-tests keeps the runner job marker for its test children [C7]', () => {
-  const source = readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../packages/gate/src/shell/run-tests.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /delete env(?:\.PULLBOARD_RUNNER_JOB|\[['"]PULLBOARD_RUNNER_JOB['"]\])/u, 'test children and their CLI descendants stay marked');
 });
 

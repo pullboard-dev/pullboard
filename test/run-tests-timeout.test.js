@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { DEFAULT_TEST_TIMEOUT_MS } from '../bin/run-tests.js';
+import { DEFAULT_TEST_TIMEOUT_MS } from '../packages/gate/src/shell/run-tests.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
