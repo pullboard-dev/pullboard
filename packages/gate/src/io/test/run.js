@@ -228,7 +228,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
       const stop = typeof say === 'function' ? announceTestRun(say, { host: lease.runner?.host, files: paths, ...timers }) : () => {};
       try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
     },
-      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), diagnostic: diagnose, kind: 'test', onWait });
+      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full && !diagnose, agent, item, itemCheck: Boolean(item) && !diagnose, diagnostic: diagnose, kind: 'test', onWait });
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: diagnose && !run.isGreen ? readFileSync(summary.logPath, 'utf8') : renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
