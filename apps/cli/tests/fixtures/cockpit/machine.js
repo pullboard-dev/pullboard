@@ -141,7 +141,7 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
   // The seat joins on the strong route so it can claim the strong fixture items.
-  if (joinSeat) joinFixtureSeat(box, web, 'web');
+  if (joinSeat) joinFixtureSeat(box, web, 'web', { model: MACHINE_MODEL });
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 
