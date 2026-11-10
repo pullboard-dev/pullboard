@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /** Cut every re-export shim in one pass: repoint its importers to the front door it forwards to, then delete it [C7,R62]. */
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { gitExecFileSync } from '../../../git/light.js';
 
 /** A front door: a package's index.js or pure core.js, or an app's index.js. */
 const DOOR = /^(?:packages\/[^/]+\/(?:index|core)\.js|apps\/[^/]+\/index\.js)$/u;
@@ -124,7 +124,7 @@ function statements(source, info) {
 
 /** Load every tracked file once, with lexed modules for the scripts. */
 function loadRepo(root) {
-  const listed = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
+  const listed = gitExecFileSync(['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const files = new Map();
   for (const file of listed) {
     if (!existsSync(join(root, file))) continue;
@@ -447,7 +447,7 @@ export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}
   }
   if (write) {
     for (const [file, source] of changed) writeFileSync(join(root, file), source);
-    if (cut.length) execFileSync('git', ['rm', '-q', '--', ...cut], { cwd: root });
+    if (cut.length) gitExecFileSync(['rm', '-q', '--', ...cut], { cwd: root });
     for (const file of [...repo.files.keys()].filter(path => /^packages\/codemap\/data\/plan\/[^/]+\.json$/u.test(path) && !isFrozen(path))) {
       const text = repo.files.get(file);
       const match = /\n( *)"reexports": (\[[^\]]*\])/u.exec(text);
