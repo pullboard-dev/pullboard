@@ -27,10 +27,10 @@ test('the GUI marker guard follows literal launcher imports without evaluating f
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   const sources = {
     'apps/cli/tests/fixtures/chrome.js': "throw new Error('the guard must never evaluate a launcher');",
-    'test/bridge.js': "export { startChrome } from './chrome-fixture.js';",
-    'test/direct.test.js': "import { startChrome } from './chrome-fixture.js';",
+    'test/bridge.js': "export { startChrome } from '../apps/cli/tests/fixtures/chrome.js';",
+    'test/direct.test.js': "import { startChrome } from '../apps/cli/tests/fixtures/chrome.js';",
     'test/wrapped.test.mjs': "await import('./bridge.js');",
-    'test/ordinary.test.js': "const example = \"import { startChrome } from './chrome-fixture.js';\";",
+    'test/ordinary.test.js': "const example = \"import { startChrome } from '../apps/cli/tests/fixtures/chrome.js';\";",
   };
   for (const [file, source] of Object.entries(sources)) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
