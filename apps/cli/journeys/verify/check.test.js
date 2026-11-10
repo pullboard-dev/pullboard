@@ -243,6 +243,8 @@ test('a landing while a review waits for its gate slot leaves the verdict standi
   const { repo, web } = project(box);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, verify: { ...config.verify, composeAtAdmission: true } }, null, 2) + '\n');
+  mkdirSync(join(repo, 'web'), { recursive: true });
+  writeFileSync(join(repo, 'web', 'review-input.txt'), 'before submit\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
@@ -297,9 +299,12 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   box.git(web, 'merge', '-q', 'main');
   // The landing changes the item's own file with the bytes it reviewed (so the composition merges cleanly), and only once the review checkout exists (an earlier empty landing keeps the submit proof from being reused): an empty or unrelated landing no longer voids a verdict (61b93a7c77).
   const reviewer = join(box.dir, 'moving-check-reviewer');
-  const landing = `[ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'`;
+  const landing = `test -f web/review-input.txt && { [ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'; }`;
   const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
+  writeFileSync(join(repo, 'web', 'review-input.txt'), 'after submit\n');
+  box.git(repo, 'add', 'web/review-input.txt');
+  box.git(repo, 'commit', '-q', '-m', 'chore: change the checked review input');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
   succeeds(box, reviewer, 'join', 'web');
   const refused = box.run(reviewer, 'verify', String(id), 'accept', '--note', 'Verified while main moves during the check');
@@ -308,10 +313,10 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   assert.deepEqual(verdictsOf(repo, id), [], 'a verdict is not recorded for a check that saw a moved main');
 });
 
-// Accepted main265b6e8: every store production byte is pinned except relocation operands.
+// Accepted main265b6e8 pins store bodies except relocation operands; known-main-autofile also includes accepted changes through 73ee00be5d.
 const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
-  "src/known-main-autofile.js": "cfcefe647a8590232176ef4bea8a1cc9c59d8070748ec15f2f61e1716cc51c1b", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
+  "src/known-main-autofile.js": "7e3b77ea7a14f8ddd28ae0cf6b94f17a012fa639223eb03216ae8c590610c9b8", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
   "src/board-busy.js": "46dfa1149b6468c47b3d1b75142495c8532397640cfd64300fc3c19371b444d6", "src/board-capture.js": "3bdf7cfe9c7e7a223c1d2b0e5e1deb89e519fa82c4ceb0d1f513d82076f9f3e3",
   "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "871e7170802e5264c21cf080ffe8faced27fd39821efcf08b9929c88751b55ae",
   "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "74f05d984278479e92155d8750d071368fd59a1c586bd57f95e833134cc784a7",
@@ -443,7 +448,7 @@ const ACCEPTED_ENGINE_VALUES = [
   ["INFRA_HANDOFF_RECOVERY_ENGINE",234], ["INFRA_RELEASE_ENGINE",233], ["ITEM_FOLDER_ENGINE",199], ["ITEM_NOTES_ENGINE",112], ["ITEM_PATCH_AUTO_ENGINE",145],
   ["ITEM_PATCH_ENGINE",144], ["ITEM_PATCH_SUBMIT_ENGINE",160], ["ITEM_SHOUT_ENGINE",93], ["ITEM_SLICE_ENGINE",205],
   ["KNOWN_MAIN_AUTOFILE_ENGINE",180], ["KNOWN_MAIN_FAILURES_ENGINE",124], ["KNOWN_MAIN_OWNER_PATTERN_ENGINE",179], ["KNOWN_MAIN_REWORKS_ENGINE",151],
-  ["KNOWN_MAIN_RUNNING_FILE_ENGINE",225], ["LAND_COLLISION_ENGINE",101], ["LANDING_ENVIRONMENT_ENGINE",85], ["LANDING_LEASE_ENGINE",74],
+  ["KNOWN_MAIN_RUNNING_FILE_ENGINE",225], ["LAND_COLLISION_ENGINE",101], ["LANDING_DEFECT_CLOSE_ENGINE",247], ["LANDING_ENVIRONMENT_ENGINE",85], ["LANDING_LEASE_ENGINE",74],
   ["LANDING_LOCAL_LEASE_ENGINE",94], ["LANE_LEAD_ENGINE",125], ["LEASE_LAPSE_ENGINE",177], ["LEDGER_QUARANTINE_ENGINE",231],
   ["LINE_CAPACITY_ENGINE",103], ["LINE_ORDER_ENGINE",100], ["LINE_SETTINGS_ENGINE",98], ["LIVE_RELEASE_PLACEMENT_ENGINE",213],
   ["LIVE_ROUTE_ENGINE",153], ["LOCAL_LANDING_ENGINE",64], ["MACHINE_VERDICT_ENGINE",242], ["MAIN_AUDIT_ENGINE",138], ["MAIN_RED_FAILURE_LINES_ENGINE",214],
@@ -459,10 +464,10 @@ const ACCEPTED_ENGINE_VALUES = [
   ["REJECT_OPEN_ENGINE",226], ["REJECTED_WORK_RETURN_ENGINE",147], ["REJECTION_RETURN_ENGINE",191], ["RELEASE_QUALITY_HOLD_ENGINE",218],
   ["RELEASE_REASONS_ENGINE",185], ["RELEASE_TWICE_HOLD_ENGINE",200], ["RELEASE_TWICE_ROUTE_ENGINE",237], ["REOPEN_CAUSE_ENGINE",137],
   ["REOPEN_FIRST_REFUSAL_ENGINE",66], ["REVIEW_DEFAULT_ENGINE",175], ["REVIEW_FAMILY_RELAX_ENGINE",201], ["REVIEW_FAMILY_SEAT_ENGINE",203],
-  ["REVIEW_GRANT_ENGINE",130], ["REVIEW_HEAD_BUILDER_FAMILY_ENGINE",241], ["REVIEW_INDEPENDENCE_ENGINE",148], ["REVIEW_REQUEST_ENGINE",206], ["REVIEW_ROUTING_ENGINE",150],
+  ["REVIEW_GATE_RECEIPT_ENGINE",248], ["REVIEW_GRANT_ENGINE",130], ["REVIEW_HEAD_BUILDER_FAMILY_ENGINE",241], ["REVIEW_INDEPENDENCE_ENGINE",148], ["REVIEW_REQUEST_ENGINE",206], ["REVIEW_ROUTING_ENGINE",150],
   ["REVIEW_SKIP_ENGINE",69], ["REVIEW_TIER_ENGINE",159], ["REVIEWS_FIRST_ENGINE",219], ["REWORK_SAME_FAMILY_ENGINE",186],
   ["RIGOR_AUTO_ENGINE",102], ["RIGOR_INSTRUCTIONS_ENGINE",209], ["RIGOR_NOTICE_ENGINE",43], ["ROUTE_CALIBRATION_ENGINE",227],
-  ["ROW_DRAFT_ENGINE",55], ["RULING_OWNER_ENGINE",143], ["RUN_TIMING_ENGINE",161], ["SAME_FAMILY_REFUSAL_ENGINE",195],
+  ["ROW_DRAFT_ENGINE",55], ["RULING_OWNER_ENGINE",143], ["RUN_TIMING_ENGINE",161], ["RUNNING_HANDOFF_ITEM_CHECK_ENGINE",250], ["SAME_FAMILY_REFUSAL_ENGINE",195],
   ["SEAT_GONE_RELEASE_ENGINE",238], ["SHADOW_TIER1_ENGINE",243], ["SOURCE_ADVANCE_ENGINE",152], ["SPEC_APPROVAL_ENGINE",68], ["SPEC_DRAFT_REFREEZE_ENGINE",149],
   ["SPEC_REVISION_ENGINE",109], ["SPEC_VERDICT_ENGINE",118], ["STALE_STATE_ENGINE",146], ["STRANDED_DEPENDENCY_ENGINE",239],
   ["STRICT_COMPOSITION_ENGINE",174], ["STRICT_RENAME_ENGINE",221], ["STRONG_REJECTION_NOTICE_ENGINE",54], ["SUBMISSION_PROOF_ENGINE",38],
