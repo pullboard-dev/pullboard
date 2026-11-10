@@ -222,21 +222,23 @@ function worktrees(box) {
   return box.git(box.repo, 'worktree', 'list', '--porcelain').split('\n').filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
 }
 
-test('a real landing prunes the landed builder seat and keeps the seat holding unsaved work [R3,C7]', () => {
+test('a real landing prunes the landed item folder and keeps the folder holding unsaved work [R3,C7]', () => {
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
   const clean = itemWorktree(box, 1);
   const dirty = itemWorktree(box, 2);
+  const folder = entry => `${entry.path}-item-${entry.item}`;
   for (const entry of [clean, dirty]) submitItem(box, entry, 'PASS\n');
   for (const entry of [clean, dirty]) acceptItem(box, entry);
-  writeFileSync(join(dirty.path, 'unsaved.txt'), 'work that is not committed\n');
-  assert.deepEqual(worktrees(box).sort(), [box.repo, clean.path, dirty.path].sort(), 'both seats exist before the landing');
+  writeFileSync(join(folder(dirty), 'unsaved.txt'), 'work that is not committed\n');
+  assert.ok(worktrees(box).includes(folder(clean)) && worktrees(box).includes(folder(dirty)), 'both item folders exist before the landing');
   const result = landOnce(box);
   assert.equal(result.error, null, JSON.stringify(result));
   assert.ok(result.lines.some(line => line.startsWith('landed ')), result.lines.join('\n'));
   const after = worktrees(box);
-  assert.ok(!after.includes(clean.path) && !existsSync(clean.path), `the landed clean seat is pruned: ${result.lines.join('\n')}`);
-  assert.ok(after.includes(dirty.path) && existsSync(join(dirty.path, 'unsaved.txt')), 'the seat with uncommitted work is kept');
-  assert.ok(result.lines.some(line => line.includes('kept') && line.includes(dirty.path) && /dirty worktree/u.test(line)), result.lines.join('\n'));
-  assert.ok(box.git(box.repo, 'branch', '--list', 'web/land-1').includes('web/land-1'), 'the pruned seat keeps its branch');
+  assert.ok(!after.includes(folder(clean)) && !existsSync(folder(clean)), `the landed clean folder is pruned: ${result.lines.join('\n')}`);
+  assert.ok(after.includes(folder(dirty)) && existsSync(join(folder(dirty), 'unsaved.txt')), 'the folder with uncommitted work is kept');
+  assert.ok(result.lines.some(line => line.includes('kept') && line.includes(folder(dirty)) && /dirty worktree/u.test(line)), result.lines.join('\n'));
+  assert.ok(after.includes(clean.path) && after.includes(dirty.path), 'the seat checkouts stay registered');
+  assert.ok(box.git(box.repo, 'branch', '--list', 'web/land-1').includes('web/land-1'), 'the seat branch is kept');
 });

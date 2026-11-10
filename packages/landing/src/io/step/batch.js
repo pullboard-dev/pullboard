@@ -6,6 +6,7 @@ import { replayDeferredNotices } from '../deferred/notices.js';
 import { cadenceApplies } from '../../logic/cadence.js';
 import { cadenceDeferral } from '../../logic/cadence.js';
 import { requireOutsideOwner } from '../../../../items/index.js';
+import { itemFolderPath } from '../../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../../merge/index.js';
 import { warnMainMoved } from '../../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
@@ -359,40 +360,41 @@ export async function returnStaleVerdicts(board, selected, write, say) {
 }
 
 /**
- * Why a landed item's builder seat may not be pruned right now, read from the board afresh; null when it is gone or idle and holds no work.
- * Anything the board still owes the seat (a claim, an unfinished build, a verdict that may return to it) keeps its checkout.
+ * Why a landed item's folder may not be pruned right now, read from the board afresh; null when the item is landed and its
+ * builder seat is not live and holds no claim. The folder belongs to one item; the seat's own checkout is never a target.
  */
-export function seatPruneProblem(board, agent) {
+export function seatPruneProblem(board, agent, id) {
+  const item = store.getItem(board, id);
+  if (!item || item.item_status !== 'verified' || !item.item_merged_commit) return `#${id} is not landed`;
   const [seat] = store.withLocalSeatPresence(board, [{ agent_id: agent }]);
   if (seat.presence === 'live') return 'seat is live';
-  const open = store.listItems(board, { all: true }).find(item => (item.item_owner === agent && item.item_status === 'claimed')
-    || (item.item_built_by === agent && item.item_status !== 'withdrawn' && !(item.item_status === 'verified' && item.item_merged_commit)));
-  return open ? `seat still holds #${open.item_id} (${open.item_status})` : null;
+  const claimed = store.listItems(board, { all: true }).find(row => row.item_owner === agent && row.item_status === 'claimed');
+  return claimed ? `seat holds a claim on #${claimed.item_id}` : null;
 }
 
 /**
- * Prune the worktree of each landed item's builder seat with the guarded pruner the maintenance path never reaches, so the
- * batch's seats do not pile up as checkouts. Local dirt, a process cwd, a lock or an unlanded HEAD keep a tree; the landing
- * is already recorded, so nothing here can fail it [R3,C7].
+ * Prune the item folder of each landed item with the guarded pruner, so a landed batch's checkouts do not pile up beside
+ * the active seats. Local dirt, a process cwd, a lock or an unlanded HEAD keep a folder; the landing is already recorded,
+ * so nothing here can fail it [R3,C7].
  */
 export async function pruneLandedSeats(state) {
   const { board, batch, say } = state;
   if (batch?.state !== 'landed' || !batch.tip) return null;
-  const seats = new Map();
+  const targets = [];
   for (const entry of batch.items ?? []) {
     const agent = store.getItem(board, entry.id)?.item_built_by;
-    const path = agent ? store.agentById(board, agent)?.agent_path : null;
-    if (!agent || !path) continue;
-    const seat = seats.get(agent) ?? { agent, path, batch: batch.id, at: board.clock.now().toISOString(), items: [] };
-    seat.items.push({ item: entry.id, commit: entry.commit, merge: entry.merge });
-    seats.set(agent, seat);
+    const seat = agent ? store.agentById(board, agent) : null;
+    const path = seat?.agent_path ? itemFolderPath(seat.agent_path, entry.id) : null;
+    if (!path || !existsSync(path)) continue;
+    targets.push({ agent, path, batch: batch.id, at: board.clock.now().toISOString(),
+      items: [{ item: entry.id, commit: entry.commit, merge: entry.merge }] });
   }
-  if (!seats.size) return null;
+  if (!targets.length) return null;
   try {
-    return await pruneRetiredWorktrees(state.root, { tip: batch.tip, targets: [...seats.values()], exclude: [batch.root],
-      revalidate: target => seatPruneProblem(board, target.agent), say });
+    return await pruneRetiredWorktrees(state.root, { tip: batch.tip, targets, exclude: [batch.root],
+      revalidate: target => seatPruneProblem(board, target.agent, target.items[0].item), say });
   } catch (error) {
-    say(`landed seat worktrees kept: ${String(error?.message ?? error).slice(0, 200)}`);
+    say(`landed item folders kept: ${String(error?.message ?? error).slice(0, 200)}`);
     return null;
   }
 }
