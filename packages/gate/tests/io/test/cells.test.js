@@ -202,7 +202,7 @@ test('clause 1: --move-tests moves a test that reads its location only through l
     "import { a } from '../packages/kernel/a.js';",
     "const kernel = fileURLToPath(new URL('../packages/kernel/a.js', import.meta.url));",
     "const data = readFileSync(join(import.meta.dirname, 'data', 'value.txt'), 'utf8');",
-    "const root = resolve(import.meta.dirname, '../../../../..');",
+    "const root = resolve(import.meta.dirname, '..');",
     "const name = 'value';",
     "const templated = readFileSync(resolve(import.meta.dirname, `data/${name}.txt`), 'utf8');",
     "assert.equal(a, 1);",
@@ -241,8 +241,9 @@ test('clause 2: a move rewrites exact quoted moved paths in the declared test pa
   const { root, git, cli } = await moverFixture(t);
   const table = 'packages/verify/src/io/review/tier.js';
   mkdirSync(join(root, 'bin/checks'), { recursive: true });
+  mkdirSync(join(root, 'packages/gate/data/tests'), { recursive: true });
   writeFileSync(join(root, TEST_PATH_TABLES_FILE), JSON.stringify([table]));
-  mkdirSync(join(root, 'packages/verify/src/shell'), { recursive: true });
+  mkdirSync(join(root, 'packages/verify/src/io/review'), { recursive: true });
   const tableText = "export const HEAVY = ['test/one.test.js', \"test/journey.test.js\"];\n// test/one.test.js stays in this comment\nexport const NOTE = 'see test/one.test.js';\n";
   writeFileSync(join(root, table), tableText);
   writeFileSync(join(root, 'bin/checks-notes.json'), '{ "test/one.test.js": 1 }\n');
