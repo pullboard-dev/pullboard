@@ -22,7 +22,7 @@ async function runSuite(root) {
   if (!run) return { unavailable: 'this project has no full-suite runner the post-land run can use' };
   if (run.isGreen) return { green: true, failures: [] };
   const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true });
-  return failures ? { green: false, failures: failures.map(({ file, name }) => ({ file, name })) } : { green: false, failures: null };
+  return failures ? { green: false, failures } : { green: false, failures: null };
 }
 
 /** The ports a landing passes to postLandSuite. */
