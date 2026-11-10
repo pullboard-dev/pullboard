@@ -29,7 +29,7 @@ function commit(box, root, message) {
 function registryBox({ deferred = true } = {}) {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('src/', 'test/', 'pullboard.json');
+  config.lanes.web.owns.push('src/', 'test/', 'pullboard.json', 'apps/cli/journeys/relay/credential.test.js');
   config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
   config.submitGate = 'landing';
   config.submitDeferAbove = 1;
