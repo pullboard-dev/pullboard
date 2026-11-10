@@ -7,11 +7,11 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../src/shell/affected-tests.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
-import { runFixtureChild } from '../../../test/fixture-child.js';
-import { json } from '../../../test/land-board-fixture.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { cleanupFixtureChildren } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { json } from './land-board-fixture.js';
 
 const e2e = createE2eHelpers();
 after(async () => { await cleanupFixtureChildren(); e2e.cleanup(); });

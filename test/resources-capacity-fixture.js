@@ -1,14 +1,15 @@
 /** Original public capacity regressions, kept outside the over-cap resource test module [Q1,Q2,Q4]. */
 import assert from 'node:assert/strict';
-import { resolve } from 'node:path';
-import { runFixtureChild } from './fixture-child.js';
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+import { machineSettings } from './resources-settings-fixture.js';
 
-/** Change gate capacity through the public CLI in this fixture's private machine home. */
+/** Change gate capacity through the config cell in this fixture's private machine home. */
 function configureGateSlots(box, slots) {
-  return runFixtureChild(process.execPath, [BIN, 'settings', 'gateSlots', String(slots), '--json'], {
-    cwd: box.first, env: box.env, encoding: 'utf8',
-  });
+  return machineSettings(box, 'setGateSlots', slots);
+}
+
+/** Change browser capacity through the config cell in this fixture's private machine home. */
+function configureBrowserSlots(box, slots) {
+  return machineSettings(box, 'setBrowserSlots', slots);
 }
 
 /**
@@ -20,9 +21,9 @@ export function capacityChangeCases(tools) {
   return { raising: raising.bind(null, tools), lowering: lowering.bind(null, tools), browser: browser.bind(null, tools) };
 }
 
-/** Exercise the original raising capacity case through the public CLI. */
+/** Exercise the original raising capacity case through the config cell. */
 async function raising(tools) {
-  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER, configureBrowserSlots } = tools;
+  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER } = tools;
   const box = fixture();
   const children = [];
   try {
@@ -35,8 +36,8 @@ async function raising(tools) {
       assert.ok((await event(child)).waiting, 'the existing taker is queued before the setting changes');
     }
     const raised = configureGateSlots(box, 4);
-    assert.equal(raised.status, 0, raised.stderr);
-    assert.equal(JSON.parse(raised.stdout).settings.gateSlots, 4);
+    assert.equal(raised.error, undefined, raised.error?.message);
+    assert.equal(raised.value.gateSlots, 4);
     for (const child of children.slice(2)) await acquired(child);
     const gate = privateList(box).find(row => row.name === 'gate');
     assert.equal(gate.capacity, 4, 'resources reports the raised machine capacity');
@@ -50,11 +51,11 @@ async function raising(tools) {
   } finally { for (const child of children) if (!child.exitResult) await release(child); }
 }
 
-/** Exercise the original lowering capacity case through the public CLI. */
+/** Exercise the original lowering capacity case through the config cell. */
 async function lowering(tools) {
-  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER, configureBrowserSlots } = tools;
+  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER } = tools;
   const box = fixture();
-  assert.equal(configureGateSlots(box, 4).status, 0);
+  assert.equal(configureGateSlots(box, 4).error, undefined);
   const children = [];
   try {
     for (const agent of ['lower-one', 'lower-two', 'lower-three', 'lower-four']) {
@@ -63,31 +64,29 @@ async function lowering(tools) {
     }
     const before = privateList(box).find(row => row.name === 'gate');
     const lowered = configureGateSlots(box, 1);
-    assert.equal(lowered.status, 1, 'a decrease below live holders is refused rather than evicting them');
-    const error = JSON.parse(lowered.stdout).error;
+    assert.ok(lowered.error, 'a decrease below live holders is refused rather than evicting them');
+    const error = lowered.error;
     assert.equal(error.code, 'RESOURCE_BUSY');
     for (const child of children) assert.ok(error.message.includes(child.spawnargs.at(-3)),
       'the refusal identifies each live holder');
     const after = privateList(box).find(row => row.name === 'gate');
     assert.deepEqual(after, before, 'a refused decrease leaves the resource and leases unchanged');
     assert.ok(children.every(child => child.exitResult === null), 'no running holder was stopped');
-    const settings = runFixtureChild(process.execPath, [BIN, 'settings', '--json'], {
-      cwd: box.first, env: box.env, encoding: 'utf8',
-    });
-    assert.equal(JSON.parse(settings.stdout).settings.gateSlots, 4, 'the refused decrease did not change settings');
+    const settings = machineSettings(box, 'loadMachineSettings');
+    assert.equal(settings.value.gateSlots, 4, 'the refused decrease did not change settings');
     for (const child of children) await release(child);
     const changed = configureGateSlots(box, 1);
-    assert.equal(changed.status, 0, changed.stderr);
+    assert.equal(changed.error, undefined, changed.error?.message);
     assert.equal(privateList(box).find(row => row.name === 'gate').capacity, 1,
       'the same decrease works after the holders finish');
   } finally { for (const child of children) if (!child.exitResult) await release(child); }
 }
 
-/** Exercise the original browser capacity case through the public CLI. */
+/** Exercise the original browser capacity case through the config cell. */
 async function browser(tools) {
-  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER, configureBrowserSlots } = tools;
+  const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER } = tools;
   const box = fixture();
-  assert.equal(configureGateSlots(box, 4).status, 0);
+  assert.equal(configureGateSlots(box, 4).error, undefined);
   const script = POOL_MODULE_WORKER.replace('capacity: 2,',
     'capacity: loadMachineSettings().gateSlots, capacityProvider: () => loadMachineSettings().gateSlots,');
   const children = [];
@@ -99,7 +98,7 @@ async function browser(tools) {
       assert.ok((await event(child)).queued, 'the browser taker waits before browserSlots is raised');
     }
     const raised = configureBrowserSlots(box, 3);
-    assert.equal(raised.status, 0, raised.stderr);
+    assert.equal(raised.error, undefined, raised.error?.message);
     for (const child of children.slice(1, 3)) await acquired(child);
     const rows = privateList(box);
     assert.equal(rows.find(row => row.name === 'browser').capacity, 3);
