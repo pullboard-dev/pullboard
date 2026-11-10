@@ -605,6 +605,7 @@ function cellRepo(t) {
   const box = stagedRepo(t);
   mkdirSync(join(box.root, 'bin/checks'), { recursive: true });
   mkdirSync(join(box.root, 'test'), { recursive: true });
+  mkdirSync(join(box.root, 'packages/gate/data/tests'), { recursive: true });
   writeFileSync(join(box.root, 'packages/gate/data/tests/test-cells.json'), JSON.stringify({ journeys: { 'test/listed.test.js': 'drives the CLI end to end' } }) + '\n');
   writeFileSync(join(box.root, 'test/old.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '-A');
