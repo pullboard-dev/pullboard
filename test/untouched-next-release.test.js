@@ -4,11 +4,18 @@ import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crossLaneFixture } from './e2e-helpers.js';
+import { fileFixtureItem } from './testkit-fixture.js';
+
+/** Wait for the baseline before asking next to claim the item. */
+function add(box, title) {
+  return fileFixtureItem(box, box.repo, { lane: 'web', title, route: 'strong', check: 'true',
+    diagnose: false, args: ['--specs', 'G1'], wait: true }).item_id;
+}
 
 test('real next and release preserve an untouched item for another builder [C7,H16]', t => {
   const box = crossLaneFixture(t);
   const seat = box.seat('core-seat', 'web', box.session);
-  const id = box.add('web', 'Untouched automatic claim');
+  const id = add(box, 'Untouched automatic claim');
   for (let index = 0; index < 2; index++) {
     const next = box.json(box.runAs(box.session, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id);
@@ -22,7 +29,7 @@ test('real next and release preserve an untouched item for another builder [C7,H
 test('matching pre-existing edits are untouched, but later content changes count [C7,H16]', t => {
   const box = crossLaneFixture(t);
   const seat = box.seat('dirty-seat', 'web', box.session);
-  const id = box.add('web', 'Existing worktree edits');
+  const id = add(box, 'Existing worktree edits');
   const file = join(seat.root, 'already-dirty.txt');
   writeFileSync(file, 'before');
   const take = () => box.json(box.runAs(box.session, seat.root, 'next', '--take', '--json'));
