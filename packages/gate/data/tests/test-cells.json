@@ -259,6 +259,7 @@
     "apps/runner",
     "apps/view",
     "blueprints",
+    "codemap",
     "commits",
     "config",
     "doctrine",
