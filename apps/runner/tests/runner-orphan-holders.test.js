@@ -22,7 +22,7 @@ const ORPHAN_AGE_MS = 10 * 60_000;
 function runner(t) {
   const fixture = privateFixtureFiles('pullboard-orphan-'), box = fixture.root;
   const root = join(box, 'runner'), machine = join(box, 'machine');
-  const entry = join(root, 'runtime', 'a'.repeat(64), 'src', 'runner-worker.js');
+  const entry = join(root, 'runtime', 'a'.repeat(64), 'src/runner-worker.js');
   mkdirSync(machine, { recursive: true });
   fixture.write(`runner/runtime/${'a'.repeat(64)}/src/runner-worker.js`, "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1_000);\n");
   const db = new DatabaseSync(join(machine, 'resources.sqlite'));

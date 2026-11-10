@@ -692,7 +692,7 @@ test('manual reopen records a timestamp-prefixed failing test after an unrecorde
   await acceptLandingFixture(box, item);
 
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test', 'a.test.js'), [
+  writeFileSync(join(box.repo, 'test/a.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { readFileSync } from 'node:fs';",
     "import { test } from 'node:test';",

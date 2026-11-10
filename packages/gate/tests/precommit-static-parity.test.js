@@ -15,7 +15,7 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '..', '..', '..', 'bin', 'checks');
+const REAL = join(import.meta.dirname, '../../../bin/checks');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
 function staticProject(accepted = {}) {
@@ -28,9 +28,9 @@ function staticProject(accepted = {}) {
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: record existing source before static policy');
   }
-  mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
-  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
-  writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin/checks/test-waits-baseline.json'));
+  writeFileSync(join(box.repo, 'bin/checks/changed-static.js'), [
     `import { changedStaticFailures, stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
     "const failures = process.argv[2] === '--staged-hook' ? stagedHookFailures(process.cwd()) : changedStaticFailures(process.cwd(), process.argv.slice(3), { staged: process.argv[2] === '--staged' });",
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
@@ -80,9 +80,9 @@ test('the staged checker judges the index when working files differ in either di
   for (const [staged, working, shouldPass] of [[bad, good, false], [good, bad, true]]) {
     const box = staticProject();
     mkdirSync(join(box.repo, 'src'), { recursive: true });
-    writeFileSync(join(box.repo, 'src', 'partial.js'), staged);
+    writeFileSync(join(box.repo, 'src/partial.js'), staged);
     box.git(box.repo, 'add', 'src/partial.js');
-    writeFileSync(join(box.repo, 'src', 'partial.js'), working);
+    writeFileSync(join(box.repo, 'src/partial.js'), working);
     const result = runChecker(box);
     assert.equal((result.status ?? result.code) === 0, shouldPass, result.stderr ?? result.err);
   }

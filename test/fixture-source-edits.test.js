@@ -16,7 +16,7 @@ const PREFIX = "import { cpSync, readFileSync } from 'node:fs'; import { join } 
 const options = { file: 'test/data-reads.test.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']], readSource: () => null };
 
 test('a read whose path can name a moved source file is still reported [C7]', () => {
-  const result = fixtureSourceEdits(PREFIX + "const code = join(root, 'src', 'git.js');\nreadFileSync(code);", options);
+  const result = fixtureSourceEdits(PREFIX + "const code = join(root, 'src/git.js');\nreadFileSync(code);", options);
   assert.equal(result.excluded, undefined);
   assert.ok(result.edits.length || result.problems.length, 'the source-path read is an edit or a problem');
   const unknown = fixtureSourceEdits(PREFIX + 'readFileSync(mystery);', options);
@@ -133,7 +133,7 @@ test('a closed helper reading moved implementation rewrites its actual source an
   const source = FLOW_PREFIX + `
 function sourceText(path) { return readFileSync(path, 'utf8'); }
 const code = sourceText(new URL('../src/git.js', import.meta.url));
-writeFileSync(join(root, 'src', 'git.js'), code);
+writeFileSync(join(root, 'src/git.js'), code);
 assert.equal(code.includes('src/git.js'), true);
 `;
   const result = fixtureSourceEdits(source, options);
@@ -141,7 +141,7 @@ assert.equal(code.includes('src/git.js'), true);
   assert.equal(result.edits.length, 1);
   const rewritten = editedFixture(source, result.edits);
   assert.match(rewritten, /new URL\(['"]\.\.\/packages\/git\/src\/shell\/git\.js['"], import\.meta\.url\)/u);
-  assert.ok(rewritten.includes("writeFileSync(join(root, 'src', 'git.js'), code)"));
+  assert.ok(rewritten.includes("writeFileSync(join(root, 'src/git.js'), code)"));
   assert.ok(rewritten.includes("assert.equal(code.includes('src/git.js'), true)"));
   assert.deepEqual(fixtureSourceEdits(rewritten, options).edits, [], 'an actual-home source is not rewritten again');
 });

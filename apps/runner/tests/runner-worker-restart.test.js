@@ -40,7 +40,7 @@ function observe(t, busy, reason = 'worker-unresponsive') {
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');
     initializeRunnerRecovery(db);
     const identity = { version: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64), launchFence: 1 };
-    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'src', 'runner-worker.js')], { stdio: 'ignore' });
+    const stale = spawn(process.execPath, [join(root, 'runtime', 'b'.repeat(64), 'src/runner-worker.js')], { stdio: 'ignore' });
     const exited = once(stale, 'exit');
     let ownerWitness;
     try {

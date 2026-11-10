@@ -43,7 +43,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
   assert.ok(!existsSync(join(installed, 'node_modules')), 'nothing was installed beside it');
-  const bin = join(prefix, 'bin', 'pullboard');
+  const bin = join(prefix, 'bin/pullboard');
 
   const env = {
     ...process.env,

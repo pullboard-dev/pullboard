@@ -45,7 +45,7 @@ if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:res
 
 /** Commit a complete installable synthetic generation with the ordinary hooks still enabled. */
 function generation(box, label) {
-  writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'status.js'), `/** Synthetic generation probe for the pin integration fixture. */
+  writeFileSync(join(box.repo, 'apps/cli/src/shell/commands/status.js'), `/** Synthetic generation probe for the pin integration fixture. */
 import {existsSync,writeFileSync} from 'node:fs';
 export const nativeBoardRequired = false;
 export async function run(io){
@@ -54,7 +54,7 @@ export async function run(io){
  io.say('${label}');return 0;
 }
 `);
-  const hookFile = join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js');
+  const hookFile = join(box.repo, 'apps/cli/src/shell/commands/hook.js');
   const originalHook = box.originalHook;
   writeFileSync(hookFile, `import {writeFileSync as writePinHookMarker} from 'node:fs';\nif(process.env.PULLBOARD_PIN_HOOK_MARKER)writePinHookMarker(process.env.PULLBOARD_PIN_HOOK_MARKER,'${label}');\n${originalHook}`);
   box.git(box.repo, 'add', '-A');
@@ -79,8 +79,8 @@ function project(source) {
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
   mkdirSync(join(repo, 'test'), { recursive: true });
-  copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(repo, 'test', 'wall-clock-budgets.js'));
-  const originalHook = readFileSync(join(repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
+  copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(repo, 'test/wall-clock-budgets.js'));
+  const originalHook = readFileSync(join(repo, 'apps/cli/src/shell/commands/hook.js'), 'utf8');
   // This private project has one committed test; copied package and app fixtures are not its tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   for (const name of readdirSync(join(repo, 'apps'))) rmSync(join(repo, 'apps', name, 'tests'), { recursive: true, force: true });
@@ -98,11 +98,11 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   const source = resolve(import.meta.dirname, '..');
   const box = project(source);
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test', 'pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
+  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('synthetic full gate [C7]',()=>{});\n");
   const first = generation(box, 'first');
   const location = toolBuildLocation(box.repo);
   assert.equal(toolBuildPolicy(location).enabled, false);
-  assert.equal(await selectedToolEntry(box.repo, join(source, 'bin', 'pullboard.js')), null, 'default off preserves the existing dispatcher');
+  assert.equal(await selectedToolEntry(box.repo, join(source, 'bin/pullboard.js')), null, 'default off preserves the existing dispatcher');
   const firstReceipt = gate(box);
   const fullBuild = gatedToolBuild(location, first, firstReceipt);
   assert.equal(fullBuild.commit, first, 'the native full main run is eligible');
@@ -130,13 +130,13 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   // Version-only arguments intentionally bypass pinned-tool selection; probe an ordinary command to test the selected generation.
   assert.equal(box.run(seat, 'status', '--name', 'tool-probe').out.trim().split('\n')[0], 'first', 'a new trunk commit does not move the claimed seat CLI');
   const hookMarker = join(box.dir, 'hook-generation');
-  const hook = runFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'hook', 'pre-commit'],
+  const hook = runFixtureChild(process.execPath, [join(source, 'bin/pullboard.js'), 'hook', 'pre-commit'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_HOOK_MARKER: hookMarker }, encoding: 'utf8' });
   assert.equal(hook.status, 0, hook.failure ?? hook.stderr + hook.stdout);
   assert.equal(readFileSync(hookMarker, 'utf8'), 'first', 'actual hook implementation comes from the selected generation');
   assert.equal(readToolBuild(location).commit, first, 'the actual hook command retained the same published build');
   const marker = join(box.dir, 'pin-ready'), release = join(box.dir, 'pin-release');
-  const held = startFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'status', '--name', 'tool-probe'],
+  const held = startFixtureChild(process.execPath, [join(source, 'bin/pullboard.js'), 'status', '--name', 'tool-probe'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_READY: marker, PULLBOARD_PIN_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   held.stdout.on('data', chunk => { output += chunk; });
@@ -161,15 +161,15 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
     assert.equal(result.code, 0, result.err + result.out);
     const prior = readToolBuild(location);
     writeToolBuild(location, { ...prior, promotedAt: new Date(Date.now() - 3_600_001).toISOString() });
-    const selected = await selectedToolEntry(seat, join(source, 'bin', 'pullboard.js'));
-    assert.equal(selected, join(location.directory, second, 'bin', 'pullboard.js'), 'hourly refresh selects native gated accepted source at the next command boundary');
+    const selected = await selectedToolEntry(seat, join(source, 'bin/pullboard.js'));
+    assert.equal(selected, join(location.directory, second, 'bin/pullboard.js'), 'hourly refresh selects native gated accepted source at the next command boundary');
   } finally { writeFileSync(release, 'release'); await closed; }
 });
 
 test('a native green selected-file gate cannot publish a full tool build [C7]', () => {
   const box = project(resolve(import.meta.dirname, '..'));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test', 'pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
+  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('selected fixture [C7]',()=>{});\n");
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.gate = 'node bin/run-tests.js test/pin-audit.test.js';
@@ -191,7 +191,7 @@ test('automatic main gate is opt-in and refuses an unregistered timer [C7]', asy
 test('timer honors committed main opt-out and retains an observed live owner [C7]', async () => {
   const box = project(resolve(import.meta.dirname, '..'));
   mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'test', 'pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
+  writeFileSync(join(box.repo, 'test/pin-audit.test.js'), "import { test } from 'node:test'; test('timer source [C7]',()=>{});\n");
   generation(box, 'timer');
   const commonDir = realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'));
   const ctx = { info: { root: box.repo, commonDir }, config: { toolBuild: { autoGate: true } } };

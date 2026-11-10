@@ -34,8 +34,8 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   // The map is committed before the move: a map file first appearing in the change is a non-module input that import
   // selection cannot compute, which sends the plan to the full gate [C7,S10].
   if (moved) {
-    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
-    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
+    mkdirSync(join(box.repo, 'bin/cells-plan/path-map'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin/cells-plan/path-map/example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
   }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add fixture tests');

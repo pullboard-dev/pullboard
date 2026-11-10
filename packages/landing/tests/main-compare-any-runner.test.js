@@ -217,12 +217,12 @@ function fixture(t) {
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: paths.repo, env });
   writeFileSync(join(paths.repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
   writeFileSync(join(paths.repo, 'pullboard.json'), JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js' }) + '\n');
-  writeFileSync(join(paths.repo, 'test', 'inherited.test.js'), [
+  writeFileSync(join(paths.repo, 'test/inherited.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "test('the inherited main failure stays named [V4]', () => assert.equal(1, 2));",
   ].join('\n') + '\n');
-  writeFileSync(join(paths.repo, 'test', 'runner.js'), [
+  writeFileSync(join(paths.repo, 'test/runner.js'), [
     "import { spawnSync } from 'node:child_process';",
     "const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...process.argv.slice(2)], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });",
     "if (result.stdout) process.stdout.write(result.stdout);",

@@ -53,10 +53,10 @@ async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '0.0.0-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   copyPackageFiles(SOURCE, repo);
-  writeFileSync(join(repo, 'test', 'free.test.js'), FREE);
-  writeFileSync(join(repo, 'test', 'chrome.test.js'), CHROME);
-  writeFileSync(join(repo, 'test', 'declared.test.js'), DECLARED);
-  writeFileSync(join(repo, 'test', 'marker.test.js'), MARKER);
+  writeFileSync(join(repo, 'test/free.test.js'), FREE);
+  writeFileSync(join(repo, 'test/chrome.test.js'), CHROME);
+  writeFileSync(join(repo, 'test/declared.test.js'), DECLARED);
+  writeFileSync(join(repo, 'test/marker.test.js'), MARKER);
   git(repo, env, 'add', '.');
   git(repo, env, 'commit', '-q', '-m', 'test: commit a browser-free runner fixture');
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });

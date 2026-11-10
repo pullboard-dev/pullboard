@@ -25,7 +25,7 @@ import { DatabaseSync } from 'node:sqlite';
 const config = JSON.parse(process.argv[1]);
 const { root, fault, healthURL } = config;
 const jobs = join(root, 'jobs');
-const workerFile = join(root, 'runtime', 'b'.repeat(64), 'src', 'runner-worker.js');
+const workerFile = join(root, 'runtime', 'b'.repeat(64), 'src/runner-worker.js');
 const ready = join(root, 'ready');
 fs.mkdirSync(join(workerFile, '..'), { recursive: true });
 fs.mkdirSync(jobs, { recursive: true });
@@ -212,7 +212,7 @@ test('a genuine unrelated OS executable with argv0 node and exact worker argv1 i
   const actual = observe(t, 'foreign-executable');
   assert.equal(actual.launchedExecutable, '/usr/bin/tee');
   assert.equal(actual.argv0, 'node');
-  assert.equal(actual.entrypointArgument, join(actual.root, 'runtime', 'b'.repeat(64), 'src', 'runner-worker.js'));
+  assert.equal(actual.entrypointArgument, join(actual.root, 'runtime', 'b'.repeat(64), 'src/runner-worker.js'));
   assert.deepEqual(actual.signals, []);
   assert.deepEqual(actual.reply.restarted, []);
   assert.deepEqual(actual.reply.signalAttempts, []);

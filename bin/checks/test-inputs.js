@@ -16,7 +16,7 @@
  *   path segment; for a template, in its text before the first `${`) that is a direct argument of
  *   a call whose own arguments include `import.meta.url`, `import.meta.dirname`,
  *   `import.meta.filename` or a `ROOT` constant, as in new URL('../src/x.js', import.meta.url),
- *   resolve(import.meta.dirname, '../src') or join(ROOT, 'src', 'cockpit.js').
+ *   resolve(import.meta.dirname, '../src') or join(ROOT, 'src/cockpit.js').
  *
  * Two kinds of path do not count. A fixture path, such as join(lane, 'src/board.js'), has no
  * anchor: it names a copy inside a temporary repo, not this checkout. A module URL, which the

@@ -69,7 +69,7 @@ async function timed(box, cwd, ...argv) {
   const startedAt = performance.now();
   try {
     const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'apps', 'cli', 'index.js')).href),
-      hookWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js'),
+      hookWorker: join(box.release, 'apps/cli/src/shell/cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps/cli/src/shell/submit-handoff-worker.js'),
       /** Launch only the released sender actually requested by this command. */
       launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };
@@ -121,7 +121,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'Create the read fallback fixture');
   box.release = released(box);
-  const cli = () => runFixtureChild(process.execPath, [join(box.release, 'bin', 'pullboard.js'), 'status', '--json'],
+  const cli = () => runFixtureChild(process.execPath, [join(box.release, 'bin/pullboard.js'), 'status', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   const first = cli();
   assert.equal(first.status, 0, first.failure ?? first.stderr);
@@ -187,7 +187,7 @@ test('a read answers while a writer holds the lock [C7]', async (t) => {
   const db = new DatabaseSync(file);
   db.exec(`${HOT_INDEXES.map((name) => `DROP INDEX ${name};`).join(' ')} PRAGMA user_version = 2`);
   db.close();
-  const cli = (...argv) => runFixtureChild(process.execPath, [join(box.release, 'bin', 'pullboard.js'), ...argv], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const cli = (...argv) => runFixtureChild(process.execPath, [join(box.release, 'bin/pullboard.js'), ...argv], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   /** The hot-path indexes the board has, read without touching it. */
   const hotIndexes = () => {
     const board = store.openBoardReadOnly(file);

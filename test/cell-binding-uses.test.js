@@ -54,12 +54,12 @@ test('named metadata leaves and complete moved-body tails keep their exact input
   ] };
   for (const body of [
     "const FILE = 'bin/cells-plan/transition.json'; readFileSync(join(root, FILE));",
-    "readFileSync(join(box.repo, 'packages', 'git', 'src', 'shell', 'git.js'));",
+    "readFileSync(join(box.repo, 'packages/git/src/shell/git.js'));",
   ]) assert.deepEqual(fixtureSourceEdits(prefix + body, options), { edits: [], problems: [] });
   for (const body of [
     "const FILE = 'src/git-launch-baseline.json'; readFileSync(join(root, FILE));",
-    "readFileSync(join(root, 'src', 'git.js'));",
-    "readFileSync(join(root, 'packages', '..', 'src', 'git.js'));",
+    "readFileSync(join(root, 'src/git.js'));",
+    "readFileSync(join(root, 'packages/../src/git.js'));",
     "const FILE = 'transition.json'; function read(FILE) { readFileSync(join(root, FILE)); }",
     "let FILE = 'transition.json'; FILE = unknown; readFileSync(join(root, FILE));",
   ]) assert.ok(fixtureSourceEdits(prefix + body, options).problems.length, body);
@@ -71,7 +71,7 @@ test('recursive fixture copies remain explicit inputs even with apparently priva
   for (const body of [
     "cpSync(join(box.root, '.git', 'pullboard'), target, {recursive:true});",
     "cpSync(join(root, 'src'), target, {recursive:true});",
-    "cpSync(join(root, 'src', 'git.js'), target, {recursive:true});",
+    "cpSync(join(root, 'src/git.js'), target, {recursive:true});",
     "cpSync(join(root, 'git.js'), target, {recursive:true});",
     "cpSync(join(root, '.git', '..', 'src'), target, {recursive:true});",
     "cpSync(box.input, target, {recursive:true});",
@@ -154,8 +154,8 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
   assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'ENOENT' });
   symlinkSync(join(root, oldPath), join(root, bodyPath));
   assert.throws(() => mappedWorkingSource(root, oldPath), /contained regular file/u);
-  mkdirSync(join(root, 'bin', 'cells-plan', 'path-map'), { recursive: true });
-  writeFileSync(join(root, 'bin', 'cells-plan', 'path-map', 'duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
+  mkdirSync(join(root, 'bin/cells-plan/path-map'), { recursive: true });
+  writeFileSync(join(root, 'bin/cells-plan/path-map/duplicate.json'), JSON.stringify({ [oldPath]: bodyPath }));
   git('add', '-A'); git('commit', '-q', '-m', 'chore: ambiguous map format control');
   assert.throws(() => mappedWorkingSource(root, oldPath), { code: 'NO_POLICY' });
 });
@@ -163,7 +163,7 @@ test('mapped working source preserves implementation, shim and exact Buffer obli
 test('native file URL composition retains the actual repository body and refuses unknown roots [C7]', () => {
   const prefix = "import {readFileSync} from 'node:fs'; import {join} from 'node:path'; import {fileURLToPath} from 'node:url';\n";
   const root = "const ROOT = fileURLToPath(new URL('..', import.meta.url));\n";
-  const read = "readFileSync(join(ROOT, 'src', 'local-fetch.js'), 'utf8');";
+  const read = "readFileSync(join(ROOT, 'src/local-fetch.js'), 'utf8');";
   const options = { file: 'test/boundary.test.js', moves: [['src/local-fetch.js', 'packages/sync/src/shell/local-fetch.js']] };
   const proved = fixtureSourceEdits(prefix + root + read, options);
   assert.deepEqual(proved.problems, []);

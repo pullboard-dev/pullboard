@@ -113,12 +113,12 @@ test('the wall-clock scanner skips ignored worktrees [C7]', () => {
     initFixtureRepo(root);
     writeFileSync(join(root, '.gitignore'), '.claude/worktrees/\n');
     mkdirSync(join(root, 'test'));
-    writeFileSync(join(root, 'test', 'tracked.test.js'), 'const startedAt = Date.now();\nassert.ok(Date.now() - startedAt < 30_000);\n');
+    writeFileSync(join(root, 'test/tracked.test.js'), 'const startedAt = Date.now();\nassert.ok(Date.now() - startedAt < 30_000);\n');
     trackFixtureFiles(root, '.gitignore', 'test/tracked.test.js');
     const ignored = join(root, '.claude', 'worktrees', 'copy', 'test');
     mkdirSync(ignored, { recursive: true });
     writeFileSync(join(ignored, 'ignored.test.js'), 'const startedAt = Date.now();\nassert.ok(Date.now() - startedAt < 30_000);\n');
-    writeFileSync(join(root, 'test', 'untracked.test.js'), 'const startedAt = Date.now();\nassert.ok(Date.now() - startedAt < 30_000);\n');
+    writeFileSync(join(root, 'test/untracked.test.js'), 'const startedAt = Date.now();\nassert.ok(Date.now() - startedAt < 30_000);\n');
 
     assert.deepEqual(wallClockViolations(root), [
       'test/tracked.test.js:2: literal elapsed-time margin: assert.ok(Date.now() - startedAt < 30_000);',
@@ -162,7 +162,7 @@ test('the clock-margin guard catches planted source and names its file and line 
     assert.deepEqual(wallClockViolations(root).map(line => Number(/:(\d+):/u.exec(line)[1])), [7]);
     writeFileSync(file, '');
     mkdirSync(join(root, 'test'));
-    writeFileSync(join(root, 'test', 'helper.js'), bare);
+    writeFileSync(join(root, 'test/helper.js'), bare);
     writeFileSync(join(root, 'test.js'), bare);
     trackFixtureFiles(root, 'test/helper.js', 'test.js');
     assert.deepEqual(wallClockViolations(root).map(line => line.split(':')[0]).sort(), ['test.js', 'test/helper.js'],

@@ -163,7 +163,7 @@ import {
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
-const CLI = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const CLI = join(import.meta.dirname, '../bin/pullboard.js');
 /** The shipped command run with an explicit trusted fixture relay; test-only, never published (#408). */
 const TRUSTED_CLI = join(import.meta.dirname, 'person-trusted-cli.js');
 

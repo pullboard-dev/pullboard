@@ -10,7 +10,7 @@ import { join } from 'node:path';
 /** Read one existing numeric version without loading board writers or executing a declaration. */
 function versionAt(root, source) {
   if (source?.kind === 'engines') {
-    const folder = join(root, 'packages', 'state', 'src', 'core', 'engines');
+    const folder = join(root, 'packages/state/src/core/engines');
     const values = readdirSync(folder).filter(file => /^[a-z][a-z0-9-]*-engine\.js$/u.test(file))
       .flatMap(file => [...readFileSync(join(folder, file), 'utf8').matchAll(/^export const [A-Z][A-Z0-9_]*_ENGINE = (\d+|unassignedEngine\(\));$/gmu)].map(match => match[1]));
     const highest = Math.max(1, ...values.filter(value => /^\d+$/u.test(value)).map(Number));
@@ -28,11 +28,11 @@ function versionAt(root, source) {
 
 /** Read strict, independently added format declarations in deterministic historical order. */
 export function discoverFormats(root) {
-  const files = readdirSync(join(root, 'packages', 'state', 'src', 'shell', 'formats')).filter(file => file.endsWith('.json')).sort();
+  const files = readdirSync(join(root, 'packages/state/src/shell/formats')).filter(file => file.endsWith('.json')).sort();
   const names = new Set();
   const formats = files.map(file => {
     if (!/^[a-z][a-z0-9-]*\.json$/u.test(file)) throw new Error(`invalid format declaration ${file}`);
-    const entry = JSON.parse(readFileSync(join(root, 'packages', 'state', 'src', 'shell', 'formats', file), 'utf8'));
+    const entry = JSON.parse(readFileSync(join(root, 'packages/state/src/shell/formats', file), 'utf8'));
     if (!entry || typeof entry.name !== 'string' || !entry.name || entry.name.includes('`') || names.has(entry.name)
       || !Number.isSafeInteger(entry.order) || entry.order < 0
       || [entry.name, entry.source, entry.upgrade].some(value => typeof value !== 'string' || !value || /[\r\n|]/u.test(value))) {

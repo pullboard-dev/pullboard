@@ -20,7 +20,7 @@ test('clause 1: an agent sees 200 passes and both failures in under 40 lines whi
   writeFileSync(configFile, JSON.stringify({ ...config,
     affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'output.test.js'), [
+  writeFileSync(join(box.repo, 'test/output.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "for (let n = 0; n < 200; n++) test(`passing case ${n}`, () => {});",
@@ -71,7 +71,7 @@ function itemProject() {
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false },
     gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'output.test.js'), [
+  writeFileSync(join(box.repo, 'test/output.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { existsSync } from 'node:fs';",
     "import { test } from 'node:test';",

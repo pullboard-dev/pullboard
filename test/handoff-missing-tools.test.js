@@ -34,7 +34,7 @@ test('a ticket whose tools folder is gone is ended as infrastructure and the dis
   machineHome(t, join(dir, 'home'));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
   const jobs = ['lost', 'next'].map(id => {
     const directory = join(dir, 'jobs', id);
     mkdirSync(directory, { recursive: true });

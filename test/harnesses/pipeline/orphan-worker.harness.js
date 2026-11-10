@@ -50,7 +50,7 @@ function probe(runner, liveJobs) {
 test('an orphaned runner worker is stopped by the idle probe and the runner is proven idle again [C7]', { timeout: 60_000 }, async () => {
   const dir = await scratch('orphan');
   const runner = { root: join(dir, 'runner'), machine: join(dir, 'machine') };
-  const entry = join(runner.root, 'runtime', 'a'.repeat(64), 'src', 'runner-worker.js');
+  const entry = join(runner.root, 'runtime', 'a'.repeat(64), 'src/runner-worker.js');
   mkdirSync(join(entry, '..'), { recursive: true });
   mkdirSync(runner.machine, { recursive: true });
   writeFileSync(entry, "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1_000);\n");

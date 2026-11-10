@@ -30,7 +30,7 @@ function machine(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-urgent-')));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
   t.after(() => {

@@ -356,7 +356,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   for (const [name, kind, rules] of [['catalog', undefined, [['R1', 'A catalog rule.']]], ['catalog-practice', 'practice', [['R1', 'A catalog rule.'], ['R2', 'A practice catalog rule.']]]]) writeFileSync(join(box.dir, `${name}-blueprint.json`), `${JSON.stringify({ blueprint: 1, name, title: name, version: 1, kind, rules: rules.map(([key, text]) => ({ key, text, why: 'the API lists it.' })) })}\n`);
   assert.deepEqual((({ rows, blueprints }) => [rows[0].status, rows.length, blueprints.length, blueprints[1].shared.length])(await json(box, repo, 'blueprint', ['add', join(box.dir, 'catalog-blueprint.json'), '--blueprint', join(box.dir, 'catalog-practice-blueprint.json')], 'add')), ['draft', 2, 2, 1], 'two blueprints in one add land as one result, a shared rule drafted once (#720)');
   mkdirSync(join(repo, 'test'));
-  writeFileSync(join(repo, 'test', 'proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
+  writeFileSync(join(repo, 'test/proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
   await box.git(repo, 'add', 'SPEC.md', 'test/proof.test.js');
   await box.git(repo, 'commit', '-q', '-m', 'test: cite the fixture');
   const signerKey = join(box.dir, 'signer-key');
@@ -974,7 +974,7 @@ catalogCase('[A1,C7] test runs named test files and reports where they ran', asy
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')), affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }, null, 2)); // this file's own runner must not nest it
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'catalog.test.js'), "import { test } from 'node:test';\ntest('catalog passes', () => {});\n");
+  writeFileSync(join(box.repo, 'test/catalog.test.js'), "import { test } from 'node:test';\ntest('catalog passes', () => {});\n");
   await box.git(box.repo, 'add', '-A');
   await box.git(box.repo, 'commit', '-q', '-m', 'test: a focused runner and one test file');
   const result = await json(box, box.repo, 'test', ['test/catalog.test.js']);

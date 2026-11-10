@@ -86,7 +86,7 @@ test('the guard ignores fixture strings, comments and private board or test-help
   assert.deepEqual(fixtureCopierProblems("import {readFileSync,writeFileSync} from 'node:fs'; const data=JSON.parse(readFileSync(new URL('../../../src/blueprints/web-app.json',import.meta.url))); writeFileSync(target,JSON.stringify({...data,name:'changed'}));"), [], 'parsed fixture data is not a runtime file copy');
   assert.deepEqual(fixtureCopierProblems("import {readFileSync,writeFileSync} from 'node:fs'; const path=join(root,'src/sample.js'); const original=readFileSync(path); writeFileSync(path,original);"), [], 'restoring bytes to the same source is not a copy into another fixture');
 
-  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src','sample-engine.js'),target);"), []);
+  assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src/sample-engine.js'),target);"), []);
 });
 
 test('every test fixture uses the manifest helper for shipped tool copies [C7]', () => {

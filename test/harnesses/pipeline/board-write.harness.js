@@ -58,7 +58,7 @@ function start(source, args, env) {
 /** Run one CLI command in its own process, resolving with its result and wall time, or `late` past the limit. */
 function cli(box, cwd, args) {
   const started = performance.now();
-  const child = spawn(process.execPath, [join(ROOT, 'bin', 'pullboard.js'), ...args], { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [join(ROOT, 'bin/pullboard.js'), ...args], { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = '', err = '';
   child.stdout.setEncoding('utf8').on('data', text => { out += text; });
   child.stderr.setEncoding('utf8').on('data', text => { err += text; });

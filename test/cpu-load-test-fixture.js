@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { awaitNestedRun } from '../packages/gate/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { repoPath } from '../packages/kernel/core.js';
 
 const SOURCE = resolve(import.meta.dirname, '..');
 let fixtureSequence = 0;
@@ -29,14 +30,14 @@ export function cpuLoadFixture(e2e, { declaration = '{ cpuLoad: true }', binding
   const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   if (registrationHelper) {
-    writeFileSync(join(box.repo, 'test', 'registrations.js'), registrationHelper === 'wrapper'
+    writeFileSync(join(box.repo, 'test/registrations.js'), registrationHelper === 'wrapper'
       ? "import { test, after } from 'node:test'; export { after }; export const launch = (...args) => test(...args);\n"
       : "export { test as launch, after } from 'node:test';\n");
-    writeFileSync(join(box.repo, 'test', 'registration-barrel.js'), "export { launch, after } from './registrations.js';\n");
+    writeFileSync(join(box.repo, 'test/registration-barrel.js'), "export { launch, after } from './registrations.js';\n");
   }
-  if (lifecycleHelper) writeFileSync(join(box.repo, 'test', 'lifecycle.js'), "import { after } from 'node:test'; after(() => {});\n// Text is not CPU load: { cpuLoad: true }\n");
-  if (importedOptions) writeFileSync(join(box.repo, 'test', 'options.js'), 'export const options = { cpuLoad: true };\n');
-  writeFileSync(join(box.repo, 'test', probeFile), `${commonjs
+  if (lifecycleHelper) writeFileSync(join(box.repo, 'test/lifecycle.js'), "import { after } from 'node:test'; after(() => {});\n// Text is not CPU load: { cpuLoad: true }\n");
+  if (importedOptions) writeFileSync(join(box.repo, 'test/options.js'), 'export const options = { cpuLoad: true };\n');
+  writeFileSync(repoPath(box.repo, `test/${probeFile}`), `${commonjs
     ? `const { test: ${binding}, after: finish } = require('node:test');\nconst { DatabaseSync } = require('node:sqlite');`
     : dynamicImport
       ? `const { default: ${binding}, after: finish } = await import('node:test');\nimport { DatabaseSync } from 'node:sqlite';`
@@ -72,14 +73,14 @@ ${subtest ? '});' : ''}
   command('settings', 'gate.runnersFirst', 'off');
   command('settings', 'gateSlots', '1');
   stage('runner-registered');
-  const cli = join(SOURCE, 'bin', 'pullboard.js');
+  const cli = join(SOURCE, 'bin/pullboard.js');
   return {
     ...box, env, requests, remoteHome, remoteMachineHome, command,
     /** Count real completed SSH requests without treating a configured host as execution proof. */
     requestsMade() { return existsSync(requests) ? readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : []; },
     /** Commit a harmless source change so the next public gate executes instead of reusing a green tree. */
     commitProbeChange() {
-      const probe = join(box.repo, 'test', probeFile);
+      const probe = repoPath(box.repo, `test/${probeFile}`);
       writeFileSync(probe, readFileSync(probe, 'utf8') + '\n// A new fixture revision exercises ordinary gate execution again.\n');
       box.git(box.repo, 'add', `test/${probeFile}`);
       box.git(box.repo, 'commit', '-q', '-m', 'test: advance the CPU placement fixture source');

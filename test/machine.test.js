@@ -861,7 +861,7 @@ test("a blank field in the board file is exactly what JavaScript's trim removes 
   assert.deepEqual(machineRules.BLANKS, trimmed);
 });
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 /** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
 const PRECHECKED = {
@@ -1372,7 +1372,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
   try {
     copyPackageFiles(dirname(import.meta.dirname), dir);
-    const boardFile = join(dir, 'src', 'board.js');
+    const boardFile = join(dir, 'src/board.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
     const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);

@@ -79,7 +79,7 @@ test('the landing gate bounds its own concurrency [C7]', () => {
   const selected = [];
   for (let id = 0; id < 9; id += 1) {
     const browser = id < 4;
-    const folder = join(root, 'test', browser ? 'cockpit' : 'ordinary');
+    const folder = repoPath(root, browser ? 'test/cockpit' : 'test/ordinary');
     mkdirSync(folder, { recursive: true });
     const file = join(folder, `overlap-${id}.test.js`);
     selected.push(file);
@@ -603,6 +603,7 @@ test('a piped gate fails safely while named-test item checks keep last-stage sem
   const fixture = join(box.dir, 'named-output.test.js');
   writeFileSync(fixture, `import {test} from 'node:test';
 import {setTimeout} from 'node:timers/promises';
+import { repoPath } from '../packages/kernel/core.js';
 test('passing named item check', () => {});
 test('output after the match', async () => {
   await setTimeout(25);

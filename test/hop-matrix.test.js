@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import { HOPS, matrixRows, parseArgs, renderMatrix } from '../bin/hop-matrix.js';
 
 const ROOT = join(import.meta.dirname, '..');
-const HARNESSES = join(ROOT, 'test', 'harnesses', 'pipeline');
+const HARNESSES = join(ROOT, 'test/harnesses/pipeline');
 
 /**
  * The lines of the architecture page's pipeline hop section.

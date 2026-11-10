@@ -50,10 +50,10 @@ async function fixture(t, state) {
   mkdirSync(join(tools, 'bin'), { recursive: true });
   mkdirSync(queue, { recursive: true });
   // The shipped detached launcher re-parents the dispatcher, so the captured tooling carries it beside the stub [C7].
-  copyFileSync(join(import.meta.dirname, '..', 'bin', 'handoff-worker-detach.js'), join(tools, 'bin', 'handoff-worker-detach.js'));
+  copyFileSync(join(import.meta.dirname, '../bin/handoff-worker-detach.js'), join(tools, 'bin/handoff-worker-detach.js'));
   // A working dispatcher is whoever holds the machine's dispatcher lock, so the captured stub takes it and keeps it until told to stop.
   const resourcesUrl = pathToFileURL(join(import.meta.dirname, '..', 'packages', 'resources', 'index.js')).href;
-  writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), [
+  writeFileSync(join(tools, 'bin/handoff-worker-dispatcher.js'), [
     "const fs = require('node:fs');",
     `const stop = ${JSON.stringify(stop)};`,
     '(async () => {',

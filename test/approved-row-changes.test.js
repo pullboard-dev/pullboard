@@ -126,7 +126,7 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md' }, null, 2)}\n`);
   writeFileSync(join(root, 'SPEC.md'), SPEC);
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'test', 'promise.test.js'), "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('approved promise remains documented [G1]', () => { assert.match(readFileSync('SPEC.md', 'utf8'), /G1 \\[approved/); });\n");
+  writeFileSync(join(root, 'test/promise.test.js'), "import assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('approved promise remains documented [G1]', () => { assert.match(readFileSync('SPEC.md', 'utf8'), /G1 \\[approved/); });\n");
   git('add', '-A');
   const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize approved-row fixture'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(initial.status, 0, fixtureChildMessage(initial));

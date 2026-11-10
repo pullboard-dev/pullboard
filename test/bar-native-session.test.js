@@ -40,7 +40,7 @@ function setup(wholeCoverage = false) {
   const box=fixtures.project('true',sandbox);
   succeeds(act(box,'private-author-a',box.repo,'join','coordinator','--model','Private author'));
   mkdirSync(join(box.repo,'test'));
-  writeFileSync(join(box.repo,'test','witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
+  writeFileSync(join(box.repo,'test/witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
   if (wholeCoverage) {
     const config=JSON.parse(readFileSync(join(box.repo,'pullboard.json'),'utf8'));
     config.affectedTests='node --test --test-reporter=tap';config.check={timeout:'5m'};config.lanes.web.owns.push('test/');

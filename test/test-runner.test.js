@@ -241,7 +241,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = join(box.bin, 'run-tests.js');
-  const file = join(box.root, 'test', 'one.test.js');
+  const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
   /** Execute the copied real runner with fixture inputs and preserve its native output. */
@@ -283,7 +283,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = join(box.bin, 'run-tests.js');
-  const file = join(box.root, 'test', 'one.test.js');
+  const file = join(box.root, 'test/one.test.js');
   const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
   delete env.NODE_TEST_CONTEXT;
   /** Exercise the real landing API and its independent reporter on private files. */
@@ -305,7 +305,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landi
 
 test('runner option values that resemble a name pattern remain values [C7,S13]', (t) => {
   const box = discoveryFixture(t);
-  const empty = join(box.root, 'test', 'empty.test.js');
+  const empty = join(box.root, 'test/empty.test.js');
   writeFileSync(empty, 'export {};\n');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;

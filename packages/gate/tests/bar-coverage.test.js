@@ -45,7 +45,7 @@ function repository(t) {
   };
   git('init','-q','-b','main');
   mkdirSync(join(root,'test'));
-  writeFileSync(join(root,'test','adjacent.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('named',()=>assert.ok(true));\ntest('neighbor',()=>assert.fail('neighbor still fails'));\n");
+  writeFileSync(join(root,'test/adjacent.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('named',()=>assert.ok(true));\ntest('neighbor',()=>assert.fail('neighbor still fails'));\n");
   git('add','.');git('commit','-qm','test: private bar fixture');
   return { root, git, env };
 }
@@ -134,7 +134,7 @@ test('[V2,V4] new existing test files or accepted execution settings need a new 
   const policy={commit:f.git('rev-parse','HEAD'),config};const prepared=prepareBarCoverage(f.root,item,policy,file);
   writeFileSync(join(f.root,'unrelated.txt'),'unrelated');f.git('add','unrelated.txt');f.git('commit','-qm','test: unrelated');
   assert.doesNotThrow(()=>barCoverageForPolicy(f.root,item,prepared,{commit:f.git('rev-parse','HEAD'),config}));
-  writeFileSync(join(f.root,'test','new.test.js'),'// a newly committed test file');f.git('add','test/new.test.js');f.git('commit','-qm','test: new brief file');
+  writeFileSync(join(f.root,'test/new.test.js'),'// a newly committed test file');f.git('add','test/new.test.js');f.git('commit','-qm','test: new brief file');
   assert.throws(()=>barCoverageForPolicy(f.root,item,prepared,{commit:f.git('rev-parse','HEAD'),config}),e=>e.code==='BAR_NOT_READY');
   assert.throws(()=>barCoverageForPolicy(f.root,item,prepared,{...policy,config:{...config,affectedTests:'node other.js'}}),e=>e.code==='BAR_NOT_READY');
 });

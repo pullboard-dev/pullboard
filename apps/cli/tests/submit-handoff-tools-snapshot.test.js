@@ -29,7 +29,7 @@ function sandbox(t) {
   for (const dir of ['bin', 'apps', 'packages', 'src', 'test']) mkdirSync(join(repo, dir), { recursive: true });
   for (const dir of ['bin', 'apps', 'packages', 'src']) writeFileSync(join(repo, dir, 'a.js'), `export const ${dir} = 1;\n`);
   writeFileSync(join(repo, 'package.json'), '{}\n');
-  writeFileSync(join(repo, 'test', 'a.test.js'), '// one\n');
+  writeFileSync(join(repo, 'test/a.test.js'), '// one\n');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'tools');
   return { temp, repo };
@@ -41,11 +41,11 @@ function snapshots(temp) { return readdirSync(temp).filter(name => /^pullboard-h
 test('clause 1: a commit that changes only tests shares the tools snapshot of the commit before it [C7]', t => {
   const { temp, repo } = sandbox(t);
   const first = toolsSnapshot(repo, 'job-1');
-  writeFileSync(join(repo, 'test', 'a.test.js'), '// two\n');
+  writeFileSync(join(repo, 'test/a.test.js'), '// two\n');
   git(repo, 'commit', '-q', '-am', 'tests only');
   assert.equal(toolsSnapshot(repo, 'job-2'), first, 'same tooling trees, same folder');
   assert.equal(snapshots(temp).length, 1);
-  writeFileSync(join(repo, 'src', 'a.js'), 'export const src = 2;\n');
+  writeFileSync(join(repo, 'src/a.js'), 'export const src = 2;\n');
   git(repo, 'commit', '-q', '-am', 'tooling change');
   assert.notEqual(toolsSnapshot(repo, 'job-3'), first, 'changed tooling gets its own folder');
   assert.equal(snapshots(temp).length, 2);

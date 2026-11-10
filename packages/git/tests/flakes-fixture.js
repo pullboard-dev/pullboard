@@ -138,7 +138,7 @@ export function privateBuilder(box) {
 /** Commit one real file change in a private candidate, because submit refuses a head with no change against main. */
 export function commitCandidate(builder, message) {
   mkdirSync(join(builder.root, 'test'), { recursive: true });
-  writeFileSync(join(builder.root, 'test', 'candidate-note.txt'), message + '\n');
+  writeFileSync(join(builder.root, 'test/candidate-note.txt'), message + '\n');
   builder.git('add', '-A');
   builder.git('commit', '-q', '-m', message);
 }

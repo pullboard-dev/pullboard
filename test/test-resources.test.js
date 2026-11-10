@@ -210,7 +210,7 @@ function runnerFixture(t, tests) {
   mkdirSync(join(root, 'machine'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(resolve(import.meta.dirname, '..'), root);
-  for (const helper of ['chrome-fixture.js', 'chrome-graceful-shutdown.js', 'chrome-launch-args.js', 'fixture-child.js']) copyFileSync(resolve(import.meta.dirname, helper), join(root, 'test', helper));
+  for (const helper of ['chrome-fixture.js', 'chrome-graceful-shutdown.js', 'chrome-launch-args.js', 'fixture-child.js']) copyFileSync(resolve(import.meta.dirname, helper), repoPath(root, `test/${helper}`));
   for (const [path, source] of Object.entries(tests)) writeFileSync(join(root, path), source);
   const chrome = join(root, 'stand-in-browser');
   writeFileSync(chrome, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$PULLBOARD_FIXTURE_LAUNCHES"\n');
@@ -288,6 +288,7 @@ test('shell starts the browser through exec', () => { execSync(\`'\${process.env
 `,
     'test/spawned.test.js': `import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { repoPath } from '../packages/kernel/core.js';
 test('spawned starts a Node child that starts the browser', () => {
   const result = spawnSync(process.execPath, ['test/direct-helper.mjs'], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(result.stderr);

@@ -32,7 +32,7 @@ function landBrokenCli({ separate }) {
   assert.notEqual(config.landing?.parallel, true, 'the fixture lands through the ordinary, non-parallel path');
   if (separate) writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, publish: 'separate' } }, null, 2));
   mkdirSync(join(box.repo, 'bin'));
-  writeFileSync(join(box.repo, 'bin', 'pullboard.js'), BREAKABLE_CLI);
+  writeFileSync(join(box.repo, 'bin/pullboard.js'), BREAKABLE_CLI);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: ship a project CLI');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
@@ -49,7 +49,7 @@ function brokenCandidate(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-smoke-candidate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   mkdirSync(join(dir, 'bin'));
-  writeFileSync(join(dir, 'bin', 'pullboard.js'), "throw new Error('import cycle in the command catalog');\n");
+  writeFileSync(join(dir, 'bin/pullboard.js'), "throw new Error('import cycle in the command catalog');\n");
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
     GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' };
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['commit', '-q', '-m', 'feat: broken help']]) {

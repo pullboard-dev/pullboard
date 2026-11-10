@@ -658,7 +658,7 @@ function timedInbox(box, board, seat) {
   const expected = store.inbox(board, seat, { markRead: false }).map(shout => shout.shout_id);
   // A first poll of a long backlog prints every shout, so the buffer is sized for the whole answer.
   const cpuHook = 'data:text/javascript,process.on("exit",()=>{const u=process.cpuUsage();process.stderr.write("CPU_MS="+(u.user+u.system)/1000)})';
-  const result = spawnSync(process.execPath, ['--import', cpuHook, join(import.meta.dirname, '..', 'bin', 'pullboard.js'), 'inbox', '--json'],
+  const result = spawnSync(process.execPath, ['--import', cpuHook, join(import.meta.dirname, '../bin/pullboard.js'), 'inbox', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   assert.equal(result.status, 0, result.error?.message ?? result.stderr);
   const ms = Number(/CPU_MS=([\d.]+)/.exec(result.stderr)?.[1]);

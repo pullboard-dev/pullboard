@@ -817,7 +817,7 @@ test('warning-only specs keep spec-check success while JSON stays a single docum
 test('signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', (t) => {
   const box = specBox(t);
   mkdirSync(join(box.root, 'test'));
-  writeFileSync(join(box.root, 'test', 'greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
+  writeFileSync(join(box.root, 'test/greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
   box.git('add', 'test/greeting.test.js');
   box.git('commit', '-q', '-m', 'test: cite the greeting');
   const note = 'checked <img> & empty names\nwith the local greeting test';
@@ -838,7 +838,7 @@ test('signoff prints cited tests, preserves its note and escapes that note in th
 test('signoff reads --note-file exactly [S14]', (t) => {
   const box = specBox(t);
   mkdirSync(join(box.root, 'test'));
-  writeFileSync(join(box.root, 'test', 'greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
+  writeFileSync(join(box.root, 'test/greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
   box.git('add', 'test/greeting.test.js');
   box.git('commit', '-q', '-m', 'test: cite greeting');
   const note = 'quoted "text" with $vars and `ticks`\nand a final newline\n';

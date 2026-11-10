@@ -41,7 +41,7 @@ const LANDER_CODE = ['bin/automatic-landing.js', 'packages/landing'];
  * @returns {string | null}
  */
 export function landerCodeCommit(root) {
-  if (FILE !== join(root, 'bin', 'automatic-landing.js')) return null;
+  if (FILE !== join(root, 'bin/automatic-landing.js')) return null;
   const commit = mainCheckout(root)?.commit;
   const result = commit ? tryGit(root, ['log', '-1', '--format=%H', commit, '--', ...LANDER_CODE]) : null;
   return result?.status === 0 ? result.stdout.trim() || null : null;

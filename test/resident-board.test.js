@@ -110,7 +110,7 @@ function connectionTrace() {
 before(() => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pb-resident-')));
   const code = join(dir, 'code'), repo = join(dir, 'repo'), shims = join(dir, 'shims'), home = join(dir, 'home');
-  const bin = join(code, 'bin', 'pullboard.js');
+  const bin = join(code, 'bin/pullboard.js');
   mkdirSync(repo);
   mkdirSync(shims);
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
@@ -235,7 +235,7 @@ test('clause 1: pullboard heartbeat on a warm board costs under 0.2 s wall and u
 });
 
 test('clause 2: hook pre-commit does not load the gate run, runner, landing-service or flake graphs [C7,#3250]', () => {
-  const hook = readFileSync(join(fx.code, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
+  const hook = readFileSync(join(fx.code, 'apps/cli/src/shell/commands/hook.js'), 'utf8');
   const topLevel = hook.split('\n').filter(line => !line.startsWith(' ') || /^ {2}\w+,$/u.test(line)).join('\n');
   for (const heavy of ['packages/runners/index.js', 'packages/flakes/index.js']) {
     assert.ok(!topLevel.includes(heavy), `${heavy} is imported only inside the pre-push branch`);
@@ -256,7 +256,7 @@ test('the resident process holds the board open: reads reuse its connection, and
   // Two commands at once run on two connections, and each answers as it would alone.
   const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
   const [first, second] = await Promise.all([0, 1].map(() => runFixtureChildAsync(process.execPath,
-    [join(fx.code, 'bin', 'pullboard.js'), 'show', '2', '--json'], { cwd: fx.repo, env: fx.env })));
+    [join(fx.code, 'bin/pullboard.js'), 'show', '2', '--json'], { cwd: fx.repo, env: fx.env })));
   for (const result of [first, second]) {
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout), JSON.parse(alone.stdout));
@@ -355,7 +355,7 @@ function tick(socket) {
 
 test('clause 1: an idle resident process closes its board connections and exits [H24]', async () => {
   // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
-  const bin = join(fx.code, 'bin', 'pullboard.js');
+  const bin = join(fx.code, 'bin/pullboard.js');
   const place = residentSocket(fx.repo, bin);
   // Every process holding the board's socket stops first, including a resident an earlier command started.
   stopResidents(place.socket);
@@ -365,7 +365,7 @@ test('clause 1: an idle resident process closes its board connections and exits 
   const start = Date.parse('2026-11-03T00:00:00.000Z');
   writeFileSync(clockFile, String(start));
   const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '60000', PULLBOARD_RESIDENT_CLOCK: clockFile };
-  const daemon = spawn(process.execPath, [join(fx.code, 'bin', 'resident-board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
+  const daemon = spawn(process.execPath, [join(fx.code, 'bin/resident-board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
     { cwd: fx.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
   daemon.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
@@ -410,7 +410,7 @@ function appears(file, ms) {
  */
 async function whileResidentBlocked(check) {
   fx.awaitResident();
-  const busy = residentBusyFile(residentSocket(fx.repo, join(fx.code, 'bin', 'pullboard.js')).pid);
+  const busy = residentBusyFile(residentSocket(fx.repo, join(fx.code, 'bin/pullboard.js')).pid);
   const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
   assert.equal(alone.status, 0, alone.stderr);
   // Holding the board's write lock makes a shout through the resident process wait for it, a synchronous wait.
@@ -418,7 +418,7 @@ async function whileResidentBlocked(check) {
   lock.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
   let slow, exited = false;
   try {
-    slow = runFixtureChildAsync(process.execPath, [join(fx.code, 'bin', 'pullboard.js'), 'shout', 'all', 'a slow write'],
+    slow = runFixtureChildAsync(process.execPath, [join(fx.code, 'bin/pullboard.js'), 'shout', 'all', 'a slow write'],
       { cwd: fx.worktree, env: { ...fx.env, PULLBOARD_BOARD_QUEUE_MS: '60000' } });
     slow.then(() => { exited = true; }, () => { exited = true; });
     // The resident process writes its busy file as the shout starts; the shout then waits on the lock.

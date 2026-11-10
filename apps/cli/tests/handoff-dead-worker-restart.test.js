@@ -35,7 +35,7 @@ function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-dead-restart-'));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), DYING_WORKER);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), DYING_WORKER);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
   /** Put the environment back and remove the private tree. */

@@ -14,7 +14,7 @@ import { assertStartupBudgets } from './cli-startup-budget-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
 const REPO = resolve(import.meta.dirname, '..');
-const BIN = join(REPO, 'bin', 'pullboard.js');
+const BIN = join(REPO, 'bin/pullboard.js');
 /** Modules a read must never load: the gate runner, the relay client and the landing machinery. */
 const HEAVY = ['src/gate.js', 'src/land.js', 'apps/cli/src/shell/commands/gate.js', 'apps/cli/src/shell/commands/relay.js', 'src/commands/land.js',
   'packages/sandbox/src/shell/trusted-policy.js', 'packages/gate/src/shell/check-baseline.js', 'packages/gate/src/shell/shell-run.js', 'packages/commits/src/shell/hooks.js', 'packages/resources/index.js',
@@ -152,7 +152,7 @@ test('a read command loads only its own modules [C7]', async (t) => {
   // One rev-parse in the worktree answers top level, Git dirs, HEAD and the primary checkout for the whole process;
   // the only other is the code's own checkout, asked once where the running code came from.
   mkdirSync(join(box.worktree, 'src'));
-  writeFileSync(join(box.worktree, 'src', 'own-head.js'), 'export const fixture = true;\n');
+  writeFileSync(join(box.worktree, 'src/own-head.js'), 'export const fixture = true;\n');
   box.gitAt(box.worktree, 'add', 'src/own-head.js');
   box.gitAt(box.worktree, 'commit', '-q', '-m', 'feat(core): distinguish the worker head [C7]');
   const worker = box.facts(box.worktree);

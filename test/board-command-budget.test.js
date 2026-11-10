@@ -12,7 +12,7 @@ import { CHECK_EVERY_MS, SEAT_COMMANDS, WALL_MS, boardCommandBudgetCheck, budget
 import { HOPS } from '../bin/hop-matrix.js';
 import { privateFixtureFiles } from './fixture-child.js';
 
-const CEILINGS = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'bin', 'board-command-ceilings.json'), 'utf8'));
+const CEILINGS = JSON.parse(readFileSync(join(import.meta.dirname, '../bin/board-command-ceilings.json'), 'utf8'));
 
 /** A measurement of every seat command at the given module counts and medians. */
 function measurement(modules, medianMs = 100) {

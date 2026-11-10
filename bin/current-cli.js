@@ -43,7 +43,7 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   if (!top || !gitDir || !commonDir || real(top) !== own || real(gitDir) === real(commonDir)
     || basename(commonDir) !== '.git') return { why: 'this checkout is not a linked worktree of a main checkout' };
   const mainRoot = dirname(commonDir);
-  const target = join(mainRoot, 'bin', 'pullboard.js');
+  const target = join(mainRoot, 'bin/pullboard.js');
   if (real(mainRoot) === own) return null;
   try { accessSync(target, constants.R_OK); } catch { return { why: `${target} is missing or unreadable` }; }
   const ancestry = git(own, ['merge-base', '--is-ancestor', 'main-worktree/HEAD', 'HEAD']);

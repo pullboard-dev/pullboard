@@ -28,7 +28,7 @@ function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-sweep-replaced-'));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
-  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), WORKER);
   const release = join(dir, 'release');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, release: process.env.HANDOFF_TEST_RELEASE };
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');

@@ -47,7 +47,7 @@ test('a dispatcher from another machine home never recovers this home\'s dead ga
   await hopCheck('foreign-sweep', async () => {
     const other = join(await scratch('foreign-home'), 'machine-home');
     const started = Date.now();
-    const foreign = spawn(process.execPath, [join(ROOT, 'bin', 'handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), stdio: 'ignore',
+    const foreign = spawn(process.execPath, [join(ROOT, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), stdio: 'ignore',
       env: { ...box.env, PULLBOARD_MACHINE_HOME: other } });
     let launched = 0;
     await waitUntil(() => {

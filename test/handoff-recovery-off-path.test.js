@@ -108,7 +108,7 @@ test('clause 1: the detached start returns before the check it started has finis
 
 test('clause 2: a drain pass beats the dispatcher heartbeat the cheap check reads [C7]', async t => {
   const box = fixture(t);
-  writeFileSync(join(box.tools, 'bin', 'gate-drive-worker.js'),
+  writeFileSync(join(box.tools, 'bin/gate-drive-worker.js'),
     "require('node:fs').writeFileSync(require('node:path').join(require('node:path').dirname(process.argv[2]), 'result.json'), '{}');\n");
   await queueJob(box);
   assert.deepEqual((await drainHandoffQueue({ capacity: 1 })).started, ['job1']);
@@ -118,8 +118,8 @@ test('clause 2: a drain pass beats the dispatcher heartbeat the cheap check read
 test('clause 2: the detached recovery check relaunches a dead dispatcher from the captured tooling [C7]', async t => {
   const box = fixture(t);
   const marker = join(box.dir, 'dispatcher-started');
-  copyFileSync(fileURLToPath(new URL('../bin/handoff-worker-detach.js', import.meta.url)), join(box.tools, 'bin', 'handoff-worker-detach.js'));
-  writeFileSync(join(box.tools, 'bin', 'handoff-worker-dispatcher.js'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');\n`);
+  copyFileSync(fileURLToPath(new URL('../bin/handoff-worker-detach.js', import.meta.url)), join(box.tools, 'bin/handoff-worker-detach.js'));
+  writeFileSync(join(box.tools, 'bin/handoff-worker-dispatcher.js'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');\n`);
   await queueJob(box);
   const run = spawnSync(process.execPath, [DISPATCHER, '--recover'], { cwd: box.commonDir, env: process.env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr + run.stdout);

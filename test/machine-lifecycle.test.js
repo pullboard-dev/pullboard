@@ -10,7 +10,7 @@ import { HELP } from '../apps/cli/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const copy = () => structuredClone(machineRules.MACHINE);
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 test('docs/lifecycle.md is the page the declaration generates, so a stale copy fails [M1, P4]', () => {
   const page = machineRules.lifecycleMarkdown();

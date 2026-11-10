@@ -32,8 +32,8 @@ function fixture(t) {
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/', 'test/'] } } }));
   writeFileSync(join(root, 'DOCTRINE.md'), '');
-  for (const file of ['alpha', 'beta', 'unknown', 'idle']) writeFileSync(join(root, 'test', `${file}.test.js`), '// Synthetic historical fixture.\n');
-  writeFileSync(join(root, 'src', 'app.js'), 'export const value = 0;\n');
+  for (const file of ['alpha', 'beta', 'unknown', 'idle']) writeFileSync(join(root, `test/${file}.test.js`), '// Synthetic historical fixture.\n');
+  writeFileSync(join(root, 'src/app.js'), 'export const value = 0;\n');
   /** Pin commit dates independently of the host calendar and user Git identity. */
   function commit(at, message) {
     git('add', '-A');
@@ -44,10 +44,10 @@ function fixture(t) {
     return git('rev-parse', 'HEAD');
   }
   const initial = commit('2026-10-12T00:00:00Z', 'chore: fixture initial');
-  writeFileSync(join(root, 'test', 'alpha.test.js'), '// Stable oracle added inside the window.\n');
-  writeFileSync(join(root, 'test', 'beta.test.js'), '// Stable flake oracle.\n');
+  writeFileSync(join(root, 'test/alpha.test.js'), '// Stable oracle added inside the window.\n');
+  writeFileSync(join(root, 'test/beta.test.js'), '// Stable flake oracle.\n');
   const red = commit('2026-10-13T00:00:00Z', 'test: fixture oracles');
-  writeFileSync(join(root, 'src', 'app.js'), 'export const value = 1;\n');
+  writeFileSync(join(root, 'src/app.js'), 'export const value = 1;\n');
   const green = commit('2026-10-15T00:00:00Z', 'fix: product repair');
   let now = new Date(NOW);
   const clock = { now: () => new Date(now) };

@@ -23,7 +23,7 @@ import { join } from 'node:path';
 
 test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', { timeout: 240_000 }, async (t) => { // budget: hang ceiling for real CLI runs on three homes and a loopback relay; not a speed target.
   const box = await sessionRelay(t);
-  const cli = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+  const cli = join(import.meta.dirname, '../bin/pullboard.js');
 
   // S6d: on a machine with a keychain, relay on keeps the key in the owner-only file every session can read.
   const keychainBin = join(box.root, '..', 'keychain-bin');

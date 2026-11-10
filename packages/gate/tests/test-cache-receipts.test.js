@@ -54,7 +54,7 @@ function makeFixture(t) {
   writeFileSync(join(root, 'lib', 'a.js'), "import { shared } from './shared.js';\nexport const value = shared;\n");
   writeFileSync(join(root, 'lib', 'b.js'), "export const value = 'green';\n");
   writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
-  for (const name of ['a', 'b']) writeFileSync(join(root, 'test', `${name}.test.js`), fixtureTest(name));
+  for (const name of ['a', 'b']) writeFileSync(join(root, `test/${name}.test.js`), fixtureTest(name));
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Cache Fixture', GIT_AUTHOR_EMAIL: 'cache@example.test', GIT_COMMITTER_NAME: 'Cache Fixture', GIT_COMMITTER_EMAIL: 'cache@example.test' };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_STAGE', 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_REUSE', 'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING']) delete env[key];

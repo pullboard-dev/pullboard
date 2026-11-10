@@ -17,7 +17,7 @@ function repository(t) {
   maintenanceGit(primary, ['config', 'user.name', 'Timer Fixture']);
   maintenanceGit(primary, ['config', 'user.email', 'timer@example.invalid']);
   fs.writeFileSync(join(primary, 'pullboard.json'), JSON.stringify({ worktreeMaintenance: { enabled: true } }));
-  fs.writeFileSync(join(primary, 'bin', 'pullboard.js'), 'setTimeout(() => {}, 4000);\n');
+  fs.writeFileSync(join(primary, 'bin/pullboard.js'), 'setTimeout(() => {}, 4000);\n');
   maintenanceGit(primary, ['add', '.']); maintenanceGit(primary, ['commit', '-qm', 'timer fixture']);
   maintenanceGit(primary, ['worktree', 'add', '-q', '--detach', linked]);
   const commonDir = fs.realpathSync(maintenanceGit(primary, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim());

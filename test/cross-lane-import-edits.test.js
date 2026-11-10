@@ -8,7 +8,7 @@ import { importOnlyChange } from '../packages/commits/src/core/import-only-chang
 import { submissionPaths } from '../packages/sandbox/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 /** Create a private initialized board with independently owned core and view files. */
 function nativeFixture(t) {

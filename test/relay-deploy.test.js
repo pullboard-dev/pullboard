@@ -789,7 +789,7 @@ async function servedRelayClient(t) {
     }
   }
   t.diagnostic(`served ${written.size} modules`);
-  return { written, module: await import(pathToFileURL(join(folder, 'relay', 'client.js')).href) };
+  return { written, module: await import(pathToFileURL(join(folder, 'relay/client.js')).href) };
 }
 
 /** Install a browser page whose storage refuses every write and whose relay serves one sealed board. */

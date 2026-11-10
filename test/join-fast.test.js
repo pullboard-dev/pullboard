@@ -35,7 +35,7 @@ function largeBoard(t) {
     lanes: { core: { owns: ['src/'], specs: ['H24'] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# Join fixture\n\n## H · Human time\n- H24 [approved, aim] Joins are fast. | gate: test/join-fast.test.js\n');
   mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'src', 'seed.js'), 'export const seed = true;\n');
+  writeFileSync(join(root, 'src/seed.js'), 'export const seed = true;\n');
   runFixtureGit(['add', '-A'], { cwd: root, env });
   runFixtureGit(['commit', '-qm', 'Seed join fixture'], { cwd: root, env });
   const file = join(root, '.git', 'pullboard', 'board.sqlite');

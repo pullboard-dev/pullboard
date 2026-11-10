@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { selectAffectedTests } from '../index.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const COCKPIT = join(ROOT, 'test', 'cockpit');
+const COCKPIT = join(ROOT, 'test/cockpit');
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 
 /** Find complete top-level exception bodies without exempting the rest of stable.js. */

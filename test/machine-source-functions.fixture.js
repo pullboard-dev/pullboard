@@ -183,7 +183,7 @@ export function sourceFacts(source, file) {
 export function sourceReader(rows) {
   const sources = new Map(rows.map(({ file, body }) => [file, Buffer.from(body)]));
   return (file) => {
-    const identity = posix.normalize(posix.join('src', file));
+    const identity = posix.normalize(`src/${file}`);
     const source = sources.get(identity);
     if (!source) throw new Error(`source identity is outside the closed inventory: ${file}`);
     return source.toString('utf8');

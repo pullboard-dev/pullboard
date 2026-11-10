@@ -53,10 +53,10 @@ function repo({ mainRules } = {}) {
   mkdirSync(join(root, 'src'), { recursive: true });
   git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'DOCTRINE.md'), `## C · Code\n${RULE}\n`);
-  writeFileSync(join(root, 'src', 'view.css'), CSS);
-  writeFileSync(join(root, 'src', 'app.js'), 'export const app = 1;\n');
+  writeFileSync(join(root, 'src/view.css'), CSS);
+  writeFileSync(join(root, 'src/app.js'), 'export const app = 1;\n');
   const frozen = commitAll(root, 'chore: frozen base');
-  writeFileSync(join(root, 'src', 'view.css'), `${CSS}/* OVER the cap */\n`);
+  writeFileSync(join(root, 'src/view.css'), `${CSS}/* OVER the cap */\n`);
   if (mainRules) writeFileSync(join(root, 'DOCTRINE.md'), `## C · Code\n${mainRules.join('\n')}\n`);
   const main = commitAll(root, 'feat: main grows the stylesheet over the cap');
   const item = join(dir, 'item');
@@ -74,7 +74,7 @@ function holdQueued(box, commit) {
 test('a candidate one landing behind main that merges cleanly passes the hold [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', `${box.main}^`);
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app one landing behind main');
   assert.notEqual(git(box.item, 'merge-base', commit, box.main), box.main, 'the head lacks the newest landing');
   const [result] = holdQueued(box, commit);
@@ -84,21 +84,21 @@ test('a candidate one landing behind main that merges cleanly passes the hold [C
 
 test('a candidate one landing behind main that adds a new doctrine problem is still refused [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2; /* OVER here too */\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2; /* OVER here too */\n');
   const commit = commitAll(box.item, 'feat: add a problem one landing behind main');
   assert.throws(() => holdQueued(box, commit), (error) => error.code === 'RATCHET_ROSE' && error.message.includes('src/app.js'));
 });
 
 test('only a real merge conflict with current main refuses [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.item, 'src', 'view.css'), 'body { margin: 1px; }\n');
+  writeFileSync(join(box.item, 'src/view.css'), 'body { margin: 1px; }\n');
   const commit = commitAll(box.item, 'feat: rewrite the stylesheet main also changed');
   assert.throws(() => holdQueued(box, commit), (error) => error.code === 'MERGE_CONFLICT' && error.message.includes(box.main.slice(0, 12)));
 });
 
 test('a behind candidate is composed even when the handed baseline is current main [C7]', () => {
   const box = repo();
-  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app behind the handed current main');
   const [result] = holdDoctrine(box.item, { mainCommit: box.main, commit, timeoutMs: 60000 });
   assert.equal(result.holds, true);

@@ -21,7 +21,7 @@ after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
 /** The module-level owner of each cell project's cleanup, for helpers that run outside a test context. */
 const owner = { after: cleanup => cleanups.push(cleanup) };
 
-const REAL = join(import.meta.dirname, '../../..', 'bin', 'checks');
+const REAL = join(import.meta.dirname, '../../../bin/checks');
 
 const DAEMON = [
   "import { spawn } from 'node:child_process';",
@@ -51,9 +51,9 @@ function kinds(source, path) {
 /** A real project whose staged checker is the repository's own changed-file list, with a ceilings file on main. */
 function ceilingProject(ceilings) {
   const box = cellProject(owner, { gate: 'true' });
-  mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
-  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
-  writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin/checks/test-waits-baseline.json'));
+  writeFileSync(join(box.repo, 'bin/checks/changed-static.js'), [
     `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
     "const failures = stagedHookFailures(process.cwd());",
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));

@@ -80,7 +80,7 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   assert.match(readFileSync(join(REPO, 'bin/checks/static-tree-registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
 });
 
-const CHECKS = join(REPO, 'bin', 'checks');
+const CHECKS = join(REPO, 'bin/checks');
 
 /** Every bin/checks module whose main-module guard resolves process.argv[1] (#3666). */
 function guardedChecks() {

@@ -39,8 +39,8 @@ function runnerProject() {
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap --test-timeout=3000' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
-  writeFileSync(join(box.repo, 'test', 'green.test.js'), PASSES);
-  writeFileSync(join(box.repo, 'test', 'red.test.js'), FAILS);
+  writeFileSync(join(box.repo, 'test/green.test.js'), PASSES);
+  writeFileSync(join(box.repo, 'test/red.test.js'), FAILS);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: one green and one red file');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');

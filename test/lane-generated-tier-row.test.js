@@ -36,7 +36,7 @@ test('clause 2: a view seat adds test/cockpit/new.test.js with its row but may n
   assert.equal(judge('core', base, edited).allowed, true);
 });
 
-const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 
 /** A private board whose view seat owns test/cockpit/ and whose tier table lists one core test. */
 function hookFixture(t) {
@@ -60,8 +60,8 @@ function hookFixture(t) {
     lanes: { core: { owns: ['test/', 'packages/'], specs: ['L3'] }, view: { owns: ['test/cockpit/'], specs: ['L3'] } }, shared: [] };
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify(config, null, 2));
   writeFileSync(join(root, 'SPEC.md'), '# Fixture\n\n## L · Limits\n- L3 [approved, must] Lanes own their paths. | gate: any\n');
-  mkdirSync(join(root, 'test', 'cockpit'), { recursive: true }); mkdirSync(join(root, 'packages', 'gate'), { recursive: true });
-  writeFileSync(join(root, 'test', 'a.test.js'), '// a\n');
+  mkdirSync(join(root, 'test/cockpit'), { recursive: true }); mkdirSync(join(root, 'packages', 'gate'), { recursive: true });
+  writeFileSync(join(root, 'test/a.test.js'), '// a\n');
   writeFileSync(join(root, 'packages', 'gate', 'test-tiers.json'), JSON.stringify({ version: 1, files: [row('test/a.test.js')] }, null, 2) + '\n');
   assert.equal(git(root, 'add', '-A').status, 0);
   assert.equal(git(root, 'commit', '-q', '-m', 'chore: seed private fixture [L3]').status, 0);
@@ -74,9 +74,9 @@ function hookFixture(t) {
 test('clause 1: the installed pre-commit hook lets a seat commit its own-lane tier row and refuses a foreign row [L3,C7]', t => {
   const box = hookFixture(t);
   const table = join(box.lane, 'packages', 'gate', 'test-tiers.json');
-  mkdirSync(join(box.lane, 'test', 'cockpit'), { recursive: true });
+  mkdirSync(join(box.lane, 'test/cockpit'), { recursive: true });
   writeFileSync(table, JSON.stringify({ version: 1, files: [row('test/a.test.js'), row('test/cockpit/n.test.js')] }, null, 2) + '\n');
-  writeFileSync(join(box.lane, 'test', 'cockpit', 'n.test.js'), '// n\n');
+  writeFileSync(join(box.lane, 'test/cockpit/n.test.js'), '// n\n');
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
   const allowed = box.git(box.lane, 'commit', '-m', 'test: add n [L3]');
   assert.equal(allowed.status, 0, allowed.stderr + allowed.stdout);
@@ -90,8 +90,8 @@ test('clause 1: the installed pre-commit hook lets a seat commit its own-lane ti
 test('clause 2: the hook commits a view seat test/cockpit/new.test.js with its row and refuses an edit of a core test row [L3,C7]', t => {
   const box = hookFixture(t);
   const table = join(box.lane, 'packages', 'gate', 'test-tiers.json');
-  mkdirSync(join(box.lane, 'test', 'cockpit'), { recursive: true });
-  writeFileSync(join(box.lane, 'test', 'cockpit', 'new.test.js'), '// new\n');
+  mkdirSync(join(box.lane, 'test/cockpit'), { recursive: true });
+  writeFileSync(join(box.lane, 'test/cockpit/new.test.js'), '// new\n');
   writeFileSync(table, JSON.stringify({ version: 1, files: [row('test/a.test.js'), row('test/cockpit/new.test.js')] }, null, 2) + '\n');
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
   const allowed = box.git(box.lane, 'commit', '-m', 'test: add new cockpit test [L3]');

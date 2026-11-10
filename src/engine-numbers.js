@@ -117,7 +117,7 @@ const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/core/moves'
  * Each landing writes a new path, never a shared manifest or a previously shipped record.
  */
 function appendRegistryHistory(root, engine, leaves) {
-  const directory = join(root, 'src', 'move-history');
+  const directory = join(root, 'src/move-history');
   if (!existsSync(join(directory, 'legacy.json'))) return [];
   const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => existsSync(path));
   if (!folders.length || ![join(root, 'src'), directory, ...folders].every(path => lstatSync(path).isDirectory())

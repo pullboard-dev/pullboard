@@ -209,7 +209,7 @@ export async function bridgeProvider(t, box) {
     `const response=await fetch(${JSON.stringify(origin)}+'/'+endpoint,{method,headers:{'content-type':'application/json'},...(input?{body:input}:{})});`,
     "process.stdout.write(await response.text()); if(!response.ok)process.exitCode=1;",
   ].join('\n'));
-  const shim = join(box.dir, 'bin', 'gh');
+  const shim = join(box.dir, 'bin/gh');
   writeFileSync(shim, `#!/bin/sh\nexec "${process.execPath}" "${adapter}" "$@"\n`);
   chmodSync(shim, 0o755);
   return state;

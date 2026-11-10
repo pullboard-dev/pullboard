@@ -76,7 +76,7 @@ function analyze(body) {
 test('a read through the copier is proven for any move, beside reads the analyzer cannot resolve [C7]', () => {
   const body = "const body = readFileSync(toolSourcePath(dir, 'src/foo.js'), 'utf8');\nconst other = readFileSync(somewhere);\n";
   assert.deepEqual(analyze(body), { edits: [], problems: [] }, 'no moved path is read by name, so the unrelated read is not this move\'s concern');
-  const mixed = analyze(body + "const first = readFileSync(toolSourcePath(dir, 'src/foo.js'));\ncopyFileSync(join(dir, 'src', 'foo.js'), target);\n");
+  const mixed = analyze(body + "const first = readFileSync(toolSourcePath(dir, 'src/foo.js'));\ncopyFileSync(join(dir, 'src/foo.js'), target);\n");
   assert.ok(mixed.edits.length + mixed.problems.length > 0, 'a literal copy of the moved path still needs repointing');
   assert.ok(!mixed.problems.some(problem => /toolSourcePath/u.test(problem)));
 });
@@ -96,7 +96,7 @@ test('module addressing of a moved source is not a read to repoint [C7]', () => 
 
 test('a moved source named as a path to read stays reported [C7]', () => {
   const unsafe = [
-    "const file = join(root, 'src', 'foo.js');\nreadFileSync(file);\n",
+    "const file = join(root, 'src/foo.js');\nreadFileSync(file);\n",
     "readFileSync(new URL('../src/foo.js', import.meta.url));\n",
     "readFileSync(pathToFileURL(resolve(import.meta.dirname, '../src/foo.js')), 'utf8');\n",
     "const file = fileURLToPath(new URL('../src/foo.js', import.meta.url));\nreadFileSync(file);\n",

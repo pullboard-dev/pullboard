@@ -64,7 +64,7 @@ async function fixture(t) {
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   /** Run a command with the cloned tooling instead of this checkout. */
   const run = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [join(tools, 'bin', 'pullboard.js'), ...args], { cwd, env: box.env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [join(tools, 'bin/pullboard.js'), ...args], { cwd, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr };
   };
   const toolsCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tools, encoding: 'utf8' }).trim();
@@ -103,7 +103,7 @@ test('clause 2: cleanup of a snapshot while a queued request names it leaves the
   const tools = queued.request.tools;
   removeJobToolSnapshot({ job: queued.job.id, tools }, tools);
   removeJobToolSnapshot({ job: 'another-job', tools }, tools);
-  assert.equal(existsSync(join(tools, 'apps', 'cli', 'src', 'shell', 'submit-handoff-worker.js')), true, 'the shared snapshot survives a job ending');
+  assert.equal(existsSync(join(tools, 'apps/cli/src/shell/submit-handoff-worker.js')), true, 'the shared snapshot survives a job ending');
   // A private per-job copy is still removed by its own job.
   const own = mkdtempSync(join(tmpdir(), 'pullboard-handoff-tools-job-1-'));
   t.after(() => rmSync(own, { recursive: true, force: true }));

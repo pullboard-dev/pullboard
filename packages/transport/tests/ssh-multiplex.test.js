@@ -37,7 +37,7 @@ exec /bin/sh -c "$*"
 /** A private machine home with the stand-in ssh first on PATH; returns the spawn env and the connection log. */
 function fakeMachine(name) {
   files.write(`${name}/bin/ssh`, FAKE_SSH);
-  chmodSync(join(files.root, name, 'bin', 'ssh'), 0o755);
+  chmodSync(join(files.root, name, 'bin/ssh'), 0o755);
   files.write(`${name}/home/.keep`, '');
   const log = join(files.root, name, 'connections.log');
   files.write(`${name}/connections.log`, '');

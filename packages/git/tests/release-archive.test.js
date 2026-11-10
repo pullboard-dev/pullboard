@@ -67,5 +67,5 @@ test('an old release unpacks even when tar stops reading early [C7]', t => {
   const realDirectory = join(directory, 'real-tar');
   mkdirSync(realDirectory);
   unpackRelease('v0.8.3', realDirectory);
-  assert.equal(readFileSync(join(realDirectory, 'src', 'engine.js'), 'utf8').includes('ENGINE_VERSION'), true);
+  assert.equal(readFileSync(join(realDirectory, 'src/engine.js'), 'utf8').includes('ENGINE_VERSION'), true);
 });

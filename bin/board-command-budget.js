@@ -85,7 +85,7 @@ function realGit() {
  */
 function fixture(code, dir) {
   const repo = join(dir, 'repo'), seat = join(dir, 'seat'), shims = join(dir, 'shims'), home = join(dir, 'home');
-  const bin = join(code, 'bin', 'pullboard.js');
+  const bin = join(code, 'bin/pullboard.js');
   mkdirSync(repo); mkdirSync(shims);
   // The fixture's Git hooks run pullboard from PATH; they must run the code under measurement.
   writeFileSync(join(shims, COMMAND_NAME), `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(bin)};\nimport(${JSON.stringify(pathToFileURL(bin).href)});\n`, { mode: 0o755 });
@@ -132,7 +132,7 @@ function sample(box, name, { hook = null, resident = false, code }) {
 
 /** Stop every resident process of the pool the fixture started, found where the measured code's client looks. */
 async function stopResidents(box, code) {
-  const { residentPoolSize, residentSocket } = await import(pathToFileURL(join(code, 'bin', 'resident-client.js')).href);
+  const { residentPoolSize, residentSocket } = await import(pathToFileURL(join(code, 'bin/resident-client.js')).href);
   const size = typeof residentPoolSize === 'function' ? residentPoolSize(box.env) : 1;
   for (let slot = 0; slot < size; slot += 1) {
     const place = residentSocket(box.repo, box.bin, slot);
@@ -243,7 +243,7 @@ export function boardCommandBudgetCheck({ code = ROOT, measure = measureBoardCom
     const file = join(directory, RECORD_NAME);
     const record = readJson(file) ?? { version: 1 };
     if (Number.isFinite(record.checkedAt) && now() - record.checkedAt < CHECK_EVERY_MS) return null;
-    const committed = readJson(join(code, 'bin', 'board-command-ceilings.json')) ?? { modules: {} };
+    const committed = readJson(join(code, 'bin/board-command-ceilings.json')) ?? { modules: {} };
     const ceilings = effectiveCeilings(committed, record);
     const measured = await measure(code, directory);
     const breaches = budgetBreaches(measured, ceilings, { wallMs: committed.wallMs ?? WALL_MS, lastLoaded: record.lastPass?.loaded ?? {} });

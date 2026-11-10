@@ -14,7 +14,7 @@ import { fileFixtureItem } from './testkit-fixture.js';
  * @returns {void}
  */
 function fakeSsh(box, runnerHome, log) {
-  const path = join(box.dir, 'bin', 'ssh');
+  const path = join(box.dir, 'bin/ssh');
   writeFileSync(path, `#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nprintf '%s\\n' "$1" >> '${log}'\nshift\ncd '${runnerHome}' && exec /bin/sh -c "$1"\n`);
   chmodSync(path, 0o755);
 }
