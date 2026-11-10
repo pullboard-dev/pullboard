@@ -1,21 +1,21 @@
 /**
- * Shell boundary for checking actual import cuts [C7,D3]. Gate owns it because it needs the module parsers and declared loads.
+ * Shell boundary for checking actual import cuts [C7,D3]. Codemap owns it: it needs only the module parsers and declared loads.
  * The path-map reader is an option: a caller that pins a source snapshot passes its own reader, others get the committed one.
  */
-import { importsIn } from '../../../codemap/index.js';
-import { commonJsIn } from '../../../codemap/index.js';
-import { planEntryProblems as entryPlacementProblems } from '../../../codemap/index.js';
-import { retiredProblems } from '../../../codemap/index.js';
-import { readPathMap as committedPathMap } from '../../../codemap/index.js';
-import { cellInventory } from '../../../codemap/index.js';
-import { testFile } from '../../../codemap/index.js';
-import { temporaryCellEdges } from '../../../codemap/index.js';
-import { declaredSourceLoads } from './affected/tests.js';
-import { declaredSourcePatterns } from './affected/tests.js';
-import { importCuts } from '../../../codemap/index.js';
-import { lex } from '../../../kernel/index.js';
-import { mappedPath } from '../../../codemap/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { importsIn } from '../../../../index.js';
+import { commonJsIn } from '../../../../index.js';
+import { planEntryProblems as entryPlacementProblems } from '../../../../index.js';
+import { retiredProblems } from '../../../../index.js';
+import { readPathMap as committedPathMap } from '../../../../index.js';
+import { cellInventory } from '../../../../index.js';
+import { testFile } from '../../../../index.js';
+import { temporaryCellEdges } from '../../../../index.js';
+import { declaredSourceLoads } from '../../../../index.js';
+import { declaredSourcePatterns } from '../../../../index.js';
+import { importCuts } from '../../../../index.js';
+import { lex } from '../../../../../kernel/index.js';
+import { mappedPath } from '../../../../index.js';
+import { Refused } from '../../../../../kernel/index.js';
 
 /** Attribute original paths, moved identities and front doors to their committed plan cell. */
 export function ownerFor(plan, map) {

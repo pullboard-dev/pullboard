@@ -1,25 +1,26 @@
 import { existsSync } from 'node:fs';
 import { git } from '../../../../git/index.js';
 import { join } from 'node:path';
-import { warmAcceptedCells } from '../../../../gate/index.js';
-import { readAcceptedCells } from '../../../../gate/index.js';
-import { recordAcceptedCellsFailure } from '../../../../gate/index.js';
-import { withMainCheckout } from '../../../../landing/index.js';
-import { withFileLock } from '../../../../outbox/index.js';
 import { checkCuts } from './plan/cuts.js';
 import { readPlan } from './scripts/plan.js';
 
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
-/** Create the main-audit service that reuses or off-path warms a pinned accepted inventory. */
-export function cellsBacklogCollector(root) {
+/**
+ * Create the main-audit service that reuses or off-path warms a pinned accepted inventory.
+ * The accepted-inventory ports come from the caller: gate, landing and outbox sit above codemap and own them.
+ *
+ * @param {string} root
+ * @param {{ read: (root: string, commit: string) => object, warm: (root: string, commit: string) => Promise<object>, record: (root: string, commit: string, error: unknown) => void }} ports
+ */
+export function cellsBacklogCollector(root, { read, warm, record }) {
   /** Load exact accepted inventory, compute cuts, and log findings only from main-audit execution. */
   async function collectCellsBacklog(source, job) {
     if (!existsSync(join(source, 'packages/codemap/data/plan/cells.json'))) return null;
-    let artifact = readAcceptedCells(root, job.tip);
+    let artifact = read(root, job.tip);
     if (!artifact.available) {
-      try { artifact = await warmAcceptedCells(root, job.tip, { withCheckout: withMainCheckout, withLock: withFileLock }); }
-      catch (error) { try { recordAcceptedCellsFailure(root, job.tip, error); } catch { /* Preserve the producer failure. */ } throw error; }
+      try { artifact = await warm(root, job.tip); }
+      catch (error) { try { record(root, job.tip, error); } catch { /* Preserve the producer failure. */ } throw error; }
     }
     const backlog = cellsAuditBacklog(source, job, artifact);
     if (backlog?.count) {

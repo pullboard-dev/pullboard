@@ -17,6 +17,7 @@ import { fixtureProblems } from '../test/fixtures.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
 import { STATIC_CHECKS } from '../../../index.js';
+import { cliReachRows } from '../../../index.js';
 import { repoPath } from '../../../../kernel/light.js';
 
 /**
@@ -50,6 +51,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
       .map(entry => ({ file: `apps/relay/src/io/deploy/${entry.name}`, source: readFileSync(repoPath(root, `apps/relay/src/io/deploy/${entry.name}`), 'utf8') }));
     return relayBoundaryProblems([...sources, ...relay]).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
+  // Package modules that newly reach the CLI front door; codemap's cell-lints ratchet sits below gate and cannot run this (#3808).
+  { name: 'cli-reach', run: root => cliReachRows(root) },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'test-cells', run: root => testCellsProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: (root, sources) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
