@@ -3,6 +3,7 @@
 /** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,6 +48,7 @@ test('landing history uses its existing pure port without growing any move closu
   const old = 'src/landing-batch-history.js';
   const files = [...new Set([...packageFiles(root), old])];
   copyPackageFiles(root, fixture, { files: files.filter(file => file !== old) });
+  mkdirSync(join(fixture, 'src'), { recursive: true });
   runFixtureGit(['init', '-q'], { cwd: fixture });
   runFixtureGit(['add', 'package.json', 'packages/codemap/data/plan/path-map'], { cwd: fixture });
   runFixtureGit(['-c', 'user.name=Closure fixture', '-c', 'user.email=closure@example.invalid',
