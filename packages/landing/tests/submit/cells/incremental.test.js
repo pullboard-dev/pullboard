@@ -1,6 +1,5 @@
 /** Accepted cell inventory is built off submit, reused by tree, and transferred as bounded evidence [C7]. */
-import real from "node:assert/strict"; // PROBE
-const assert = new Proxy(real, { get(t,k){ const f=t[k]; if(typeof f!=="function") return f; return (...a)=>{ const wrap=e=>{ if(e && e.name==="AssertionError") throw new Error(("DBG "+String(e.actual?.message ?? (typeof e.actual==="string"?e.actual:JSON.stringify(e.actual)))).replace(/\s+/g," ").slice(0,900)); throw e;}; try{ const r=f.apply(t,a); return r&&r.then? r.catch(wrap): r;}catch(e){wrap(e)} } } }); // PROBE
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { createHash } from 'node:crypto';

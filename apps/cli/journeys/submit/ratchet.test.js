@@ -6,8 +6,7 @@ import { landedCutItemRows } from '../../index.js';
 import { acceptedCutItems } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { withImportParseCache } from '../../../../packages/gate/index.js';
 /** A cell's landed import cut is a ratchet: new upward or front-door-skipping imports refuse at submit, old ones do not [C7,D3]. */
-import real from "node:assert/strict"; // PROBE
-const assert = new Proxy(real, { get(t,k){ const f=t[k]; if(typeof f!=="function") return f; return (...a)=>{ const wrap=e=>{ if(e && e.name==="AssertionError") throw new Error(("DBG "+String(e.actual?.message ?? (typeof e.actual==="string"?e.actual:JSON.stringify(e.actual)))).replace(/\s+/g," ").slice(0,900)); throw e;}; try{ const r=f.apply(t,a); return r&&r.then? r.catch(wrap): r;}catch(e){wrap(e)} } } }); // PROBE
+import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { computePlan } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';

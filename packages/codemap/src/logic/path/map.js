@@ -11,7 +11,7 @@ import { Refused } from '../../../../kernel/light.js';
 
 /** Explain an unreadable rename map without accepting a partial or guessed identity. */
 function invalidMap() {
-  return new Refused('NO_POLICY', new Error().stack.split('\n').slice(2, 6).map(l => l.replace(/^.*\/(?=[^/]+:\d+:\d+)/, '')).join('|') + 'the root path-map.json and packages/codemap/data/plan/path-map/*.json shards must be committed old-path to new-path objects with relative file paths and no cycles; correct the map and retry'); // PROBE
+  return new Refused('NO_POLICY', 'the root path-map.json and packages/codemap/data/plan/path-map/*.json shards must be committed old-path to new-path objects with relative file paths and no cycles; correct the map and retry');
 }
 
 /** Maps name complete repository-relative POSIX files, never directories outside the checkout. */
