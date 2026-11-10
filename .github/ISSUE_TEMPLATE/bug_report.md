@@ -1,21 +1,29 @@
 ---
-name: Bug report
-about: Report behavior that does not match what you expected
+name: Bug
+about: Something broke
 title: ""
 labels: bug
 assignees: ""
 ---
 
-## What did you run?
+The command or file that broke. Why it matters. What it blocks.
 
-Include the command and, if relevant, a small example project or input.
-
-## What happened?
-
-## What did you expect?
-
-## Environment
-
-- Pullboard version (`pullboard --version`):
-- Operating system:
-- Node.js version (`node --version`):
+```yaml
+rows:
+  - G1.2
+env: <Node, OS, local changes>
+version: "<pullboard --version>"
+ran: <the command you ran>
+cause: <why, if known>
+blocks: <what it stops>
+forbidden:
+  - <fix you ruled out>
+compat:
+  - <what must keep working>
+bar:
+  - 1: <what must hold once fixed> [test]
+check:
+  - 1: <test file> > <test name>
+refusal: |
+  <exact refusal or error text>
+```

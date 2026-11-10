@@ -1,11 +1,14 @@
 ---
-name: Feature request
-about: Describe a problem Pullboard could solve
+name: Ask
+about: A question or a feature request
 title: ""
 labels: feature
 assignees: ""
 ---
 
-## What problem are you running into?
+What you have today. What you want. Why it matters.
 
-## What would you like Pullboard to do?
+```yaml
+have: <what you have or tried>
+want: feature
+```
