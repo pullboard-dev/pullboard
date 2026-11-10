@@ -83,7 +83,7 @@ test('private naming code is absent from public and relay pages [N26,N2]', () =>
 test('private Items and Shouts share a model name without rewriting the native API [N26,P5]', { timeout: 120_000 }, async () => {
   const box = machine();
   const demo = project(box, 'private-model-view', undefined, {}, { joinSeat: false });
-  box.run(demo.web, 'join', 'web', '--model', 'gpt-6.1-sol', '--family', 'openai');
+  box.run(demo.web, 'join', 'web', '--model', 'gpt-6.1-sol', '--family', 'openai', '--route', 'strong');
   box.run(demo.repo, 'add', 'web', 'Private model presentation', '--specs', 'G1', '--criterion', 'the native seat keeps its model');
   box.run(demo.web, 'claim', '1');
   const server = await startView(box);
