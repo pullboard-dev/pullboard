@@ -82,7 +82,17 @@ function shellWord(value) {
 /** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
 function project(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
+  const clients = [];
   t.after(async () => {
+    for (const { child, closed } of clients) {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      let timer;
+      try {
+        await Promise.race([closed, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`MCP fixture child ${child.pid} did not close`)), 10_000); // budget: owned child exit hang ceiling, not a performance assertion.
+        })]);
+      } finally { clearTimeout(timer); }
+    }
     const jobs = join(dir, 'repo', '.git', 'pullboard', 'submit-handoffs');
     await createE2eHelpers().waitFor(() => !existsSync(jobs) || readdirSync(jobs).every(job => {
       const request = join(jobs, job, 'request.json');
@@ -133,7 +143,7 @@ function project(t) {
   const joined = run(web, ['join', 'web', '--model', 'fixture-model', '--json'], sessionA);
   assert.equal(joined.status, 0, fixtureChildMessage(joined));
   const agent = JSON.parse(joined.stdout).agent;
-  return { dir, env, run, git, repo, web, agent, sessionA, guard, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
+  return { dir, env, run, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
 /** Run one CLI command with --json and return its single document and status. */
@@ -172,7 +182,7 @@ function mcpClient(t, box, cwd, extra = {}) {
     }
   });
   const closed = once(child, 'close');
-  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  box.clients.push({ child, closed });
   /** Send one request and wait for the reply with its id. */
   const request = (method, params) => new Promise((done, fail) => {
     const id = nextId++;
