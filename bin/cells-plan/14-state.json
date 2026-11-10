@@ -29,7 +29,6 @@
   ["test/relay-activation.test.js","packages/state/tests/relay-activation.test.js","seed"],
   ["test/relay-browser-fixture.test.js","packages/state/tests/relay-browser-fixture.test.js","seed"],
   ["test/relay-client-fixture.test.js","packages/state/tests/relay-client-fixture.test.js","seed"],
-  ["test/relay-key-file.test.js","packages/state/tests/relay-key-file.test.js","seed"],
   ["test/reopen.test.js","packages/state/tests/reopen.test.js","seed"],
   ["test/review-grant-replay.test.js","packages/state/tests/review-grant-replay.test.js","seed"],
   ["test/review-queue-replay.test.js","packages/state/tests/review-queue-replay.test.js","seed"],

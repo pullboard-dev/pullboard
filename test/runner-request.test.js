@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { landedCutItemRows } from '../bin/cells-submit-checks.js';
+import { landedCutItemRows } from '../apps/cli/index.js';
 import { remoteSubmitCells } from '../apps/cli/src/shell/submit-cells-remote.js';
 
 const LIMIT = 1024 ** 2;

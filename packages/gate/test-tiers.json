@@ -5821,7 +5821,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/relay-key-file.test.js",
+      "file": "test/relay-key-file-cli.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -43408,12 +43408,12 @@
       ]
     },
     {
-      "file": "test/runner-controller.test.js",
+      "file": "packages/runners/tests/runner-controller.test.js",
       "tier": "T3",
       "packages": [],
       "reasons": [
         "no package: no implementation import",
-        "process: test/runner-controller.test.js"
+        "process: packages/runners/tests/runner-controller.test.js"
       ]
     },
     {

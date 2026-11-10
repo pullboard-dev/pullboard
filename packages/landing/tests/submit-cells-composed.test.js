@@ -12,7 +12,7 @@ import { computePlan } from '../../../bin/cells-plan.js';
 import { readPlan } from '../../../bin/cells-plan.js';
 import { writePlan } from '../../../bin/cells-plan.js';
 import { shardFile } from '../../../bin/cells-plan.js';
-import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../../../apps/cli/index.js';
 import { cellLintReport } from '../../codemap/index.js';
 import { cellLintBaseline } from '../../codemap/index.js';
 import { writeCellLintBaseline } from '../../codemap/index.js';

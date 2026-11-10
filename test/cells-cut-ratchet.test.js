@@ -2,7 +2,7 @@ import * as store from '../packages/store/index.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { fixtureBoard } from './board-fixture.js';
-import { landedCutItemRows } from '../bin/cells-submit-checks.js';
+import { landedCutItemRows } from '../apps/cli/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 /** A cell's landed import cut is a ratchet: new upward or front-door-skipping imports refuse at submit, old ones do not [C7,D3]. */
@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
-import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells as preflight } from '../apps/cli/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';

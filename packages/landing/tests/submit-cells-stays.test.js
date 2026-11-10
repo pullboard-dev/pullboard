@@ -9,7 +9,7 @@ import { git } from '../../../test/cells-plan-fixture.js';
 import { computePlan } from '../../../bin/cells-plan.js';
 import { readPlan } from '../../../bin/cells-plan.js';
 import { writePlan } from '../../../bin/cells-plan.js';
-import { requireSubmitCells as preflight } from '../../../bin/cells-submit-checks.js';
+import { requireSubmitCells as preflight } from '../../../apps/cli/index.js';
 import { withMainCheckout } from '../index.js';
 import { cellLintBaseline } from '../../codemap/index.js';
 import { cellLintReport } from '../../codemap/index.js';

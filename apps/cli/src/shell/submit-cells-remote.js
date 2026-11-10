@@ -164,7 +164,7 @@ async function remoteCells(encoded) {
     const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', input.main);
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
     const entry = join(directory, 'trusted-cells-entry.mjs');
-    writeFileSync(entry, `import { requireSubmitCells } from './bin/cells-submit-checks.js';
+    writeFileSync(entry, `import { existsSync } from 'node:fs';
 import {
   importsIn,
   commonJsIn,
@@ -176,6 +176,8 @@ import {
 import { withMainCheckout } from './packages/landing/index.js';
 import * as cellsCache from './bin/cells-inventory-cache.js';
 import { readFileSync } from 'node:fs';
+// An accepted main that predates the cli-owned module still keeps the checks in bin/.
+const { requireSubmitCells } = await import(existsSync(new URL('./apps/cli/src/shell/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/shell/cells-submit-checks.js' : './bin/cells-submit-checks.js');
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
 let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
 // The coordinator held no inventory for these accepted commits: produce each here, once per runner cache (#3662).

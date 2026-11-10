@@ -1,5 +1,5 @@
 /** The shared readers the runner's hand-off stages call: the same doctrine, cells, composition and failure code the local worker runs [C7]. */
-import { requireSubmitCells } from '../../../../bin/cells-submit-checks.js';
+import { requireSubmitCells } from './cells-submit-checks.js';
 import { holdDoctrineAsync } from '../../../../packages/doctrine/index.js';
 import { ruleLine } from '../../../../packages/doctrine/index.js';
 import { commonJsIn } from '../../../../packages/gate/index.js';

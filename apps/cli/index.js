@@ -48,3 +48,4 @@ export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js'
 
 export { requireNonEmptySubmit } from './src/shell/empty-submit.js';
 export { usageCheckpointWorkerEntrypoint } from './src/shell/usage-checkpoint-entry.js';
+export { cellsSnapshotProblems, landedCutItemRows, policyProblems, readableCuts, requireSubmitCells, touchedCells } from "./src/shell/cells-submit-checks.js";

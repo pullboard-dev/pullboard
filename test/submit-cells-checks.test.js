@@ -62,8 +62,8 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
     .some(problem => problem.includes('cannot prove cut through bin/bridge.js')), 'an unknown root-tool loader also refuses');
 });
 
-import { requireSubmitCells as inspectSubmit } from '../bin/cells-submit-checks.js';
-import { touchedCells } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells as inspectSubmit } from '../apps/cli/index.js';
+import { touchedCells } from '../apps/cli/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
@@ -334,7 +334,7 @@ test('real compiler observations survive a checked same-main census only [C7,D3]
   reconstructed[0].body = JSON.parse(JSON.stringify(reconstructed[0].body));
   withBindingReadCache(() => bindingReadsForModules(reconstructed), { eligible: () => true, observations: restored.values });
   assert.equal(calls(), 1, 'a later process scope reuses equal reconstructed input values');
-  const changed = observationCache(root, { ...key, code: [tool('bin/cells-submit-checks.js')] }, () => true);
+  const changed = observationCache(root, { ...key, code: [tool('apps/cli/src/shell/cells-submit-checks.js')] }, () => true);
   withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: changed.values });
   assert.equal(calls(), 2, 'checker identity invalidates the durable observations');
   const preloadChanged = observationCache(root, { ...key, config: { ...key.config, preloads: ['new bytes'] } }, () => true);
