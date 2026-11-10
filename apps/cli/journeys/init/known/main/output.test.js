@@ -101,7 +101,8 @@ test('candidate-only failures stay red, are first in text, and remain structured
 });
 
 test('a case red on both sources with different diagnostics is not described as passing main [V4,B3,C7]', t => {
-  const box = fixture(t, { main: 2, candidate: 3 });
+  // Name the affected file in the frozen bar: own cases require an exact main failure signature.
+  const box = fixture(t, { main: 2, candidate: 3, criterion: 'test/affected.test.js retains its behavior.' });
   const tested = cli(box, box.builder, 'test', FILE, '--compare-main');
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   const report = JSON.parse(tested.stdout);
