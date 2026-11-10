@@ -97,6 +97,7 @@ import { personRequestStatuses } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
+import { watchEventSignals } from './event-signals.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -311,21 +312,6 @@ function openRoadmapInputs(root, milestones, localDb, { scopeCommonDir = null } 
       }
       return { values, nextExpiry };
     },
-  };
-}
-
-/**
- * A watcher for a client that wants events only: it wakes on a board write like the full watcher, but
- * builds no state revision, so each write costs one event read instead of a read of every item, agent and file.
- */
-function watchEventSignals(board) {
-  const info = repoInfo(board.root);
-  const dbPath = join(info.commonDir, 'pullboard', 'board.sqlite');
-  const notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
-  return {
-    revision: () => '',
-    subscribe: (listener) => notifications.subscribe(listener),
-    close: () => notifications.close(),
   };
 }
 
