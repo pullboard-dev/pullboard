@@ -350,15 +350,8 @@
   "packages/flakes/tests/flakes-ledger.test.js": {
     "raw-board": 5
   },
-  "packages/state/tests/flow-submit-size.test.js": {
-    "raw-board": 4
-  },
   "packages/store/tests/implies.test.js": {
     "raw-board": 8
-  },
-  "packages/state/tests/item-hold.test.js": {
-    "raw-board": 9,
-    "model": 1
   },
   "packages/landing/tests/landing-waiver-replay.test.js": {
     "tempdir": 1,
@@ -3924,5 +3917,12 @@
   },
   "packages/runners/tests/registry-merge.test.js": {
     "tempdir": 2
+  },
+  "apps/cli/tests/flow-submit-size.test.js": {
+    "raw-board": 1
+  },
+  "packages/moves/tests/item-hold.test.js": {
+    "raw-board": 3,
+    "model": 1
   }
 }
