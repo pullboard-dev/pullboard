@@ -71,7 +71,8 @@ test('a green submission whose earlier reservation expired or was released is re
   const build = box.add('Open build', { brief: 'Files: web/other.js\nTest: an independent build stays open.' });
   green(box, expired); green(box, released);
   store.reserveReview(box.board, expired, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 60_000, policy: 'any' });
-  box.advance(120_000);
+  // Past the 60 s lease but under the two-minute starvation age, so the green-review path, not the aged one, makes the offer.
+  box.advance(61_000);
   assert.equal(store.reviewHolder(box.board, store.getItem(box.board, expired)), null, 'the earlier review lease has expired');
   store.reserveReview(box.board, released, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 3_600_000, policy: 'any' });
   store.release(box.board, released, box.seats.outside.id, 'Fixture reviewer steps away.', undefined, 'OTHER');
