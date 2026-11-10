@@ -74,26 +74,26 @@ const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA
  * they answer for its refusals together.
  */
 const ENTRY_POINTS = [
-  { verbs: ['claim'], at: ['../packages/store/src/shell/board.js#claim'] },
-  { verbs: ['release'], at: ['../packages/store/src/shell/board.js#release'] },
-  { verbs: ['submit'], at: ['../packages/store/src/shell/board.js#submit', '../apps/cli/src/shell/commands/submit.js#submitHere'] },
-  { verbs: ['reserve'], at: ['../packages/store/src/shell/board.js#reserveReview', '../packages/store/src/shell/board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['../packages/store/src/shell/board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
-  { verbs: ['escalate'], at: ['../packages/store/src/core/board-escalate.js#escalate'] },
-  { verbs: ['withdraw'], at: ['../packages/store/src/shell/board.js#withdraw'] },
-  { verbs: ['refreeze'], at: ['../packages/store/src/shell/board.js#refreeze'] },
-  { verbs: ['reopen'], at: ['../packages/store/src/shell/board.js#reopen'] },
+  { verbs: ['claim'], at: ['../packages/store/src/io/board.js#claim'] },
+  { verbs: ['release'], at: ['../packages/store/src/io/board.js#release'] },
+  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere'] },
+  { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
+  { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
+  { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
+  { verbs: ['withdraw'], at: ['../packages/store/src/io/board.js#withdraw'] },
+  { verbs: ['refreeze'], at: ['../packages/store/src/io/board.js#refreeze'] },
+  { verbs: ['reopen'], at: ['../packages/store/src/io/board.js#reopen'] },
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
 const RUNNER_ENTRY_FILES = ['../../../../packages/runners/index.js', '../../../../packages/gate/src/io/slot.js', '../../../../packages/runners/src/io/result.js',
   '../../../../packages/runners/src/io/dispatch.js', '../../../runner/src/io/worker/entry.js'];
 const NON_MOVE_ENTRY_POINTS = [
-  '../apps/lib/src/core/native-board.js#openBoard', // Physical storage is composed before any item move.
-  '../apps/cli/src/shell/cli/join.js#refuseRemoteCoordinatorModel',
+  '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
+  '../apps/cli/src/io/join.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
-  '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
-  '../packages/person/src/shell/person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
+  '../packages/resources/src/io/main.js#gateSlotEnvironment',
+  '../packages/person/src/io/signing/cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
 /**
@@ -104,46 +104,46 @@ const NON_MOVE_ENTRY_POINTS = [
  */
 const CAUGHT = {
   // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
-  '../apps/cli/src/shell/cli/claim.js#refreshesLanePolicy': ['../apps/cli/src/shell/cli/claim.js#freezer'],
+  '../apps/cli/src/io/claim.js#refreshesLanePolicy': ['../apps/cli/src/io/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
-  '../packages/store/src/shell/board-next-for.js#nextFor': ['../packages/store/src/core/exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  '../packages/store/src/io/board/next.js#nextFor': ['../packages/store/src/logic/exit/rules/continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
   // An unknown code map keeps the file collision; every read inside it is caught.
-  '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
-  '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
+  '../packages/items/src/io/planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
+  '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
-  '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['../packages/store/src/shell/board.js#reviewerChecks'],
-  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', '../packages/doctrine/src/shell/doctrine-checks.js#checkRulesAt'],
+  '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
+  '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
   // Machine-verified submit lands after its record, and that landing call is caught like verify's.
   // The same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
-  '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
-  '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
+  '../packages/spec/src/io/approval.js#approvalEvidence': ['../packages/spec/src/io/main.js#readSignoffs'],
+  '../packages/spec/src/io/approval.js#confirmedDecision': ['../packages/spec/src/io/signature.js#verifyRowDecision'],
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
-  '../packages/spec/src/shell/spec-approval.js#specApprovalState': ['../packages/store/src/shell/board-query.js#specApprovalBaseline'],
+  '../packages/spec/src/io/approval.js#specApprovalState': ['../packages/store/src/io/board/query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
-  '../packages/store/src/shell/board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
+  '../packages/store/src/io/board.js#reopen': ['../packages/rigor/src/logic/notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
-  '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
-  '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
+  '../packages/store/src/logic/board/rigor.js#eventCauses': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
+  '../packages/rigor/src/logic/counter.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
-  '../packages/store/src/core/board-rigor-auto-source.js#readAutomaticRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
+  '../packages/rigor/src/logic/counter.js#declineKey': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/logic/board/rigor/provenance.js#readRigorSource': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
+  '../packages/store/src/logic/board/rigor/auto.js#readAutomaticRigorSource': ['../packages/store/src/logic/board/rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/person/src/shell/person-row-proof.js#signedRowDecisionsMatch': ['../packages/spec/src/shell/spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
+  '../packages/store/src/logic/board/rigor/auto.js#automaticDecisionSource': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/logic/board/rigor/auto.js#rigorDecisionKey': ['../packages/spec/src/logic/grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/person/src/io/proof.js#signedRowDecisionsMatch': ['../packages/spec/src/io/main.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/shell/relay.js#relayLinked', '../packages/link/src/shell/relay.js#relayOperation', '../packages/link/src/shell/relay.js#relayRecovered', '../packages/link/src/shell/relay.js#relayCommandReceipt', '../packages/link/src/shell/relay.js#relayCommandReceiptReported']);
+const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported']);
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -466,13 +466,13 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
     'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
-  assert.ok(walk.refusalsOf('../packages/store/src/shell/board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
-  assert.ok(walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
-  assert.ok(!walk.refusalsOf('../apps/cli/src/shell/commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
-  assert.ok(walk.refusalsOf('../apps/cli/src/shell/cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
+  assert.ok(walk.refusalsOf('../apps/cli/src/io/commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
+  assert.ok(!walk.refusalsOf('../apps/cli/src/io/commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/io/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('../apps/cli/src/io/entry.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
@@ -1460,7 +1460,7 @@ test('lifecycle source walks follow Git shims and catch a planted body refusal [
 
 /** The bound storage callback must reach its real body through the moved public facade. */
 test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
-  const entry = '../apps/lib/src/core/native-board.js#openBoard';
+  const entry = '../apps/lib/src/logic/native.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
   const planted = editedSource('../../../../packages/store/src/io/board/read/snapshot.js',
     /^export function readEventLogVersion\(db\) \{$/m,
