@@ -323,18 +323,15 @@
   "test/trusted-policy.test.js": {
     "hand-policy": 1
   },
-  "packages/state/tests/bar-corrections.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 4
+  "packages/store/tests/bar-corrections.test.js": {
+    "raw-board": 3
   },
   "packages/state/tests/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/decision-queue.test.js": {
+  "packages/store/tests/decision-queue.test.js": {
     "tempdir": 1,
-    "raw-board": 7
+    "raw-board": 4
   },
   "packages/state/tests/engine-replay.test.js": {
     "tempdir": 1,
@@ -347,8 +344,8 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/state/tests/file-growth-notice.test.js": {
-    "raw-board": 6
+  "packages/store/tests/file-growth-notice.test.js": {
+    "raw-board": 4
   },
   "packages/flakes/tests/flakes-ledger.test.js": {
     "raw-board": 5
@@ -356,17 +353,14 @@
   "packages/state/tests/flow-submit-size.test.js": {
     "raw-board": 4
   },
-  "packages/state/tests/implies.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "raw-board": 10
+  "packages/store/tests/implies.test.js": {
+    "raw-board": 8
   },
   "packages/state/tests/item-hold.test.js": {
     "raw-board": 9,
     "model": 1
   },
-  "packages/state/tests/landing-waiver-replay.test.js": {
+  "packages/landing/tests/landing-waiver-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -386,9 +380,6 @@
     "hand-policy": 2,
     "raw-board": 6,
     "model": 1
-  },
-  "packages/state/tests/registry-merge.test.js": {
-    "tempdir": 2
   },
   "packages/state/tests/relay-activation.test.js": {
     "raw-board": 6,
@@ -3942,5 +3933,8 @@
   },
   "packages/store/tests/merge-read-ports.test.js": {
     "raw-board": 2
+  },
+  "packages/runners/tests/registry-merge.test.js": {
+    "tempdir": 2
   }
 }
