@@ -194,7 +194,7 @@ export function assertSyncFacadeAudit(codeWalk, fromDisk, editedSource) {
   assert.throws(() => fromDisk('../../outside.js'), /outside the closed inventory/u);
   assert.throws(() => fromDisk('unknown-source-file.js'), /outside the closed inventory/u);
   assert.ok(codeWalk(fromDisk).refusalsOf('../apps/cli/src/io/commands/sync.js#run').has('GIT_REPLACE_REFS'));
-  const planted = editedSource('../../../sync/src/io/main.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
+  const planted = editedSource('../packages/sync/src/io/main.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
     "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
   assert.ok(codeWalk(planted).refusalsOf('../apps/cli/src/io/commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
 }
@@ -233,7 +233,7 @@ export function declaredBoardOrder(machineRules, prechecked, verb) {
 export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
   const entry = '../packages/git/src/io/main.js#repoInfo';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('NOT_A_REPO'));
-  const planted = editedSource('../../../git/src/io/main.js', /^export function repoInfo\(cwd, options = \{\}\) \{$/m,
+  const planted = editedSource('../packages/git/src/io/main.js', /^export function repoInfo\(cwd, options = \{\}\) \{$/m,
     "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
   assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
     'a Git compatibility shim cannot hide a new refusal in its actual implementation');
@@ -241,10 +241,10 @@ export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
 
 /** Prove that only the exact caught landing effect is excluded from verification's refusal audit [B35,M1,M4]. */
 export function assertPostVerdictLandingAudit(editedSource, codeProblems, machine) {
-  const caught = editedSource('../../../../apps/cli/src/io/commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
+  const caught = editedSource('../apps/cli/src/io/commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, caught), [], 'only the exact call after the committed verdict is caught');
-  const uncaught = editedSource('../../../../apps/cli/src/io/commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
+  const uncaught = editedSource('../apps/cli/src/io/commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
 }

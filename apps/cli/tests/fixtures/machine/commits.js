@@ -40,7 +40,7 @@ export function assertCommitShimRefusals(codeWalk, read, editedSource, codeProbl
     ['../packages/commits/src/io/revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
     ['../packages/commits/src/io/revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
   ]) assert.ok(walk.refusalsOf(entry).has(code), `${entry} retains its actual moved refusal ${code}`);
-  const planted = editedSource('../../../../../packages/commits/src/io/hooks.js',
+  const planted = editedSource('../packages/commits/src/io/hooks.js',
     /^export function machineNameProblems\(root, range, \{ refuse, say, names = machineNames\(\) \}\) \{$/m,
     "$&\n  throw new Refused('COMMIT_PACKAGE_PROBE', 'planted moved commit guard');");
   assert.ok(codeProblems(machine, planted).includes('COMMIT_PACKAGE_PROBE is raised by submit but not declared there'),
