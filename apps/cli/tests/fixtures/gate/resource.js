@@ -19,6 +19,7 @@ import { GATE_SLOT_HELD_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../../packages/resources/index.js';
 import { executionServicesSource } from './execution.js';
+import { fixtureProjectPolicy } from '../testkit.js';
 
 export const RUNNER = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/run/tests.js');
 export const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
@@ -79,12 +80,21 @@ export function fixture() {
   return { dir, events, env };
 }
 
+/** Commit a probe project's policy on main, so the runner's gate admission finds a trunk (NO_POLICY otherwise). */
+function commitProbePolicy(box, root) {
+  fixtureProjectPolicy(root);
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture']]) {
+    assert.equal(runFixtureChild('git', args, { cwd: root, env: box.env, encoding: 'utf8' }).status, 0);
+  }
+}
+
 /** Create a tiny test-project with one discoverable probe instead of recursively loading this repository's suite. */
 export function probeSuite(box, name) {
   const root = join(box.dir, name);
   const tests = join(root, 'test');
   mkdirSync(tests, { recursive: true });
   writeFileSync(join(tests, 'probe.test.js'), `import { existsSync, renameSync, writeFileSync } from 'node:fs';\nimport { test } from 'node:test';\ntest(${JSON.stringify(PROBE_NAME)}, async () => {\n  const marker = process.env.${PROBE_PATH_ENV};\n  if (marker) {\n    const temporary = marker + '.tmp';\n    writeFileSync(temporary, process.env.${GATE_SLOT_HELD_ENV} ?? 'none');\n    renameSync(temporary, marker);\n  }\n  const release = process.env.${PROBE_RELEASE_ENV};\n  while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));\n});\n`);
+  commitProbePolicy(box, root);
   return root;
 }
 
@@ -123,6 +133,7 @@ test(${JSON.stringify(PROBE_NAME)}, async () => {
   while (release && !existsSync(release)) await new Promise(done => setTimeout(done, 10));
 });
 `);
+  commitProbePolicy(box, root);
   return root;
 }
 
