@@ -1,5 +1,5 @@
 {
-  "apps/cli/tests/exit-rules.test.js": {
+  "test/exit-rules-journey.test.js": {
     "model": 5,
     "raw-board": 7
   },
@@ -1496,7 +1496,7 @@
   "test/engine-folder.test.js": {
     "tempdir": 3
   },
-  "test/engine.test.js": {
+  "packages/moves/tests/engine.test.js": {
     "raw-board": 8,
     "tempdir": 3,
     "repo-read": 1
@@ -1515,6 +1515,9 @@
   },
   "test/fixture-copier.test.js": {
     "tempdir": 2
+  },
+  "packages/runners/tests/fixture-copiers.test.js": {
+    "tempdir": 1
   },
   "test/fixture-env-isolated.test.js": {
     "model": 1
@@ -3018,7 +3021,7 @@
   "packages/runners/tests/run-tests-reporter.test.js": {
     "tempdir": 3
   },
-  "test/run-tests-timeout.test.js": {
+  "packages/gate/tests/run-tests-timeout.test.js": {
     "tempdir": 3
   },
   "packages/runners/tests/run-tests-worker-identity.test.js": {
@@ -3283,7 +3286,7 @@
   "packages/resources/tests/seat-test-slot-cap.test.js": {
     "tempdir": 2
   },
-  "test/seat-timing.test.js": {
+  "packages/store/tests/seat-timing.test.js": {
     "tempdir": 6
   },
   "packages/gate/tests/selection-cache.test.js": {
@@ -3818,7 +3821,7 @@
   "test/worker-scale-fixture.js": {
     "raw-board": 2
   },
-  "test/worker-scale.test.js": {
+  "apps/cli/tests/worker-scale.test.js": {
     "tempdir": 1
   },
   "test/workflows.test.js": {

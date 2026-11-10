@@ -1657,6 +1657,22 @@
         "packages/runners/tests/runner-slots-measured.test.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/exit-rules.test.js",
+        "apps/cli/tests/exit-rules.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "test/worktree-maintenance-scheduler.test.js",
+        "apps/cli/tests/worktree-maintenance-scheduler.test.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
