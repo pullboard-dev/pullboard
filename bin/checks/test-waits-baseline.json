@@ -8,12 +8,8 @@
   "packages/gate/tests/check.test.js": {
     "sleep": 1
   },
-  "packages/gate/tests/gate-resource.test.js": {
-    "sleep": 3
-  },
   "packages/gate/tests/resources.test.js": {
-    "poll": 2,
-    "sleep": 9
+    "sleep": 3
   },
   "packages/landing/tests/main-red.test.js": {
     "sleep": 2
@@ -353,5 +349,15 @@
   },
   "apps/relay/tests/fixtures/relay-server-fixture.js": {
     "sleep": 2
+  },
+  "test/gate-resource-fixture.js": {
+    "sleep": 3
+  },
+  "test/resources-cli.test.js": {
+    "sleep": 1
+  },
+  "test/resources-pool-fixture.js": {
+    "poll": 2,
+    "sleep": 5
   }
 }
