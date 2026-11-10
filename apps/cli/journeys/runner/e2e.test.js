@@ -94,7 +94,7 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(light, 'whoami').out, /^web-2 \(fixture-model\) \(web lane, light route\)/);
   const next = box.run(light, 'next');
-  assert.match(next.out, /claimed #2: Copy the header\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
+  assert.match(next.out, /claimed #2: Copy the header\nnext: build and commit in [^\n]+\nitem folder: [^\n]+; seat web-2; build, commit and submit there\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match(box.run(light, 'claim', '1').err, /ROUTE/);
   assert.match(box.run(box.web, 'next').out, /claimed #1: Design the page/);
   assert.equal(box.run(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.').code, 0);
