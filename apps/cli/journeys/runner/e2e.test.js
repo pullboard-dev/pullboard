@@ -45,6 +45,21 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
+/** File light work at mid, then route it through the coordinator's diagnosis. */
+function addDiagnosedLight(box, ...args) {
+  const route = args.indexOf('--route');
+  assert.equal(args[route + 1], 'light');
+  const brief = args[args.indexOf('--brief') + 1];
+  args[route + 1] = 'mid';
+  const added = fixtureAdd(box.run, box.repo, ...args);
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = added.out.match(/^#(\d+)/m)?.[1];
+  assert.ok(id, added.out);
+  const diagnosis = box.run(box.repo, 'fact', id, 'diagnosis', brief);
+  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
+  return added;
+}
+
 test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', () => {
   const box = project();
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
@@ -88,8 +103,8 @@ test('run builds routed items unattended: the failure feeds the next attempt; re
   ].join('\n'));
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
   const has = (file, text) => `grep -q ${text} ${file}`;
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
+  assert.equal(addDiagnosedLight(box, 'web', 'Greet', 'on', 'the', 'page', '--specs', 'G1', '--route', 'light', '--criterion', 'the page says Hi', '--check', has('web/page.js', 'Hi'), '--brief', brief('web/page.js')).code, 0);
+  assert.equal(addDiagnosedLight(box, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'the footer says Bye', '--check', has('web/footer.js', 'Bye'), '--brief', brief('web/footer.js')).code, 0);
   const made = box.run(box.repo, 'worktree', 'web', '--route', 'light');
   const light = made.out.match(/^made (\S+) /)[1];
   assert.match(box.run(box.repo, 'run', '--agent', `sh ${agent}`).err, /MAIN_IS_COORDINATOR/);
@@ -127,8 +142,8 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const weak = script('weak.sh', ['echo nope > api/server.js']);
   const strong = script('strong.sh', ['grep -q "Earlier tries by a lighter model" "$PULLBOARD_PACK" && echo "export const served = true;" > api/server.js']);
   const brief = (file) => LIGHT_BRIEF.replace('web/page.js', file);
-  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
-  fixtureAdd(box.run, box.repo, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
+  addDiagnosedLight(box, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', brief('web/page.js'));
+  addDiagnosedLight(box, 'api', 'Serve', 'the', 'page', '--after', '1', '--route', 'light', '--criterion', 'serves it', '--check', 'test -f web/page.js && grep -q served api/server.js', '--brief', brief('api/server.js'));
   const webRunner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   assert.match(box.run(webRunner, 'run', '--agent-light', good, '--attempts', '1').out, /submitted #1/);
   const commit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
@@ -155,7 +170,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   box.git(localRunner, 'commit', '-q', '-m', 'feat(api): local server variant [G2]');
 
   const brief = LIGHT_BRIEF.replace('web/page.js', 'api/server.js');
-  fixtureAdd(box.run, box.repo, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
+  addDiagnosedLight(box, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
     '--check', 'grep -q upstream api/server.js', '--brief', brief);
   const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
   writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
@@ -165,7 +180,7 @@ test('the runner returns a claimed dependent item when its verified dependency c
   assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.').out, /verified #1/);
 
   const dependentBrief = LIGHT_BRIEF.replace('web/page.js', 'api/client.js');
-  fixtureAdd(box.run, box.repo, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
+  addDiagnosedLight(box, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
     '--check', 'test -f api/client.js && grep -q upstream api/server.js', '--brief', dependentBrief);
   const blocked = box.run(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
   assert.notEqual(blocked.code, 0, blocked.out);
