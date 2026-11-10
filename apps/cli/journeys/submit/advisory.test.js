@@ -54,8 +54,8 @@ async function plannedFixture(t, { moved = false, prepare = () => {} } = {}) {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   if (moved) {
     box.put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-    box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
-    box.put('src/refused.js', "export { Refused } from '../../../../packages/kernel/index.js';\n");
+    box.put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
+    box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
     box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
     box.put('packages/codemap/data/plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/logic/refused.js' }));
     // The real repository's committed marker keeps pre-cell lint growth advisory after the first package move.
@@ -96,7 +96,7 @@ test('an ordinary item whose new test builds an unproven fixture path proceeds w
 
 test('an ordinary title is still refused when the item changes a shim, the path map or plan rows [C7,D3]', async t => {
   const box = await plannedFixture(t, { moved: true });
-  box.put('src/refused.js', "export { Refused } from '../../../../packages/kernel/index.js';\nexport const shimEdit = 1;\n");
+  box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\nexport const shimEdit = 1;\n");
   box.put('test/fixture-reader.test.js', UNPROVEN_READER);
   const shim = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY));
   assert.match(shim?.message ?? '', /kernel --moved: test\/fixture-reader\.test\.js:1: unsupported fixture source/u, 'a shim change is reorg work');
@@ -181,6 +181,7 @@ test('native submit of an ordinary item with unplaced source prints the warning 
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
   const config = loadConfig(box.repo);
   config.lanes.web.owns.push('src/');
