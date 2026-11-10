@@ -99,7 +99,7 @@ test('home renders the projected useful agents range lever and curve and refresh
   project(box, 'capacity home', SPEC);
   const view = await startView(box);
   try {
-    const page = await openPage(view);
+    const page = await openPage(view, { store: storage() });
     assert.match(page.html, /id="dashboard-capacity"/, 'the served page mounts the capacity card on Dashboard');
     page.run("keep('pb.firstrun.' + view.root, 'hidden'); render();");
     page.run(`data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
