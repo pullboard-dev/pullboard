@@ -19,5 +19,6 @@
   "src/source-advance-plan.js": "packages/codemap/src/shell/source-advance-plan.js",
   "src/source-inventory.js": "packages/codemap/src/shell/source-inventory.js",
   "src/cell-lint-cell-shards.js": "packages/codemap/src/shell/cell-lint-cell-shards.js",
-  "src/map-slice-say.js": "packages/codemap/src/shell/map-slice-say.js"
+  "src/map-slice-say.js": "packages/codemap/src/shell/map-slice-say.js",
+  "src/main-facts-cache.js": "packages/codemap/src/shell/main-facts-cache.js"
 }

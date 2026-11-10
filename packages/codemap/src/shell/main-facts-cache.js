@@ -9,12 +9,10 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { git } from './git.js';
-import { mainCheckout } from './git.js';
-import { trunkRef } from '../packages/git/index.js';
-import { machineHome } from '../packages/resources/index.js';
-import { cleanGitEnvironment } from './git.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
+import { git } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
+import { trunkRef } from '../../../git/index.js';
 
 const LIMIT = 64 * 1024 * 1024;
 const DEFAULT_CACHE_BYTES = 512 * 1024 * 1024;
@@ -39,7 +37,7 @@ let toolIdentity;
 /** Bind facts to the complete shipped tool, including moved parser providers and grammar assets. */
 export function mainFactToolIdentity() {
   if (toolIdentity === undefined) {
-    const root = fileURLToPath(new URL('../', import.meta.url));
+    const root = fileURLToPath(new URL('../../../../', import.meta.url));
     const hash = createHash('sha256');
     let size = 0;
     let count = 0;
@@ -71,9 +69,9 @@ export function mainFactDigest(value) {
 }
 
 /** Open private local derived data, refusing symlinked or non-private storage. */
-function openCache(root, shared) {
-  const common = shared ? null : resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
-  const directory = shared ? join(machineHome(), 'main-facts') : join(common, 'pullboard-main-facts');
+function openCache(root, home) {
+  const common = home ? null : resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
+  const directory = home ? join(home, 'main-facts') : join(common, 'pullboard-main-facts');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const parent = lstatSync(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw new Error('non-private main facts cache');
@@ -81,6 +79,8 @@ function openCache(root, shared) {
   try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
   const stat = lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw new Error('non-private main facts database');
+  // Loaded on first use: this module rides the codemap barrel every check script imports, and a static node:sqlite import prints a warning there.
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
   const db = new DatabaseSync(file);
   try {
     db.exec('PRAGMA busy_timeout=10000; PRAGMA auto_vacuum=FULL; CREATE TABLE IF NOT EXISTS facts(key TEXT PRIMARY KEY, body TEXT NOT NULL, digest TEXT NOT NULL, commit_id TEXT NOT NULL, touched INTEGER NOT NULL)');
@@ -104,8 +104,11 @@ function openCache(root, shared) {
   return db;
 }
 
-/** Derive one validated JSON value under a separate single-flight transaction; damage is only a cache miss. */
-export function cachedMainFact(root, namespace, identity, derive, validate, { shared = false } = {}) {
+/**
+ * Derive one validated JSON value under a separate single-flight transaction; damage is only a cache miss.
+ * `home` is the caller's machine home: given, facts are kept machine-wide under it, so this cell never loads the resources door.
+ */
+export function cachedMainFact(root, namespace, identity, derive, validate, { home = null } = {}) {
   const key = mainFactDigest(JSON.stringify([1, namespace, identity]));
   const commit = commitIdentity(identity);
   let current = null;
@@ -134,7 +137,7 @@ export function cachedMainFact(root, namespace, identity, derive, validate, { sh
     return JSON.parse(derived);
   }
   try {
-    db = openCache(root, shared);
+    db = openCache(root, home);
     db.exec('BEGIN IMMEDIATE');
     const saved = db.prepare('SELECT body,digest FROM facts WHERE key=?').get(key);
     if (saved && Buffer.byteLength(saved.body) <= LIMIT && mainFactDigest(saved.body) === saved.digest) {
