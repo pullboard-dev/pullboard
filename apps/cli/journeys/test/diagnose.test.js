@@ -30,3 +30,23 @@ test('clause 1: diagnose runs one file and prints its full failure and repositor
   assert.equal(ambiguous.code, 1);
   assert.equal(JSON.parse(ambiguous.out).error.code, 'USAGE');
 });
+
+test('clause 1: a diagnostic waiter enters before earlier background work [C7]', { timeout: 60_000 }, async () => { // budget: real resource queue and two releases.
+  const { fixture, privateTake } = await import('../../tests/fixtures/resources/pool.js');
+  const box = fixture();
+  const options = { name: 'gate', scope: 'machine', capacity: 1 };
+  const holder = await privateTake(box, { ...options, agent: 'holder' });
+  let backgroundWaiting;
+  const backgroundSeen = new Promise(resolve => { backgroundWaiting = resolve; });
+  const background = privateTake(box, { ...options, agent: 'background', onWait: () => backgroundWaiting() });
+  await backgroundSeen;
+  let diagnosticWaiting;
+  const diagnosticSeen = new Promise(resolve => { diagnosticWaiting = resolve; });
+  const diagnostic = privateTake(box, { ...options, agent: 'diagnostic', diagnostic: true, onWait: () => diagnosticWaiting() });
+  await diagnosticSeen;
+  holder.release();
+  const first = await Promise.race([background.then(lease => ({ name: 'background', lease })), diagnostic.then(lease => ({ name: 'diagnostic', lease }))]);
+  assert.equal(first.name, 'diagnostic');
+  first.lease.release();
+  (await background).release();
+});
