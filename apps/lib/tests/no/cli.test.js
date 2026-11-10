@@ -13,8 +13,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FAST_CHECK_SCRIPTS } from '../../../../packages/doctrine/index.js';
 import { fastCheckScript } from '../../../../packages/doctrine/index.js';
-import { codeMapGraph } from '../../../../packages/gate/index.js';
-import { packageCliReach } from '../../../../packages/gate/index.js';
+import * as gate from '../../../../packages/gate/index.js';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
@@ -56,12 +55,12 @@ test('clause 1: doctrine-fast refuses an unlisted @file-local script and keeps a
 });
 
 test('clause 1: in the selection graph doctrine-fast reaches neither static-tree-registry.js nor apps/cli/index.js [C7,#3808]', () => {
-  const graph = codeMapGraph(ROOT, 'HEAD');
+  const graph = gate.codeMapGraph(ROOT, 'HEAD');
   const reached = closureOf(graph, FAST);
   assert.ok(reached.has('packages/gate/src/io/catch.js'), 'the declared checks stay in its closure');
   assert.equal(reached.has('packages/gate/src/io/static/registry.js'), false);
   assert.equal(reached.has('apps/cli/index.js'), false);
-  assert.equal(packageCliReach(graph).has(FAST), false);
+  assert.equal(gate.packageCliReach(graph).has(FAST), false);
 });
 
 /** A real repo whose main has one package module importing nothing from the CLI, on a candidate branch. */
@@ -81,10 +80,11 @@ function cliFixture(t) {
   return { root, put, git, commit: () => { git('add', '-A'); git('commit', '-qm', 'candidate'); } };
 }
 
-/** Run the cells ratchet against the fixture's main. */
+/** Run the cells ratchet against the fixture's main, and the CLI-reach rows the cell-lints stage adds to it. */
 function check(root) {
   const result = runFixtureChild(process.execPath, [LINTS, '--check', root], { cwd: ROOT, encoding: 'utf8' });
-  return { status: result.status, stderr: result.stderr };
+  const rows = gate.cliReachRows(root);
+  return { status: result.status === 0 && rows.length === 0 ? 0 : 1, stderr: `${result.stderr}${rows.join('\n')}` };
 }
 
 test('clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/index.js, naming it and its path [C7,#3808]', t => {

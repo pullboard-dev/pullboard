@@ -1,5 +1,5 @@
 /** Prove a source change stays inside static module imports, without evaluating repository code [C7]. */
-import { importsIn } from '../../../codemap/index.js';
+import { importsIn } from '../../../codemap/light.js';
 import * as awaitImportPath from 'node:path';
 import { lex } from '../../../kernel/index.js';
 
