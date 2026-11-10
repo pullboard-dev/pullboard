@@ -8,7 +8,7 @@ export function gateWaitReporter(io) {
   let last = '';
   let warned = false;
   let held = false;
-  return ({ holders, position, memory, runnerUnavailable }) => {
+  return ({ holders, runnerHolders = [], position, memory, runnerUnavailable }) => {
     if (runnerUnavailable) {
       io.say(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run`);
       return;
@@ -29,7 +29,10 @@ export function gateWaitReporter(io) {
     // An inherited or handed-off slot reports { admitted: true } with no queue state: nothing to say.
     if (!Array.isArray(holders)) return;
     const repos = holders.map(({ repo }) => repo).filter(Boolean);
-    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}; place ${position}`;
+    const hosts = new Map();
+    for (const { host } of runnerHolders) hosts.set(host, (hosts.get(host) ?? 0) + 1);
+    const remote = [...hosts].map(([host, count]) => `${host}: ${count}`).join(', ');
+    const message = `gate waiting: ${holders.length} running${repos.length ? ` in ${repos.join(', ')}` : ''}${remote ? `; runners ${remote}` : ''}; place ${position}`;
     if (message !== last) {
       io.say(message);
       last = message;
