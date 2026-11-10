@@ -52,7 +52,7 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
+    for (const dir of sandboxes) { process.stderr.write(`DIAG cleanup start ${dir}\n`); rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 }); process.stderr.write(`DIAG cleanup end ${dir}\n`); }
   };
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../../src/io/cockpit.js'), 'utf8');
