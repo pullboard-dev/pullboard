@@ -38,8 +38,9 @@ function runnerProject({ healthDown = false } = {}) {
   const box = landProject();
   const marker = join(box.dir, 'local-ran');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
-  mkdirSync(join(box.repo, 'packages/landing/src/shell'), { recursive: true });
-  mkdirSync(join(box.repo, 'bin'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/landing/src/io'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/codemap/src/io/cells/scripts'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli'), { recursive: true });
   writeFileSync(join(box.repo, 'web/land-1.test.js'), '// RED NAME:main-red-case\n');
   fixtureCellsPlan(box.repo, '{"placed":[]}\n');
   // Each script leaves a marker only when it runs under this machine's HOME, so a local fallback is visible.
