@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../index.js';
 import { packageFiles } from '../../../index.js';
-import { assignEngineNumbers } from '../../../../state/src/io/engine/numbers.js';
+import { assignEngineNumbers } from '../../../../state/index.js';
 import { importsIn } from '../../../../gate/index.js';
 import { commonJsIn } from '../../../../gate/index.js';
 import { moveDeclarationFiles } from '../../../../codemap/index.js';

@@ -35,6 +35,7 @@ export { requireAgentGrant } from "./src/logic/grant.js";
 export { engineDeclarationNames } from "./src/io/engine/folder.js";
 export { engineFolderViolations } from "./src/io/engine/folder.js";
 export { engineFolderProblems } from "./src/io/engine/folder.js";
+export { assignEngineNumbers } from "./src/io/engine/numbers.js";
 export { appliedSequence } from "./src/io/engine.js";
 export { checkpointSequence } from "./src/io/engine.js";
 export { startRelayEpoch } from "./src/io/engine.js";
@@ -165,7 +166,7 @@ export { RELEASE_REASONS_ENGINE } from './src/logic/engines/release-reasons-engi
 export { DECISION_ORIGIN_ENGINE } from './src/logic/engines/decision-origin-engine.js';
 export { ITEM_NOTES_ENGINE } from './src/logic/engines/item-notes-engine.js';
 export { CRITICAL_PATH_ENGINE } from './src/logic/engines/critical-path-engine.js';
-export { SUBMISSION_PROOF_ENGINE } from './src/logic/move/constants.js';
+export { SUBMISSION_PROOF_ENGINE, MILESTONE_SHIP_ENGINE } from './src/logic/move/constants.js';
 export { RIGOR_AUTO_ENGINE } from './src/logic/engines/rigor-auto-engine.js';
 export { AGENT_GRANT_ENGINE } from './src/logic/engines/agent-grant-engine.js';
 export { HANDOFF_ENGINE } from './src/logic/engines/handoff-engine.js';

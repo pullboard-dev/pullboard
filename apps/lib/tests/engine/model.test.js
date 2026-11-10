@@ -16,10 +16,10 @@ import {
 import {
   AUTO_ESCALATE_ENGINE,
   ENGINE_VERSION,
+  MILESTONE_SHIP_ENGINE,
   STRONG_REJECTION_NOTICE_ENGINE,
   VERIFIER_STANDING_ENGINE,
 } from '../../../../packages/state/index.js';
-import { MILESTONE_SHIP_ENGINE } from '../../../../packages/state/src/logic/move/constants.js';
 import { WITHDRAW_MILESTONE_ENGINE } from '../../../../packages/state/light.js';
 import { BOARD_SENTINEL_ENGINE } from '../../../../packages/sentinels/index.js';
 import { RIGOR_NOTICE_ENGINE } from '../../../../packages/store/index.js';
