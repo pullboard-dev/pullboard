@@ -74,7 +74,7 @@ function copiedToolIgnore(file) {
 function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-actions-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const folder of ['bin', 'lib', 'test']) mkdirSync(join(root, folder));
+  for (const folder of ['src', 'lib', 'test']) mkdirSync(join(root, folder));
   const copied = copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/',
     ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(copiedToolIgnore)].join('\n') + '\n');
@@ -315,7 +315,7 @@ exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
 test('a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
   const fixture = makeFixture(t);
   // Commit the harness, so its own imports are inputs the keys can name.
-  runFixtureGit(['add', '-f', 'bin', 'src', 'packages'], { cwd: fixture.root, env: fixture.env });
+  runFixtureGit(['add', '-f', 'src', 'packages'], { cwd: fixture.root, env: fixture.env });
   runFixtureGit(['commit', '-q', '-m', 'commit the harness'], { cwd: fixture.root, env: fixture.env });
   const before = await testActionKeys(fixture.root);
   const isolationFile = toolSourcePath(fixture.root, 'packages/gate/src/io/test/isolation.js');

@@ -10,7 +10,7 @@ import { outsideSource } from '../../../../items/light.js';
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['apps/relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',
-  'packages/gate/src/io/', '.githooks/', '.husky/', '.github/workflows/'];
+  'packages/gate/src/', 'packages/auth/src/', 'packages/kernel/src/', 'packages/landing/src/', 'packages/runners/src/', 'apps/runner/src/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
   // Preserve the strict tier of the exact moved relay workers (#1591).
@@ -80,6 +80,13 @@ const SOURCE_FILES = new Set([
   'src/land.js', 'packages/runners/index.js', 'packages/gate/src/io/browser/admission.js', 'src/gui-admission.js',
   'src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js', 'src/runner-request.js',
   'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
+  // The same bodies at their current places (those outside the folder rules above); the old paths stay for replay.
+  'packages/state/src/logic/admission.js', 'packages/state/src/logic/engines/known-main-failures-engine.js', 'packages/person/src/io/main.js',
+  'packages/person/src/io/presence.js', 'packages/person/src/io/signing.js', 'packages/person/src/logic/request.js',
+  'packages/person/src/logic/attested.js', 'packages/pages/src/logic/sealed.js', 'packages/state/src/logic/grant.js',
+  'packages/git/src/io/receipts.js', 'packages/pages/src/io/relay/cache.js', 'packages/pages/src/io/relay/client.js',
+  'packages/pages/src/logic/relay/layout.js', 'packages/pages/src/logic/relay/storage.js', 'packages/pages/src/logic/relay/writer.js',
+  'packages/pages/src/io/relay/presentation.js',
 ]);
 // An old Standard body keeps its tier after moving under a cell the area rule would otherwise raise to Strict (#1574).
 const STANDARD_MOVED = new Set(['packages/link/src/io/command.js']);

@@ -67,8 +67,9 @@ function rawChromeBypasses(root = ROOT) {
     }
     for (let index = files.length - 1; index >= 0; index -= 1) {
       const path = files[index];
-      const sharedClient = /[\\/]tests[\\/]fixtures[\\/]chrome(?:[\\/]|\.js$)/u.test(path);
-      if (sharedClient || !/chrome/iu.test(readFileSync(path, 'utf8'))) files.splice(index, 1);
+      const cockpitHelper = /[\\/]tests[\\/]fixtures[\\/]cockpit[\\/]/u.test(path);
+      const chromeTest = /\.test\.m?js$/u.test(path) && /chrome/iu.test(readFileSync(path, 'utf8'));
+      if (!cockpitHelper && !chromeTest) files.splice(index, 1);
     }
   } else walk(root);
   const violations = [];

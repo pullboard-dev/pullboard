@@ -2,7 +2,7 @@
 /**
  * The ui-sizes Rigor check (C12): a size typed by hand in a stylesheet under src/ or relay/ is one
  * problem, at its line; the scale's own custom properties, comments, 1px hairlines and every other
- * property are not. On the live tree the check holds the stylesheets to the scale src/view.css defines.
+ * property are not. On the live tree the check holds the stylesheets to the scale apps/view/src/io/main.css defines.
  */
 import assert from 'node:assert/strict';
 import {
@@ -54,7 +54,7 @@ function run(root, ...args) {
 
 test('a stylesheet drawn from the scale has no problems and exits 0 [C12,N26]', () => {
   const root = tree('clean', {
-    'src/view.css': ':root { --space-3: 8px; --text-sm: 13px; --radius-md: 6px; }\n/* padding: 10px in a comment */\n'
+    'apps/view/src/io/main.css': ':root { --space-3: 8px; --text-sm: 13px; --radius-md: 6px; }\n/* padding: 10px in a comment */\n'
       + '.a { padding: var(--space-3); font-size: var(--text-sm); border-radius: var(--radius-md); border: 1px solid; margin: 0 1px; width: 22px; }\n',
   });
   assert.deepEqual(run(root), { status: 0, lines: [] });
@@ -62,23 +62,23 @@ test('a stylesheet drawn from the scale has no problems and exits 0 [C12,N26]', 
 
 test('each size typed by hand is one problem at its line, and the check exits 1 [C12,N26]', () => {
   const root = tree('typed', {
-    'src/view.css': '.a { padding: 10px var(--space-3); }\n.b {\n  font: 600 11px/1 var(--mono);\n  border-top-left-radius: 7px;\n  margin: -6px 0;\n}\n',
+    'apps/view/src/io/main.css': '.a { padding: 10px var(--space-3); }\n.b {\n  font: 600 11px/1 var(--mono);\n  border-top-left-radius: 7px;\n  margin: -6px 0;\n}\n',
     'apps/relay/src/io/deploy/screens.css': '.c { gap: 12px; font-size: 16px; }\n',
     'docs/demo/view.css': '.d { padding: 99px; }\n',
   });
   assert.deepEqual(run(root), { status: 1, lines: [
-    'apps/relay/src/io/deploy/screens.css:1: font-size 16px is typed by hand: use a --text-* token from src/view.css',
-    'apps/relay/src/io/deploy/screens.css:1: gap 12px is typed by hand: use a --space-* token from src/view.css',
-    'src/view.css:1: padding 10px is typed by hand: use a --space-* token from src/view.css',
-    'src/view.css:3: font 11px is typed by hand: use a --text-* token from src/view.css',
-    'src/view.css:4: border-top-left-radius 7px is typed by hand: use a --radius-* token from src/view.css',
-    'src/view.css:5: margin 6px is typed by hand: use a --space-* token from src/view.css',
+    'apps/relay/src/io/deploy/screens.css:1: font-size 16px is typed by hand: use a --text-* token from apps/view/src/io/main.css',
+    'apps/relay/src/io/deploy/screens.css:1: gap 12px is typed by hand: use a --space-* token from apps/view/src/io/main.css',
+    'apps/view/src/io/main.css:1: padding 10px is typed by hand: use a --space-* token from apps/view/src/io/main.css',
+    'apps/view/src/io/main.css:3: font 11px is typed by hand: use a --text-* token from apps/view/src/io/main.css',
+    'apps/view/src/io/main.css:4: border-top-left-radius 7px is typed by hand: use a --radius-* token from apps/view/src/io/main.css',
+    'apps/view/src/io/main.css:5: margin 6px is typed by hand: use a --space-* token from apps/view/src/io/main.css',
   ] });
 });
 
 test('the live stylesheet defines the scale the check points to [C12,N26]', () => {
   const view = readFileSync(join(ROOT, 'apps/view/src/io/main.css'), 'utf8');
-  for (const token of ['--text-sm', '--space-3', '--radius-card', '--round']) assert.match(view, new RegExp(`${token}:`), `src/view.css defines ${token}`);
+  for (const token of ['--text-sm', '--space-3', '--radius-card', '--round']) assert.match(view, new RegExp(`${token}:`), `apps/view/src/io/main.css defines ${token}`);
   // Only the deliberately raw glyphs, large layout paddings and Dashboard number remain (#1594/#1668).
   assert.equal(uiSizeCounts(ROOT)['apps/relay/src/io/browser/screens.css'], 0, 'the actual relay stylesheet uses the shared scale');
   assert.ok(uiSizeProblems(ROOT).every((problem) => /^apps\/(view|relay)\/src\//u.test(problem.path)), 'only stylesheets under apps/view/src/ and apps/relay/src/ are read');
@@ -86,11 +86,11 @@ test('the live stylesheet defines the scale the check points to [C12,N26]', () =
 
 test('the counts report retains clean relay files and excludes generated documentation [N26]', () => {
   const root = tree('counts', {
-    'src/view.css': ':root { --text-sm: 13px; }\n.a { font-size: 11px; padding: 4px; }\n',
+    'apps/view/src/io/main.css': ':root { --text-sm: 13px; }\n.a { font-size: 11px; padding: 4px; }\n',
     'apps/relay/src/io/deploy/browser-screens.css': '.relay { font-size: var(--text-sm); margin: 0 1px; }\n',
     'docs/demo/view.css': '.generated { padding: 99px; }\n',
   });
-  const expected = { 'apps/relay/src/io/deploy/browser-screens.css': 0, 'src/view.css': 2 };
+  const expected = { 'apps/relay/src/io/deploy/browser-screens.css': 0, 'apps/view/src/io/main.css': 2 };
   assert.deepEqual(uiSizeCounts(root), expected, 'counts come from the real scanner, including explicit zero');
   const reported = run(root, '--counts');
   assert.equal(reported.status, 0, 'count reporting is available even when raw sizes remain');

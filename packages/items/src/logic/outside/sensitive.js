@@ -4,13 +4,22 @@ import { Refused } from "../../../../kernel/index.js";
 
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
-  'relay/', '.githooks/', '.husky/', '.github/workflows/', 'bin/',
-  'src/seal.js', 'packages/kernel/src/logic/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/relay-key.js', 'src/relay-device-keys.js',
-  'src/person.js', 'src/person-request.js', 'src/relay-requests.js', 'src/relay-request-execution.js',
-  'packages/link/src/io/relay/requests.js', 'packages/link/src/io/relay/execution.js', 'src/relay-sender.js',
-  'packages/state/src/logic/relay/sender.js', 'src/board-engine-ports.js', 'packages/store/src/io/board/ports.js',
-  'src/row-decisions.js', 'src/row-decision-state.js', 'src/spec-approval.js', 'src/spec-approval-baseline.js',
-  'src/hooks.js', 'packages/commits/src/io/hooks.js', 'apps/cli/src/io/commands/hook.js', 'apps/cli/src/io/commands/hooks.js', 'pullboard.json',
+  '.githooks/', '.husky/', '.github/workflows/', 'packages/kernel/src/logic/seal.js', 'packages/link/src/io/relay/requests.js',
+  'packages/link/src/io/relay/execution.js', 'packages/state/src/logic/relay/sender.js', 'packages/store/src/io/board/ports.js',
+  'packages/commits/src/io/hooks.js', 'apps/cli/src/io/commands/hook.js', 'apps/cli/src/io/commands/hooks.js', 'pullboard.json', 'apps/relay/',
+  'apps/cli/pullboard.js', 'apps/cli/src/io/current.js', 'apps/cli/src/io/gate/drive.js', 'apps/cli/src/io/hook/composed.js',
+  'apps/cli/src/io/landing/', 'apps/cli/src/io/ports/process.js', 'apps/cli/src/io/resident/', 'apps/cli/src/io/static/',
+  'apps/lib/src/io/check/baseline.js', 'apps/lib/src/io/drive/worker.js', 'apps/lib/src/io/handoff/dispatcher.js',
+  'apps/lib/src/io/landing/candidate.js', 'apps/runner/src/io/controller.js', 'apps/runner/src/io/shell.js', 'docs/tools/', 'packages/gate/bin/',
+  'packages/codemap/data/baselines/lints/', 'packages/codemap/data/plan/', 'packages/codemap/src/io/shims.js',
+  'packages/codemap/src/io/cell/scripts/lints.js', 'packages/codemap/src/io/cells/backlog.js', 'packages/codemap/src/io/cells/move.js',
+  'packages/codemap/src/io/cells/snapshots.js', 'packages/codemap/src/io/cells/door.js', 'packages/codemap/src/io/cells/shims.js',
+  'packages/codemap/src/io/cells/git.js', 'packages/codemap/src/io/cells/placement.js', 'packages/codemap/src/io/cells/move/tool.js',
+  'packages/codemap/src/io/cells/plan/cuts.js', 'packages/codemap/src/io/cells/scripts/cache.js', 'packages/codemap/src/io/cells/scripts/plan.js',
+  'packages/resources/src/io/handoff/worker/detach.js', 'packages/pages/src/logic/sealed.js', 'packages/spec/src/io/signature.js',
+  'packages/keys/src/io/relay.js', 'packages/keys/src/logic/device.js', 'packages/person/src/io/main.js', 'packages/person/src/logic/request.js',
+  'packages/spec/src/io/row/decisions.js', 'packages/spec/src/io/row/stale.js', 'packages/spec/src/io/approval.js',
+  'packages/store/src/io/baseline/spec/approval.js',
 ]);
 
 /** Cells that hold gate, landing, merge, verdict or credential code; the committed plan names them, so a move follows. */

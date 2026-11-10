@@ -210,8 +210,7 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
 /** Metadata that supplies authority or global resolution can affect every cell. */
 function sharedPolicy(file) {
   return file === 'package.json' || file === 'path-map.json' || file === 'packages/codemap/data/plan/cells.json'
-    || file.startsWith('packages/codemap/data/plan/') || file.startsWith('packages/codemap/data/baselines/lints/')
-    || file === 'bin/cell-lint-transition.json';
+    || file.startsWith('packages/codemap/data/plan/') || file.startsWith('packages/codemap/data/baselines/lints/');
 }
 
 /** The plan's own settings, without its per-cell rows, so a row edit is told apart from a global one. */
