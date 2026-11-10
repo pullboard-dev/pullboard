@@ -192,7 +192,7 @@ const { sandbox, project, commitFile } = e2e;
 const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 /** Run one real landing pass in a child process and return its lines and any refusal. */
-function landOnce(box) {
+function landOnce(box, ageMs = 0) {
   const href = path => pathToFileURL(new URL(path, import.meta.url).pathname).href;
   const source = [
     `import * as store from ${JSON.stringify(href('../../../store/index.js'))};`,
@@ -206,6 +206,7 @@ function landOnce(box) {
     'const [root] = process.argv.slice(1);',
     'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'const lines = [];',
+    `const aged = ${Number(ageMs)}; if (aged) board.clock = { ...board.clock, now: () => new Date(Date.now() + aged) };`,
     'try {',
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
     'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
@@ -222,8 +223,8 @@ function worktrees(box) {
   return box.git(box.repo, 'worktree', 'list', '--porcelain').split('\n').filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
 }
 
-test('a real landing prunes the landed item folder and keeps the folder holding unsaved work [R3,C7]', () => {
-  const box = landProject({ withWorktree: false });
+/** Two accepted items in separate item folders, the second holding uncommitted work. */
+function acceptedFolders(box) {
   box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
   const clean = itemWorktree(box, 1);
   const dirty = itemWorktree(box, 2);
@@ -232,7 +233,23 @@ test('a real landing prunes the landed item folder and keeps the folder holding 
   for (const entry of [clean, dirty]) acceptItem(box, entry);
   writeFileSync(join(folder(dirty), 'unsaved.txt'), 'work that is not committed\n');
   assert.ok(worktrees(box).includes(folder(clean)) && worktrees(box).includes(folder(dirty)), 'both item folders exist before the landing');
+  return { clean, dirty, folder };
+}
+
+test('a real landing keeps the item folders of a seat that is still live and says why [R3,C7]', () => {
+  const box = landProject({ withWorktree: false });
+  const { clean, folder } = acceptedFolders(box);
   const result = landOnce(box);
+  assert.equal(result.error, null, JSON.stringify(result));
+  assert.ok(result.lines.some(line => line.startsWith('landed ')), result.lines.join('\n'));
+  assert.ok(worktrees(box).includes(folder(clean)) && existsSync(folder(clean)), 'a live seat keeps its landed folder');
+  assert.ok(result.lines.some(line => line.includes('kept') && line.includes(folder(clean)) && line.includes('seat is live')), result.lines.join('\n'));
+});
+
+test('a real landing prunes the landed folder of a gone seat and keeps the folder holding unsaved work [R3,C7]', () => {
+  const box = landProject({ withWorktree: false });
+  const { clean, dirty, folder } = acceptedFolders(box);
+  const result = landOnce(box, 3_600_000);
   assert.equal(result.error, null, JSON.stringify(result));
   assert.ok(result.lines.some(line => line.startsWith('landed ')), result.lines.join('\n'));
   const after = worktrees(box);
