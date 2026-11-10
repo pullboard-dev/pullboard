@@ -1,17 +1,17 @@
 import { FLAKE_RATCHET_ENGINE } from '../../../../state/light.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
-import { quarantineBatchGates } from "../../../../verify/index.js";
+import { quarantineBatchGates } from "../../../../verify/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
-import { VERDICT_REVIEW_ENGINE } from "../../../../state/index.js";
-import { carriesLandingEnvironment } from "../../../../sandbox/light.js";
+import { VERDICT_REVIEW_ENGINE } from "../../../../state/light.js";
+import { carriesLandingEnvironment } from "../../../../sandbox/browser.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../state/light.js";
 import { latestLandingBatch } from "../../../../git/browser.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
-import { landingTestDefects } from "../../../../store/index.js";
+import { landingTestDefects } from "../../../../store/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { SUBMISSION_PROOF_ENGINE } from "../../../../state/index.js";
+import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

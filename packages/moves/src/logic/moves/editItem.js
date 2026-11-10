@@ -13,7 +13,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   carriesBarReason,
-} from "../../../../verify/index.js";
+} from "../../../../verify/browser.js";
 import { BAR_ENGINE } from "../../../../state/light.js";
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";

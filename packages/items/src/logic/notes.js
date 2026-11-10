@@ -1,7 +1,7 @@
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../state/light.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../state/light.js';
 /** Item conversation labels and context-pack presentation, without board-wide messages [B29,B31,B32,N14]. */
-import { ENGINE_VERSION } from '../../../state/src/io/engine/metadata.js';
+import { ENGINE_VERSION } from '../../../state/light.js';
 import { ITEM_NOTES_ENGINE } from '../../../state/light.js';
 import { Refused } from "../../../kernel/index.js";
 

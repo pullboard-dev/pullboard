@@ -4,7 +4,7 @@ import { AUTOMATIC_DISPATCH_ENGINE } from '../../../state/light.js';
 import { familyName } from './review/policy.js';
 import { familyAliasesOf } from './review/policy.js';
 import { aliasEngineOn } from './review/policy.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
 export function validateReviewFamily(value) {

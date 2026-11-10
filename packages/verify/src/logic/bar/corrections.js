@@ -1,3 +1,4 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 /**
  * A corrected bar records why the old one was wrong [B10,B31,R1].
  *
@@ -8,8 +9,7 @@
  * stored, and nothing in the correction record is taken from the move beyond the reason text, so
  * a relay or API caller cannot mark a reject as the bar's.
  */
-import { ENGINE_VERSION } from '../../../../state/index.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 import { BAR_ENGINE } from '../../../../state/light.js';
 
 /**

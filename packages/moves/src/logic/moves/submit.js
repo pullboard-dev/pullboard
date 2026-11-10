@@ -1,12 +1,12 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../state/light.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../state/light.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../state/light.js";
-import { ENGINE_VERSION } from "../../../../state/index.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
-import { itemReviewPolicyEngine } from "../../../../verify/index.js";
+import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
 import { checkTimingEngine } from "../../../../items/light.js";
 import { itemPatchRecords } from "../../../../items/light.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
@@ -23,8 +23,8 @@ import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
 import { outsideSource } from "../../../../items/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { BAR_CHECK_ENGINE } from "../../../../state/light.js";
-import { barCheckEnabled } from "../../../../verify/index.js";
-import { SUBMISSION_PROOF_ENGINE } from "../../../../state/index.js";
+import { barCheckEnabled } from "../../../../verify/browser.js";
+import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
 import { submissionProof } from "../../../../state/light.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

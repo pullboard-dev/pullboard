@@ -1,7 +1,7 @@
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../../state/light.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by orderMilestoneItems, discovered without a shared registry edit [C7,V4,H16]. */
-import { MILESTONE_RANK_ENGINE } from "../../../../state/index.js";
+import { MILESTONE_RANK_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { WORK_ORDER_ENGINE } from "../../../../state/light.js";

@@ -1,8 +1,8 @@
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../state/light.js';
 import { REVIEW_TIER_ENGINE } from '../../../../state/light.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
 import { readFileSync } from 'node:fs';
 import { itemPatches } from '../../../../items/light.js';
 import { itemPatchPaths } from '../../../../items/light.js';
