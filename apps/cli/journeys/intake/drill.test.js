@@ -77,7 +77,7 @@ test('a local developer, a runner developer and a pull-request developer share o
   for (const [name, path, env] of [['local', box.web, box.env], ['runner', box.runner, remoteEnv]]) {
     if (name === 'runner') box.git(path, 'merge', '-q', '--ff-only', 'main');
     const added = await cli(box, box.repo, box.env, 'add', 'web', `mixed mode ${name}`, '--specs', 'G1',
-      '--criterion', 'tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
+      '--route', 'mid', '--criterion', 'tracked project content stays green', '--check', 'node web/drill-check.cjs', '--json');
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
     const claim = await cli(box, path, box.env, 'claim', String(id), '--json');
