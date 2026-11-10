@@ -165,7 +165,7 @@ test('clause 1: a listed root test moved into its cell keeps its finding, and a 
 
 test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper chain reaching a CLI launcher, never a data string [C7]', () => {
   assert.equal(spawnsCli("const row = { check: 'node apps/cli/pullboard.js spec check' };\n"), false, 'a data string launches nothing');
-  assert.equal(spawnsCli("const BIN = join(root, 'apps/cli/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
+  assert.equal(spawnsCli("const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
   const root = fixture({
     'apps/cli/tests/fixtures/e2e.js': 'export const run = () => 0;\n',
     'packages/a/tests/chain-fixture.js': "export { run } from '../../../test/e2e-helpers.js';\n",
