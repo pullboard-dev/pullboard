@@ -680,10 +680,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/command-docs/seats.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "bin/cells-test-placement.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1972,6 +1968,8 @@
     "drive->kernel",
     "resources->jobs",
     "codemap->git",
+    "codemap->kernel",
+    "gate->codemap",
     "runners->config",
     "runners->verify",
     "landing->verify",

@@ -19,7 +19,7 @@ import {
   commonJsIn,
   compileModules,
   importsIn,
-} from './module-imports.js';
+} from '../../../codemap/index.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;

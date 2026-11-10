@@ -7,11 +7,11 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { loadMachineSettings } from '../../../config/index.js';
-import { cpuLoadOptionsIn } from './module-imports.js';
-import { cpuLiteralCache } from './module-imports.js';
-import { cpuRegistrationExportsIn } from './module-imports.js';
-import { cpuCallableExportsIn } from './module-imports.js';
-import { importsIn } from './module-imports.js';
+import { cpuLoadOptionsIn } from '../../../codemap/index.js';
+import { cpuLiteralCache } from '../../../codemap/index.js';
+import { cpuRegistrationExportsIn } from '../../../codemap/index.js';
+import { cpuCallableExportsIn } from '../../../codemap/index.js';
+import { importsIn } from '../../../codemap/index.js';
 
 const MAX_FILES = 256;
 const MAX_BYTES = 4 * 1024 * 1024;

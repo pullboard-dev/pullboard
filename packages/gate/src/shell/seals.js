@@ -14,7 +14,7 @@ import { gitChildEnv } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { repositoryImport } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { importsIn } from './module-imports.js';
+import { importsIn } from '../../../codemap/index.js';
 import { ownerOf } from './test-tiers.js';
 import { cellOwners } from './test-tiers.js';
 
