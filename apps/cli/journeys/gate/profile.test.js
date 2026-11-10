@@ -305,7 +305,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
-  assert.equal(box.run(box.web, 'claim', '1').status, 0);
+  const claimedOne = box.run(box.web, 'claim', '1');
+  assert.equal(claimedOne.status, 0, `${claimedOne.stdout}${claimedOne.stderr}`);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
   const commit = featureCommit(box, box.web);
@@ -621,7 +622,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
-    assert.equal(box.run(box.web, 'claim', '1').status, 0);
+    const claimedTwo = box.run(box.web, 'claim', '1');
+    assert.equal(claimedTwo.status, 0, `${claimedTwo.stdout}${claimedTwo.stderr}`);
     writeFileSync(trace, ''); // Ignore the real --wait baseline execution in submission counts.
     writeFileSync(join(box.web, 'web/value.js'), 'export const value = 7; // changed lane module\n');
     if (scenario.full) writeFileSync(join(box.web, 'web/README.txt'), 'unsupported path forces the configured gate\n');

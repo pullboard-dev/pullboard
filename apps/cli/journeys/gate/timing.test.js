@@ -30,7 +30,8 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { browserFreeChecks: true } }));
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Timed check', '--criterion', 'the check runs', '--check', 'node packages/gate/src/io/run/tests.js test/quick.test.js', '--route', 'strong').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const claimedOne = box.run(box.web, 'claim', '1');
+  assert.equal(claimedOne.code, 0, `${claimedOne.out}${claimedOne.err}`);
   // A stand-in holds the only slot for HOLD_MS, then lets the check in.
   const HOLD_MS = 3000; // budget: long enough that the wait cannot be confused with the 200 ms test.
   const holder = spawn(process.execPath, ['--input-type=module', '-e', `import { takeResource } from ${JSON.stringify(resolve(import.meta.dirname, '../../../../packages/resources/index.js'))};
