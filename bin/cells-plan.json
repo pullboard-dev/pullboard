@@ -1673,6 +1673,14 @@
         "apps/cli/tests/worktree-maintenance-scheduler.test.js",
         "rule"
       ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "test/relay-approval-delivery.test.js",
+        "packages/state/tests/relay-approval-delivery.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

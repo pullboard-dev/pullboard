@@ -5647,7 +5647,7 @@
       ]
     },
     {
-      "file": "packages/state/tests/relay-approval-delivery.test.js",
+      "file": "test/relay-approval-cli.test.js",
       "tier": "T3",
       "packages": [
         ".",

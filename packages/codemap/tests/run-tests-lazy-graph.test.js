@@ -3,10 +3,14 @@
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dirname, posix, relative, resolve, sep } from 'node:path';
+import { dirname } from 'node:path';
+import { posix } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { scanSource } from '../packages/codemap/index.js';
+import { scanSource } from '../index.js';
 
 const ENTRIES = ['packages/runners/src/shell/run.js', 'packages/gate/src/shell/test-run.js'];
 const HEAVY = new Set(['packages/gate/src/shell/gate.js', 'packages/gate/src/shell/gate-execution.js',
@@ -20,7 +24,7 @@ function staticEdges(file, source) {
 
 test('clause 1: the moved src/run.js implementation and test-run have no static gate, execution or policy-load edge [C7,#3054]', () => {
   for (const file of ENTRIES) {
-    const source = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../' + file, import.meta.url), 'utf8');
     assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)), [], file);
     assert.ok(scanSource(file, source).imports.some(edge => edge.dynamic && edge.from.endsWith('/gate.js')
       || edge.dynamic && edge.from === '../../../gate/index.js'), `${file} retains its real gate dependency on demand`);
@@ -65,8 +69,8 @@ function staticGraph(entry) {
 }
 
 test('runner static graph avoids landing and legacy selection routes into the gate [C7]', () => {
-  const graph = staticGraph('../packages/gate/src/shell/run-tests.js');
-  const root = fileURLToPath(new URL('..', import.meta.url));
+  const graph = staticGraph('../../../packages/gate/src/shell/run-tests.js');
+  const root = fileURLToPath(new URL('../../..', import.meta.url));
   const paths = new Set([...graph].map(file => relative(root, file).split(sep).join('/')));
   const gate = resolve(root, 'packages/gate/src/shell/gate.js');
 
@@ -74,15 +78,15 @@ test('runner static graph avoids landing and legacy selection routes into the ga
   assert.ok(paths.has('packages/gate/src/shell/test-selection.js'));
   assert.ok(!paths.has('packages/landing/index.js'), 'runner must not load landing through its gate-owning front door');
   assert.ok(!paths.has('src/test-selection.js'), 'runner must not use the removed selection compatibility shim');
-  assert.ok(!staticGraph('../packages/drive/core.js').has(gate), 'clause 1: the drive light door stays gate-free');
-  assert.ok(!staticGraph('../packages/gate/src/shell/test-selection.js').has(gate), 'clause 1: the selection entry stays gate-free');
+  assert.ok(!staticGraph('../../../packages/drive/core.js').has(gate), 'clause 1: the drive light door stays gate-free');
+  assert.ok(!staticGraph('../../../packages/gate/src/shell/test-selection.js').has(gate), 'clause 1: the selection entry stays gate-free');
 });
 
 test('clause 2: the runner reads the worker process identity from the drive light door it already imports [C7]', () => {
-  const root = fileURLToPath(new URL('..', import.meta.url));
-  const door = new Set([...staticGraph('../packages/drive/core.js')].map(file => relative(root, file).split(sep).join('/')));
+  const root = fileURLToPath(new URL('../../..', import.meta.url));
+  const door = new Set([...staticGraph('../../../packages/drive/core.js')].map(file => relative(root, file).split(sep).join('/')));
   assert.ok(door.has('packages/drive/src/core/worker-process-identity.js'), 'the drive light door carries the identity helpers');
-  assert.match(readFileSync(new URL('../packages/gate/src/shell/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/\.\.\/\.\.\/drive\/core\.js'/u);
+  assert.match(readFileSync(new URL('../../../packages/gate/src/shell/run-tests.js', import.meta.url), 'utf8'), /WorkerProcessIdentity[^;]*from '\.\.\/\.\.\/\.\.\/drive\/core\.js'/u);
 });
 
 const RUNNER_TARGETS = ['packages/store/index.js', 'packages/store/src/shell/board.js', 'packages/state/src/shell/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
@@ -100,7 +104,7 @@ function importParents(entry) {
     if (parent.has(file)) continue;
     parent.set(file, from);
     let source;
-    try { source = readFileSync(new URL('../' + file, import.meta.url), 'utf8'); } catch { continue; }
+    try { source = readFileSync(new URL('../../../' + file, import.meta.url), 'utf8'); } catch { continue; }
     for (const to of staticEdges(file, source)) if (to.startsWith('.') || to.includes('/')) queue.push([to, file]);
   }
   return parent;
