@@ -17,7 +17,7 @@ function ownPlacementFixture(t) {
   const box = plannedProject(t, { companionLanes: true });
   const view = join(box.dir, 'own-placement-view');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', view, 'main');
-  success(box, view, 'join', 'view');
+  success(box, view, 'join', 'view', '--route', 'strong');
   const id = success(box, box.repo, 'add', 'view', 'Place an owned new file', '--specs', 'G1',
     '--criterion', 'The builder owns the new file and only adds its canonical row.', '--check', 'node check.cjs', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
@@ -64,7 +64,7 @@ test('native view submit validates its core companion placement on the composed 
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-    success(box, path, 'join', lane);
+    success(box, path, 'join', lane, '--route', 'strong');
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
