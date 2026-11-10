@@ -41,7 +41,7 @@ function pendingEnrollment(machineFile, home, exited) {
 
 /** Pair a stand-in phone through the real relay: Node signs the same enrollment the phone page sends. */
 export async function pairPhone(box, t) {
-  const child = startFixtureChild(process.execPath, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin, '--name', 'Kitchen computer', '--json'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = startFixtureChild(process.execPath, [CLI, 'relay', 'on', '--all', '--url', box.origin, '--name', 'Kitchen computer', '--json'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { if (child.exitCode === null) child.kill('SIGTERM'); });
   const exited = new Promise(done => child.once('close', done));
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
@@ -65,7 +65,7 @@ export async function pairPhone(box, t) {
 export async function phoneAndJoinedComputer(t) {
   const box = await relayClientFixture(t);
   const phone = await pairPhone(box, t);
-  const printed = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'pair');
+  const printed = await box.cli('relay', 'pair');
   assert.equal(printed.code, 0, 'the linked computer prints a one-time code');
   const joined = await box.otherDeviceJoin(printed.document.code, 'Study computer');
   return { box, phone, joined };
@@ -80,7 +80,7 @@ import { main } from ${cliModule};
 import { listApiProjects } from ${projectsModule};
 let output = '';
 const streams = { cwd: ${JSON.stringify(box.root)}, stdout: { write: part => { output += part; } }, stderr: { write() {} } };
-const code = await main(${JSON.stringify(['apps', 'relay', 'src', 'io', 'deploy', 'devices', ...args])}, streams);
+const code = await main(${JSON.stringify(['relay', 'devices', ...args])}, streams);
 process.stdout.write(JSON.stringify({ code, lines: output.trim().split('\\n'), names: listApiProjects().map(project => project.name) }));
 `);
   assert.equal(result.code, 0, 'the private relay devices script completes');

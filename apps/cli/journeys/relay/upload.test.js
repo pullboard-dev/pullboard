@@ -309,7 +309,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
         const reported = await existing.cli(command);
         assert.match((reported.document.diagnostics ?? []).join('\n'), /RELAY_BASELINE_EXISTS.*pullboard export.*pullboard relay off/u);
       }
-      const relink = await existing.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', existing.origin);
+      const relink = await existing.cli('relay', 'on', '--url', existing.origin);
       assert.equal(relink.code, 1, 'plain relay on refuses the durable conflict before sign-in or snapshot upload');
       assert.equal(relink.document.error.code, 'RELAY_BASELINE_EXISTS');
       assert.deepEqual(await uploadedState(existing), beforeRestart);
@@ -361,7 +361,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
         const reported = await existing.cli(command);
         assert.match((reported.document.diagnostics ?? []).join('\n'), /RELAY_BASELINE_EXISTS.*pullboard export.*pullboard relay off/u);
       }
-      const relink = await existing.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', existing.origin);
+      const relink = await existing.cli('relay', 'on', '--url', existing.origin);
       assert.equal(relink.code, 1, 'plain relay on refuses the durable conflict before sign-in or snapshot upload');
       assert.equal(relink.document.error.code, 'RELAY_BASELINE_EXISTS');
       assert.deepEqual(await uploadedState(existing), beforeRestart);

@@ -145,7 +145,7 @@ async function smoke(address) {
   let failure;
   let result;
   try {
-    on = await cli(root, ['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', address]);
+    on = await cli(root, ['relay', 'on', '--url', address]);
     linked = existsSync(metadata);
     if (!on.linked || on.url !== new URL(address).origin) throw new Error('relay on did not link to the supplied address');
     const title = `Pullboard relay smoke ${Date.now()}`;

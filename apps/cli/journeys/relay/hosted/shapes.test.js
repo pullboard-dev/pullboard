@@ -653,7 +653,7 @@ async function buildBoards(t, boards, engines) {
     await enrollAndRevoke();
     box.legacySnapshotApi('bad-route');
     box.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'the body exceeds 14000000 bytes; send a smaller snapshot' });
-    assert.equal((await box.cliAt(big, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0, 'the big project links, paused for size');
+    assert.equal((await box.cliAt(big, 'relay', 'on', '--url', box.origin)).code, 0, 'the big project links, paused for size');
     linked.push(linkOf(box, box.root), linkOf(box, big));
   }
   const view = await boardView(box);
@@ -815,7 +815,7 @@ test('a board over the size limit is named with its size and the limit, beside a
   const healthyLane = Object.keys(JSON.parse(readFileSync(join(healthy, 'pullboard.json'), 'utf8')).lanes)[0];
   assert.equal((await box.cliAt(healthy, 'add', healthyLane, BOARD_ITEM)).code, 0,
     'the healthy board has the real item required by the unchanged visibility probe');
-  assert.equal((await box.cliAt(healthy, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cliAt(healthy, 'relay', 'on', '--url', box.origin)).code, 0);
   const mixed = await visit(paired, { route: front.route(session, null), phone: true }, true);
   assert.equal(mixed.board, true, 'the healthy sibling remains readable');
   assert.match(mixed.words, /fixture\/repository[^.]*too (?:big|large)/iu, 'keep the size blocker beside the healthy board');
@@ -883,7 +883,7 @@ test('an excluded board is named as excluded with the step that includes it [H5,
   assert.equal(named.board, true, 'the healthy board remains readable beside the exclusion');
   assert.match(named.words, /fixture\/excluded-board[^.]*excluded/iu, 'only the device-wrapped browser decrypts the excluded name');
   assert.match(named.words, /pullboard relay on/u, 'the named exclusion carries its include command');
-  assert.equal((await box.cliAt(excluded, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0,
+  assert.equal((await box.cliAt(excluded, 'relay', 'on', '--url', box.origin)).code, 0,
     'the offered ordinary command actually includes the excluded board');
   const cleared = await fetch(box.origin + '/api/v1/devices/exclusions', { headers: { cookie: 'pb_session=' + session } });
   assert.equal(cleared.status, 200);

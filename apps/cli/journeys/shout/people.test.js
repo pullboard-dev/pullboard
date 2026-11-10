@@ -37,7 +37,7 @@ test('the board knows its people: events name them, approvers decide [E3,E4,E20]
   mkdirSync(join(bobEnv.PULLBOARD_HOME, 'relay-keys'), { recursive: true, mode: 0o700 });
   box.copyOwnKey(bobEnv.PULLBOARD_HOME, link.board);
   box.providerState.signer = 'bob';
-  const bobOn = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin, '--json']);
+  const bobOn = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
   box.providerState.signer = 'alice';
   assert.equal(bobOn.code, 0, `bob signs in as himself on his own computer: ${bobOn.stderr}`);
   // One coordinator per board [E19]: bob's main checkout takes the coordinator to act, then alice takes it back.
