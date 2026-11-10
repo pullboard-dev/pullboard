@@ -6,21 +6,19 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { toolSourcePath } from '../packages/runners/index.js';
-import {
-  assert,
-  dirname,
-  packageFiles,
-  relative,
-  resolve,
-  runnerPackage,
-  sep,
-  test,
-} from './runners-scenarios.fixture.js';
+import assert from 'node:assert/strict';
+import { dirname } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
+import { test } from 'node:test';
+import { copyPackageFiles } from '../index.js';
+import { packageFiles } from '../index.js';
+import { runnerPackage } from '../index.js';
+import { toolSourcePath } from '../index.js';
 
 test("the runner's computed capsule is closed under its relative imports [C7,O5]", () => {
-  const root = resolve(import.meta.dirname, '..');
+  const root = resolve(import.meta.dirname, '../../..');
   const capsule = runnerPackage(root);
   const allowed = new Set(packageFiles(root));
   assert.equal(capsule.entry, 'src/runner-worker.js');
@@ -34,7 +32,7 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
 });
 
 test('the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
-  const root = resolve(import.meta.dirname, '..');
+  const root = resolve(import.meta.dirname, '../../..');
   const files = runnerPackage(root).files;
   assert.equal(Object.hasOwn(files, 'src/runner-load.js'), false, 'the worker reaches the canonical load body without the compatibility hop');
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-load.js'));
@@ -50,7 +48,7 @@ test('the moved runner load body keeps unrelated front-door modules out of the w
 test('the runner policy exact-leaf exception preserves every worker body byte [C7]', t => {
   const installed = mkdtempSync(join(tmpdir(), 'pullboard-policy-closure-'));
   t.after(() => rmSync(installed, { recursive: true, force: true }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  copyPackageFiles(resolve(import.meta.dirname, '../../..'), installed);
   const policy = 'packages/runners/src/shell/runner-policy.js';
   const leaf = 'packages/sandbox/src/shell/trusted-policy-read.js';
   const file = join(installed, policy);
