@@ -2684,7 +2684,7 @@
     "tempdir": 1,
     "raw-board": 3
   },
-  "packages/state/tests/relay-machine-auth.test.js": {
+  "apps/relay/tests/relay-machine-auth.test.js": {
     "tempdir": 2
   },
   "apps/relay/tests/relay-machine-journal.test.js": {
@@ -2795,7 +2795,7 @@
   "test/relay-snapshot-size.test.js": {
     "raw-board": 5
   },
-  "packages/state/tests/relay-storage-quota.test.js": {
+  "apps/relay/tests/relay-storage-quota.test.js": {
     "tempdir": 1
   },
   "test/relay-study-delta.study.js": {
@@ -2821,7 +2821,7 @@
   "test/relay-upload-pause.test.js": {
     "raw-board": 1
   },
-  "packages/state/tests/relay-version.test.js": {
+  "apps/relay/tests/relay-version.test.js": {
     "tempdir": 1
   },
   "test/relay.test.js": {
