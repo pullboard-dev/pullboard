@@ -167,7 +167,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   assert.equal(scans.length, 1, 'one real CLI child performs the enabled scan');
   assert.ok(scans[0].argv.includes('--health-only'), 'the observer explicitly excludes approved board watches');
   const first = receipts();
-  assert.equal(first.notices.length, 2, 'the actual worker child scans the real board and publishes its finding');
+  assert.equal(first.notices.length, 2, `the actual worker child scans the real board and publishes its finding: ${JSON.stringify(first.notices)}`);
   assert.deepEqual(first.notices.map(row => row.shout_to).sort(), ['coordinator', builder].sort());
   assert.equal(first.scans.length, 1);
   assert.ok(first.notices.every(row => row.shout_text.includes('CLAIM_LAPSED')));
