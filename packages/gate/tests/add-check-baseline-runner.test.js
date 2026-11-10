@@ -14,7 +14,7 @@ import { fixtureProjectPolicy } from '../../../test/testkit-fixture.js';
 import { executionServices } from '../../../test/gate-execution-fixture.js';
 import { HOST } from '../../../test/runner-ssh-fixture.js';
 import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
-import { measureBaseline } from '../../../packages/gate/src/shell/check-baseline-worker.js';
+import { measureBaseline } from '../src/shell/check-baseline-worker.js';
 
 const EXPECTED = { command: 'node bin/run-tests.js test/a.test.js', main: 'a'.repeat(40) };
 

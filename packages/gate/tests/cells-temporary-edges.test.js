@@ -12,12 +12,19 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { computePlan } from '../../../bin/cells-plan.js';
-import { writePlan } from '../../../bin/cells-plan.js';
+import { computePlan as modelComputePlan } from '../../codemap/index.js';
+import { writePlan as modelWritePlan } from '../../codemap/index.js';
+import { readPathMap } from '../../codemap/index.js';
+import { tryGit } from '../../git/index.js';
 import { importCuts } from '../../codemap/index.js';
 import { cellLintReport } from '../../codemap/index.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
+
+/** Compute the plan with the plain Git reader; a fixture repository needs no snapshot-aware reads. */
+const computePlan = root => modelComputePlan(root, { tryGit });
+/** Write the plan with the plain path-map and Git readers. */
+const writePlan = (root, plan) => modelWritePlan(root, plan, { readPathMap, tryGit });
 
 /** Build a committed real Git graph whose earlier cell has one forbidden later import. */
 function fixture(t) {

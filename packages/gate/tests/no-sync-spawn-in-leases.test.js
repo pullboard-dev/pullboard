@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
-import { syncCallsIn } from '../../../bin/checks/sync-spawn-in-leases.js';
-import { syncSpawnProblems } from '../../../bin/checks/sync-spawn-in-leases.js';
-import { syncSpawnReport } from '../../../bin/checks/sync-spawn-in-leases.js';
+import { syncCallsIn } from '../../codemap/index.js';
+import { syncSpawnProblems } from '../../codemap/index.js';
+import { syncSpawnReport } from '../../codemap/index.js';
 import { STATIC_CHECKS } from '../index.js';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
