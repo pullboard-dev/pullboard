@@ -143,10 +143,7 @@
     "tempdir": 2
   },
   "packages/gate/tests/gate-resource.test.js": {
-    "tempdir": 3,
-    "env-spread": 1,
-    "hand-policy": 5,
-    "model": 2
+    "hand-policy": 1
   },
   "packages/gate/tests/gate-timing-output.test.js": {
     "tempdir": 2,
@@ -169,9 +166,7 @@
     "tempdir": 2
   },
   "packages/gate/tests/resources.test.js": {
-    "tempdir": 1,
-    "env-spread": 1,
-    "hand-policy": 5
+    "hand-policy": 1
   },
   "packages/runners/tests/runner-closure.test.js": {
     "repo-read": 1
@@ -1525,9 +1520,6 @@
   "test/fixture-copier.test.js": {
     "tempdir": 2
   },
-  "test/fixture-copiers.test.js": {
-    "tempdir": 1
-  },
   "test/fixture-env-isolated.test.js": {
     "model": 1
   },
@@ -2876,7 +2868,6 @@
     "raw-board": 4
   },
   "test/resources-release-fixture.js": {
-    "raw-board": 1,
     "hand-policy": 1
   },
   "test/resources-runner-only-fixture.js": {
@@ -3924,5 +3915,24 @@
   "packages/moves/tests/item-hold.test.js": {
     "raw-board": 3,
     "model": 1
+  },
+  "packages/runners/tests/fixture-copiers.test.js": {
+    "tempdir": 1
+  },
+  "test/gate-resource-cli.test.js": {
+    "tempdir": 1,
+    "hand-policy": 2,
+    "model": 2
+  },
+  "test/gate-resource-fixture.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "hand-policy": 2
+  },
+  "test/resources-cli.test.js": {
+    "hand-policy": 4
+  },
+  "test/resources-pool-fixture.js": {
+    "tempdir": 1
   }
 }
