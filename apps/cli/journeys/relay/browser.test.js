@@ -783,7 +783,7 @@ async function browserDeviceTransition(read, message) {
 
 /** Pair a real Chrome private key through the foreground Mac and its one-use enrollment. */
 async function enrolledBrowser(box, t) {
-  const setup = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--all', '--url', box.origin]);
+  const setup = box.startCli(['relay', 'on', '--all', '--url', box.origin]);
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
   const pending = await browserDeviceTransition(() => existsSync(machineFile)
     && JSON.parse(readFileSync(machineFile, 'utf8')).pending, 'the Mac publishes the real phone enrollment');
@@ -805,7 +805,7 @@ async function revokeBrowser(box, _chrome, device) {
   const authorized = box.providerState.deviceAuthorized;
   box.providerState.deviceAuthorized = false;
   try {
-    const revoke = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', device]);
+    const revoke = box.startCli(['relay', 'revoke', device]);
     await revoke.waitForOutput('Sign in with GitHub: open ');
     assert.ok(box.calls.slice(before).some(record => record.path === '/auth/device/start'),
       'the only phone is removed through a fresh provider sign-in');

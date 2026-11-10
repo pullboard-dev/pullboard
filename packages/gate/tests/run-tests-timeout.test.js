@@ -79,6 +79,17 @@ test('synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
+test('test-owned synchronous cleanup retains its case budget before file exit [C7,V10]', t => {
+  const result = runFixture(t, `import { test } from 'node:test';
+test('cleanup inside the case budget [C7,V10]', t => {
+  t.after(() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500));
+});
+`, '5000', { PULLBOARD_TEST_FILE_TIMEOUT_MS: '500', PULLBOARD_TEST_IDLE_TIMEOUT_MS: '10000' });
+  assert.equal(result.status, 0, outputOf(result));
+  assert.match(outputOf(result), /ok \d+ - cleanup inside the case budget/u);
+  assert.doesNotMatch(outputOf(result), /file-exit timeout/u);
+});
+
 test('a helper-only test file exits after importing the runner [C7, V10]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-test-timeout-helper-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

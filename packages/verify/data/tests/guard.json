@@ -24,7 +24,7 @@
     "apps/cli/journeys/engine/replay.test.js",
     "apps/cli/journeys/fact/tests/affected.test.js",
     "apps/cli/journeys/check-baseline/main.test.js",
-    "test/engine.test.js",
+    "packages/moves/tests/engine.test.js",
     "apps/cli/journeys/flakes/main.test.js",
     "apps/cli/journeys/gate/main.test.js",
     "apps/cli/journeys/land/main.test.js",
@@ -52,6 +52,7 @@
     "apps/cli/journeys/show/verdict/trunk.test.js"
   ],
   "moved": {
+    "test/engine.test.js": "packages/moves/tests/engine.test.js",
     "packages/gate/tests/landing-stage-composition.test.js": "packages/landing/tests/io/guards.test.js",
     "packages/kernel/tests/person-request.test.js": "packages/person/tests/logic/request.test.js",
     "packages/person/tests/logic/person-credential-vault.test.js": "packages/keys/tests/io/relay/enrollment.test.js",

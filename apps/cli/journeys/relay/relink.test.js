@@ -29,7 +29,7 @@ test('a relink after relay off seals moves with the new key [H15,H17]', async t 
   const beforeOff = (await box.cli('export')).document;
   assert.equal((await box.cli('relay', 'off')).code, 0);
   assertPersonUnlinkHistory((await box.cli('export')).document.tables, beforeOff.tables);
-  assert.equal((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0);
   const linked = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.notEqual(linked.board, oldLink.board, 'forgetting the key requires a fresh remote board');
   const key = decodeBoardKey(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-keys', linked.board + '.key'), 'utf8').trim());
@@ -57,19 +57,19 @@ test('a durable pending relink retries the same fresh identity and key [H15,H17]
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
   assert.equal((await box.cli('relay', 'off')).code, 0);
   box.refuseBoardLinks(true);
-  assert.notEqual((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0);
+  assert.notEqual((await box.cli('relay', 'on', '--url', box.origin)).code, 0);
   const pending = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.notEqual(pending.board, previous);
   assert.equal(pending.linkPending, true);
   const keyFile = join(box.env.PULLBOARD_HOME, 'relay-keys', pending.board + '.key');
   const key = readFileSync(keyFile, 'utf8');
   box.refuseBoardLinks(false);
-  const retry = await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin);
+  const retry = await box.cli('relay', 'on', '--url', box.origin);
   assert.equal(retry.code, 0);
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).board, pending.board);
   assert.equal(readFileSync(keyFile, 'utf8') === key, true, 'retry retains the exact saved device key');
   assert.match(retry.document.notice, /old remote copy stays/u);
-  assert.equal((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).document.notice, undefined,
+  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).document.notice, undefined,
     'the old-copy notice is not repeated after the successful retry');
 });
 
@@ -101,7 +101,7 @@ test('relink snapshots actual local queued effects and retains old encrypted obl
   assert.equal(context.board, old.board);
   assert.equal(context.url, old.url);
   await box.restartRelay();
-  assert.equal((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0);
   const exported = (await box.cli('export')).document;
   assert.equal(exported.tables.shout.filter(row => row.shout_text === 'actual locally queued effect').length, 1,
     'the fresh baseline contains the native effect once, without replaying old queued moves');
@@ -113,7 +113,7 @@ test('the native receiver refuses an old-key move on the fresh relinked board [H
   await box.link();
   const oldKey = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   assert.equal((await box.cli('relay', 'off')).code, 0);
-  assert.equal((await box.cli('apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin)).code, 0);
+  assert.equal((await box.cli('relay', 'on', '--url', box.origin)).code, 0);
   assert.equal((await box.cli('shout', 'all', 'current-key receiver control')).code, 0);
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const key = decodeBoardKey(readFileSync(join(box.env.PULLBOARD_HOME, 'relay-keys', link.board + '.key'), 'utf8').trim());

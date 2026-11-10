@@ -43,7 +43,7 @@ async function keepTerminalConfirmation(t, decision) {
   const chrome = await startChrome();
   let running;
   try {
-    running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'on', '--url', box.origin], {
+    running = box.startCli(['relay', 'on', '--url', box.origin], {
       SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22',
     });
     const output = await running.waitForOutput(CONFIRMATION_PROMPT);
@@ -158,7 +158,7 @@ test('revoking the only approving phone asks for a fresh sign-in instead [H17,E1
   const sessionsBefore = activeSessionCount(box);
   const offset = box.calls.length;
   box.providerState.deviceAuthorized = false;
-  const running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', deviceId]);
+  const running = box.startCli(['relay', 'revoke', deviceId]);
   await waitForManagementChoice(box, offset);
   assert.ok(box.calls.slice(offset).some(call => call.path === '/auth/device/start'),
     'the lost phone cannot be the approver: start a fresh GitHub device-code sign-in');
@@ -180,7 +180,7 @@ test('an agent cannot revoke a device without the person [H17,E16]', async t => 
   await box.link();
   const deviceId = await enrollProtocolPhone(box);
   const offset = box.calls.length;
-  const running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', deviceId], { CODEX_THREAD_ID: 'private-revocation-agent-fixture' });
+  const running = box.startCli(['relay', 'revoke', deviceId], { CODEX_THREAD_ID: 'private-revocation-agent-fixture' });
   const result = await running.closed;
   assert.equal(result.code, 1);
   assert.equal(JSON.parse(result.stdout).error.code, 'B26_PERSON_CHANNEL');
@@ -213,7 +213,7 @@ test('a fresh sign-in to another account cannot revoke the saved phone [H17,E16]
   const sessionsBefore = activeSessionCount(box);
   const offset = box.calls.length;
   box.providerState.accountID = 8;
-  const running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', deviceId]);
+  const running = box.startCli(['relay', 'revoke', deviceId]);
   const result = await running.closed;
   assert.equal(result.code, 1);
   assert.equal(JSON.parse(result.stdout).error.code, 'DEVICE_ACCOUNT');
@@ -231,7 +231,7 @@ test('declining fresh revocation sign-in preserves the paired phone [H17,E16]', 
   const deviceId = await enrollProtocolPhone(box);
   const sessionsBefore = activeSessionCount(box);
   box.providerState.deviceDeclined = true;
-  const running = box.startCli(['apps', 'relay', 'src', 'io', 'deploy', 'revoke', deviceId]);
+  const running = box.startCli(['relay', 'revoke', deviceId]);
   const result = await running.closed;
   assert.equal(result.code, 1);
   assert.equal(JSON.parse(result.stdout).error.code, 'DEVICE_REVOKE_CANCELLED');

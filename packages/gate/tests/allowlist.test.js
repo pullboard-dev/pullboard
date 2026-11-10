@@ -52,13 +52,13 @@ test('allowed root files and folders are not strays [C7,R44]', t => {
 test('a new stray is refused against the baseline, and its finding says where it belongs [C7,R44]', t => {
   const box = fixture(t);
   const baseline = cellLintBaseline(box.report());
-  box.put('apps/relay/src/io/deploy/worker.js', 'void 0;\n');
+  box.put('relay/worker.js', 'void 0;\n');
   box.put('bin/new-tool.js', 'void 0;\n');
   const growth = cellLintGrowth(box.report(), baseline).filter(row => row.metric === 'strays');
-  assert.deepEqual(growth.map(row => row.key).filter(key => key !== '(total)').sort(), ['bin/new-tool.js', 'apps/relay/src/io/deploy/worker.js']);
+  assert.deepEqual(growth.map(row => row.key).filter(key => key !== '(total)').sort(), ['bin/new-tool.js', 'relay/worker.js']);
   const strays = box.strays();
-  assert.match(strays.get('apps/relay/src/io/deploy/worker.js'), /next: move apps\/relay\/src\/io\/deploy\/worker\.js under apps\/<app>\/ or packages\/<cell>\//u);
-  assert.match(strays.get('bin/new-tool.js'), /next: put bin\/new-tool\.js's code in packages\/<cell>\/src\/shell\/ or apps\/<app>\//u);
+  assert.match(strays.get('relay/worker.js'), /next: move relay\/worker\.js under apps\/<app>\/ or packages\/<cell>\//u);
+  assert.match(strays.get('bin/new-tool.js'), /next: put bin\/new-tool\.js's code in packages\/<cell>\/src\/io\/ or apps\/<app>\//u);
   assert.match(strayNextStep('test/new.test.js'), /packages\/<cell>\/tests\//u);
 });
 
