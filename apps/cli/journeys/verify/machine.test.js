@@ -112,7 +112,7 @@ const CAUGHT = {
   '../packages/items/src/io/planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
   '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
-  '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
+  '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
@@ -124,7 +124,7 @@ const CAUGHT = {
   '../packages/spec/src/io/approval.js#approvalEvidence': ['../packages/spec/src/io/main.js#readSignoffs'],
   '../packages/spec/src/io/approval.js#confirmedDecision': ['../packages/spec/src/io/signature.js#verifyRowDecision'],
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
-  '../packages/spec/src/io/approval.js#specApprovalState': ['../packages/store/src/io/board/query.js#specApprovalBaseline'],
+  '../packages/spec/src/io/approval.js#specApprovalState': ['../packages/store/index.js#specApprovalBaseline', '../packages/store/src/io/board/query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
   '../packages/store/src/io/board.js#reopen': ['../packages/rigor/src/logic/notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
