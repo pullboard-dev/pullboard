@@ -14,5 +14,5 @@ test('probe path map [C7]', t => {
   try { out.push('map0 ' + readPathMap(root).size); } catch (e) { out.push('MAP0ERR ' + e.stack.split('\n').slice(0, 5).join(' / ')); }
   try { writePlan(root, computePlan(root)); git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'p'); out.push('files ' + git(root, 'ls-files').split('\n').join(' ')); } catch (e) { out.push('WRITEERR ' + e.message); }
   try { out.push('map1 ' + readPathMap(root).size); } catch (e) { out.push('MAP1ERR ' + e.stack.split('\n').slice(0, 5).join(' / ')); }
-  throw new Error('PROBE ' + out.filter(line => !line.startsWith('plan')).map(line => line.startsWith('files') ? line.split(' ').filter(x => /map|seed/.test(x)).join(' ') : line).join(' || '));
+  throw new Error('PROBE ' + out.filter(line => !line.startsWith('plan')).map(line => line.startsWith('files') ? line.split(' ').filter(x => /path-map|seed/.test(x)).join(' ') : line).reverse().join(' || '));
 });
