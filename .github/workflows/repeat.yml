@@ -2,7 +2,7 @@
 # flake's fix where the flake lives, macOS included, without running the whole gate N times. Inputs
 # reach the shell only through env, never through the script text. Run it on main, or on a commit
 # the coordinator pushes to a short-lived prove/<id> branch:
-#   gh workflow run repeat.yml --ref <branch> -f file=test/cockpit.test.js \
+#   gh workflow run repeat.yml --ref <branch> -f file=apps/cli/journeys/hold/demo.test.js \
 #     -f pattern='real Chrome keeps the demo board usable' -f runs=30 -f os=macos-latest -f node=22.13
 name: repeat
 
