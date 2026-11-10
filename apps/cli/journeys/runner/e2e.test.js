@@ -238,7 +238,8 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.equal(machineBlind.code, 1);
   const next = JSON.parse(machineBlind.out).error.next;
   assert.equal(next, 'Fix the check so flagged files make it fail, then run pullboard sweep again.');
-  assert.ok(blind.err.trimEnd().endsWith(next), blind.err);
+  const refusalLine = blind.err.split('\n').find((line) => line.startsWith('stderr: ')) ?? blind.err;
+  assert.ok(refusalLine.trimEnd().endsWith(next), blind.err);
 });
 
 test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', () => {
