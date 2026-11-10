@@ -29,13 +29,15 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   const added = fixtureAdd(box.run, box.repo, 'web', 'Keep local work', '--specs', 'G1',
     '--criterion', 'the shared source exists', '--check', 'test -f web/shared.txt', '--json');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
-  assert.equal(e2e.commitFile(box, box.web, 'web/shared.txt', 'worker\n', 'feat(web): local work [G1]').status, 0);
-  const worker = box.git(box.web, 'rev-parse', 'HEAD');
+  const claimed = box.run(box.web, 'claim', '1', '--json');
+  assert.equal(claimed.code, 0, claimed.err);
+  const workerPath = JSON.parse(claimed.out).itemFolder;
+  assert.equal(e2e.commitFile(box, workerPath, 'web/shared.txt', 'worker\n', 'feat(web): local work [G1]').status, 0);
+  const worker = box.git(workerPath, 'rev-parse', 'HEAD');
   assert.equal(e2e.commitFile(box, box.repo, 'web/shared.txt', 'trunk\n', 'chore: conflicting landing').status, 0);
   const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
   const file = join(box.repo, '.git/pullboard/board.sqlite');
-  const beforeWorker = snapshot(box, box.web);
+  const beforeWorker = snapshot(box, workerPath);
   const beforeMain = snapshot(box, box.repo);
   // @pullboard-board-file journey: the CLI and post-landing observer share this durable fixture board.
   const board = openBoard(file);
@@ -61,7 +63,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   assert.equal(merged.code, 0, merged.err);
   assert.match(merged.out, /web\/shared\.txt/u);
   assert.match(merged.out, /git merge main/u);
-  assert.deepEqual(snapshot(box, box.web), beforeWorker);
+  assert.deepEqual(snapshot(box, workerPath), beforeWorker);
   assert.deepEqual(snapshot(box, box.repo), beforeMain);
   // @pullboard-board-file journey: inspect the same durable warning after the native merged command.
   const read = openBoardForRead(file);
@@ -70,14 +72,14 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
     assert.equal(notices.filter(notice => notice.shout_text.includes('web/shared.txt') && notice.shout_text.includes(trunk.slice(0, 12))).length, 1,
       'the land hook and merged receipt share one deduplicated board warning');
   } finally { store.closeBoard(read); }
-  const refused = box.run(box.web, 'submit', '1', '--json');
+  const refused = box.run(workerPath, 'submit', '1', '--json');
   assert.equal(refused.code, 1);
   assert.match(refused.err + refused.out, /MERGE_CONFLICT/u);
   assert.match(refused.err + refused.out, /web\/shared\.txt/u);
-  assert.equal(box.tryGit(box.web, 'merge', 'main').status, 1, 'the fixture really has conflicting committed edits');
-  const resolved = e2e.commitFile(box, box.web, 'web/shared.txt', 'worker and trunk\n', 'feat(web): merge main [G1]');
+  assert.equal(box.tryGit(workerPath, 'merge', 'main').status, 1, 'the fixture really has conflicting committed edits');
+  const resolved = e2e.commitFile(box, workerPath, 'web/shared.txt', 'worker and trunk\n', 'feat(web): merge main [G1]');
   assert.equal(resolved.status, 0, resolved.context);
-  assert.equal(box.git(box.web, 'rev-parse', 'HEAD^2'), trunk, 'normal merge retains the original history');
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(box.git(workerPath, 'rev-parse', 'HEAD^2'), trunk, 'normal merge retains the original history');
+  const submitted = box.run(workerPath, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
 });
