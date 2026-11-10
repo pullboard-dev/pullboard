@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { placePath } from '../../../../packages/codemap/index.js';
+import { cellReadPathMap } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';
 import { checkCuts } from '../../../../packages/codemap/src/io/cells/plan/cuts.js';
@@ -201,7 +202,10 @@ test('trusted submit preserves already accepted process ownership [C7,D3,CD64]',
 test('clause 1: main\'s committed plan places every process entry, packages/landing/src/io/main/red/refresh.js included [C7]', () => {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
   const plan = readPlan(root);
-  assert.ok(plan.stays.some(stay => stay.path === 'packages/landing/src/io/main/red/refresh.js'));
+  const original = 'bin/main-red-refresh.js';
+  assert.equal(cellReadPathMap(root)[original], 'packages/landing/src/io/main/red/refresh.js');
+  assert.ok(plan.stays.some(stay => stay.path === original));
+  assert.ok(plan.entries.some(entry => entry.path === original));
   assert.deepEqual(entryPlacementProblems(root, plan), []);
 });
 
