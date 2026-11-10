@@ -56,6 +56,8 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   assert.equal(config.verify?.inspectClauses, undefined, 'the fixture does not opt in to clause inspection');
   config.submitGate = 'landing';
   config.affectedTests = RUN;
+  // The board's model table determines seat routes since b95e1aa538.
+  config.modelTiers = [{ contains: 'inspection-', route: 'strong' }];
   writeFileSync(configPath, JSON.stringify(config, null, 2));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   outcomeReporter(box);

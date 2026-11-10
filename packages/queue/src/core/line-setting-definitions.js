@@ -1,4 +1,4 @@
-import { Refused } from '../../../kernel/core.js';
+import { Refused } from '../../../kernel/pure.js';
 
 /** Board-owned controller inputs; false means off, independently of machine gate settings. */
 export const LINE_SETTING_DEFINITIONS = Object.freeze({

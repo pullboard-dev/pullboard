@@ -5,7 +5,7 @@ import {
   pageDigest,
   pageReference,
 } from '../../../../packages/pages/core.js';
-import { Refused } from '../../../../packages/kernel/core.js';
+import { Refused } from '../../../../packages/kernel/pure.js';
 
 /** Decode canonical bounded ciphertext without including a response value in refusal guidance. */
 function cipher(value) {

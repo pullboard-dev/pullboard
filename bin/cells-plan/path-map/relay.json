@@ -5,6 +5,7 @@
   "relay/board-link-inbox.js": "apps/relay/src/shell/board-link-inbox.js",
   "relay/board-links.js": "apps/relay/src/shell/board-links.js",
   "relay/browser-approval-card.js": "apps/relay/src/core/browser-approval-card.js",
+  "relay/browser-adapter.js": "apps/relay/src/shell/browser-adapter.js",
   "relay/browser-client.js": "apps/relay/src/shell/browser-client.js",
   "relay/browser-deadline.js": "apps/relay/src/core/browser-deadline.js",
   "relay/browser-devices.js": "apps/relay/src/shell/browser-devices.js",
