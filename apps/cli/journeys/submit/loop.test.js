@@ -49,7 +49,6 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   delete isolated.env.NODE_TEST_CONTEXT;
-  isolated.env.PULLBOARD_MODEL = 'gpt-6-luna';
   const check = 'node --test web/red-loop-gate.test.cjs';
   let box;
   try { box = { ...helpers.project('true', isolated), helpers }; }
