@@ -14,13 +14,15 @@ import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
+import { publishAcceptedCells } from './cells-plan-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */
-export function plannedProject(t, { companionLanes = false } = {}) {
+export async function plannedProject(t, { companionLanes = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
+  if (process.env.PULLBOARD_RUNNER_PRELOAD) box.env.PULLBOARD_RUNNER_PRELOAD = process.env.PULLBOARD_RUNNER_PRELOAD;
   const marker = join(box.dir, 'check-ran');
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -45,6 +47,7 @@ export function plannedProject(t, { companionLanes = false } = {}) {
   assert.deepEqual(unplanned(box.repo, plan), [], 'the fixture commits a complete canonical plan');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  await publishAcceptedCells(t, box.repo, box.git(box.repo, 'rev-parse', 'main').trim(), box.env.PULLBOARD_MACHINE_HOME);
   return { ...box, marker };
 }
 
