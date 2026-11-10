@@ -212,7 +212,9 @@ test('resume reads recorded health and scheduled runs refresh it with both off s
   const last = store.events(box.board).filter(event => event.event_kind === 'health-scan').at(-1);
   assert.ok(last, 'the actual ordered scan records findings before resume');
   const notices = store.allShouts(box.board).filter(notice => notice.shout_from === 'sentinel').length;
-  const second = box.claimed(1); box.clock.offset += 2 * HOUR;
+  const second = box.claimed(1); box.clock.offset += HOUR + 60_000;
+  // The active holder keeps its newly lapsed claim through the scheduled maintenance sweep.
+  store.shout(box.board, { from: box.builders[1], to: 'coordinator', text: 'still here', lanes: ['core'] });
   let stdout = ''; let stderr = '';
   const code = await main(['resume', '--json'], { cwd: box.root, clock: box.clock,
     stdout: { isTTY: false, write: value => { stdout += value; } }, stderr: { write: value => { stderr += value; } } });
@@ -283,7 +285,7 @@ test('dirty runner tooling warns the coordinator once after five minutes and res
   box.scan({ tooling });
   assert.equal(notices().length, 1);
   assert.equal(notices()[0].shout_to, 'coordinator');
-  assert.match(notices()[0].shout_text, /src\/runner-worker\.js/u);
+  assert.match(notices()[0].shout_text, /apps\/runner\/src\/io\/scripts\/worker\.js/u);
   assert.equal(box.scan({ tooling }), null, 're-reading durable observation never repeats the warning');
   files[0].changedAt = base + box.clock.offset;
   assert.equal(box.scan({ tooling }), null, 'editing an already dirty file preserves the same warning episode');
