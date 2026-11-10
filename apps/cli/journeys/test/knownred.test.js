@@ -50,8 +50,8 @@ function redProject() {
 
 /** File an open Main red item for a file, the way the landing files one. */
 function fileMainRed(box, file) {
-  fileFixtureItem(box, box.repo, { lane: 'core', title: `Main red: ${file}`, criterion: `${file} passes on main.`, check: `node --test ${file}`,
-    brief: `Files: ${file}\nTest: the file passes` });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: `Main red: ${file}`, criterion: `${file} passes on main.`, check: `node --test ${file}`,
+    brief: `Files: web/repair.js\nChange: repair the red file\nTest: ${file} passes`, args: ['--specs', 'G1'] });
 }
 
 /** Run the red file with --compare-main and parse its result. */
