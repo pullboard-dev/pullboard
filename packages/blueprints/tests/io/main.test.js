@@ -97,7 +97,7 @@ test('bundled blueprint rows carry their checks [S1,I1]', async () => {
 
   // Every row marked must names a gate, in every bundled file, so an approved row passes spec check.
   for (const name of bundledBlueprints()) {
-    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
+    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../../data/blueprints/${name}.json`), 'utf8'));
     for (const entry of raw.rules ?? []) {
       if (entry.tier !== 'must') continue;
       assert.ok(typeof entry.gate === 'string' && entry.gate.trim(), `${name} ${entry.key} is marked must and names a gate`);

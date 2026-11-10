@@ -27,7 +27,7 @@ while (!existsSync(process.env.HANDOFF_TEST_RELEASE) && Date.now() < deadline) A
 function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-sweep-replaced-'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), WORKER);
   const release = join(dir, 'release');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, release: process.env.HANDOFF_TEST_RELEASE };

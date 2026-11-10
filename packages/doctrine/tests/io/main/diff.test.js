@@ -41,7 +41,7 @@ function repo() {
   git('config', 'user.email', 'a@b.c');
   git('config', 'user.name', 'a');
   git('config', 'commit.gpgsign', 'false');
-  mkdirSync(join(root, 'bin/checks'), { recursive: true });
+  mkdirSync(join(root, 'packages/gate/src/io'), { recursive: true });
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'packages/gate/src/io/catch.js'), CHECK);
   writeFileSync(join(root, 'packages/gate/src/io/scan.js'), STUB);

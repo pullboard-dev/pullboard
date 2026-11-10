@@ -53,7 +53,7 @@ await runDispatcher({ row, admission: { admit() {}, spawned() {}, unstarted() {}
 function fixture(t) {
   const dir = realpathSync(temporaryDirectory('pullboard-dispatcher-locked-'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), WORKER);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');

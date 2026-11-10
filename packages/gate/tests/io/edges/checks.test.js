@@ -75,7 +75,7 @@ test('clause 2: the same new edge passes once the plan declares it and the refus
 
 test('clause 3: the check runs in the changed-file static list and in the full static preflight [C7]', () => {
   const root = fixture({ ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" });
-  mkdirSync(join(root, 'bin/checks'), { recursive: true });
+  mkdirSync(join(root, 'packages/gate/data/baselines'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(root, 'packages/gate/data/baselines/test-waits-baseline.json'));
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x']]) {
     runFixtureGit(args, { cwd: root });
@@ -87,11 +87,11 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   assert.match(readFileSync(join(REPO, 'packages/gate/src/io/static/registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
 });
 
-const CHECKS = join(REPO, 'bin/checks');
+const CHECKS = join(REPO, 'packages/gate/src/io');
 
-/** Every bin/checks module whose main-module guard resolves process.argv[1] (#3666). */
+/** Every packages/gate/src/io check module whose main-module guard resolves process.argv[1] (#3666). */
 function guardedChecks() {
-  return readdirSync(CHECKS).filter(file => file.endsWith('.js'))
+  return readdirSync(CHECKS, { recursive: true }).filter(file => file.endsWith('.js'))
     .filter(file => readFileSync(join(CHECKS, file), 'utf8').includes('realpathSync(process.argv[1])'));
 }
 
@@ -102,15 +102,15 @@ function importSource(files) {
 
 test('clause 1: importing packages/gate/src/io/edges.js never throws when process.argv[1] names no file [C7]', () => {
   // The saved check-baseline worker retry runs `node -e <source> <id> <request>`, so argv[1] is an item id, not a file.
-  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', importSource(['cells-edges.js']), '424242', 'request'], { cwd: REPO, encoding: 'utf8' });
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', importSource(['edges.js']), '424242', 'request'], { cwd: REPO, encoding: 'utf8' });
   assert.equal(child.status, 0, child.context);
   assert.doesNotMatch(child.stderr, /ENOENT/u);
   assert.match(child.stdout, /imported 1/u);
 });
 
-test('clause 2: every bin/checks main-module guard tolerates a deleted argv[1] script [C7]', () => {
+test('clause 2: every gate check main-module guard tolerates a deleted argv[1] script [C7]', () => {
   const files = guardedChecks();
-  assert.ok(files.includes('cells-edges.js') && files.includes('git-launches.js') && files.includes('ui-sizes.js'), files.join(', '));
+  assert.ok(files.includes('edges.js') && files.includes('launches.js') && files.includes('sizes.js'), files.join(', '));
   const inputs = privateFixtureFiles('checks-main-guard-');
   made.push(inputs.root);
   inputs.write('gone.mjs', `import { unlinkSync } from 'node:fs';\nunlinkSync(process.argv[1]);\n${importSource(files)}`);

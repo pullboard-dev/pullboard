@@ -28,17 +28,15 @@ test('the static checks read every source file for one import binding per line [
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = resolve(import.meta.dirname, '../../..');
   copyPackageFiles(repository, root);
-  mkdirSync(join(root, 'relay'), { recursive: true });
-  mkdirSync(join(root, 'test'), { recursive: true });
   cpSync(join(repository, 'packages/gate/tests/fixtures/budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
   cpSync(join(repository, 'pullboard.json'), join(root, 'pullboard.json'));
 
-  const nested = 'src/commands/nested/import-style-fixture.js';
-  mkdirSync(join(root, 'src/commands/nested'), { recursive: true });
+  const nested = 'apps/cli/src/io/nested/import-style-fixture.js';
+  mkdirSync(join(root, 'apps/cli/src/io/nested'), { recursive: true });
   writeFileSync(join(root, nested), "import { strict as assert, equal } from 'node:assert';\nvoid assert; void equal;\n");
   for (const args of [
     ['init', '-q', '-b', 'main'],
-    ['add', 'src', 'bin', 'test', 'package.json', 'pullboard.json'],
+    ['add', '-A'],
     ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture'],
   ]) {
     const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });

@@ -34,7 +34,7 @@ const DYING_WORKER = 'process.exit(1);\n';
 function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-dead-restart-'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'bin'), { recursive: true });
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), DYING_WORKER);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
