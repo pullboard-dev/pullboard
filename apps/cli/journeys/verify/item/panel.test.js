@@ -176,8 +176,10 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       await press(chrome, "document.querySelector('#detail [data-item-panel-tab=history]')");
       const eventIds = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail .item-panel-history-list .tl > li')].map(row => Number(row.dataset.eventId)))"));
       assert.ok(eventIds[0] > eventIds.at(-1), 'history reads newest first while retaining native event ids');
-      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), /^Show all \d+$/u);
-      await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+      // An expanded history is remembered across renders [B23], so the phone pass finds the desktop pass's expansion still open.
+      const remembered = width !== 1440;
+      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), remembered ? /^Show less$/u : /^Show all \d+$/u);
+      if (!remembered) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')"), true);
       assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').getAttribute('aria-expanded')"), 'true');
     }
