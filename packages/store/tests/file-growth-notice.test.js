@@ -3,32 +3,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
-import * as store from '../../store/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
-import {
-  appliedSequence,
-  applyEngineMove,
-  prepareEngineMove,
-} from '../src/shell/engine.js';
+import * as store from '../index.js';
+import { exportBoard } from '../index.js';
+import { importBoard } from '../index.js';
+import { appliedSequence } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { FILE_GROWTH_NOTICE_ENGINE } from '../../state/core.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
-import { FILE_GROWTH_NOTICE_ENGINE } from '../src/core/engines/file-growth-notice-engine.js';
-import {
-  exportBoard,
-  importBoard,
-} from '../../store/index.js';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellBoard } from '../../../test/cell-fixture.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 
 const HOUR = 60 * 60 * 1000;
 /** Seed only private claim state, using a real project and its normal board file. */
 function fixture(t, { sameHolder = false, expiredPeer = false } = {}) {
-  const helpers = createE2eHelpers();
-  let board;
-  t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
-  const box = helpers.project('true');
-  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const box = cellProject(t);
   // This is a board-clock boundary control, not an actual physical lease or elapsed-time claim.
   let at = Date.parse('2026-10-24T00:00:00Z');
-  board.clock = { now: () => new Date(at) };
+  const board = cellBoard(t, box.boardFile, { now: () => new Date(at) });
   const left = store.register(board, { lane: 'web', path: join(box.dir, 'left-state'), route: 'strong' });
   const right = sameHolder ? left : store.register(board, { lane: 'web', path: join(box.dir, 'right-state'), route: 'strong' });
   /** Keep each fixture's frozen words explicit without claiming a check was executed. */
@@ -61,8 +53,7 @@ test('historical brief edits stay silent while current overlap notices survive b
   assert.deepEqual(notices.map(row => row.shout_to).toSorted(), [box.left, box.right].toSorted());
   edit(box, 'Files: web/y.js, web/x.js');
   assert.equal(store.allShouts(box.board).length, 2, 'another edit with the same file set does not resend');
-  const copy = openBoard(':memory:');
-  t.after(() => store.closeBoard(copy));
+  const copy = cellBoard(t, ':memory:');
   importBoard(copy, exportBoard(box.board));
   assert.deepEqual(store.allShouts(copy), notices, 'snapshot transport retains the actual delivered messages');
   for (const id of [box.a, box.b]) assert.deepEqual(store.itemThread(copy, id), store.itemThread(box.board, id));
