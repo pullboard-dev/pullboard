@@ -72,6 +72,7 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'bin/'] } } } : {}) }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'bin'), { recursive: true });
+    mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
     writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
     box.git(box.repo, 'add', 'packages/codemap/data/plan/cells.json');
   }
