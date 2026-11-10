@@ -88,7 +88,7 @@ test('the demo board declares every agent\'s model [I11,I13]', () => {
     const source = fileURLToPath(ROOT);
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'src', 'bin', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
+    for (const directory of ['apps', 'packages', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
     for (const file of ['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/shutdown.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
     const shims = join(fixture, 'bin');
     mkdirSync(shims);
@@ -154,7 +154,7 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
   try {
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'bin', 'src', 'skills', 'docs/shots', 'docs/img']) {
+    for (const directory of ['apps', 'packages', 'skills', 'docs/shots', 'docs/img']) {
       cpSync(join(source, directory), join(root, directory), { recursive: true });
     }
     mkdirSync(join(root, 'test'));
