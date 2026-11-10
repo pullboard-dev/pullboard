@@ -54,20 +54,20 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
   const file = join(installed, policy);
   const after = runnerPackage(installed).files;
   const source = after[policy];
-  const direct = "'../../../sandbox/core.js'";
+  const direct = "'../../../sandbox/light.js'";
   assert.ok(source.includes(direct));
-  assert.equal(Object.hasOwn(after, 'src/trusted-policy-read.js'), false);
+  assert.equal(Object.hasOwn(after, 'packages/runners/src/io/trusted-policy-read-fixture.js'), false);
   assert.equal(Object.hasOwn(after, 'packages/sandbox/index.js'), false);
   assert.equal(after[leaf], readFileSync(toolSourcePath(installed, leaf), 'utf8'));
   try {
     // Reconstruct the former transparent hop; today's compatibility shim uses the public front door.
-    writeFileSync(join(installed, 'src/trusted-policy-read.js'),
-      "export { policyGit, mainPolicy, policyAt, RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk, trunkRef } from '../packages/sandbox/core.js';\n");
-    writeFileSync(file, source.replace(direct, "'../../../../src/trusted-policy-read.js'"));
+    writeFileSync(join(installed, 'packages/runners/src/io/trusted-policy-read-fixture.js'),
+      "export { policyGit, mainPolicy, policyAt, RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk, trunkRef } from '../../../sandbox/light.js';\n");
+    writeFileSync(file, source.replace(direct, "'./trusted-policy-read-fixture.js'"));
     const before = runnerPackage(installed).files;
-    assert.ok(Object.hasOwn(before, 'src/trusted-policy-read.js'));
+    assert.ok(Object.hasOwn(before, 'packages/runners/src/io/trusted-policy-read-fixture.js'));
     const expected = { ...before, [policy]: source };
-    delete expected['src/trusted-policy-read.js'];
+    delete expected['packages/runners/src/io/trusted-policy-read-fixture.js'];
     assert.deepEqual(after, expected, 'only the transparent shim and its import spelling may differ');
     // Negative control: the sandbox barrel route would pull the front door and bodies the exact leaf keeps out.
     writeFileSync(file, source.replace(direct, "'../../../sandbox/index.js'"));
