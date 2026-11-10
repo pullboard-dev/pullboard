@@ -99,6 +99,7 @@ test('clause 1: the dispatcher runs each gate through a drive-cell driver under 
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   // A gate driver that records the owner it was admitted under and its result, then exits.
+  mkdirSync(join(tools, 'apps/cli/src/io/gate'), { recursive: true });
   writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), `const { writeFileSync } = require('node:fs');
 const { dirname, join } = require('node:path');
 writeFileSync(join(dirname(process.argv[2]), 'driver.txt'), process.argv[3]);
@@ -181,7 +182,7 @@ test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off
       else if (/\.js$/u.test(entry.name) && !/\.test\.js$/u.test(entry.name)) sources.push(path);
     }
   };
-  for (const folder of ['apps', 'packages', 'bin', 'src']) walk(folder);
+  for (const folder of ['apps', 'packages', 'bin', 'src']) if (existsSync(join(ROOT, folder))) walk(folder);
   const offenders = (pattern, allowed = []) => sources.filter(path => !allowed.includes(relative(ROOT, join(ROOT, path)))
     && pattern.test(readText(ROOT, path)));
   assert.deepEqual(offenders(/submit-handoff-worker\.js'\)?,\s*join\(launch\.directory/u), [], 'the dispatcher never launches the hand-off worker');
