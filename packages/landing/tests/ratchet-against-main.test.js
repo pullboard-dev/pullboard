@@ -28,7 +28,7 @@ import { CELL_BASELINE_DESCRIPTOR } from '../../codemap/index.js';
 import { withMainCheckout } from '../index.js';
 import { computePlan } from '../../../bin/cells-plan.js';
 import { writePlan } from '../../../bin/cells-plan.js';
-import { requireSubmitCells } from '../../../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../../../apps/cli/index.js';
 import { cellsMove } from '../../../bin/cells-move-tool.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';

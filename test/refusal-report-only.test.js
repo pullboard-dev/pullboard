@@ -33,7 +33,7 @@ import { publishAcceptedCells } from './cells-plan-fixture.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells } from '../apps/cli/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 /** A private ledger for deterministic rule controls; real gate integration is exercised separately below. */
