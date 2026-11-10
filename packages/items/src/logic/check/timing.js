@@ -1,7 +1,7 @@
 /** Coordinator-owned timing declarations, frozen with the check rather than supplied by its executor [C7,V4]. */
 import { Refused } from "../../../../kernel/light.js";
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
-import { ENGINE_VERSION } from "../../../../state/src/io/engine/metadata.js";
+import { ENGINE_VERSION } from "../../../../state/light.js";
 
 /** Validate an explicitly authored flag without accepting truthy strings or historical engines. */
 export function validateCheckTiming(board, actor, value) {

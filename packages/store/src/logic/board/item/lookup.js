@@ -2,7 +2,7 @@ import { REJECT_OPEN_ENGINE } from '../../../../../state/light.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
 import { LEASE_LAPSE_ENGINE } from "../../../../../state/light.js";
 import { CHECK_TIMING_ENGINE } from "../../../../../state/light.js";
-import { ENGINE_VERSION } from "../../../../../state/src/io/engine/metadata.js";
+import { ENGINE_VERSION } from "../../../../../state/light.js";
 import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../state/light.js";
 /** Pure per-item reads without loading the query facade [C7,H16,B13]. */
 import { Refused } from "../../../../../kernel/light.js";
