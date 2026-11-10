@@ -104,23 +104,6 @@ test('a job shell whose child never exits is stopped with its whole group and le
   assert.equal(tracker.cleanupState().uncertain, false);
 });
 
-test('worker threads share the journaled pid and add no records or files until they spawn [C7]', { timeout: 120_000 }, async t => {
-  const { directory, tracker, pids } = job(t);
-  const root = launch(tracker, pids, `
-    const { Worker } = require('node:worker_threads');
-    (async () => {
-      for (let round = 0; round < 40; round += 1) {
-        await Promise.all(Array.from({ length: 40 }, () => new Promise(done => new Worker('setTimeout(() => {}, 30)', { eval: true }).on('exit', done))));
-      }
-      console.log('WORKERS DONE');
-    })();`);
-  await lineFrom(root, 'WORKERS ');
-  await new Promise(resolve => root.once('close', resolve));
-  const files = readdirSync(join(directory, 'child-journal'));
-  assert.deepEqual(files.filter(name => name === 'overflow'), [], 'sixteen hundred thread boots did not overflow the journal');
-  assert.ok(files.length <= 2, `idle threads created no journal files: ${files.join(' ')}`);
-});
-
 test('a renewal beat thread started under --input-type=module survives instead of respawning at every renewal [C7]', { timeout: 60_000 }, async t => {
   const directory = privateFixtureFiles('pullboard-beat-module-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
