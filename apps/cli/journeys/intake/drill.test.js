@@ -86,6 +86,8 @@ test('a local developer, a runner developer and a pull-request developer share o
     const commit = box.git(path, 'rev-parse', 'HEAD');
     const submitted = await cli(box, path, box.env, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
+    // Main moves onto a file the item changed (same bytes), so the sealed submit receipt cannot stand and verify runs its own check.
+    assert.equal(box.commitFile(box, box.repo, `web/${name}.js`, 'PASS\n', `chore(web): main reaches the ${name} file [G1]`).status, 0);
     const before = receipts(box.repo).length;
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     let reviewed;
