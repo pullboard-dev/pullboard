@@ -33,6 +33,7 @@ async function seatWithClaim(t, { heldGate = false } = {}) {
     const configFile = join(box.root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configFile, 'utf8'));
     config.gate = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
+    config.submit = { ...config.submit, handoff: true };
     writeFileSync(configFile, JSON.stringify(config));
     box.git(box.root, 'add', 'pullboard.json');
     box.git(box.root, 'commit', '-q', '-m', 'chore: configure held gate [G1]');
