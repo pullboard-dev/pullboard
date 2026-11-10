@@ -5,11 +5,13 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -31,6 +33,17 @@ function git(root, args, binary = false) {
 
 /** Locate shared storage before loading any live-trunk configuration parser. */
 export function toolBuildLocation(cwd) {
+  // A worktree needs a .git marker in its ancestry unless Git was explicitly pointed elsewhere.
+  // Avoid starting Git for ordinary help from a directory that cannot contain a board.
+  if (!process.env.GIT_DIR) {
+    let directory;
+    try { directory = realpathSync(cwd); } catch { directory = null; }
+    while (directory && !existsSync(join(directory, '.git'))) {
+      const parent = dirname(directory);
+      if (parent === directory) return null;
+      directory = parent;
+    }
+  }
   const result = spawnSync('git', ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir'],
     { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (result.status !== 0) return null;
