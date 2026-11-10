@@ -28,10 +28,10 @@ import {
   boardNotWritable,
   requireBoardWriteAccess,
 } from '../../store/index.js';
-import { cellBoard } from '../../../test/cell-fixture.js';
-import { cellProject } from '../../../test/cell-fixture.js';
-import { closeCellBoard } from '../../../test/cell-fixture.js';
-import { openCellBoard } from '../../../test/cell-fixture.js';
+import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../store/tests/fixtures/cell.js';
 
 /** Run work with the machine home pointed at a directory, then restore the environment and release the pool. */
 async function withMachineHome(home, work) {

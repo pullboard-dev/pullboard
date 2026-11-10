@@ -1,0 +1,7 @@
+{
+  "src/resources.js": "packages/resources/src/io/main.js",
+  "test/lsof-lookups.test.js": "packages/resources/tests/lsof-lookups.test.js",
+  "test/resource-inheritance.test.js": "packages/resources/tests/io/main/inheritance.test.js",
+  "test/runner-wait-deadline.test.js": "apps/cli/journeys/runner/deadline.test.js",
+  "test/submit-lease.test.js": "apps/cli/journeys/submit/lease.test.js"
+}
