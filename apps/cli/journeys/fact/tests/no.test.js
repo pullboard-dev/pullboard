@@ -49,8 +49,7 @@ function runnerProject({ healthDown = false } = {}) {
   writeFileSync(join(box.repo, 'apps/cli/pullboard.js'), '');
   writeFileSync(join(box.repo, 'packages/landing/src/io/smoke.js'), `${mark}\nexport function runLandingCliSmoke() { console.error('smoke-ran-at:' + process.env.HOME); process.exit(1); }\n`);
   box.git(box.repo, 'add', '-A');
-  // The plan is another tool's ({"placed":[]}, no cell rows), which this fixture's own hooks would refuse to commit.
-  box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: runner-only landing checks');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: runner-only landing checks');
   const worker = join(box.dir, 'runner-worker'), sshBin = join(box.dir, 'runner-bin'), remoteHome = join(box.dir, 'runner-home');
   const remoteMachine = join(remoteHome, '.pullboard'), requests = join(box.dir, 'runner-requests.jsonl'), starts = join(box.dir, 'runner-starts.jsonl');
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
@@ -133,7 +132,7 @@ test('clause 1: on a runners-only coordinator a sharded landing gate runs on a r
   const mark = `import { writeFileSync } from 'node:fs'; if (process.env.HOME === ${JSON.stringify(box.env.HOME)}) writeFileSync(${JSON.stringify(marker)}, 'local');`;
   writeFileSync(join(box.repo, 'bin/gate-probe.js'), `${mark}\nconsole.log('gate-ran-at:' + process.env.HOME);\n`);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: sharded landing gate probe');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: sharded landing gate probe');
   const gate = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/src/io/execution.js')).href;
   const runners = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
   const out = await inChild(box, `
