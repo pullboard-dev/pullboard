@@ -168,7 +168,7 @@ test('each shim records its own Git landing when a cell gains a later move [C7,C
   box.put(target, readFileSync(join(box.root, target), 'utf8').replace("'./stats.js'", "'../../../../src/stats.js'"));
   box.put(source, "export { flow } from '../../../../packages/kernel/index.js';\n");
   box.put('packages/kernel/index.js', readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8') + "export { flow } from './src/core/stats-flow.js';\n");
-  const mapFile = 'bin/cells-plan/path-map/kernel.json';
+  const mapFile = 'packages/codemap/data/plan/path-map/kernel.json';
   box.put(mapFile, JSON.stringify({ ...JSON.parse(readFileSync(join(box.root, mapFile))), [source]: target }));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'move another actual module for history observation');
