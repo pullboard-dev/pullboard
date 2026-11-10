@@ -90,6 +90,7 @@ const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/sr
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 const NON_MOVE_ENTRY_POINTS = [
   '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
+  '../packages/store/index.js#recordSpecApprovalBaseline', // A distinct bootstrap operation precedes the requested move.
   '../apps/cli/src/io/join.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   '../packages/resources/src/io/main.js#gateSlotEnvironment',
@@ -144,6 +145,8 @@ const CAUGHT = {
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
 const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported']);
+// This independently ordered bootstrap happens before the requested move; its refusals remain audited above.
+const SETUP_EDGES = { '../apps/cli/src/io/claim.js#ordered': ['../packages/store/index.js#recordSpecApprovalBaseline'] };
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -193,6 +196,7 @@ function codeWalk(read, { caught = false } = {}) {
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
       if (caught && (CAUGHT[key] ?? []).some(entry => entry === callee)) continue;
+      if (caught && (SETUP_EDGES[key] ?? []).includes(callee)) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
     return codes;
@@ -1414,6 +1418,14 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by submit but not declared there',
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
+});
+
+test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
+  const source = editedSource('../packages/store/src/io/baseline/spec/approval.js', /^export function recordSpecApprovalBaseline\(board, \{ agentId, baseline \}\) \{$/m,
+    "$&\n  throw new Refused('BOOTSTRAP_PROBE', 'repair the baseline');");
+  const walk = codeWalk(source, { caught: true });
+  assert.ok(walk.refusalsOf('../packages/store/index.js#recordSpecApprovalBaseline').has('BOOTSTRAP_PROBE'));
+  assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
 });
 
 test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
