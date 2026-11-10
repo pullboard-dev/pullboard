@@ -9,9 +9,12 @@ import { STATUSES } from '../../../../../packages/spec/index.js';
 import { TIERS } from '../../../../../packages/spec/index.js';
 import { parseSpec } from '../../../../../packages/spec/index.js';
 
+/** The declaration files whose names the layout move shortened; the table names stay as the guides cite them. */
+const DECLARATION_FILES = { 'parser-fields': 'fields', 'upgrade-rules': 'rules', 'snapshot-files': 'snapshot' };
+
 /** Read data-only source declarations, never Markdown output as generator input. */
 function declaration(root, name) {
-  const path = join(root, `apps/cli/src/io/documentation/${name}.json`);
+  const path = join(root, `apps/cli/src/io/documentation/${DECLARATION_FILES[name] ?? name}.json`);
   if (!lstatSync(path).isFile()) throw new Error(`${name} documentation must be a regular source declaration`);
   return JSON.parse(readFileSync(path, 'utf8'));
 }
