@@ -10,7 +10,6 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { writeTestTiers } from '../../../../packages/gate/index.js';
 import { requireTestTierAccount } from '../../../../packages/gate/index.js';
@@ -89,10 +88,8 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const reviewer = join(box.dir, 'account-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   await json(box, reviewer, 'join', 'api', '--model', 'Private account reviewer', '--route', 'strong');
-  const review = runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../pullboard.js'), 'verify', String(id), 'accept', '--no-next', '--read', 'all',
-    '--note', 'Both selected files have a native source-bound account.', '--json'], { cwd: reviewer, env: box.env, encoding: 'utf8' });
-  assert.equal(review.status, 0, review.failure ?? review.stderr);
-  const accepted = JSON.parse(review.stdout);
+  const accepted = await json(box, reviewer, 'verify', String(id), 'accept', '--no-next',
+    '--note', 'Both selected files have a native source-bound account.');
   assert.equal(accepted.decision, 'ACCEPT');
   const directory = join(box.repo, '.git/pullboard/check-output');
   const profiles = readdirSync(directory).filter(file => file.endsWith('.profile.json'))
