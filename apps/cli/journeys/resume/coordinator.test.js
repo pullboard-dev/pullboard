@@ -117,7 +117,7 @@ function addAndClaim(box, cwd, title, row) {
 function submitFile(box, cwd, id, row, path, text, subject) {
   write(cwd, path, text);
   const head = commit(box.git, cwd, `feat(web): ${subject} [${row}]`);
-  const submitted = box.run(cwd, 'submit', String(id));
+  const submitted = box.run(cwd, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   return head;
 }
@@ -213,6 +213,9 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   const reviewBuilder = addBuilder(box, 'review-builder');
   const reviewId = addAndClaim(box, reviewBuilder, 'Review item', 'G2');
   submitFile(box, reviewBuilder, reviewId, 'G2', 'web/review.txt', 'review\n', 'submit review item');
+  const conflictBeforeResume = box.run(box.repo, 'show', String(conflictId), '--json');
+  assert.equal(conflictBeforeResume.code, 0, conflictBeforeResume.err || conflictBeforeResume.out);
+  assert.equal(JSON.parse(conflictBeforeResume.out).item_status, 'verified', 'fixture retains the accepted receipt for resume');
 
   const open = box.run(cleanBuilder, 'shout', 'coordinator', 'Need a decision on the next build.', '--kind', 'question', '--decision');
   assert.equal(open.code, 0, open.err || open.out);
@@ -261,7 +264,7 @@ test("clause 1: the coordinator's handoff brief orders current work and leaves a
   const indexed = JSON.parse(ordinary.out);
   assert.equal(indexed.openDecisions.length, 5, 'ordinary resume retains current coordinator obligations');
   assert.ok(indexed.staleVerdicts.some(item => item.item_id === conflictId),
-    `JSON v1 retains the stale receipt without claiming its verdict is current: conflict=${conflictId} item=${JSON.stringify(indexed.all.find(item => item.item_id === conflictId))} stale=${JSON.stringify(indexed.staleVerdicts.map(item => [item.item_id, item.item_verdict_state]))} toMerge=${JSON.stringify(indexed.toMerge.map(item => [item.item_id, item.item_verdict_state]))}`);
+    'JSON v1 retains the stale receipt without claiming its verdict is current');
   assert.ok(!indexed.toMerge.some(item => item.item_id === conflictId), 'a stale receipt is never ready to land');
   assert.equal(typeof indexed.newWorktreeLocation, 'string', 'JSON v1 retains the validated checkout guidance');
   assert.ok(indexed.verifiedNotMerged.conflicts.some(entry => entry.item.item_id === conflictId),
