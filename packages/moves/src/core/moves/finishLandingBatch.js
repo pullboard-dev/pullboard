@@ -1,6 +1,6 @@
 import { FLAKE_RATCHET_ENGINE } from '../../../../state/core.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/core.js";
-import { quarantineBatchGates } from "../../../../verify/index.js";
+import { quarantineBatchGates } from "../../../../verify/core.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from "../../../../../src/engine-metadata.js";
@@ -9,7 +9,7 @@ import { LOCAL_LANDING_ENGINE } from "../../../../state/core.js";
 import { latestLandingBatch } from "../../../../git/pure.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../state/core.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
-import { landingTestDefects } from "../../../../store/index.js";
+import { landingTestDefects } from "../../../../store/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../../src/move-engine-constants.js";
 

@@ -5,7 +5,7 @@ export { createRelayAdapter, createFakeRelayAdapter } from './src/core/relay-ada
 export { machineHome } from './src/core/machine-home.js';
 export { lex, lineAt } from './src/core/js-lex.js';
 export { registryGuardsProblem } from './src/core/registry-guards.js';
-export { AGENT_SESSION_IDS } from './src/core/discovery.js';
+export { AGENT_SESSION_IDS, AGENT_SHELL_MARKERS, ENGINE_CANDIDATE, ENGINE_FILE, discovered } from './src/core/discovery.js';
 export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
 export { parseProcessCensus } from './src/core/process-census.js';
 export { engineBindings } from './src/core/engine-declarations.js';

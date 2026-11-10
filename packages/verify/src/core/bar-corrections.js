@@ -9,7 +9,7 @@
  * a relay or API caller cannot mark a reject as the bar's.
  */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 import { BAR_ENGINE } from '../../../state/core.js';
 
 /**

@@ -20,7 +20,7 @@ import {
   ENGINE_CANDIDATE,
   ENGINE_FILE,
   discovered,
-} from '../packages/kernel/index.js';
+} from '../packages/kernel/core.js';
 
 /** The folder that holds the engine leaves, one constant per file so two items adding engines never conflict [V4]. */
 export const ENGINE_FOLDER = 'packages/state/src/core/engines';

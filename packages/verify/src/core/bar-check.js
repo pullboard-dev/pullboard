@@ -1,6 +1,6 @@
 /** Claim-scoped bar check notes and reviewer answers [B29,B30,B31,H16]. */
-import { validateKnownLineSetting } from '../../../queue/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { validateKnownLineSetting } from '../../../queue/core.js';
+import { Refused } from '../../../kernel/core.js';
 
 const SETTING = 'bar.check';
 

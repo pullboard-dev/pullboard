@@ -5,7 +5,7 @@ import { classifiedStrict } from '../shell/review-tier.js';
 import { reviewTierFloor } from '../shell/review-tier.js';
 import { REVIEW_ROUTING_ENGINE } from '../../../state/core.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../state/core.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 import { familyName } from '../../../items/core.js';
 export { familyIndex, aliasEngineOn, familyAliasesOf, familiesDiffer, familyName } from '../../../items/core.js';

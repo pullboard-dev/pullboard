@@ -63,3 +63,10 @@ export function coordinatorCheck(agentId, command) {
   return command.trim();
 }
 
+
+export { quarantineBatchGates } from './src/core/quarantine-verdict.js';
+export { frozenBar, namedClause, wording } from './src/core/frozen-clause.js';
+export { carriesBarReason, readBarState, barReadySetting } from './src/core/bar-corrections.js';
+export { barCheckEnabled } from './src/core/bar-check.js';
+export { itemReviewPolicy, itemReviewPolicyEngine, anyItemReviewPolicyEngine } from './src/core/review-policy.js';
+export { requiredReviewFamilyEngine, anyRequiredReviewFamilyEngine } from './src/core/required-review-family.js';

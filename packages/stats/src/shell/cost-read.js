@@ -8,8 +8,9 @@ export const USAGE_BATCH_LIMIT = 1000;
 /** Fixed public explanations for unavailable native token attribution, with no private paths or identities. */
 export const UNKNOWN_USAGE_REASONS = ['native-session-unavailable', 'no-native-baseline', 'native-session-unreadable-or-reset', 'native-counter-unreadable-or-decreased', 'shared-session', 'missed-claim-anchor', 'wrapper-session-id-fixed', 'not-recorded'];
 
-/** Every numeric field a sanitized usage record carries. */
-export const SPLIT_COUNTS = ['freshInputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens'];
+import { SPLIT_COUNTS } from '../core/usage-input-split.js';
+import { hasInputSplit } from '../core/usage-input-split.js';
+export { SPLIT_COUNTS, hasInputSplit };
 
 /** Existing aggregate totals retain their historical shape when replaying old usage. */
 export const COUNTS = ['inputTokens', 'outputTokens', 'wallMs', 'knownInputTokens', 'knownOutputTokens', ...SPLIT_COUNTS];
@@ -60,7 +61,3 @@ export function unknownInputSplit() {
   return Object.fromEntries(SPLIT_COUNTS.map(name => [name, null]));
 }
 
-/** Identify additive numeric payloads so their move can retain the legacy replay floor otherwise. */
-export function hasInputSplit(records) {
-  return Array.isArray(records) && records.some(row => row && SPLIT_COUNTS.some(name => Object.hasOwn(row, name)));
-}
