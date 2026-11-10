@@ -1496,7 +1496,7 @@
   "test/engine-folder.test.js": {
     "tempdir": 3
   },
-  "test/engine.test.js": {
+  "packages/moves/tests/engine.test.js": {
     "raw-board": 8,
     "tempdir": 3,
     "repo-read": 1
@@ -3286,7 +3286,7 @@
   "packages/resources/tests/seat-test-slot-cap.test.js": {
     "tempdir": 2
   },
-  "test/seat-timing.test.js": {
+  "packages/store/tests/seat-timing.test.js": {
     "tempdir": 6
   },
   "packages/gate/tests/selection-cache.test.js": {
@@ -3821,7 +3821,7 @@
   "test/worker-scale-fixture.js": {
     "raw-board": 2
   },
-  "test/worker-scale.test.js": {
+  "apps/cli/tests/worker-scale.test.js": {
     "tempdir": 1
   },
   "test/workflows.test.js": {
