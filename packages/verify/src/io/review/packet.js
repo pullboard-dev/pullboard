@@ -344,7 +344,8 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
     }
     // Include the brief's file-level proof alongside generic check cases, without covering a skipped own case.
     if (evidence.every(run => run.why === "the item's check ran") && clause.kind === 'test' && !ownCaseDeclared && !namedTestFiles(clause.text).length) {
-      evidence.push(...runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" })));
+      evidence.push(...runs.filter(run => briefFiles.includes(run.file) && !checkFiles.includes(run.file))
+        .map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" })));
     }
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {
