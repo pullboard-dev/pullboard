@@ -295,6 +295,8 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.equal(commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]').status, 0);
   const resubmitted = box.run(refrozenItem, 'submit', '1');
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
+  const submittedHead = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
+  box.git(box.repo, 'switch', '--detach', submittedHead);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator').err, /PROOF_REQUIRED/);
   assert.match(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed the heading; the page test failed').out, /verified #1: CRITERION_MET/);
   const show = box.run(box.repo, 'show', '1').out;
