@@ -269,7 +269,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   const box = machine();
   const alpha = project(box, 'model-names', SPEC, {}, { joinSeat: false });
   const model = 'GPT-6 with a very long model declaration for readable agent names';
-  box.run(alpha.web, 'join', 'web', '--model', model);
+  box.run(alpha.web, 'join', 'web', '--model', model, '--route', 'strong');
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try { register(board, { lane: 'coordinator', path: alpha.repo, model: 'Claude' }); }
   finally { closeBoard(board); }
@@ -472,7 +472,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
 test('staged and exported boards carry API model display names [O8,N26,A10]', async () => {
   const box = machine();
   const alpha = project(box, 'model-export', SPEC, { agents: { names: 'prefix' } }, { joinSeat: false });
-  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6');
+  box.run(alpha.web, 'join', 'web', '--model', 'GPT-6', '--route', 'strong');
   const source = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   const staged = openBoard(join(box.dir, 'staged-models.sqlite'));
   try {
