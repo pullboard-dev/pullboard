@@ -44,10 +44,10 @@ function runtimeSeededBeforeInit() {
 
 /** The four static reds that cost the most gates on 7 Nov, each alone in its own test file. */
 const CASES = [
-  ['test/tempdir.test.js', "import { mkdtempSync } from 'node:fs';\nexport const dir = mkdtempSync('fixture-');\n", /tempdir: creates a temporary directory/u],
-  ['test/model.test.js', "process.env.PULLBOARD_MODEL = 'sonnet';\n", /model: passes a literal model string/u],
+  ['apps/cli/journeys/fact/fixture/tempdir.test.js', "import { mkdtempSync } from 'node:fs';\nexport const dir = mkdtempSync('fixture-');\n", /tempdir: creates a temporary directory/u],
+  ['apps/cli/journeys/fact/fixture/model.test.js', "process.env.PULLBOARD_MODEL = 'sonnet';\n", /model: passes a literal model string/u],
   ['apps/cli/journeys/resume/board.test.js', "export const board = openBoard('board.db');\n", /raw-board: opens a board or adds an item in process/u],
-  ['test/name.test.js', "import { test } from 'node:test';\ntest('adds two numbers', () => {});\n", /test name has no spec row id: adds two numbers/u],
+  ['apps/cli/journeys/fact/fixture/name.test.js', "import { test } from 'node:test';\ntest('adds two numbers', () => {});\n", /test name has no spec row id: adds two numbers/u],
 ];
 
 /**
@@ -62,6 +62,7 @@ function hookedProject() {
   mkdirSync(join(box.repo, '.githooks'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   mkdirSync(join(box.repo, 'apps/cli/journeys/resume'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli/journeys/fact/fixture'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/data/tests/test-fixtures.json'), '{}\n');
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
