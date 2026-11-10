@@ -136,7 +136,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   };
   const configFile = join(repo, 'pullboard.json'), config = loadConfig(repo);
   const boardFile = join(repo, '.git/pullboard/board.sqlite');
-  const expiredClock = { now: () => new Date(Date.now() - 2 * 3_600_000) };
+  const expiredClock = { now: () => new Date(Date.now() - 3_600_000 - 60_000) };
   const board = openBoard(boardFile, expiredClock);
   const lane = Object.keys(config.lanes)[0];
   const builderPath = join(box.dir, 'sentinel-builder');
