@@ -196,17 +196,20 @@ export function recordRunnerOwner(directory, processCensus) {
 }
 
 /** Recognize only an actual pinned worker command at the canonical path boundary, excluding health probes. */
-export function runnerWorkerMatcher(root, { exactEntrypoint = false } = {}) {
+export function runnerWorkerMatcher(root, { exactEntrypoint = false, includeLegacy = true } = {}) {
   const canonicalRoot = realpathSync(root);
   const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
   // The worker entry moved with the layout freeze: apps/runner/src/io/scripts/worker.js inside each pinned runtime [V32].
-  const source = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/apps/runner/src/io/scripts/worker\\.js';
+  const prefix = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/';
+  const source = prefix + 'apps/runner/src/io/scripts/worker\\.js';
+  const legacy = prefix + 'src/runner-worker\\.js';
   if (exactEntrypoint) {
     const entry = new RegExp('^' + source + '$', 'u');
     /** A positive entrypoint proof matches the complete argv path, never the conservative busy substring. */
     return command => entry.exec(command)?.[0] === command;
   }
-  const entry = new RegExp('(?:^|\\s|["\'])' + source + '(?=\\s|$)', 'u');
+  const entries = includeLegacy ? '(?:' + source + '|' + legacy + ')' : source;
+  const entry = new RegExp('(?:^|\\s|["\'])' + entries + '(?=\\s|$)', 'u');
   /** Keep selection and the canonical idle guard on the same exact worker predicate. */
   return command => {
     const worker = entry.exec(command);
@@ -342,7 +345,7 @@ export function runnerIdleReply(root, request, processCensus, orphanObserver = n
       // The controller's live jobs cost only their own slots; a worker it no longer owns is stopped (runner-orphan-holders.js).
       const sorted = sortHolders(holders, liveJobSet(request), { alive: holderProcessAlive, ...(orphanObserver ? { clientOf: orphanObserver.clientOf } : {}) });
       if (sorted.orphans.length) {
-        const stopped = stopOrphanWorkers(sorted.orphans, runnerWorkerMatcher(root), orphanObserver);
+        const stopped = stopOrphanWorkers(sorted.orphans, runnerWorkerMatcher(root, { includeLegacy: false }), orphanObserver);
         return { ...base, reason: `orphaned runner worker stopped: pid ${stopped.join(', ') || 'none signalled'}; idle is proven on the next probe`, orphansStopped: stopped };
       }
       if (sorted.blocking.length) return { ...base, reason: 'runner resource lease is active' };
