@@ -33,7 +33,7 @@ function ownPlacementFixture(t) {
 test('a view commit creating its own file and one plan row passes the hook and native submit [L3,C7]', t => {
   const box = ownPlacementFixture(t);
   box.git(box.view, 'commit', '-q', '-m', 'feat(view): add source and its own placement [G1]');
-  rmSync(box.marker);
+  rmSync(box.marker, { force: true });
   const submitted = success(box, box.view, 'submit', String(box.id));
   assert.equal(submitted.gate.green, true);
   assert.equal(existsSync(box.marker), true, 'the native gate ran after the committed placement passed');
@@ -76,7 +76,7 @@ test('native view submit validates its core companion placement on the composed 
   box.git(view, 'add', file);
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');
-  rmSync(box.marker);
+  rmSync(box.marker, { force: true });
   const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
