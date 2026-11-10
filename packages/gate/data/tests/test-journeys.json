@@ -381,7 +381,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/relay/tests/io/board/inbox.test.js": {
+    "apps/cli/journeys/relay/inbox.test.js": {
       "cells": [
         "app:lib",
         "app:relay",
@@ -4414,7 +4414,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/lib/tests/logic/native/once.test.js": {
+    "apps/cli/journeys/claim/once.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -4423,7 +4423,7 @@
       ],
       "reasons": [
         "imports past app:cli front door (apps/cli/src/io/item/folder.js)",
-        "spawns a child process (apps/lib/tests/logic/native/once.test.js)"
+        "spawns a child process (apps/cli/journeys/claim/once.test.js)"
       ]
     },
     "apps/cli/journeys/show/folder.test.js": {
@@ -7022,7 +7022,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/lib/tests/logic/native/seat.test.js": {
+    "apps/cli/journeys/heartbeat/seat.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -7031,7 +7031,7 @@
       ],
       "reasons": [
         "imports past app:cli front door (apps/cli/src/io/presence.js)",
-        "spawns a child process (apps/lib/tests/logic/native/seat.test.js)"
+        "spawns a child process (apps/cli/journeys/heartbeat/seat.test.js)"
       ]
     },
     "test/red-gate-log-retained.test.js": {
@@ -8218,7 +8218,7 @@
         "spawns a child process (apps/cli/tests/fixtures/release/cases/transport.js)"
       ]
     },
-    "apps/lib/tests/io/submit/requeue/refusal.test.js": {
+    "apps/cli/journeys/submit/refusal.test.js": {
       "cells": [
         "app:cli",
         "app:lib"
@@ -8953,7 +8953,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/lib/tests/io/serving/stages.test.js": {
+    "apps/cli/journeys/handoff/stages.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -10273,7 +10273,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/lib/tests/io/submit/requeue/gate.test.js": {
+    "apps/cli/journeys/submit/analysis.test.js": {
       "cells": [
         "app:cli",
         "app:lib"
@@ -10281,7 +10281,7 @@
       "reasons": [
         "imports past app:cli front door (apps/cli/src/io/submit/gate.js)",
         "imports past app:lib front door (apps/lib/src/io/submit/requeue.js)",
-        "installs git hooks (apps/lib/tests/io/submit/requeue/gate.test.js)"
+        "installs git hooks (apps/cli/journeys/submit/analysis.test.js)"
       ]
     },
     "test/submit-runner-plan.test.js": {
@@ -10503,7 +10503,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/lib/tests/logic/native/heartbeat.test.js": {
+    "apps/cli/journeys/test/heartbeat.test.js": {
       "cells": [
         "app:cli",
         "app:lib",

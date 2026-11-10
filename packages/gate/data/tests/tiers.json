@@ -9840,7 +9840,7 @@
       ]
     },
     {
-      "file": "apps/relay/tests/io/board/inbox.test.js",
+      "file": "apps/cli/journeys/relay/inbox.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -9955,7 +9955,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/logic/native/no.test.js",
+      "file": "apps/cli/journeys/status/writer.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -10840,7 +10840,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/cells/ratchet.test.js",
+      "file": "apps/cli/journeys/submit/ratchet.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11177,7 +11177,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/cells/placement.test.js",
+      "file": "apps/cli/journeys/submit/placement.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11375,7 +11375,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/logic/native/query.test.js",
+      "file": "apps/cli/journeys/status/query.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11568,7 +11568,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/cells/cache.test.js",
+      "file": "apps/cli/journeys/submit/cache.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -11681,7 +11681,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/cells/shims.test.js",
+      "file": "apps/cli/journeys/move/shims.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -21538,7 +21538,7 @@
       ]
     },
     {
-      "file": "packages/runners/tests/folder.test.js",
+      "file": "packages/state/tests/io/engine/folder.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -21712,7 +21712,7 @@
       ]
     },
     {
-      "file": "packages/runners/tests/copier.test.js",
+      "file": "apps/cli/journeys/move/copier.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -25268,7 +25268,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/logic/native/once.test.js",
+      "file": "apps/cli/journeys/claim/once.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -30762,7 +30762,7 @@
       ]
     },
     {
-      "file": "packages/runners/tests/closure/move/merge.test.js",
+      "file": "apps/cli/journeys/move/merge.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -35690,7 +35690,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/logic/native/seat.test.js",
+      "file": "apps/cli/journeys/heartbeat/seat.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -48940,7 +48940,7 @@
       ]
     },
     {
-      "file": "apps/cli/tests/io/submit/remote/checks.test.js",
+      "file": "apps/cli/journeys/submit/checks.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -50095,7 +50095,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/io/submit/requeue/gate.test.js",
+      "file": "apps/cli/journeys/submit/analysis.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53688,7 +53688,7 @@
       ]
     },
     {
-      "file": "packages/runners/tests/closure/move/verify.test.js",
+      "file": "apps/cli/journeys/move/verify.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -53993,7 +53993,7 @@
       ]
     },
     {
-      "file": "apps/view/tests/io/coverage.test.js",
+      "file": "apps/cli/journeys/check/view.test.js",
       "tier": "T3",
       "packages": [
         ".",
@@ -54412,7 +54412,7 @@
       ]
     },
     {
-      "file": "apps/lib/tests/workflows.test.js",
+      "file": "apps/cli/journeys/gate/workflows.test.js",
       "tier": "T3",
       "packages": [
         ".",
