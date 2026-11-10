@@ -108,7 +108,7 @@ export function assignEngineNumbers(root) {
   return { files, assigned };
 }
 
-/** Folders that hold move declarations: the src/moves shims while they last, then the moves cell's bodies [C7]. */
+/** Folders that hold move declarations: the old src/moves shims (gone since the layout freeze) and the moves cell's bodies [C7]. */
 const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/logic/moves', 'packages/moves/src/io/moves']);
 
 /**
@@ -120,7 +120,8 @@ function appendRegistryHistory(root, engine, leaves) {
   const directory = join(root, 'packages/state/data/history');
   if (!existsSync(join(directory, 'legacy.json'))) return [];
   const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => existsSync(path));
-  if (!folders.length || ![join(root, 'src'), directory, ...folders].every(path => lstatSync(path).isDirectory())
+  // The root src/ folder is gone since the layout freeze; only the history folder and the move folders must be real [V32].
+  if (!folders.length || ![directory, ...folders].every(path => lstatSync(path).isDirectory())
       || !lstatSync(join(directory, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
   // A packaged body replaces its src/moves shim of the same name, so the record is the same with or without the shims.
   const sources = new Map();

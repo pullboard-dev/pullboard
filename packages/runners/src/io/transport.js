@@ -199,7 +199,8 @@ export function recordRunnerOwner(directory, processCensus) {
 export function runnerWorkerMatcher(root, { exactEntrypoint = false } = {}) {
   const canonicalRoot = realpathSync(root);
   const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
-  const source = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/src/runner-worker\\.js';
+  // The worker entry moved with the layout freeze: apps/runner/src/io/scripts/worker.js inside each pinned runtime [V32].
+  const source = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/apps/runner/src/io/scripts/worker\\.js';
   if (exactEntrypoint) {
     const entry = new RegExp('^' + source + '$', 'u');
     /** A positive entrypoint proof matches the complete argv path, never the conservative busy substring. */
