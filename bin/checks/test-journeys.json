@@ -1215,16 +1215,6 @@
         "spawns a child process (test/chrome-fixture.js)"
       ]
     },
-    "test/cockpit/dashboard-render.test.js": {
-      "cells": [
-        "app:view",
-        "stats"
-      ],
-      "reasons": [
-        "imports past app:view front door (apps/view/src/core/view/dashboard-render.js)",
-        "imports past stats front door (packages/stats/src/core/stats-flow.js)"
-      ]
-    },
     "test/cockpit/dashboard-row-visibility.test.js": {
       "cells": [
         "app:lib",

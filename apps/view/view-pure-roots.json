@@ -5,7 +5,7 @@
     "apps/view/tests/cockpit/agents-panel-pure.test.js",
     "apps/view/tests/cockpit/auxiliary-pure.test.js",
     "apps/view/tests/cockpit/dashboard-model.test.js",
-    "test/cockpit/dashboard-render.test.js",
+    "apps/view/tests/cockpit/dashboard-render.test.js",
     "apps/view/tests/cockpit/group-pure.test.js",
     "apps/view/tests/cockpit/home-capacity-pure.test.js",
     "apps/view/tests/cockpit/lifecycle-chart-pure.test.js",
