@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as nativeBoard from '../../../../lib/index.js';
-const { openBoardForRead } = nativeBoard;
+const { openBoardForRead, acceptedCellsPorts } = nativeBoard;
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
@@ -35,5 +35,5 @@ if (cellsOnly) {
   try { await produceAcceptedCells(root, token, args[1]); }
   catch (error) { try { recordAcceptedCellsFailure(root, args[1], error); } catch { /* Preserve the producer failure. */ } throw error; }
 } else if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root), commandBudget: boardCommandBudgetCheck() });
+  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root, acceptedCellsPorts), commandBudget: boardCommandBudgetCheck() });
 }

@@ -50,6 +50,13 @@ export async function produceAcceptedCells(root, token, commit) {
   return ran;
 }
 
+/** The accepted-inventory ports the cells backlog collector reads, warms and records through; codemap sits below these cells [C7]. */
+export const acceptedCellsPorts = Object.freeze({
+  read: readAcceptedCells,
+  warm: (root, commit) => warmAcceptedCells(root, commit, { withCheckout: withMainCheckout, withLock: withFileLock }),
+  record: recordAcceptedCellsFailure,
+});
+
 /** How long a gate waits on another driver's lease of the same tree's inventory job before it stops as pending. */
 const INVENTORY_WAIT_MS = 15 * 60_000;
 

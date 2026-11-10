@@ -4,8 +4,8 @@ import { cellReadFileSync as readFileSync } from '../../../index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
-import { importsIn } from '../../../../gate/index.js';
-import { commonJsIn } from '../../../../gate/index.js';
+import { importsIn } from '../../../index.js';
+import { commonJsIn } from '../../../index.js';
 
 /** Read contained regular source bytes; a symbolic ancestor cannot supply a pure-entry proof. */
 function sourceAt(root, file) {
