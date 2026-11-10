@@ -70,7 +70,7 @@ import { appendFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 /** Record that this file ran, then scan the probe's text. */
-function scan() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'd\\n'); if (readFileSync(new URL('../src/probe.js', import.meta.url), 'utf8').includes('forbidden')) throw new Error('d found a forbidden word'); }
+function scan() { appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'd\\n'); if (readFileSync(new URL('../apps/example/probe.js', import.meta.url), 'utf8').includes('forbidden')) throw new Error('d found a forbidden word'); }
 test('d [C7]', scan);
 `;
 
@@ -108,7 +108,8 @@ function makeFixture(t) {
   writeFileSync(join(root, 'test/d.test.js'), SCAN_TEST);
   writeFileSync(join(root, 'test/e.test.js'), NOTES_TEST);
   writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
-  writeFileSync(join(root, 'src/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
+  mkdirSync(join(root, 'apps/example'), { recursive: true });
+  writeFileSync(join(root, 'apps/example/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
   const capture = join(root, 'machine', 'ran.txt');
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Action Fixture', GIT_AUTHOR_EMAIL: 'action@example.test', GIT_COMMITTER_NAME: 'Action Fixture', GIT_COMMITTER_EMAIL: 'action@example.test' };
@@ -118,7 +119,7 @@ function makeFixture(t) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   git('init', '-q', '-b', 'main');
   git('add', '.gitignore', 'package.json', 'CHANGELOG.md', 'lib', 'test');
-  git('add', '-f', 'src/probe.js');
+  git('add', '-f', 'apps/example/probe.js');
   // A shipped nested .gitignore may unignore itself; keep this real Git configuration tracked.
   const copiedIgnores = copied.filter(file => file.endsWith('/.gitignore'));
   if (copiedIgnores.length) git('add', '-f', '--', ...copiedIgnores);
@@ -187,7 +188,7 @@ test('an unchanged closure reuses its green result and a changed import reruns i
 
   // Cached versus fresh: only a comment changes, in a source file nothing imports. D reads it as data, so D runs and
   // its fresh verdict differs from the green it would otherwise have reused.
-  fixture.change('src/probe.js', "// A probe source file with a forbidden word.\nexport const probe = 1;\n");
+  fixture.change('apps/example/probe.js', "// A probe source file with a forbidden word.\nexport const probe = 1;\n");
   const sixth = fixture.run();
   assert.deepEqual(sixth.ran, ['d', 'e'], sixth.output);
   assert.equal(sixth.status, 1, sixth.output);
