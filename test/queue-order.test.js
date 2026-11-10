@@ -92,8 +92,14 @@ test('the queue ranks unblockers and quick wins first and keeps coordinator over
   const light = register(board, { lane: 'core', path: '/light', route: 'light' });
   const reviewer = register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
   /** Add one core item on a route, waiting on the given items. */
-  const add = (title, route, after = []) => addItem(board, { by: 'coordinator', lane: 'core', title, route, after,
-    ...(route === 'strong' ? {} : { criterion: 'the item can be built and checked from its brief', check: 'true', brief: `Files: src/fixture-${title.toLowerCase().replace(/\W+/gu, '-')}.js\nTest: the queue order` }) });
+  const add = (title, route, after = []) => {
+    const file = `src/fixture-${title.toLowerCase().replace(/\W+/gu, '-')}.js`;
+    const id = addItem(board, { by: 'coordinator', lane: 'core', title, route: route === 'light' ? 'mid' : route, after,
+      ...(route === 'strong' ? {} : { criterion: 'the item can be built and checked from its brief', check: 'true', brief: `Files: ${file}\nTest: the queue order` }) });
+    // Light work needs a capable seat's diagnosis since 7a964958ab [C7].
+    if (route === 'light') queueStore.appendFact(board, id, { agentId: strong, kind: 'diagnosis', text: `Files: ${file} Change: preserve the queue order Test case: quick wins rank before strong one-offs` });
+    return id;
+  };
   const strongOneOff = add('Strong one-off', 'strong');
   const lateStrong = add('Later strong one-off', 'strong');
   const lightOneOff = add('Light one-off', 'light');
