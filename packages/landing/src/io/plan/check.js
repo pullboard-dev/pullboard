@@ -10,7 +10,7 @@ import { ENGINE_CANDIDATE } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
 import { runCheckOnRunner } from '../main/red.js';
-import { landingPlanProblems } from '../../../../codemap/src/io/cells/snapshots.js';
+import { landingPlanProblems } from '../../../../codemap/index.js';
 
 /** The folder the engine leaves live in; landing numbers only the placeholders there [V4]. */
 const ENGINE_FOLDER = 'packages/state/src/logic/engines';

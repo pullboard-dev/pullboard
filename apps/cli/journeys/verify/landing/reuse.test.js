@@ -66,7 +66,7 @@ function tieredProject(helpers) {
   fixtureProjectPolicy(box.repo, { config: { ...config, submit: { ...config.submit, handoff: true }, affectedTests: 'node web/runner.js',
     landing: { ...(config.landing ?? {}), perItem: true, manualOverride: true, publish: 'separate', splitRed: false } } });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
-  mkdirSync(join(box.repo, 'packages/gate'), { recursive: true });
+  mkdirSync(join(box.repo, 'packages/gate/data/tests'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/data/tests/tiers.json'), JSON.stringify({ version: 1, files: [] }));
   writeFileSync(join(box.repo, 'web/runner.js'), [
     "import { appendFileSync } from 'node:fs';",
