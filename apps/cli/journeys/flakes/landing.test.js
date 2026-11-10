@@ -28,12 +28,6 @@ import { checkAtCommit } from '../../../runner/index.js';
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
 function readyLanding(t, rerun) {
   const box = flakyProject(t, { alwaysPass: 'controlled', rerun });
-  const configFile = join(box.root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
-  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
-  box.git('add', 'pullboard.json');
-  box.git('commit', '-q', '-m', 'test: configure focused main comparison');
   const remote = join(box.scratch, 'private-origin.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
@@ -51,8 +45,12 @@ function readyLanding(t, rerun) {
   const accepted = reviewer.cli('verify', String(id), 'accept', '--note', 'Private fixture: its exact controlled check passed before the external failure was armed.');
   assert.equal(accepted.code, 0, JSON.stringify(accepted.document));
   // Change the checked input on main so landing measures the merged tree instead of reusing the submit proof.
+  const configFile = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.affectedTests = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap';
+  writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n');
   appendFileSync(join(box.root, 'test/alternating.test.mjs'), '\n// Advance the checked input on main.\n');
-  box.git('add', 'test/alternating.test.mjs');
+  box.git('add', 'pullboard.json', 'test/alternating.test.mjs');
   box.git('commit', '-q', '-m', 'test: advance controlled landing input');
   box.git('push', '-q', 'origin', 'main');
   const base = box.git('rev-parse', 'HEAD').trim();
