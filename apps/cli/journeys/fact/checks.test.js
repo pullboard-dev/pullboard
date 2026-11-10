@@ -27,6 +27,21 @@ const REPO = join(import.meta.dirname, '../../../..');
 const CHECKS = join(REPO, 'packages/gate/src/io/changed');
 const NODE_FLAGS = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
 
+/** Seed the native CLI tree before init installs its pre-commit hook. */
+function runtimeSeededBeforeInit() {
+  const box = helpers.sandbox();
+  const run = box.run;
+  box.run = (repo, ...args) => {
+    if (args[0] === 'init') {
+      copyPackageFiles(REPO, repo);
+      box.git(repo, 'add', '-A');
+      box.git(repo, 'commit', '-q', '-m', 'chore: seed native hook runtime');
+    }
+    return run(repo, ...args);
+  };
+  return box;
+}
+
 /** The four static reds that cost the most gates on 7 Nov, each alone in its own test file. */
 const CASES = [
   ['test/tempdir.test.js', "import { mkdtempSync } from 'node:fs';\nexport const dir = mkdtempSync('fixture-');\n", /tempdir: creates a temporary directory/u],
@@ -40,8 +55,7 @@ const CASES = [
  * packages/gate/src/io/changed/scripts/static.js, and its ceilings files are committed, as in the real repository.
  */
 function hookedProject() {
-  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  copyPackageFiles(REPO, box.repo);
+  const box = helpers.project('true', runtimeSeededBeforeInit(), { withWorktree: false });
   mkdirSync(join(box.repo, 'packages/gate/data/baselines'), { recursive: true });
   mkdirSync(join(box.repo, 'packages/gate/data/tests'), { recursive: true });
   mkdirSync(join(box.repo, 'packages/gate/src/io/changed/scripts'), { recursive: true });
