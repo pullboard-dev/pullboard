@@ -24,9 +24,9 @@ import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 const HOUR = 3_600_000;
 
-/** Freeze the criterion alone, with a digest of the frozen text, so a correction changes the digest as a real freeze does. */
+/** Freeze the criterion and check, with a digest of the frozen text, so a correction changes the digest as a real freeze does. */
 const freeze = (item) => {
-  const text = JSON.stringify({ criterion: item.item_criterion });
+  const text = JSON.stringify({ criterion: item.item_criterion, check: item.item_check });
   return { text, digest: createHash('sha256').update(text).digest('hex') };
 };
 

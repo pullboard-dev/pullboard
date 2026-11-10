@@ -119,7 +119,7 @@ test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superse
   const { board, reviewer, claim, build, verdict } = fixture(t);
   claim(1);
   const submittedDraft = build(1, 'draft\n', 'feat: the fixture draft [G1]');
-  assert.throws(() => verdict(1, submittedDraft, { decision: 'REJECT', reason: 'TEST_FAILURE', note: 'x', implies: [2, 99] }),
+  assert.throws(() => verdict(1, submittedDraft, { decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'First implied item works', note: 'x', implies: [2, 99] }),
     (error) => error.code === 'NO_ITEM' && /#99/.test(error.message), 'the refusal names the unknown id');
   assert.equal(store.getItem(board, 1).item_status, 'submitted', 'a refused --implies records no verdict');
   verdict(1, submittedDraft, { decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'First implied item works', note: 'the fixture fails\nsecond line', implies: [2] });
