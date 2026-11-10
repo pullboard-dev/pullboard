@@ -50,7 +50,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   delete isolated.env.NODE_TEST_CONTEXT;
   isolated.env.PULLBOARD_MODEL = 'gpt-6-luna';
-  const check = 'node --test test/red-loop-gate.test.cjs';
+  const check = 'node --test web/red-loop-gate.test.cjs';
   let box;
   try { box = { ...helpers.project('true', isolated), helpers }; }
   catch (error) { helpers.cleanup(); throw error; }
@@ -67,8 +67,8 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   delete config.submitDeferAbove;
   fs.writeFileSync(configFile, JSON.stringify({ ...config, gate: check, submit: { handoff: true },
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true } }, null, 2) + '\n');
-  fs.mkdirSync(join(box.repo, 'test'), { recursive: true });
-  fs.writeFileSync(join(box.repo, 'test/red-loop-gate.test.cjs'), [
+  fs.mkdirSync(join(box.repo, 'web'), { recursive: true });
+  fs.writeFileSync(join(box.repo, 'web/red-loop-gate.test.cjs'), [
     "const assert = require('node:assert/strict');",
     "const fs = require('node:fs');",
     "const test = require('node:test');",
@@ -77,7 +77,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   ].join('\n'));
   fs.mkdirSync(join(box.repo, 'web'), { recursive: true });
   fs.writeFileSync(join(box.repo, 'web/snapshot.txt'), 'base\n');
-  box.git(box.repo, 'add', 'pullboard.json', 'test/red-loop-gate.test.cjs', 'web/snapshot.txt');
+  box.git(box.repo, 'add', 'pullboard.json', 'web/red-loop-gate.test.cjs', 'web/snapshot.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
