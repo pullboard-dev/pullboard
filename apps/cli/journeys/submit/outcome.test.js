@@ -18,7 +18,7 @@ import { timingAccountingStages } from '../../../../packages/gate/index.js';
 import { accountedFailures } from '../../../../packages/landing/index.js';
 import { testOutputSummary } from '../../../../packages/gate/index.js';
 
-/** A portable copy of the production collector observes real Node events inside the worker's source tree. */
+/** The production collector observes real Node events inside the worker's source tree. */
 function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
@@ -37,7 +37,8 @@ const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outco
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
 `);
     }
-    put(box.root, 'test/native-outcomes.js', readFileSync(new URL("../../../../packages/gate/src/io/test/outcomes.js", import.meta.url), 'utf8'));
+    const outcomesModule = new URL('../../../../packages/gate/src/io/test/outcomes.js', import.meta.url).href;
+    put(box.root, 'test/native-outcomes.js', `export { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(outcomesModule)};\n`);
     put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
 import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
 export default async function* report(events) {
