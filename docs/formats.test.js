@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-import { submitHandoffEventContract } from '../test/generated-doc-handoff-fixture.js';
+import { submitHandoffEventContract } from '../apps/cli/tests/fixtures/generated/handoff.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
@@ -21,32 +21,32 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { submitFixture } from '../test/board-submit-fixture.js';
-import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
-import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/core.js';
-import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
-import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
-import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
-import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
+import { submitFixture } from '../apps/cli/tests/fixtures/board/submit.js';
+import { exerciseRejectedWorkFormat } from '../apps/lib/tests/fixtures/rejected.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../packages/state/light.js';
+import { syntheticFlakeObservation } from '../apps/cli/tests/fixtures/observation.js';
+import { reviewDefaultEventContract } from '../apps/lib/tests/fixtures/generated/doc/default.js';
+import { pipelineEventContract } from '../apps/lib/tests/fixtures/generated/doc/pipeline.js';
+import { sourceAdvanceEventContract } from '../packages/runners/tests/fixtures/advance.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../apps/lib/index.js';
-import { recordNextIdle } from '../src/board.js';
+import { board_recordNextIdle as recordNextIdle } from '../packages/store/index.js';
 import { addMilestone, editMilestoneItems, logEvent } from '../packages/store/index.js';
 import { proposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel } from '../packages/sentinels/index.js';
 import { beginSentinelRun } from '../packages/sentinels/index.js';
 import { finishSentinelRun } from '../packages/sentinels/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
-import { declarationDocBlocks } from '../apps/cli/src/shell/generated-doc-declarations.js';
+import { declarationDocBlocks } from '../apps/cli/src/io/generated/declarations.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { exportView } from '../apps/cli/src/shell/commands/view.js';
-import { main as nativeTestMain } from '../test/native-cli-fixture.js';
+import { exportView } from '../apps/cli/src/io/commands/view.js';
+import { main as nativeTestMain } from '../apps/cli/tests/fixtures/native.js';
 import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../apps/lib/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { discoverEngines } from '../src/engine-metadata.js';
-import { readEngineLeaves } from '../src/engine-numbers.js';
+import { discoverEngines } from '../packages/state/index.js';
+import { readEngineLeaves } from '../packages/state/src/io/engine/numbers.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
+import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, board_ensureCoordinator as ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../packages/store/index.js';
 import {
   ID_RE,
   readSignoffs,
@@ -61,7 +61,7 @@ import {
   sha256,
   signRows,
 } from '../packages/spec/index.js';
-import { recordSigningEvents } from '../test/person-passkey-fixture.js';
+import { recordSigningEvents } from '../apps/cli/tests/fixtures/person/passkey.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
 
@@ -298,11 +298,12 @@ function recordEventContract() {
   const coordinator = ensureCoordinator(board, '/coordinator');
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
-  // A strict builder declares its vendor family when it joins; a seat that joins first without one and later names it records the family on the seat, with no separate family event.
+  // A strict builder must declare its vendor family when it joins, so the family event comes from a seat that joins without one and later names it (a join that names a family records it, #4086).
   const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'tests', path: '/family-seat' });
   register(board, { lane: 'tests', path: '/family-seat', family: 'codex' });
+  assert.deepEqual(events(board).filter(event => event.event_kind === 'family').map(event => JSON.parse(event.event_detail).family), ['codex'], 'a later join that names a family writes one family event');
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });
@@ -428,12 +429,12 @@ function recordEventContract() {
   assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).pendingRefreeze, ['criterion']);
   refreeze(board, corrected, { agentId: builder, freeze: freeze('adopted-correction') });
   const widener = register(board, { lane: 'docs', path: '/widener' });
-  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node bin/run-tests.js docs/formats.test.js' });
+  const widened = addItem(board, { by: coordinator, lane: 'docs', title: 'Widened own check', check: 'node packages/gate/src/io/run/tests.js docs/formats.test.js' });
   claim(board, widened, { agentId: widener, lane: 'docs', leaseMs: 60_000, freeze: freeze('before-widening') });
-  const widenedCheck = 'node bin/run-tests.js docs/formats.test.js test/generated-docs.test.js';
+  const widenedCheck = 'node packages/gate/src/io/run/tests.js docs/formats.test.js apps/cli/journeys/init/docs.test.js';
   const widenedBar = JSON.stringify({ criterion: '', check: widenedCheck });
   editItem(board, widened, { agentId: widener, check: widenedCheck, correction: true, freeze: () => ({ text: widenedBar, digest: createHash('sha256').update(widenedBar).digest('hex') }) });
-  assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).widenedCheck, ['test/generated-docs.test.js'], 'a builder widening is the one edit that carries widenedCheck');
+  assert.deepEqual(JSON.parse(events(board).filter((row) => row.event_kind === 'edit').at(-1).event_detail).widenedCheck, ['apps/cli/journeys/init/docs.test.js'], 'a builder widening is the one edit that carries widenedCheck');
 
   const returnedBuilder = register(board, { lane: 'docs', path: '/returned-builder', model: 'builder' });
   const returned = addItem(board, { by: coordinator, lane: 'docs', title: 'Returned landing example' });
@@ -648,7 +649,7 @@ test('[A5,H16] grammar and executable engine versions match the format guide', (
   assert.equal(versionOf('row grammar'), SPEC_GRAMMAR_VERSION);
   assert.equal(versionOf('board schema'), SCHEMA_VERSION);
   assert.equal(versionOf('event log'), EVENT_LOG_VERSION);
-  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/core/engines/', import.meta.url));
+  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/logic/engines/', import.meta.url));
   const leaves = readEngineLeaves(sourceDirectory);
   assertEngineGuideVersion(versionOf('move engine'), leaves, ENGINE_VERSION);
   assert.match(versions, /Bump when a move's meaning changes/);
@@ -681,7 +682,7 @@ test("[A5,H16] a branch with one unassigned engine leaf matches the guide's land
   const versions = block('<!-- format-versions:start -->', '<!-- format-versions:end -->');
   const guideEngine = Number(/^\| `move engine` \| `(\d+)` \|/mu.exec(versions)?.[1]);
   assert.ok(Number.isSafeInteger(guideEngine), 'the guide declares its landed move engine number');
-  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/core/engines/', import.meta.url));
+  const sourceDirectory = fileURLToPath(new URL('../packages/state/src/logic/engines/', import.meta.url));
   const landed = Math.max(0, ...readEngineLeaves(sourceDirectory).flatMap(({ number }) => number === null ? [] : [number]));
   const onePending = engineLeafFixture(t, landed, ['pending']);
 

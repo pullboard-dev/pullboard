@@ -1,0 +1,5 @@
+{
+  "src/focus-milestone.js": "packages/roadmap/src/logic/milestone.js",
+  "src/milestones.js": "packages/roadmap/src/logic/milestones.js",
+  "src/roadmap.js": "packages/roadmap/src/logic/main.js"
+}

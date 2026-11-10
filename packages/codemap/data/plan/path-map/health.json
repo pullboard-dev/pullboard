@@ -1,0 +1,12 @@
+{
+  "src/rank-inversion-history.js": "packages/health/src/io/inversion.js",
+  "src/doctor.js": "packages/health/src/io/doctor.js",
+  "src/health.js": "packages/health/src/io/main.js",
+  "src/stale-run-observation.js": "packages/health/src/io/stale/observation/run.js",
+  "src/stale-state-blockers.js": "packages/health/src/logic/stale/state/blockers.js",
+  "src/stale-state-capture.js": "packages/health/src/io/stale/state/capture.js",
+  "src/stale-state-command.js": "packages/health/src/io/stale/state/command.js",
+  "src/stale-state-floor.js": "packages/health/src/logic/stale/state/floor.js",
+  "src/stale-state-query.js": "packages/health/src/logic/stale/state/query.js",
+  "src/stale-work-observation.js": "packages/health/src/io/stale/observation/work.js"
+}

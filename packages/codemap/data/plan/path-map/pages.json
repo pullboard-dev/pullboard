@@ -1,0 +1,9 @@
+{
+  "src/relay-page-cache.js": "packages/pages/src/io/relay/cache.js",
+  "src/relay-page-client.js": "packages/pages/src/io/relay/client.js",
+  "src/relay-page-layout.js": "packages/pages/src/logic/relay/layout.js",
+  "src/relay-page-support.js": "packages/pages/src/logic/relay/storage.js",
+  "src/relay-page-writer.js": "packages/pages/src/logic/relay/writer.js",
+  "src/relay-presentation.js": "packages/pages/src/io/relay/presentation.js",
+  "src/sealed-pages.js": "packages/pages/src/logic/sealed.js"
+}

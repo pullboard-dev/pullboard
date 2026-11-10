@@ -1,0 +1,20 @@
+{
+  "src/execution-environment.js": "packages/sandbox/src/io/environment.js",
+  "src/next-take.js": "packages/sandbox/src/io/take.js",
+  "src/push-receipt-smoke.js": "packages/sandbox/src/io/smoke.js",
+  "src/release-hosted.js": "packages/sandbox/src/io/hosted.js",
+  "src/sandbox-denial.js": "packages/sandbox/src/io/denial.js",
+  "src/sandbox-verify.js": "packages/sandbox/src/io/verify.js",
+  "src/source-advance-origin.js": "packages/sandbox/src/io/source/advance/origin.js",
+  "src/source-advance-worker.js": "packages/sandbox/src/io/source/advance/worker.js",
+  "src/source-advance.js": "packages/sandbox/src/io/source/advance.js",
+  "src/trusted-policy-read.js": "packages/sandbox/src/io/trusted/policy/committed.js",
+  "src/trusted-policy.js": "packages/sandbox/src/io/trusted/policy.js",
+  "test/lane-bypass.test.js": "apps/cli/journeys/lane/bypass.test.js",
+  "test/privacy-words.test.js": "packages/sandbox/tests/privacy/words.test.js",
+  "test/trunk.test.js": "apps/cli/journeys/verify/trunk.test.js",
+  "test/trusted-policy-ancestry.test.js": "packages/sandbox/tests/io/trusted/policy/ancestry.test.js",
+  "test/trusted-policy.test.js": "apps/cli/journeys/show/policy/trusted.test.js",
+  "src/submit-handoff-origin.js": "packages/sandbox/src/io/submit/handoff/origin.js",
+  "src/submit-handoff-seal.js": "packages/sandbox/src/io/submit/handoff/seal.js"
+}
