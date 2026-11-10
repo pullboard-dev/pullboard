@@ -1,5 +1,5 @@
 import { seatAt } from '../item-folder-identity.js';
-import { claimWorktreeSnapshot } from '../../../../../src/untouched-claim-observation.js';
+import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
@@ -12,7 +12,7 @@ import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
-import { requireHandoffActive } from '../../../../../packages/state/src/core/handoff-state.js';
+import { requireHandoffActive } from '../../../../../packages/state/core.js';
 import { requestedCommandMove } from '../../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
 import { withParseScope } from '../packages/gate/index.js';
-import { formatJson } from '../packages/merge/index.js';
+import { PLAN_DIR } from '../packages/codemap/index.js';
+import { PLAN_FILE } from '../packages/codemap/index.js';
+import { readPlan } from '../packages/codemap/index.js';
+import { shardFile } from '../packages/codemap/index.js';
+import { importsIn } from '../packages/codemap/index.js';
+import { commonJsIn } from '../packages/codemap/index.js';
+import { computePlan as modelComputePlan, placePath as modelPlacePath, writePlan as modelWritePlan } from '../packages/codemap/index.js';
 import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
 import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
-import { mkdirSync } from 'node:fs';
-import { cellReaddirSync as readdirSync } from '../packages/codemap/index.js';
 import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { posix } from 'node:path';
@@ -22,7 +22,6 @@ import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
-import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
 import { moveHistoryPlacement } from '../packages/codemap/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
@@ -31,7 +30,7 @@ import { tryGit } from './cells-snapshot-git.js';
 import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { runnerWorkerFiles } from './cells-move-closure.js';
+import { runnerWorkerFiles } from '../packages/codemap/index.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -48,8 +47,10 @@ import {
   readMoveDataReads,
   staleDataReads,
 } from './cells-data-reads.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
-import { moveDeclarationFiles } from './cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
 import { createFixtureMemo } from '../packages/codemap/index.js';
 import { checkCommandDefinition } from '../packages/git/index.js';
@@ -72,180 +73,16 @@ const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, un
   eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
 });
 
-export const PLAN_FILE = 'bin/cells-plan.json';
-export const PLAN_DIR = 'bin/cells-plan';
-export const SEED_FILE = 'bin/cells-plan/seed.json';
+export { PLAN_DIR, PLAN_FILE, SEED_FILE, formatJson, planWrites, readPlan, readSeed, shardFile } from '../packages/codemap/index.js';
 
-/** Read the dry run's map, stored grouped by cell so the copy stays a few dozen lines, as a path-to-cell seed. */
-export function readSeed(root) {
-  const stored = JSON.parse(readFileSync(join(root, SEED_FILE), 'utf8'));
-  /** Flatten one cell-to-paths object back into the dry run's path-to-cell shape. */
-  const flat = grouped => Object.fromEntries(Object.entries(grouped ?? {}).flatMap(([cell, paths]) => paths.map(path => [path, cell])));
-  return { ...stored, files: flat(stored.cells), tests: flat(stored.tests) };
-}
+/** Write the plan with this module's snapshot-aware path-map reader. */
+export function writePlan(root, plan) { return modelWritePlan(root, plan, { readPathMap, tryGit }); }
 
-export { formatJson } from '../packages/merge/index.js';
+/** Place one path with this module's snapshot-aware Git and path-map readers. */
+export function placePath(root, file, options) { return modelPlacePath(root, file, options, { readPathMap, tryGit }); }
 
-/** Name one cell's shard file, ordered so a directory listing reads leaf-first. */
-export function shardFile(cell) {
-  return `${PLAN_DIR}/${String(cell.order).padStart(2, '0')}-${cell.name.replace(':', '-')}.json`;
-}
-
-/** Every placed path belongs to exactly one recognized source bucket. */
-function requirePlacementSources(cell) {
-  if (cell.paths.some(row => !['seed', 'rule', 'imports'].includes(row[2]))) throw new Refused('CELLS_UNPLACED', `${cell.name} has a path without a known placement source; resolve that path before writing the plan`);
-}
-
-/** Derive a cell's placement counts from its actual rows, never a stored summary. */
-function placementCounts(cell) {
-  requirePlacementSources(cell);
-  return Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cell.paths.filter(row => row[2] === via).length]));
-}
-
-/** Derive all plan counters from the same cell rows and explicit stays the reader returns. */
-function planCounts(cells, stays) {
-  for (const cell of cells) for (const cut of cell.cuts) {
-    if (!Number.isSafeInteger(cut.imports) || cut.imports < 0) throw new Refused('CELLS_PLAN_COUNTS', `${cell.name} has a cut without a nonnegative integer import count`);
-  }
-  return {
-    cells: cells.length,
-    movedPaths: cells.reduce((sum, cell) => sum + cell.paths.length, 0),
-    stays: stays.length,
-    placedBy: Object.fromEntries(['seed', 'rule', 'imports'].map(via => [via, cells.reduce((sum, cell) => sum + cell.placedBy[via], 0)])),
-    shims: cells.reduce((sum, cell) => sum + cell.reexports.length, 0),
-    cutImports: cells.reduce((sum, cell) => sum + cell.cuts.reduce((sum, row) => sum + row.imports, 0), 0),
-    cutEdges: cells.reduce((sum, cell) => sum + cell.cuts.length, 0),
-  };
-}
-
-/** The plan JSON files writePlan never prunes, for a plan whose cells are these. */
-function keptPlanFiles(cells) {
-  return new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...cells.map(cell => shardFile(cell))]);
-}
-
-/**
- * Every file writing this plan would change for one cell: the index, that cell's shard, and each JSON file in the plan
- * folder the write would prune. A shim removal checks these against its lane before it mutates anything.
- */
-export function planWrites(root, plan, name) {
-  const keep = keptPlanFiles(plan.cells), cell = plan.cells.find(row => row.name === name);
-  const pruned = existsSync(join(root, PLAN_DIR)) ? readdirSync(join(root, PLAN_DIR)).filter(file => file.endsWith('.json') && !keep.has(`${PLAN_DIR}/${file}`)).map(file => `${PLAN_DIR}/${file}`) : [];
-  return [PLAN_FILE, ...(cell ? [shardFile(cell)] : []), ...pruned.sort()];
-}
-
-/** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
-export function writePlan(root, plan) {
-  const entries = entryPlacementProblems(root, plan);
-  if (entries.length) throw new Refused('CELLS_ENTRY', entries.join('; '));
-  const owned = ownedStayProblems(plan);
-  if (owned.length) throw new Refused('CELLS_STAY_OWNER', `${owned.join('; ')}; name an existing cell with --owner`);
-  const retired = retiredProblems(root, plan);
-  if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
-  // Persist authoritative rows; readers derive summaries from the exact rows they return.
-  const cells = plan.cells.map(cell => {
-    requirePlacementSources(cell);
-    const { placedBy: _cachedPlacement, ...rows } = cell;
-    return rows;
-  });
-  mkdirSync(join(root, PLAN_DIR), { recursive: true });
-  const shards = cells.map(cell => [shardFile(cell), cell]);
-  const keep = keptPlanFiles(cells);
-  for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
-  for (const [file, cell] of shards) {
-    // A shard whose data is unchanged keeps its bytes, so one row's edit never reformats an unrelated cell.
-    let current = null;
-    try { current = JSON.parse(readFileSync(join(root, file), 'utf8')); } catch { current = null; }
-    if (current === null || JSON.stringify(current) !== JSON.stringify(cell)) writeFileSync(join(root, file), formatJson(cell) + '\n');
-  }
-  const { totals: _cachedTotals, ...metadata } = plan;
-  const index = { ...metadata, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
-  writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
-}
-
-/** Read the committed plan back as one object, refusing an index whose shard is missing. */
-export function readPlan(root, read = file => readFileSync(join(root, file), 'utf8')) {
-  const index = JSON.parse(read(PLAN_FILE));
-  const cells = index.cells.map(row => {
-    let source;
-    try { source = read(row.file); } catch { throw new Refused('CELLS_PLAN_SHARD', `${row.file} is missing; regenerate with node bin/cells-plan.js --write`); }
-    const cell = JSON.parse(source);
-    return { ...cell, placedBy: placementCounts(cell) };
-  });
-  return { ...index, totals: planCounts(cells, index.stays), cells };
-}
-
-/** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
-export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false, owner } = {}) {
-  if (typeof file !== 'string' || !inPlanScope(file) || file.split('/').some(piece => !piece || piece === '.' || piece === '..')
-    || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || typeof entry !== 'boolean' || !['core', 'shell'].includes(part)) {
-    throw new Refused('CELLS_UNPLACED', 'use --place <in-scope path> with exactly one --cell <existing cell> or --stay');
-  }
-  const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', file]);
-  if (tracked.status !== 0 || !lstatSync(join(root, file)).isFile()) throw new Refused('CELLS_UNPLACED', `stage a regular source file before placing it: ${file}`);
-  const plan = readPlan(root);
-  if (owner !== undefined) return ownStay(root, plan, file, { stay, entry, owner });
-  if (entry) {
-    const destination = plan.cells.find(row => row.name === cell);
-    if (!destination?.name.startsWith('app:') || stay || part !== 'shell') throw new Refused('CELLS_ENTRY', 'a process entry needs the shell of an existing app cell');
-    if ((plan.entries ?? []).some(row => row.path === file)) throw new Refused('CELLS_ENTRY', `${file} already has explicit process ownership`);
-    if (file.startsWith('bin/')) {
-      if (!plan.stays.some(row => row.path === file)) plan.stays.push({ path: file, reason: 'process entry keeps its public executable path' });
-    } else {
-      const target = `${destination.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
-      if (plan.cells.some(row => row.paths.some(([from, to]) => from !== file && to === target))) throw new Refused('CELLS_ENTRY', `entry target already belongs to another path: ${target}`);
-      for (const row of plan.cells) {
-        row.paths = row.paths.filter(([from]) => from !== file);
-        row.reexports = row.reexports.filter(path => path !== file);
-      }
-      plan.stays = plan.stays.filter(row => row.path !== file);
-      destination.paths.push([file, target, 'rule']);
-    }
-    plan.entries = [...(plan.entries ?? []), { path: file, cell }];
-    writePlan(root, plan);
-    return plan;
-  }
-  const assigned = plan.cells.flatMap(entry => entry.paths).some(([from, to]) => from === file || to === file)
-    || plan.stays.some(row => row.path === file);
-  if (assigned) throw new Refused('CELLS_UNPLACED', `${file} is already placed; retain its existing plan row`);
-  if (stay) plan.stays.push({ path: file, reason: 'explicit bounded placement: stays in place during the move' });
-  else {
-    const entry = plan.cells.find(entry => entry.name === cell);
-    if (!entry || file.startsWith('bin/')) throw new Refused('CELLS_UNPLACED', `choose an existing cell, or --stay for bin/: ${cell}`);
-    const target = `${entry.root}/src/${part}/${file.slice(file.indexOf('/') + 1)}`;
-    if (plan.cells.some(row => row.paths.some(([from, to]) => from === target || to === target))) throw new Refused('CELLS_UNPLACED', `the placement target already belongs to a path: ${target}`);
-    entry.paths.push([file, target, 'rule']);
-  }
-  writePlan(root, plan);
-  return plan;
-}
-
-/**
- * Give a stay an owner cell: the file keeps its path, and the plan check and cut walk count it as that cell's file.
- * Why: deployed entries such as relay/server.mjs keep their path, yet belong to the app that serves them (#2576).
- */
-function ownStay(root, plan, file, { stay, entry, owner }) {
-  if (!stay || entry || typeof owner !== 'string') throw new Refused('CELLS_STAY_OWNER', 'use --stay <path> --owner <cell>');
-  if (!plan.cells.some(row => row.name === owner)) throw new Refused('CELLS_STAY_OWNER', `choose an existing cell for --owner: ${owner}`);
-  if (plan.cells.some(row => row.paths.some(([from, to]) => from === file || to === file))) {
-    throw new Refused('CELLS_STAY_OWNER', `${file} is planned to move; only a stay can have an owner`);
-  }
-  const row = plan.stays.find(value => value.path === file);
-  if (row?.owner !== undefined && row.owner !== owner) throw new Refused('CELLS_STAY_OWNER', `${file} is already owned by ${row.owner}; retain its existing owner`);
-  if (row) row.owner = owner;
-  else plan.stays.push({ path: file, reason: 'explicit bounded placement: stays in place during the move', owner });
-  writePlan(root, plan);
-  return plan;
-}
-
-/** Compute the plan from a checkout's tracked files and real import edges, at its HEAD. */
-export function computePlan(root) {
-  const { files, edges } = cellInventory(root, { importsIn, commonJsIn });
-  const seed = readSeed(root);
-  const head = tryGit(root, ['rev-parse', 'HEAD']);
-  const paths = [...files.keys()].filter(inPlanScope).sort();
-  const sources = new Map([...files].filter(([file]) => /\.[cm]?js$/u.test(file)).map(([file, bytes]) => [file, bytes.toString('utf8')]));
-  return buildCellsPlan({ paths, edges, sources, seed, base: head.status === 0 ? head.stdout.trim() : null });
-}
+/** Compute the plan from a checkout's tracked files and real import edges, with this module's snapshot-aware Git. */
+export function computePlan(root) { return modelComputePlan(root, { tryGit }); }
 
 /** Name the in-scope paths at HEAD the committed plan does not place, so drift is reported rather than guessed. */
 export function unplanned(root, plan, inventory) {
@@ -281,12 +118,30 @@ export function stalePlanRows(root, plan) {
 }
 
 /**
+ * Cut edges that name a path with no plan row, active or retired. Why: importCuts throws on such an edge, and the
+ * submit gate turns that into CELLS_SUBMIT for every item (#4706 deleted src/serve.js and left three edges naming it).
+ */
+export function orphanCutEdges(plan) {
+  const known = new Set([...plan.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...(plan.retired ?? []).map(entry => entry.row[0])]);
+  return [...new Set(plan.cells.flatMap(cell => cell.cuts.flatMap(link => link.edges)).filter(edge => edge.split('->').some(path => !known.has(path))))];
+}
+
+/**
  * Retire one stale planned path: its row moves to the plan's retired list, which keeps its provenance and refuses
  * it ever coming back or being imported, and the shim and cut edges that only existed for it leave the cell.
  */
 export function retirePath(root, file) {
   const plan = readPlan(root);
   const stale = stalePlanRows(root, plan).find(entry => entry.row[0] === file);
+  if (!stale && orphanCutEdges(plan).some(edge => edge.split('->').includes(file))) {
+    // A shim item already dropped the row by hand: only its cut edges are left, so drop those and keep the rest.
+    for (const entry of plan.cells) {
+      entry.cuts = entry.cuts.map(link => ({ ...link, edges: link.edges.filter(edge => !edge.split('->').includes(file)) }))
+        .filter(link => link.edges.length).map(link => ({ ...link, imports: link.edges.length }));
+    }
+    writePlan(root, plan);
+    return { cell: null, file: PLAN_FILE, row: [file] };
+  }
   if (!stale) {
     const active = plan.cells.some(cell => cell.paths.some(([from]) => from === file));
     throw new Refused('CELLS_PLAN_RETIRE', active
@@ -399,7 +254,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     history ??= historyShimReferences(root, acceptedBase);
     return history.has(from) ? `sealed move history ${history.get(from)}` : null;
   }
-  problems.push(...pureFrontDoorProblems(root, cell));
+  problems.push(...pureFrontDoorProblems(root, cell), ...lightFrontDoorProblems(root, cell), ...pureDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
@@ -414,7 +269,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
         const reason = namedLeaf && !inWorkerClosure(from, to) && !inMoveClosure(from, to) ? keptReason(from, to) : null;
         const exactLeaf = namedLeaf && (reason || inWorkerClosure(from, to) || inMoveClosure(from, to));
         if (reason) notes.push(`${from} kept: ${reason}`);
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && target !== cell.lightFrontDoor && target !== cell.pureDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
@@ -572,7 +427,12 @@ function main(argv) {
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
-    return missing.length || stale.length || entries.length ? 1 : 0;
+    const orphans = orphanCutEdges(plan);
+    for (const edge of orphans) {
+      const gone = edge.split('->').find(path => !plan.cells.some(cell => cell.paths.some(([from]) => from === path)) && !(plan.retired ?? []).some(entry => entry.row[0] === path));
+      console.error(`cut edge ${edge} names ${gone}, which has no plan row; drop its cut edges: node bin/cells-plan.js --retire ${gone}`);
+    }
+    return missing.length || stale.length || entries.length || orphans.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);

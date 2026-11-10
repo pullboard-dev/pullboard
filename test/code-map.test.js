@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js packages/codemap/src/shell/code-map.js apps/cli/src/shell/commands/map.js apps/cli/src/shell/commands/merged.js apps/cli/src/shell/commands/index.js apps/cli/src/shell/commands/next.js apps/cli/src/shell/commands/claim.js packages/codemap/src/shell/map-slice-say.js apps/cli/src/shell/cli-main.js apps/cli/src/shell/cli-help.js apps/cli/src/core/help.js src/land.js packages/config/src/shell/templates.js test/board-submit-fixture.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/codemap/src/shell/code-map.js apps/cli/src/shell/commands/map.js apps/cli/src/shell/commands/merged.js apps/cli/src/shell/commands/index.js apps/cli/src/shell/commands/next.js apps/cli/src/shell/commands/claim.js packages/codemap/src/shell/map-slice-say.js apps/cli/src/shell/cli-main.js apps/cli/src/shell/cli-help.js apps/cli/src/core/help.js src/land.js packages/config/src/shell/templates.js test/board-submit-fixture.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -176,7 +176,7 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add code map source fixture');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Map fixture item', '--criterion',
-    'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'light',
+    'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'mid',
     '--brief', 'Files: src/home.js, src/public.js, bin/start.js, test/home.test.js\nTest: map output follows imports and ignores misleading source text', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const itemId = JSON.parse(added.out).item.item_id;
@@ -277,7 +277,7 @@ test('next prints the item slice when the map setting is on [C7]', t => {
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add slice fixture source');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Slice fixture item', '--criterion',
-    'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'light',
+    'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'mid',
     '--brief', 'Files: src/home.js\nTest: test/home.test.js imports it\nOut of scope: anything else');
   assert.equal(added.code, 0, added.out + added.err);
   const claimed = box.run(box.web, 'next');

@@ -25,7 +25,7 @@ import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 import { BAR_CHECK_ENGINE } from "../../../../state/core.js";
 import { barCheckEnabled } from "../../../../verify/index.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../../src/move-engine-constants.js";
-import { submissionProof } from "../../../../state/src/core/submission-proof.js";
+import { submissionProof } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

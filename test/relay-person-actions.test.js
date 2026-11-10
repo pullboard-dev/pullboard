@@ -10,7 +10,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { closeBoard } from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';

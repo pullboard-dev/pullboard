@@ -3,7 +3,7 @@ import { Refused } from '../../../kernel/core.js';
 import {
   ACTIVE_REVIEWER_WINDOW_MINUTES,
   lineWipLimit,
-} from '../../../seats/core.js';
+} from '../../../seats/pure.js';
 import {
   replayHistory,
   replayObservations,

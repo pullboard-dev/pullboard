@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-gui */
 /** The browser tab title is built once per refresh and written only when it changes (#3200) [N26,N38]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,7 +47,7 @@ test('clause 2: refreshing each tab three times shows the same title every time,
       get: () => shown, set: (value) => { titleWrites.push(value); shown = value; } }); }`);
     const seen = {};
     for (const tab of TABS) {
-      page.run(`openTab(${JSON.stringify(tab)})`);
+      page.run(`openTab(${JSON.stringify(tab)}); render()`);
       await page.run('refresh()');
       const before = page.run('titleWrites.length');
       const titles = [];

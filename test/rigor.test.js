@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js packages/state/src/shell/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 import { REJECT_CLAUSE_ENGINE } from '../packages/state/core.js';
@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { AGENT_GRANT_ENGINE } from '../packages/state/core.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';

@@ -89,7 +89,6 @@
     "src/blueprint-report.js->src/blueprints.js": 1,
     "src/blueprint-report.js->src/board.js": 1,
     "src/blueprint-report.js->src/config.js": 1,
-    "src/blueprint-report.js->src/doctrine.js": 1,
     "src/blueprint-report.js->src/spec.js": 1,
     "src/blueprint-set.js->packages/kernel/src/core/refused.js": 1,
     "src/blueprint-set.js->src/blueprints.js": 1,
@@ -376,7 +375,6 @@
     "src/browser-admission.js->src/doctrine-checks.js": 1,
     "src/browser-admission.js->src/git.js": 1,
     "src/browser-admission.js->src/module-import-cache.js": 1,
-    "src/browser-admission.js->src/module-imports.js": 1,
     "src/browser-admission.js->src/settings.js": 1,
     "src/browser-admission.js->src/spec.js": 1,
     "src/browser-admission.js->src/test-isolation.js": 1,
@@ -399,7 +397,6 @@
     "src/cell-lint-inventory.js->src/git-adapter.js": 1,
     "src/cell-lint-inventory.js->src/git.js": 1,
     "src/cell-lint-inventory.js->src/import-map.js": 1,
-    "src/cell-lint-inventory.js->src/module-imports.js": 1,
     "src/cell-lint-ratchet.js->packages/kernel/src/core/refused.js": 1,
     "src/cell-lint-ratchet.js->src/cell-lints.js": 1
   }

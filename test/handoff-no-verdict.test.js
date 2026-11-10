@@ -69,8 +69,9 @@ test('clause 1: a hand-off that finishes with no verdict sends the item back [C7
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const id = document(fixtureAdd(box.run, box.repo, 'web', 'No-verdict handoff', '--route', 'strong', '--specs', 'G1',
     '--criterion', 'A hand-off with no verdict returns to its builder.', '--check', 'true', '--wait', '--json')).item.item_id;
+  // The web bar may name only web-owned files (24e3f4c070).
   document(box.run(box.repo, 'fact', String(id), 'diagnosis',
-    'Files: web/snapshot.txt test/handoff-no-verdict.test.js Change: end a real hand-off with no verdict Test case: one sweep returns the item to its builder', '--json'));
+    'Files: web/snapshot.txt Change: end a real hand-off with no verdict Test case: one sweep returns the item to its builder', '--json'));
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', 'candidate\n', 'feat(web): no-verdict candidate [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);

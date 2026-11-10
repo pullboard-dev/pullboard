@@ -1,7 +1,7 @@
 /** Atomic corrections carry the frozen bar in the same ordered move [V2,H16]. */
 import { AUTOMATIC_DISPATCH_ENGINE } from './engines/automatic-dispatch-engine.js';
 import { engineAtLeast } from './engine-at-least.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/pure.js';
 
 /** Validate a deterministic correction before the enclosing edit changes any shared state. */
 export function correctedBar(board, item, next, { correction, freeze, sha256 }) {

@@ -26,7 +26,7 @@ function project(t) {
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Order\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
-  assert.equal(builder.coordinator('add', 'build', 'Preflight order fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item)).code, 0);
+  assert.equal(builder.coordinator('add', 'build', 'Preflight order fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item), '--route', 'mid', '--wait').code, 0);
   assert.equal(builder.run('claim', '1').code, 0);
   // Adding the item ran its check once to baseline it; only runs after this point count.
   for (const path of Object.values(markers)) rmSync(path, { force: true });

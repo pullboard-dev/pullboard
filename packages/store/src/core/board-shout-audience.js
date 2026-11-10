@@ -1,6 +1,6 @@
 /** Shared item-message addressing for the board's inbox, resume and live watch [B7,N19,A2]. */
 import { Refused } from "../../../kernel/core.js";
-import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
+import { shoutItemId } from "../../../kernel/index.js";
 
 /** Reserved engine-93 address: '+' is forbidden in lane names and their derived seat ids. */
 export const COORDINATION_SHOUT = 'coordinator+person';

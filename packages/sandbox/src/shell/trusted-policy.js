@@ -28,10 +28,10 @@ import {
 import {
   movedImportOnlyChange,
   movedImportTargets,
-} from '../../../../src/import-only-change.js';
+} from '../../../commits/core.js';
 import {
   planRowChange,
-} from '../../../../src/plan-row-change.js';
+} from '../../../commits/core.js';
 
 /** Resolve the trunk snapshot and refuse a conflict without touching an index or worktree [B34,V6].
  *

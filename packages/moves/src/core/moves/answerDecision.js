@@ -1,11 +1,11 @@
-import { laneAnswerFloor } from "../../../../seats/core.js";
+import { laneAnswerFloor } from "../../../../seats/pure.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";
 /** Routing metadata owned by answerDecision, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/core.js";
 import { IMPLIES_ENGINE } from "../../../../../src/move-engine-constants.js";
 import { DECISION_ORIGIN_ENGINE } from "../../../../state/core.js";
 import { carriesOrigin } from "../../../../items/core.js";
-import { carriesImplies } from "../../../../state/src/core/move-implies.js";
+import { carriesImplies } from "../../../../state/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/core.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

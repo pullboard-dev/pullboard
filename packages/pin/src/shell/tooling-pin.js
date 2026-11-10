@@ -7,8 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { resolve } from 'node:path';
-import { gitExecFileSync } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { gitExecFileSync } from '../../../git/core.js';
+import { Refused } from '../../../kernel/core.js';
 import { treeOf } from './pin.js';
 import { isObjectId } from '../core/pin-names.js';
 

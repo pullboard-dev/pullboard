@@ -193,7 +193,7 @@ async function audit(box, batch) {
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
   const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
-import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
 import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};

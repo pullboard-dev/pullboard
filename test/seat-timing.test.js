@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { beginSeatTiming } from '../src/seat-timing.js';
-import { seatLedger, seatLines, worktreeActivity } from '../src/seat-ledger.js';
+import { beginSeatTiming } from '../packages/seats/core.js';
+import { seatLedger, seatLines, worktreeActivity } from '../packages/seats/index.js';
 import { beginImmediateQueued } from '../packages/store/src/shell/board-busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {

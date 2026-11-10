@@ -167,7 +167,7 @@ test('two new board moves declared in two files need no edit to engine.js, board
   const child = `
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from './packages/moves/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { NEXT_STEPS } from './src/next-step-words.js';
+import { nextStepWords$NEXT_STEPS as NEXT_STEPS } from './apps/cli/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
+import * as store from './packages/store/index.js'; import {openBoard,nativeBoardPorts} from './apps/lib/src/core/native-board.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();
@@ -183,7 +183,7 @@ const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
   const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
-  const {importsIn}=await import('./src/module-imports.js');
+  const {importsIn}=await import('./packages/gate/index.js');
   const snapshot=JSON.parse(readFileSync('./test/move-registry-baseline.json','utf8'));
   const boards=new Map();
   try {
@@ -256,7 +256,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
     JSON.stringify([{ event: 7, revision: { source: 'private recorded revision fixture' } }]));
   assert.equal(minimumMoveEngine('applyRowDecisions', [{ events: [7] }], board), SPEC_REVISION_ENGINE);
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const forbidden = new Set(['src/board.js', 'src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'src/move-registry.js', 'src/git.js']);
+  const forbidden = new Set(['packages/store/src/shell/board.js', 'packages/state/src/shell/engine.js', 'packages/store/src/shell/board-engine-ports.js', 'apps/cli/src/core/next-step-words.js', 'packages/moves/src/shell/move-registry.js', 'packages/git/src/shell/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
   let pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))

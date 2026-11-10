@@ -4,7 +4,8 @@
  "kind": "package",
  "root": "packages/git",
  "frontDoor": "packages/git/index.js",
- "pureFrontDoor": "packages/git/core.js",
+ "pureDoor": "packages/git/pure.js",
+ "lightFrontDoor": "packages/git/core.js",
  "paths": [
   ["src/committed-file-reader.js","packages/git/src/shell/committed-file-reader.js","seed"],
   ["src/git-adapter.js","packages/git/src/shell/git-adapter.js","rule"],
@@ -25,7 +26,7 @@
   ["test/flakes-fixture.js","packages/git/tests/flakes-fixture.js","rule"],
   ["test/flakes-fixture.test.js","packages/git/tests/flakes-fixture.test.js","rule"]
  ],
- "reexports": ["src/committed-file-reader.js","src/git-adapter.js","src/git.js"],
+ "reexports": ["src/git-adapter.js","src/git.js"],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"config","imports":1,"before":false},

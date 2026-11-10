@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fileFixtureItem } from './testkit-fixture.js';
-import { appendSeatTiming } from '../src/seat-timing.js';
+import { appendSeatTiming } from '../packages/seats/core.js';
 import { commandTimingReport, commandTimingLines } from '../apps/cli/src/core/command-timing.js';
 
 const e2e = createE2eHelpers();

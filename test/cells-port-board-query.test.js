@@ -16,12 +16,11 @@ import { readPlan } from '../bin/cells-plan.js';
 import { nativeBoardPorts, openBoard } from '../apps/lib/src/core/native-board.js';
 import * as queries from '../packages/store/index.js';
 import * as store from '../packages/store/index.js';
-import { readyItems } from '../src/queue-readiness.js';
+import { readyItems, routingCapacity } from '../packages/queue/index.js';
 import { workQueue } from '../packages/items/index.js';
 import { roadmap } from '../packages/store/index.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { lineSettings } from '../packages/state/index.js';
-import { routingCapacity } from '../src/routing-capacity.js';
 import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));

@@ -1,5 +1,5 @@
 /** Direct test admission keeps seat ownership separate from gate/verdict capacity [C7,#2831]. */
-import { repoInfo } from '../../../git/index.js';
+import { repoInfo } from '../../../git/core.js';
 
 /** Recognize both the CLI test kind and the standalone runner's explicit seat-test kind. */
 export function isSeatTest(kind) { return kind === 'test' || kind === 'seat-test'; }

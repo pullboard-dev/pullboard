@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
@@ -71,7 +71,7 @@ function fixture(t) {
   /** Run the real private CLI with its public injected clock; all identity/settings files use private HOME. */
   const cli = async (...args) => {
     const source = `import {main} from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
-process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)})});`;
+process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../apps/lib/src/core/native-board.js', import.meta.url).href)})});`;
     return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   };
   return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli, worktree };
@@ -496,7 +496,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
 
 
 test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
-  const { applyEngineMove } = await import('../src/engine.js');
+  const { applyEngineMove } = await import('../packages/state/index.js');
   const { STALE_STATE_ENGINE } = await import('../packages/state/core.js');
   const { RELEASE_REASONS_ENGINE } = await import('../packages/state/core.js');
   for (const mode of ['native', 'ordered', 'historical']) {

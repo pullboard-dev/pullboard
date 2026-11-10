@@ -23,7 +23,7 @@ function run(box, cwd, ...args) {
 function seat(box, name, lane) {
   const path = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
-  run(box, path, 'join', lane, '--model', 'fixture-companion');
+  run(box, path, 'join', lane, '--model', 'fixture-companion-opus');
   return path;
 }
 
@@ -32,18 +32,18 @@ test('a companion request becomes one claimable child item and a second request 
   const other = seat(box, 'requester-two', 'web');
   const parent = run(box, box.repo, 'add', 'web', 'Parent feature', '--specs', 'G1', '--criterion', 'needs the API', '--json').item.item_id;
   run(box, box.web, 'claim', String(parent));
-  const args = ['companion', String(parent), 'api', 'Provide the API', '--key', 'api-part', '--criterion', 'the API serves this parent', '--specs', 'G2', '--json'];
+  const args = ['companion', String(parent), 'api', 'Provide the API', '--key', 'api-part', '--criterion', 'the API serves this parent [test]', '--specs', 'G2', '--route', 'strong', '--json'];
   // Concurrent independent processes must observe one creation, not merely converge after serial retries.
   const children = [box.web, other].map(cwd => helpers.launch(box, cwd, process.execPath, [helpers.BIN, ...args]));
   const completed = await Promise.all(children.map(child => child.closed));
-  completed.forEach((result, index) => assert.equal(result.code, 0, children[index].stderrText));
+  completed.forEach((result, index) => assert.equal(result.code, 0, children[index].stderrText + children[index].stdoutText));
   const results = children.map(child => JSON.parse(child.stdoutText));
   assert.equal(results[0].item.item_id, results[1].item.item_id);
   assert.deepEqual(results.map(result => result.created).sort(), [false, true]);
   const child = results[0].item;
   assert.equal(child.item_parent_id, parent);
   assert.equal(child.item_lane, 'api');
-  assert.equal(child.item_criterion, 'the API serves this parent');
+  assert.equal(child.item_criterion, 'the API serves this parent [test]');
   assert.equal(run(box, other, ...args).item.item_id, child.item_id, 'a later request retains the same durable child');
   const first = seat(box, 'api-builder-one', 'api');
   const second = seat(box, 'api-builder-two', 'api');

@@ -2,7 +2,7 @@ import { archivedToolingSource } from './committed-tooling.js';
 import { committedRunnerController } from './committed-tooling.js';
 import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
-import { runnerSource } from '../../../gate/src/core/gate-policy-load.js';
+import { runnerSource } from '../../../gate/core.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -215,7 +215,7 @@ ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
 ${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
-  const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
+  const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'src/runner-worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
   return { command: `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`,
     input: Buffer.from(`${Buffer.byteLength(payload)}\n${payload}`, 'ascii') };

@@ -25,8 +25,8 @@ import {
 } from './resources.js';
 import { reuseResourceConnections } from './resource-connections.js';
 import { machineHome } from './machine-home.js';
-import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/core.js';
+import { Refused } from '../../../kernel/core.js';
 import {
   handoffRoots,
   pruneFinishedHandoffs,

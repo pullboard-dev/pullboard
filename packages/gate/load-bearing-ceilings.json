@@ -76,12 +76,9 @@
     "daemon-loop": 2,
     "unref": 1
   },
-  "apps/lib/src/shell/relay-sender-main.js": {
+  "apps/cli/src/shell/relay-sender-main.js": {
     "detached": 1,
     "unref": 1
-  },
-  "apps/lib/src/shell/submit-handoff-worker.js": {
-    "state-file": 5
   },
   "apps/relay/src/shell/service.js": {
     "daemon-loop": 1,
@@ -138,7 +135,7 @@
     "state-file": 1,
     "unref": 1
   },
-  "bin/run-tests.js": {
+  "packages/gate/src/shell/run-tests.js": {
     "daemon-loop": 4,
     "state-file": 23,
     "unref": 2
@@ -212,7 +209,7 @@
     "daemon-loop": 1,
     "state-file": 5
   },
-  "packages/gate/src/shell/module-imports.js": {
+  "packages/codemap/src/shell/module-imports.js": {
     "state-file": 3
   },
   "packages/gate/src/shell/refusal-trial.js": {
@@ -502,7 +499,7 @@
   "packages/verify/src/shell/verify-compare.js": {
     "state-file": 2
   },
-  "src/seat-timing.js": {
+  "packages/seats/src/shell/seat-timing.js": {
     "state-file": 2
   }
 }

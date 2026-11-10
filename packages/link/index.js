@@ -14,6 +14,7 @@ export { environmentAgent, environmentLink } from './src/shell/relay-environment
 export { clearRelayExclusion, excludeRelayByPerson, recordRelayExclusionIntent, relayExclusion, reportClearedExclusion, withRelayExclusion } from './src/shell/relay-exclusion-state.js';
 export { githubKeys, handOverBoardKeys, handOverKeys, requestBoardKey, statementBytes } from './src/shell/relay-handover.js';
 export { PAIR_ENVELOPE_BYTES, PAIR_PACKAGE_BODY_BYTES, PAIR_PACKAGE_BYTES, PAIR_STORED_BYTES, SEALED_SNAPSHOT_BYTES, SNAPSHOT_BODY_BYTES } from './src/core/relay-limits.js';
+export { relayIo } from './src/shell/relay-io.js';
 export { readRelayLink } from './src/shell/relay-link-read.js';
 export { SENDER_BACKGROUND_ENV, SENDER_CLAIM_STALE_MS, alive, boardNote, localFirstBoard, localFirstLink, nudgeRelaySender, senderFiles, senderHolding, senderInBackground } from './src/shell/relay-local-first.js';
 export { locked } from './src/shell/relay-lock.js';

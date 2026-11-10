@@ -33,8 +33,7 @@ test(scenario === 'unreadable item status'
   const requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, hold: 'run' });
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
-  const gate = url('gate.js');
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const script = `
     import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
     import { join } from 'node:path';
@@ -165,9 +164,8 @@ test('health names the actual holder past a declared execution deadline and leav
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  const gate = url('gate.js');
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const childSource = `import { controllerDeadline } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};
     const custody = controllerDeadline(JSON.parse(process.argv[1]), Number(process.argv[2]));
     custody.ready(5); process.stdout.write('ready'); process.stdin.resume();

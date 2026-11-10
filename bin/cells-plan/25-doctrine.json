@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/doctrine",
  "frontDoor": "packages/doctrine/index.js",
+ "lightFrontDoor": "packages/doctrine/core.js",
  "paths": [
   ["src/doctrine-checks.js","packages/doctrine/src/shell/doctrine-checks.js","seed"],
   ["src/doctrine-rulings.js","packages/doctrine/src/shell/doctrine-rulings.js","seed"],
@@ -12,7 +13,7 @@
   ["test/package.test.js","packages/doctrine/tests/package.test.js","seed"],
   ["src/main-criterion-facts.js","packages/doctrine/src/shell/main-criterion-facts.js","rule"]
  ],
- "reexports": ["src/doctrine.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":2,"before":true},
   {"cell":"git","imports":2,"before":true},

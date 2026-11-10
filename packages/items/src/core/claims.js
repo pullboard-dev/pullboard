@@ -1,4 +1,4 @@
-import { takeoverReady } from "../../../seats/core.js";
+import { takeoverReady } from "../../../seats/pure.js";
 /** Durable first-refusal windows for reopened work [B13,B5]. */
 import { Refused } from "../../../kernel/core.js";
 

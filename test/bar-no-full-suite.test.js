@@ -6,7 +6,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { listItems, setItem, closeBoard, editItem } from '../packages/store/index.js';
 import { checkPerItemCriterion } from '../packages/items/index.js';
 import { PER_ITEM_FULL_SUITE_ENGINE } from '../packages/state/core.js';
-import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
+import { ENGINE_VERSION, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -100,7 +100,8 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
     const exact = 'The named test passes [test].';
     const preserveMove = prepareEngineMove(board, 'editItem', [ids[0], { agentId: 'coordinator', criterion: exact,
       reason: 'S10 full-suite strip', preserveFrozen: true }]);
-    assert.equal(preserveMove.engine, PER_ITEM_FULL_SUITE_ENGINE);
+    assert.equal(preserveMove.engine, ENGINE_VERSION, 'a sealed move carries the engine that prepared it');
+    assert.ok(preserveMove.engine >= PER_ITEM_FULL_SUITE_ENGINE, 'the preserved-bar edit needs at least the per-item engine');
     assert.throws(() => applyEngineMove(board, { ...preserveMove, engine: PER_ITEM_FULL_SUITE_ENGINE - 1 },
       { sequence: 1, at: new Date().toISOString() }), error => error.code === 'RELAY_MOVE');
     assert.throws(() => editItem(board, ids[0], { agentId: 'web-1', criterion: exact,

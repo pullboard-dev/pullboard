@@ -114,12 +114,12 @@ const CAUGHT = {
   '../packages/store/src/core/board-rigor.js#eventCauses': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   '../packages/rigor/src/core/rigor-counter-state.js#neverKey': ['../packages/store/index.js#causeProblem'],
   // Historical decline grammar is caught locally; typed readers return invalid evidence as null.
-  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/rigor/src/core/rigor-counter-state.js#declineKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
   '../packages/store/src/core/board-rigor-source.js#readRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   '../packages/store/src/core/board-rigor-auto-source.js#readAutomaticRigorSource': ['../packages/store/src/core/board-rigor.js#causeProblem'],
   // Only an unsupported historical grammar is ignored; new caller refusals remain audited below.
-  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
-  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/shell/spec.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-auto-source.js#automaticDecisionSource': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
+  '../packages/store/src/core/board-rigor-auto-source.js#rigorDecisionKey': ['../packages/spec/src/core/spec-grammar.js#parseSpec', '../packages/spec/index.js#parseSpec'],
   '../packages/person/src/shell/person-row-proof.js#signedRowDecisionsMatch': ['../packages/spec/src/shell/spec.js#answerQuestion', '../packages/spec/index.js#answerQuestion'], // A non-throwing proof: an unbuildable answer reads false (#408).
 };
 /**
@@ -1345,8 +1345,8 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(computed), ['../packages/store/src/core/board-record-attempt.js#reopenByKey']);
   const besideCatalog = editedSource('../packages/config/src/core/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
-  const besideShim = editedSource('spec.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
-  assert.deepEqual(statusWriters(besideShim), ['spec.js#reopenByKey'], 'a retained legacy shim remains scanned alongside its moved body');
+  const besideShim = editedSource('config.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
+  assert.deepEqual(statusWriters(besideShim), ['config.js#reopenByKey'], 'a retained legacy shim remains scanned alongside its moved body');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {

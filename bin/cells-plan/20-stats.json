@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/stats",
  "frontDoor": "packages/stats/index.js",
+ "pureDoor": "packages/stats/pure.js",
  "paths": [
   ["src/exit-rules-calls.js","packages/stats/src/core/exit-rules-calls.js","rule"],
   ["src/exit-rules-policy.js","packages/stats/src/core/exit-rules-policy.js","rule"],
@@ -15,14 +16,10 @@
   ["src/stats-flow-window.js","packages/stats/src/core/stats-flow-window.js","seed"],
   ["src/stats-flow.js","packages/stats/src/core/stats-flow.js","seed"],
   ["src/stats.js","packages/stats/src/shell/stats.js","seed"],
-  ["test/flow-report.test.js","packages/stats/tests/flow-report.test.js","seed"],
-  ["test/stats-actors.test.js","packages/stats/tests/stats-actors.test.js","seed"],
-  ["test/stats-flow.test.js","packages/stats/tests/stats-flow.test.js","seed"],
   ["src/capacity-counter.js","packages/stats/src/core/capacity-counter.js","imports"],
   ["src/capacity-model.js","packages/stats/src/core/capacity-model.js","imports"],
   ["src/capacity-read.js","packages/stats/src/shell/capacity-read.js","imports"],
   ["src/capacity-store.js","packages/stats/src/core/capacity-store.js","imports"],
-  ["test/stats-compare.test.js","packages/stats/tests/stats-compare.test.js","imports"],
   ["src/cost-checkpoint.js","packages/stats/src/shell/cost-checkpoint.js","rule"],
   ["src/cost-ledger.js","packages/stats/src/shell/cost-ledger.js","rule"],
   ["src/cost-provider.js","packages/stats/src/shell/cost-provider.js","rule"],
@@ -37,9 +34,7 @@
   ["src/stats-moves.js","packages/stats/src/core/stats-moves.js","rule"],
   ["src/cost-analytics.js","packages/stats/src/shell/cost-analytics.js","rule"],
   ["src/stats-build-time.js","packages/stats/src/core/stats-build-time.js","rule"],
-  ["test/stats-build-time.test.js","packages/stats/tests/stats-build-time.test.js","rule"],
-  ["src/stats-time-checkpoint.js","packages/stats/src/shell/stats-time-checkpoint.js","rule"],
-  ["test/stats-time.test.js","packages/stats/tests/stats-time.test.js","rule"]
+  ["src/stats-time-checkpoint.js","packages/stats/src/shell/stats-time-checkpoint.js","rule"]
  ],
  "reexports": ["src/stats-flow.js","src/stats.js"],
  "imports": [

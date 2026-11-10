@@ -1,9 +1,6 @@
 {
   "name": "pullboard",
   "itemSizeBudget": 150,
-  "maintainers": [
-    "olevicor@icloud.com"
-  ],
   "gate": "npm run gate",
   "affectedTests": "node bin/run-tests.js",
   "submitGate": "landing",
@@ -77,16 +74,16 @@
   "registryGuards": [
     {
       "inputs": [
-        "src/api.js",
-        "src/serve.js",
-        "src/native-board-state.js",
-        "src/native-state-clock.js",
-        "src/relay-presentation.js",
-        "src/exchange.js",
-        "src/board-schema.js",
-        "src/board-schema-source.js",
-        "src/formats/board-schema.json",
-        "src/machine.js",
+        "packages/api/src/shell/api.js",
+        "apps/view/src/shell/serve.js",
+        "packages/store/src/shell/native-board-state.js",
+        "packages/store/src/core/native-state-clock.js",
+        "packages/pages/src/shell/relay-presentation.js",
+        "packages/store/src/shell/exchange.js",
+        "packages/store/src/shell/board-schema.js",
+        "packages/store/src/shell/board-schema-source.js",
+        "packages/state/src/shell/formats/board-schema.json",
+        "packages/state/src/shell/machine.js",
         "packages/moves/src/shell/move-registry.js",
         "apps/relay/src/shell/browser-model.js"
       ],
@@ -99,7 +96,7 @@
       "inputs": [
         "packages/moves/src/core/moves/**",
         "packages/moves/src/shell/moves/**",
-        "src/recorded-move.js",
+        "packages/state/src/core/recorded-move.js",
         "src/api-moves.js",
         "packages/moves/src/shell/move-registry.js",
         "src/discovery.js"
@@ -215,11 +212,10 @@
     },
     "view": {
       "owns": [
-        "src/cockpit.js",
-        "src/serve.js",
         "src/view.css",
         "src/view/",
         "apps/view/",
+        "bin/cells-plan/45-app-view.json",
         "test/cockpit.test.js",
         "test/cockpit/",
         "test/journeys.test.js"

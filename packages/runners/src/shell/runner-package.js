@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import {
   dirname,
@@ -61,8 +62,18 @@ function dependency(file, specifier, manifest) {
   return target;
 }
 
+/** The worker entry a 0.9.3 tree holds; accepted only while that file exists, one release back. */
+export const LEGACY_WORKER_ENTRY = 'src/runner-worker.js';
+/** The worker entry once it lives in its cell. */
+export const WORKER_ENTRY = 'apps/runner/runner-worker.js';
+
+/** The worker entry of this tree: the legacy path while it exists (0.9.3 layout), else the cell path. */
+export function workerEntry(root) {
+  return existsSync(join(root, LEGACY_WORKER_ENTRY)) ? LEGACY_WORKER_ENTRY : WORKER_ENTRY;
+}
+
 /** Reuse only successful exact-source analysis inside this reader; every read validates fresh paths and bytes. */
-export function runnerPackageReader(root, entry = 'src/runner-worker.js') {
+export function runnerPackageReader(root, entry = workerEntry(root)) {
   let analyses = new Map();
   return () => {
     const parser = createRunnerModuleParser();
@@ -78,7 +89,7 @@ export function runnerPackageReader(root, entry = 'src/runner-worker.js') {
  * Return all actual worker dependencies plus the real manifest, with stable path-bound bytes. The transfer bound applies to
  * the gzipped capsule that carries them (remoteWorkerLaunch), and the raw size is ratcheted by bin/checks/worker-bundle.json (#4140).
  */
-export function runnerPackage(root, entry = 'src/runner-worker.js') {
+export function runnerPackage(root, entry = workerEntry(root)) {
   return runnerPackageReader(root, entry)();
 }
 
@@ -132,7 +143,7 @@ function derivePackage(root, entry, previous, parse) {
 
 
 /** The uncompressed size of the worker bundle a launch installs, as JSON of every closure file (#4140). */
-export function workerBundleBytes(root, entry = 'src/runner-worker.js') {
+export function workerBundleBytes(root, entry = workerEntry(root)) {
   return Buffer.byteLength(JSON.stringify(runnerPackage(root, entry).files));
 }
 

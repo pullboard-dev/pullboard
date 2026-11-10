@@ -24,7 +24,8 @@ export { WITHDRAW_MILESTONE_ENGINE } from '../packages/state/core.js';
 export function discoverEngines(directory = new URL('../packages/state/src/core/engines/', import.meta.url)) {
   const leaves = readEngineLeaves(fileURLToPath(directory));
   const unlanded = nextEngineNumber(leaves);
-  return Object.fromEntries(leaves.map((leaf) => [leaf.file.slice(0, -'-engine.js'.length), leaf.number ?? unlanded]));
+  const entries = leaves.map((leaf) => [leaf.file.slice(0, -'-engine.js'.length), leaf.number ?? unlanded]);
+  return Object.fromEntries(entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 }
 
 export { REOPEN_FIRST_REFUSAL_ENGINE } from '../packages/state/core.js';

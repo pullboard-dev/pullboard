@@ -1,11 +1,11 @@
 import { RERUNNABLE_RUNNER_REFUSALS } from '../../../store/index.js';
-import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../gate/src/shell/gate-run-receipt.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/src/shell/gate-run-receipt.js';
-import { fileTimesPath } from '../../../gate/src/shell/test-value-timing.js';
-import { readFileTimes } from '../../../gate/src/shell/test-value-timing.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
+import { fileTimesPath } from '../../../gate/index.js';
+import { readFileTimes } from '../../../gate/index.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -41,14 +41,14 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../../src/git.js';
-import { testsNeedGui } from '../../../gate/src/shell/gui-admission.js';
+import { testsNeedGui } from '../../../gate/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
-import { localRunnerDescriptor } from '../../../runners/src/shell/runner-load.js';
-import { guiSession } from '../../../gate/src/shell/gui-session.js';
+import { localRunnerDescriptor } from '../../../runners/index.js';
+import { guiSession } from '../../../gate/index.js';
 import { headTree } from '../../../../src/git.js';
-import { cpuRunnerRequired } from '../../../gate/src/shell/cpu-load-admission.js';
-import { shardSelectionMatched } from '../../../gate/src/shell/test-selection.js';
+import { cpuRunnerRequired } from '../../../gate/index.js';
+import { shardSelectionMatched } from '../../../gate/index.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -63,7 +63,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../gate/src/shell/gate-run-receipt.js';
+} from '../../../gate/index.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -625,7 +625,16 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
       if (entry.claimed || entry.done) return;
       // A host quarantined in this landing gets no more shards; queue again for a local slot.
       if (lease.runner && quarantined.has(lease.runner.host)) {
-        if (runnerOnly) throw new Refused('RUNNER_SOURCE', `runner-only landing refuses quarantined runner ${lease.runner.host}; no local fallback`);
+        if (runnerOnly) {
+          // No local fallback and the pool offers only a quarantined runner: the shard ends as a typed infrastructure result, never a throw out of the run [C7].
+          write(`landing shard ${entry.label}: runner-only landing refuses quarantined runner ${lease.runner.host}; there is no local fallback\n`);
+          entry.done = true;
+          entry.status = 'infrastructure';
+          firstFailure ??= entry.label;
+          stopper.abort();
+          signalChange();
+          return;
+        }
         return 'divert';
       }
       entry.claimed = true;
