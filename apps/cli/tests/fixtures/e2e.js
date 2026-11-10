@@ -1,3 +1,4 @@
+import { execFileSync as diagExec } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { submitFixture } from './board/submit.js';
 import assert from 'node:assert/strict';
@@ -53,7 +54,14 @@ export function createE2eHelpers() {
    */
   const cleanup = () => {
     // Node increases the delay on each retry: 200 * (1 + ... + 17) = 30.6 seconds.
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 17, retryDelay: 200 });
+    for (const dir of sandboxes) {
+      try { rmSync(dir, { recursive: true, force: true, maxRetries: 17, retryDelay: 200 }); }
+      catch (error) {
+        try { process.stderr.write(`DIAG lsof ${dir}\n${diagExec('lsof', ['-n', '+D', dir], { encoding: 'utf8', timeout: 5000 })}\n`); }
+        catch (diag) { process.stderr.write(`DIAG lsof result ${diag.stdout || ''} ${diag.message}\n`); }
+        throw error;
+      }
+    }
   };
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../../src/io/cockpit.js'), 'utf8');
