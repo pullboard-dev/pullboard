@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { beginSeatTiming } from '../src/seat-timing.js';
-import { seatLedger, seatLines, worktreeActivity } from '../src/seat-ledger.js';
+import { beginSeatTiming } from '../packages/seats/core.js';
+import { seatLedger, seatLines, worktreeActivity } from '../packages/seats/index.js';
 import { beginImmediateQueued } from '../packages/store/src/shell/board-busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
@@ -73,8 +73,9 @@ test('board lock timing closes on success and refusal [C7,N2]', () => {
   const prior = globalThis[port]; let started = 0, ended = 0;
   globalThis[port] = () => { started++; return () => { ended++; }; };
   try {
-    beginImmediateQueued({ exec() {} }, Date.now());
-    assert.throws(() => beginImmediateQueued({ exec() { throw new Error('broken'); } }, Date.now()), /broken/u);
+    const pragma = { prepare: () => ({ get: () => ({ timeout: 5000 }) }) };
+    beginImmediateQueued({ ...pragma, exec() {} }, Date.now());
+    assert.throws(() => beginImmediateQueued({ ...pragma, exec(sql) { if (sql === 'BEGIN IMMEDIATE') throw new Error('broken'); } }, Date.now()), /broken/u);
     assert.equal(started, 2); assert.equal(ended, 2);
   } finally { if (prior) globalThis[port] = prior; else delete globalThis[port]; }
 });

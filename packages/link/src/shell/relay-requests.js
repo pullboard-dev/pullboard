@@ -1,7 +1,7 @@
 import { itemCheckBaseline } from '../../../store/index.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
 import { answerQuestion } from '../../../spec/index.js';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { recordedRefusal } from '../../../state/index.js';
 import { Refused } from '../../../kernel/core.js';
 

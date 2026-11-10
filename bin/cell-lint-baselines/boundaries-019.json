@@ -55,7 +55,6 @@
     "test/view-state-size.test.js->test/http-fixture.js": 1,
     "test/view.test.js->src/api.js": 1,
     "test/view.test.js->src/cli.js": 1,
-    "test/view.test.js->src/doctrine.js": 1,
     "test/view.test.js->src/projects.js": 1,
     "test/view.test.js->src/public-export-guard.js": 1,
     "test/view.test.js->src/spec.js": 1,

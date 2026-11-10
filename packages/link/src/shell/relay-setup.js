@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { computerName } from '../../../seats/index.js';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { phoneProposal } from './relay-phone.js';
 import { publishPhoneApproval } from './relay-phone.js';
 import { warnPhoneApproval } from './relay-phone.js';

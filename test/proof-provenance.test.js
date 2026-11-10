@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../packages/gate/index.js';
 import { proofCounts } from '../packages/verify/index.js';
 import { runShell } from '../packages/gate/index.js';
-import { captureTestRuntimes, testRuntimeEnvironment } from '../packages/sandbox/index.js';
+import { captureTestRuntimes } from '../packages/sandbox/index.js';
+import { testRuntimeEnvironment } from '../packages/verify/core.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
@@ -48,7 +49,8 @@ test('a real failed native check records its exit without invented runtime or co
   assert.deepEqual(receipt.counts, { passed: null, failed: null, skipped: null });
   const actual = JSON.parse(readFileSync(trace, 'utf8'));
   if (receipt.testRuntimes === null) {
-    assert.equal(receipt.environment, null, 'an unknown custom command never borrows its launcher runtime');
+    // bd580764e2 (#2662): a run with no captured test workers keeps the executor it observed.
+    assert.deepEqual(receipt.environment, actual.environment, 'an unknown custom command records the executor it ran on');
   } else {
     assert.deepEqual(receipt.testRuntimes, [{ ...actual, file: null }], 'a known runtime belongs to the actual failed child');
     assert.deepEqual(receipt.environment, actual.environment, 'the common runtime matches the actual child, not the controller');
@@ -361,7 +363,8 @@ test('child runtime fields preserve legacy bytes and replay mixed environments w
   assert.deepEqual(checked.proof.testRuntimes, rows);
   const unknown = receiptFields({ ...supplied, proof: { ...supplied.proof, testRuntimes: null } });
   assert.equal(unknown.proof.testRuntimes, null);
-  assert.equal(unknown.proof.environment, null, 'explicit unknown children do not become a known launcher');
+  // bd580764e2 (#2662): unknown children (testRuntimes null) leave the observed executor environment in place.
+  assert.deepEqual(unknown.proof.environment, environment, 'explicit unknown children keep the observed executor, not a derived common runtime');
   for (const invalid of [undefined, [], {}, [{}], [{ ...rows[0], pid: 0 }],
     [{ ...rows[0], environment: { ...environment, node: 'not-a-version' } }],
     [{ ...rows[0], file: '../escape.test.js' }], [rows[0], rows[0]]]) {

@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
 import { createHash } from 'node:crypto';
-import { AGENT_SESSION_IDS } from "../../../kernel/src/core/discovery.js";
+import { AGENT_SESSION_IDS } from "../../../kernel/index.js";
 import { PARENT_SESSION_ENGINE } from "../../../state/core.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../state/core.js";
 import { derivedFamily } from "./family-declaration.js";

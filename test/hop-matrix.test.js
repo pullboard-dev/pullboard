@@ -50,9 +50,9 @@ test('the architecture page lists every hop with its harness, and NONE exactly w
 
 test('the runner reads harness rows into PASS, FAIL and NONE, fails a leak, and marks a row current only when live agrees [C7]', () => {
   const runs = new Map([
-    ['e2e', { code: 1, tail: 'error: \'board commands answer in 200 ms\'', rows: [
-      { hop: 'claim', status: 'PASS', ms: 900, measured: 'claimed', cause: '' },
-      { hop: 'command-latency', status: 'FAIL', ms: 520, measured: 'p50 520 ms', cause: 'board commands answer in 200 ms' },
+    ['e2e', { code: 0, tail: '', rows: [{ hop: 'claim', status: 'PASS', ms: 900, measured: 'claimed', cause: '' }] }],
+    ['board-commands', { code: 1, tail: 'error: \'next wall 520 over 200\'', rows: [
+      { hop: 'command-latency', status: 'FAIL', ms: 520, measured: 'next 1674 modules 520 ms', cause: 'next wall 520 over 200' },
     ] }],
     ['dead-worker-requeue', { code: 0, tail: '', rows: [{ hop: 'dead-requeue', status: 'PASS', ms: 1600, measured: 'requeued', cause: '' }] }],
     ['proof-lanes', { code: 1, tail: 'no process this harness started outlives it by 30000 ms', rows: [{ hop: 'proof-lanes', status: 'PASS', ms: 10, measured: 'at most 3', cause: '' }] }],

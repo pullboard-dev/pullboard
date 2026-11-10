@@ -10,7 +10,7 @@ import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireNoLockOnlyRed } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
 import { headTree } from '../../../git/index.js';
@@ -147,7 +147,8 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
 /**
  * Main moved while the batch gated. When every commit main gained touches no file the batch changes, the batch is
  * rebuilt on the new tip and gated again on its own plan, focused on the tests those commits reach; a move that
- * touches the batch's files, or a rebuilt batch that is red, is refused as before. Why: a 7-item batch that went green
+ * touches the batch's files, or a rebuilt batch of several items that is red, is refused as before. A rebuilt
+ * one-item batch that is red returns its item and resolves null. Why: a 7-item batch that went green
  * after a 51-minute bisection was refused LAND_TRUNK_MOVED for two commits outside its files, and the rebuild re-gated
  * and re-bisected everything [C7].
  */
@@ -175,6 +176,13 @@ async function followMovedTrunk(state, gate) {
     }
     const focus = reruns ? { focus: reruns } : !affected.full && affected.files.length ? { focus: affected.files } : {};
     gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
+    if (!accepted(state, gate) && oneItemBatch(state)) {
+      // One item's red on the rebuilt tree is that item's, as on its first gate: it returns alone to its builder and
+      // the trunk is not held. Why: #3768 went red three times at "gate trunk-moved-N" and held every landing (9 Nov) [C7].
+      await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
+      await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+      return null;
+    }
     if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
@@ -298,6 +306,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   gate = await landingSpan('follow trunk', () => followMovedTrunk(state, gate));
+  if (!gate) return; // The rebuilt tree was red and its one item went back to its builder.
   const proof = landingProof(gate, () => gate.knownMainProof ?? waivedProof(state, gate));
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   state.say('trunk: gate proved; binding the flake ratchet');

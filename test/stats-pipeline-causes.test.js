@@ -4,7 +4,7 @@ import { test, after } from 'node:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { PIPELINE_CAUSE_ENGINE } from '../packages/state/core.js';
 import { pipelineCause, PIPELINE_CAUSES } from '../packages/kernel/index.js';
 import { pipelineStats } from '../packages/stats/index.js';

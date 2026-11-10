@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
@@ -152,8 +152,8 @@ test('a read-only legacy board retains recent red counts and exact expiry withou
 /** Simulate only a private reader's parser context after imports; the child still runs the real current Node. */
 function simulatedReaderContext(box, identity) {
   const script = `
-import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-import { openBoard } from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
+import { openBoard } from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import { ruleProofCounts } from ${JSON.stringify(new URL('../packages/verify/src/shell/rule-proof-counts.js', import.meta.url).href)};
 import { loadSpec } from ${JSON.stringify(new URL('../packages/spec/src/shell/spec.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.root)};

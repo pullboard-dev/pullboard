@@ -5,7 +5,8 @@ export { sampleRunnerLoad, localRunnerDescriptor } from "./src/shell/runner-load
 export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk } from "./src/shell/runner-policy.js";
 export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/shell/runner-overhead.js";
 export { runnerPublicKeyProblem, runnerSigningKeyPath, readRunnerSigningKey, runnerReceiptPayload, signRunnerReceipt, verifyRunnerReceipt } from "./src/core/runner-signature.js";
-export { probeRunnerTransport, claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker, recordRunnerCompletion, runnerJobReply, runnerHealthReply, recordRunnerOwner, runnerWorkerMatcher, runnerProcessesIdle, runnerIdleReply } from "./src/shell/runner-transport.js";
+export { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker, recordRunnerCompletion, runnerJobReply, runnerHealthReply, recordRunnerOwner, runnerWorkerMatcher, runnerProcessesIdle, runnerIdleReply } from "./src/shell/runner-transport.js";
+export { probeRunnerTransport } from "./src/shell/runner-probe.js";
 export { SOURCE_CACHE_CANDIDATES, pinSourceCacheJob, pruneSourceCache, restoreSourceTree, rememberSourceTree, checkSourceTagNames } from "./src/shell/runner-source-cache.js";
 export { runnerDeadlineRuns } from "./src/shell/runner-wait.js";
 export { readRunnerCapacities } from "./src/shell/runner-capacity-read.js";
@@ -21,7 +22,7 @@ export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunn
 export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
-export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";
+export { runnerPackageReader, runnerPackage, workerBundleBytes } from "./src/shell/runner-package.js";
 export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-tooling-snapshot.js";
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
 export { packText, commitWork, runItems } from "./src/shell/run.js";
@@ -33,3 +34,5 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 
 export { committedRunnerController, archivedToolingSource } from './src/shell/committed-tooling.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/shell/dirty-tooling.js';
+export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/shell/handoff-capacity.js';
+export { staleDispatcherTools, dispatcherPass, handOver } from './src/shell/handoff-dispatcher-handover.js';

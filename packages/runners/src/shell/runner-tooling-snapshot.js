@@ -1,5 +1,6 @@
 import { controllerPolicyFingerprints } from './runner-package.js';
 /** Pin derived tooling bytes without a hand-maintained dependency list [C7,P3]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { createRunnerModuleParser } from './runner-module-parser.js';
 import { parseWithPaths } from './runner-module-parser.js';
 
 const readers = new WeakMap();
+let lastCaptureReaders = null;
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
 const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/shell/runners.js',
   'packages/runners/src/shell/runner-source-scan.js', 'packages/runners/src/shell/runner-history-pack.js',
@@ -52,6 +54,11 @@ function controllerProviderReader(root, source) {
   return digest;
 }
 
+/** The controller facade file this tree pins: src/runners.js in a 0.9.3 layout while it exists, else the cell door. */
+export function controllerFile(root) {
+  return existsSync(join(root, 'src/runners.js')) ? 'src/runners.js' : 'packages/runners/index.js';
+}
+
 // Linux stamps files from a tick-granular clock that can lag Date.now() by up to 10 ms.
 const COARSE_CLOCK_MS = 10;
 
@@ -71,13 +78,21 @@ function changedSince(root, files, since) {
  * Why: callers capture at first dispatch, so since (the controller's load instant) keeps the load-time pin.
  */
 export function captureRunnerTooling(root, { since } = {}) {
-  const read = runnerPackageReader(root);
+  const absoluteRoot = resolve(root);
   const controllerEntry = readFileSync(join(root, 'bin/runner-controller.js'), 'utf8');
-  const providers = controllerProviderReader(root, controllerEntry);
-  const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
+  if (lastCaptureReaders?.root !== absoluteRoot || lastCaptureReaders.entry !== controllerEntry) {
+    lastCaptureReaders = {
+      root: absoluteRoot,
+      entry: controllerEntry,
+      read: runnerPackageReader(absoluteRoot),
+      providers: controllerProviderReader(absoluteRoot, controllerEntry),
+    };
+  }
+  const { read, providers } = lastCaptureReaders;
+  const loaded = { ...read(), controller: readFileSync(join(root, controllerFile(root)), 'utf8'),
     controllerEntry, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
-  if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), 'src/runners.js',
+  if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), controllerFile(root),
     'bin/runner-controller.js', ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
   return loaded;
@@ -98,7 +113,7 @@ export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
   if (!loaded) return refuse();
   const reader = readers.get(loaded);
   try {
-    if (readFileSync(join(root, 'src/runners.js'), 'utf8') !== loaded.controller
+    if (readFileSync(join(root, controllerFile(root)), 'utf8') !== loaded.controller
       || readFileSync(join(root, 'bin/runner-controller.js'), 'utf8') !== loaded.controllerEntry
       || JSON.stringify(controllerSteps(root)) !== JSON.stringify(loaded.controllerSteps)
       || !sameControllerPolicy(root, loaded.controllerPolicy)

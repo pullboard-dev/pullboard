@@ -1,5 +1,5 @@
-import { openBoard } from '../apps/lib/index.js';
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+import { openBoard } from '../apps/lib/src/core/native-board.js';
+/** @pullboard-test-loads packages/store/src/shell/board.js packages/state/src/shell/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
   CLI,

@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/engine.js src/machine.js */
+/** @pullboard-test-loads packages/state/src/shell/engine.js packages/state/src/shell/machine.js */
 /** Merged receipts only record item work on the primary trunk, unless noted [R3,R1]. */
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -24,13 +24,14 @@ import {
   test,
 } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../../../src/board.js';
+import * as store from '../../store/index.js';
 import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
 } from '../src/shell/engine.js';
 import { exportBoard } from '../../store/index.js';
+import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 const TEMP_DIRS = [];
@@ -79,11 +80,11 @@ async function fixture(t) {
   const base = git('rev-parse', 'HEAD');
   const builder = join(dir, 'builder');
   git('worktree', 'add', '-q', builder, '-b', 'web/builder');
-  const joined = await command({ repo, env }, ['join', 'web'], builder);
-  assert.equal(joined.code, 0, `${joined.stdout}${joined.stderr}`);
+  const joined = joinFixtureSeat({}, builder, 'web', { run: (root, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 30_000 }) });
+  assert.equal(joined.code, 0, `${joined.out}${joined.err}`);
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const agentId = store.listAgents(board).find((agent) => agent.agent_lane === 'web').agent_id;
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Tracked work', criterion: 'The item change is retained.', specIds: ['G1'] });
   const frozen = JSON.stringify({ criterion: 'The item change is retained.' });

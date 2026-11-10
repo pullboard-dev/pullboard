@@ -11,7 +11,6 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { outboxFile, outboxQueueable } from '../packages/outbox/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { legacyRelayClientFixture, relayClientFixture } from './relay-client-fixture.js';
-import { runFixtureGit } from './fixture-child.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -20,10 +19,8 @@ function commitDefaultOutbox(box) {
   const configFile = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   assert.equal(Object.hasOwn(config.relay ?? {}, 'outbox'), false, 'the private board uses the absent-setting default');
-  // The real policy reader reads committed configuration; init alone leaves this file uncommitted.
+  // The real policy reader reads committed configuration; the fixture already committed this file.
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
-  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): retain default outbox policy'], { cwd: box.root, env: box.env });
   assert.equal(relayOutboxSetting(box.root), true, 'the committed absent setting really enables fallback');
 }
 

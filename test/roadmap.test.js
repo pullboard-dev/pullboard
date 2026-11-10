@@ -8,8 +8,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
@@ -69,7 +69,7 @@ function withdrawFixture(t) {
   git('commit', '-q', '-m', 'chore: initialize fixture');
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   /** Supply the stable criterion snapshot used by these synthetic board transitions. */
   const freeze = () => ({ text: 'Tracked work', digest: 'digest:tracked' });
@@ -114,7 +114,7 @@ function fixture(t) {
   const clock = { now: () => new Date(instant) };
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
-  store.ensureCoordinator(board, repo);
+  store.board_ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
   /** Advance the board clock without editing its stored records. */
   const at = value => { instant = value; };
@@ -161,7 +161,7 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   const foreignBoard = openBoard(join(foreignRepo, '.git', 'pullboard', 'board.sqlite'));
   let foreignItem;
   try {
-    store.ensureCoordinator(foreignBoard, foreignRepo);
+    store.board_ensureCoordinator(foreignBoard, foreignRepo);
     for (let index = 1; index < dropped; index++) {
       store.addItem(foreignBoard, { by: 'coordinator', lane: 'web', title: `Foreign filler ${index}` });
     }
@@ -187,6 +187,10 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   run('milestone', 'add', 'Later', '--reason', 'Arrange fixture release', '--items', [second, dropped].join(','));
   run('milestone', 'add', 'Aliases', '--reason', 'Arrange fixture release', '--items', [namedAlias, basenameAlias, foreignAlias, ambiguousAlias].join(','));
   run('milestone', 'add', 'Elsewhere', '--reason', 'Arrange fixture release', '--items', String(unrelated));
+  // The board keeps a placed item in one milestone, so a later add moved it out of Now. Withdraw must still clear every
+  // milestone that lists it, as boards from before placement do, so restore that membership as those boards stored it.
+  const arranged = store.milestones(board).map(entry => entry.name === 'Now' ? { ...entry, items: [landed, dropped, first, accepted, second] } : entry);
+  board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('milestones', JSON.stringify(arranged));
 
   // Probe both sealed writers without consuming fixture IDs or changing board state.
   const withdrawMove = prepareEngineMove(board, 'withdraw', [dropped, { agentId: 'coordinator', reason: 'writer version' }], { id: 'withdraw-writer', actor: 'coordinator' });
@@ -205,11 +209,17 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   assert.deepEqual(removals.map(({ name, remove }) => [name, remove]), [['Now', [dropped]], ['Later', [dropped]], ['Aliases', [namedAlias, basenameAlias]]], 'each milestone records exactly its local references in stored order');
   const quiet = json('withdraw', String(unrelated), 'folded into another item');
   assert.deepEqual(quiet.milestones, ['Elsewhere'], 'the JSON result names the milestones too');
-  assert.equal(json('withdraw', String(item('Never planned', 'open')), 'not needed').milestones.length, 0, 'an item no milestone lists leaves none');
+  // A new item is placed in a milestone by rule, so take it out of that placement before withdrawing it.
+  const never = item('Never planned', 'open');
+  for (const entry of store.milestones(board)) if (entry.items.includes(never)) run('milestone', 'items', entry.name, '--remove', String(never));
+  assert.equal(json('withdraw', String(never), 'not needed').milestones.length, 0, 'an item no milestone lists leaves none');
 
   // A board from before this change still names a withdrawn item: the roadmap neither shows nor counts it.
   const stale = item('Stale withdrawn page', 'open');
   run('milestone', 'add', 'Old', '--reason', 'Arrange fixture release', '--items', [stale, landed].join(','));
+  // That add moved the landed item out of Now (one placement per item); put it back as a pre-placement board kept it.
+  const kept = store.milestones(board).map(entry => entry.name === 'Now' ? { ...entry, items: [landed, ...entry.items.filter(id => id !== landed)] } : entry);
+  board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('milestones', JSON.stringify(kept));
   store.withdraw(board, stale, { agentId: 'coordinator', reason: 'withdrawn before withdraw left milestones' });
   assert.deepEqual(store.milestones(board).find((entry) => entry.name === 'Old').items, [stale, landed], 'the old board still names it');
 

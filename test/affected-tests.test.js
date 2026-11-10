@@ -4,7 +4,7 @@ import { mappedWorkingSource } from '../bin/checks/scan.js';
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -164,15 +164,15 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
   box.put('src/cli.js', "import './serve.js';\n");
-  box.put('src/serve.js', "import './cockpit.js';\n");
-  box.put('src/cockpit.js', 'export const version = 1;\n');
+  box.put('src/serve.js', "import '../apps/cli/src/shell/cockpit.js';\n");
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
   box.put('test/cockpit/fixture.js', "const BIN = '../../bin/pullboard.js';\n");
   box.put('test/cockpit/items.test.js', "import './fixture.js';\n");
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\n");
   const base = box.commit();
 
-  box.put('src/cockpit.js', 'export const version = 2;\n');
+  box.put('apps/cli/src/shell/cockpit.js', 'export const version = 2;\n');
   const commit = box.commit();
   const changedCockpit = selectAffectedTests(box.root, { base, commit });
   assert.equal(changedCockpit.full, false, 'the imported CLI dependency keeps focused selection');
@@ -194,7 +194,7 @@ test('a test that spawns the CLI is selected by what the CLI imports [C7]', (t) 
 test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
   const box = graph(t);
   copyPackageSubset(fileURLToPath(new URL('../', import.meta.url)), box.root,
-    [{ path: 'src/browser-slot-guard.js' },
+    [{ path: 'packages/gate/src/shell/browser-slot-guard.js' },
       { path: 'packages/kernel/src/core/refused.js', as: 'src/refused.js' }]);
   const guardBody = 'packages/gate/src/shell/browser-slot-guard.js';
   box.put('test/browser-guard.test.js', `import '../${guardBody}';\n`);
@@ -340,14 +340,14 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport './machine.js';\n");
+  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport '../packages/state/src/shell/machine.js';\n");
   box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
-  box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
+  box.put('packages/state/src/shell/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('packages/state/src/core/engines/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
   box.put('test/direct-cli.test.js', "const BIN = '../bin/pullboard.js';\n");
-  box.put('test/machine-reader.test.js', "import '../src/machine.js';\n");
+  box.put('test/machine-reader.test.js', "import '../packages/state/src/shell/machine.js';\n");
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
@@ -368,9 +368,9 @@ test('a discovered command module or engine leaf selects what reads its registry
 
 test('runtime discovery and the selector agree on which files are engines and commands [C7,V4]', (t) => {
   const box = graph(t);
-  box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
+  box.put('packages/state/src/shell/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('test/reader.test.js', "import '../src/machine.js';\n");
+  box.put('test/reader.test.js', "import '../packages/state/src/shell/machine.js';\n");
   box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
@@ -475,35 +475,36 @@ test('the repository test-tree guards list only source scanners and launch no br
   const root = join(import.meta.dirname, '..');
   const expected = [
     'test/board-file-guard.test.js',
-    'test/cell-lint-guard.test.js',
-    'test/gui-marker-guard.test.js',
-    'test/privacy-scan-guard.test.js',
-    'test/shared-wait-guard.test.js',
+    'packages/gate/tests/cell-lint-guard.test.js',
+    'packages/gate/tests/gui-marker-guard.test.js',
+    'packages/sandbox/tests/privacy-scan-guard.test.js',
+    'packages/gate/tests/shared-wait-guard.test.js',
     'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
-    'test/wall-clock-budgets.test.js',
+    'packages/gate/tests/wall-clock-budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards), [], 'no guard file declares a browser');
-  const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
-    './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
+  const forbiddenImports = new Set(['packages/store/src/shell/board.js', 'apps/view/index.js', 'src/gate.js', 'test/board-fixture.js',
+    'test/e2e-helpers.js', 'test/cockpit/fixture.js', 'test/chrome-fixture.js']);
   const scanFiles = [
     'packages/gate/tests/gui-marker-guard.test.js',
     'test/board-file-guard.test.js',
-    'test/cell-lint-guard.test.js',
-    'test/privacy-scan-guard.test.js',
-    'test/shared-wait-guard.test.js',
+    'packages/gate/tests/cell-lint-guard.test.js',
+    'packages/sandbox/tests/privacy-scan-guard.test.js',
+    'packages/gate/tests/shared-wait-guard.test.js',
+    'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
-    'test/wall-clock-budgets.test.js',
+    'packages/gate/tests/wall-clock-budgets.test.js',
   ];
-  assert.equal(guards.length, 7, 'all selected guards are scanned');
+  assert.equal(guards.length, 8, 'all selected guards are scanned');
   for (const guardScanFile of scanFiles) {
     assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
     const source = readFileSync(join(root, guardScanFile), 'utf8');
     const imports = importsIn([source])[0];
-    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${guardScanFile} imports no board, server or browser fixture`);
+    assert.deepEqual(imports.filter(path => forbiddenImports.has(relative(root, resolve(root, dirname(guardScanFile), path)))), [], `${guardScanFile} imports no board, server or browser fixture`);
     const code = lex(source).code;
     assert.doesNotMatch(code, /\b(?:openBoard|startView|serveView|createServer|launchChromeProcess|startChrome|runFixtureChild|runProfiledShell|withGateSlot)\s*\(/u,
       `${guardScanFile} only scans source text`);

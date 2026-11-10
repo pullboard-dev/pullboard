@@ -1,7 +1,7 @@
 /** Native orphan disposal can settle only the exact original lease, once [C7,P3]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Public recovery evidence identifies a lease without publishing its private bearer token. */
 export function leaseTokenDigest(token) { return createHash('sha256').update(token).digest('hex'); }

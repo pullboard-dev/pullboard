@@ -3,13 +3,13 @@ import { spawn } from 'node:child_process';
 import {
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   invalidateGitFacts,
   mainCheckout,
   repoInfo,
 } from '../../../../src/git.js';
-import { assertLandingLease } from '../../../../src/board-landing-lease.js';
+import { assertLandingLease } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 

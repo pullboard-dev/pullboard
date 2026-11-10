@@ -8,7 +8,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -498,7 +498,7 @@ test('committed resume files use one framed Git child and retain pinned Unicode 
   box.git(box.repo, 'commit', '-q', '-m', 'test: commit framed doctrine sources');
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   writeFileSync(join(box.repo, file), 'uncommitted replacement');
-  const moduleUrl = pathToFileURL(resolve(import.meta.dirname, '../src/committed-file-reader.js')).href;
+  const moduleUrl = pathToFileURL(resolve(import.meta.dirname, '../packages/git/index.js')).href;
   const result = readFactScenario(box, box.worker, `
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';

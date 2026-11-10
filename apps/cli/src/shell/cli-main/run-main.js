@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { commandOutput } from '../../../../../packages/config/core.js';
+import { commandOutput } from '../../../../../packages/config/pure.js';
 import { Refused } from '../../../../../packages/kernel/core.js';
 import { CHECKOUT_LEASES } from './session.js';
 import { CHECKOUT_BOARD_ONLY } from './session.js';
@@ -111,7 +111,7 @@ async function timedMain(argv, streams) {
 /** Record local command wall time without sending timing data to the board. */
 export async function main(rawArgv, streams) {
   const { argv, why } = extractWhy(rawArgv);
-  const { beginSeatTiming, timingSeat } = await import('../../../../../src/seat-timing.js');
+  const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/core.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);

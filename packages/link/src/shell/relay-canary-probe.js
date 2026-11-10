@@ -1,6 +1,6 @@
 /** A bounded ordinary sealed-move round trip on a person-linked canary board [H2,H15,C7]. */
 import { randomUUID } from 'node:crypto';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import { engineReceipt } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
@@ -12,7 +12,7 @@ import { relayMachineContext } from './relay.js';
 import { relayOperation } from './relay.js';
 import { request } from './relay.js';
 import { readBoardKey } from '../../../keys/index.js';
-import { unseal } from '../../../kernel/src/core/seal.js';
+import { unseal } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 /** Keep the recorded result bounded and credential-free, even for unexpected errors. */

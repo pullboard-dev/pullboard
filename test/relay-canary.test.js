@@ -24,16 +24,17 @@ function canaryApi() {
   return { probeRelayCanary, observeRelayHealth, readRelayHealth };
 }
 
-/** Commit the fixture's initialized project so real sibling worktrees receive its coordinator configuration. */
+/** Install the isolated Pullboard entry point; commit configuration only when the case changes it (the fixture already committed the rest). */
 function commitConfiguration(box, { outbox = false } = {}) {
-  const file = join(box.root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...config, ...(outbox ? { relay: { ...config.relay, outbox: true } } : {}) }, null, 2) + '\n');
   const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
   const privateBin = box.env.PATH.split(delimiter)[0];
   const pullboard = join(privateBin, 'pullboard');
   assert.equal(existsSync(pullboard), false, 'the fixture has no preexisting private Pullboard wrapper to overwrite');
   writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
+  if (!outbox) return;
+  const file = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...config, relay: { ...config.relay, outbox: true } }, null, 2) + '\n');
   runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
   runFixtureGit(['commit', '-q', '-m', 'chore(config): prepare the canary project'], { cwd: box.root, env: box.env });
 }

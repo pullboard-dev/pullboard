@@ -30,3 +30,8 @@ export { predictItemFunctions, compareItemFunctions } from './src/core/item-func
 export { createFixtureMemo } from './src/shell/cells-fixture-memo.js';
 export { acceptedInventoryKey, acceptedInventoryRuntimeIdentity, readAcceptedInventory, validateAcceptedInventory, warmAcceptedInventory } from './src/shell/accepted-inventory-cache.js';
 export { cellExistsSync, cellLstatSync, cellReadFileSync, cellReaddirSync, cellSourceSnapshot, withCellSourceSnapshots } from './src/shell/cell-source-snapshot.js';
+export { moveDeclarationFiles, runnerWorkerFiles } from './src/shell/cells-move-closure.js';
+export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/shell/module-imports.js';
+export { importParseScopes } from './src/shell/module-import-cache-state.js';
+export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/core/layout.js';
+export { layoutCheck, layoutReport, layoutWrite } from './src/shell/layout-check.js';

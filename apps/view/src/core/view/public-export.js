@@ -1,5 +1,5 @@
 /** Fail closed on public snapshot prose; coordinator rulings 064965a1, 919d562b, f15ecdcb, 5b1543f9, 8540102d, a9b48855 and 785d4f8d [N26]. */
-import { Refused } from "../../../../../packages/kernel/index.js";
+import { Refused } from "../../../../../packages/kernel/core.js";
 
 /** The complete public export block list; internal messages are omitted before prose is checked. */
 export const PUBLIC_EXPORT_BLOCKS = Object.freeze({
@@ -40,9 +40,9 @@ function internalShout(value) {
 const EVENT_PATH = /^(?:events\/events\/\*|state\/state\/(?:events\/\*|items\/\*\/(?:thread|history)\/\*))$/u;
 /** Exact native event fields and their hexadecimal widths; other detail fields remain prose. */
 const EVENT_IDENTITIES = Object.freeze({
-  claim: { digest: 64 }, renew: { digest: 64 },
-  submit: { commit: 40, tree: 40, policyCommit: 40, criterionDigest: 64 },
-  accept: { commit: 40, companionDigest: 64 }, reject: { commit: 40, companionDigest: 64 },
+  claim: { digest: 64, policyRefreshed: 64 }, renew: { digest: 64 },
+  submit: { commit: 40, tree: 40, policyCommit: 40, criterionDigest: 64, tooling: 40 },
+  accept: { commit: 40, companionDigest: 64 }, reject: { commit: 40, companionDigest: 64, barKey: 64 },
   merged: { commit: 40 }, reopen: { commit: 40 }, refreeze: { before: 64, after: 64 },
   edit: { correctedFrozen: 64, unfrozen: 64 },
 });
@@ -62,6 +62,18 @@ function diagnosticPath(path) {
 function proofReceiptPath(path, eventKind) {
   return eventKind === 'proof-run' && path.at(-1) === 'receipt'
     && ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
+}
+
+/**
+ * Proof receipt fields that are private execution linkage, never public board content: the session and runner, and a
+ * submit reuse's trunk, plan digest and command digest (proof-receipts.js). Only the receipt envelope drops them.
+ */
+const PRIVATE_RECEIPT_FIELDS = Object.freeze(['parentSession', 'runner', 'main', 'submitReusePlan', 'command']);
+
+/** A landing lease's token is its holder's credential; omit it only from an actual native landing_lease detail. */
+function privateLeaseToken(path, key, eventKind) {
+  return key === 'token' && eventKind === 'landing_lease' && ['detail', 'event_detail'].includes(path.at(-1))
+    && EVENT_PATH.test(path.slice(0, -1).join('/'));
 }
 
 /** Omit validated private admission linkage only in its actual native event envelopes. */
@@ -103,7 +115,11 @@ function structuredIdentity(path, value, eventKind) {
   const batchId = eventKind === 'main-moved' && detailField && path.at(-1) === 'batch'
     || eventKind === 'landing_batch' && path.slice(-2).join('/') === 'batch/id'
       && ['detail', 'event_detail'].includes(path.at(-3)) && EVENT_PATH.test(path.slice(0, -3).join('/'));
-  if (factId || batchId) return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u.test(value);
+  // A fact's ref to its proof-run receipt names the receipt id, the same public identity the receipt carries.
+  const factRef = eventKind === 'fact' && path.slice(-2).join('/') === 'ref/id'
+    && (['detail', 'event_detail'].includes(path.at(-3)) && EVENT_PATH.test(path.slice(0, -3).join('/'))
+      || /^state\/state\/items\/\*\/thread\/\*$/u.test(path.slice(0, -2).join('/')));
+  if (factId || batchId || factRef) return /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u.test(value);
   if (detailField && eventKind === 'main-moved' && path.at(-1) === 'sha') return /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value);
   const batch = nativeBatchPath(path, eventKind)?.join('/');
   if (batch !== undefined && /^(?:base|tip|supersededByMain|(?:items|candidates|culprits)\/\*\/(?:commit|reviewedCommit|merge|mergeCommit)|conflicts\/\*\/(?:trunk|commit|reviewedCommit)|gateResults\/\*\/tree|proof\/tree|invariantEvidence\/gates\/\*\/commit|invariantEvidence\/gates\/\*\/submissions\/\*\/commit|invariantEvidence\/diagnostics\/\*\/commit)$/u.test(batch)) {
@@ -162,8 +178,8 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const kind = EVENT_PATH.test(location) ? value.type === 'fact' ? 'fact' : value.event_kind ?? value.kind : eventKind;
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
-        : Object.entries(value).filter(([key]) => (!proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key))
-          && !privateBatchField(path, key, kind) && !privateAdmissionField(path, key, value[key], kind));
+        : Object.entries(value).filter(([key]) => (!proofReceiptPath(path, kind) || !PRIVATE_RECEIPT_FIELDS.includes(key))
+          && !privateBatchField(path, key, kind) && !privateAdmissionField(path, key, value[key], kind) && !privateLeaseToken(path, key, kind));
       return Object.fromEntries(entries.map(([key, entry]) => {
         inspect(key, [...path, key], kind, false);
         return [key, key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind)];

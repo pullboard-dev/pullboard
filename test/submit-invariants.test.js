@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import {
   appliedSequence,
   applyEngineMove,
@@ -110,7 +110,7 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   json(box, box.web, 'claim', String(id));
   assert.equal(e2e.commitFile(box, box.web, 'web/page.js', 'export const page = 2;\n',
     'feat(web): update page [G1]').status, 0);
-  json(box, box.web, 'submit', String(id));
+  json(box, box.web, 'submit', String(id), '--wait', '--no-next');
   const event = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const submit = { id, ...JSON.parse(event.event_detail) };
   assert.ok(submit.submissionProof, 'the actual submit event retains the selected files instead of relying on its human note');
@@ -230,12 +230,13 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
   json(box, fallbackTree, 'join', 'web');
   json(box, fallbackTree, 'claim', String(fallbackItem));
   assert.equal(e2e.commitFile(box, fallbackTree, 'web/style.css', 'body { color: red; }\n', 'feat(web): change non-module input [G1]').status, 0);
-  json(box, fallbackTree, 'submit', String(fallbackItem));
+  json(box, fallbackTree, 'submit', String(fallbackItem), '--wait', '--no-next');
   const fallback = onBoard(box, board => store.events(board, { itemId: fallbackItem }).findLast(row => row.event_kind === 'submit'));
   const fallbackProof = JSON.parse(fallback.event_detail).submissionProof;
   assert.equal(fallbackProof.full, true);
   assert.equal(fallbackProof.deferred, true);
-  assert.deepEqual(fallbackProof.files, [], 'a deferred full fallback did not run its possible selection');
+  // The gate runs the test files an item's bar names even when the full fallback is deferred (fc2b4817cc, 2a75f1ea71).
+  assert.deepEqual(fallbackProof.files, ['web/page.test.js'], 'a deferred full fallback runs only the file its bar names, not its possible selection');
   assert.match(fallbackProof.reason, /style\.css/u, 'the actual full-fallback reason remains durable');
 
   delete config.submitGate;

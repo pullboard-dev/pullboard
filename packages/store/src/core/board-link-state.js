@@ -1,7 +1,7 @@
 /** Read the exact native E32 receiving projection without loading the network sender [E32,B24,H16]. */
 import { Refused } from "../../../kernel/core.js";
-import { boardLinkName } from "../../../kernel/src/core/registry-guards.js";
-import { boardReferenceId } from "../../../kernel/src/core/registry-guards.js";
+import { boardLinkName } from "../../../kernel/index.js";
+import { boardReferenceId } from "../../../kernel/index.js";
 
 /** Read detached canonical state installed by authenticated receiveBoardState, never a caller snapshot. */
 export function readReceivedBoardState(board, { linkId, generation, sourceBoardId }) {

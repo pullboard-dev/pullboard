@@ -275,36 +275,36 @@ function withProject(root, read, providedBoard = null, boardOpeners) {
 }
 
 /**
- * How new each row of a spec or doctrine file is, by the commit that added it, and the commit those ages were read at
+ * How new each row of the spec and doctrine files is, by the commit that added it, and the one commit both were read at
  * (see computeRowAges). A row on disk but not yet committed is missing here, and the state counts it 0, newer than any.
- * Walking a file's history is the slowest read behind a state, so each file's ages are kept until HEAD moves. With
- * `later`, as the view server asks, a read never walks: it answers the ages it has (none at first, at null) and a
- * worker thread refreshes them for HEAD, so the next read has them. Why: HEAD moves on every landing, and a walk of
- * SPEC.md on a long-lived repo costs seconds that the board's first paint cannot wait for.
+ * Walking a file's history is the slowest read behind a state, so the pair is kept until HEAD moves. With `later`, as
+ * the view server asks, a read never walks: it answers the pair it has (none at first, at null) and worker threads
+ * refresh both files for HEAD, kept only once both finish, so the next read has them. Why a pair: the page orders spec
+ * and doctrine rows together, so both lists name one capture even when HEAD moves while a worker reads; and HEAD moves
+ * on every landing, where a walk of SPEC.md on a long-lived repo costs seconds that the board's first paint cannot wait for.
  *
  * @param {string} root
- * @param {string} file
+ * @param {{ spec: string, doctrine: string }} files
  * @param {string | null} head The one commit captured for this project's state.
- * @param {'spec' | 'doctrine'} kind
  * @param {{ later?: boolean }} [options]
- * @returns {{ ages: Map<string, number>, at: string | null }}
+ * @returns {{ spec: Map<string, number>, doctrine: Map<string, number>, at: string | null }}
  */
-function rowAges(root, file, head, kind, { later = false } = {}) {
-  const key = root + '\0' + kind + '\0' + file, kept = agesKept.get(key);
+function rowAges(root, files, head, { later = false } = {}) {
+  const key = root + '\0' + files.spec + '\0' + files.doctrine, kept = agesKept.get(key);
   if (kept && kept.at === head) return kept;
   if (!later || !head) {
-    const fresh = { ages: computeRowAges(root, file, head, kind), at: head };
+    const fresh = { spec: computeRowAges(root, files.spec, head, 'spec'), doctrine: computeRowAges(root, files.doctrine, head, 'doctrine'), at: head };
     agesKept.set(key, fresh);
     return fresh;
   }
   if (!agesRefreshing.has(key)) {
     agesRefreshing.add(key);
-    rowAgesInWorker(root, file, head, kind).then(ages => {
+    Promise.all([rowAgesInWorker(root, files.spec, head, 'spec'), rowAgesInWorker(root, files.doctrine, head, 'doctrine')]).then(([spec, doctrine]) => {
       agesRefreshing.delete(key);
-      if (ages) agesKept.set(key, { ages, at: head });
+      if (spec && doctrine) agesKept.set(key, { spec, doctrine, at: head });
     });
   }
-  return kept ?? { ages: new Map(), at: null };
+  return kept ?? { spec: new Map(), doctrine: new Map(), at: null };
 }
 /** The history readers by name, so a worker thread can be told which one to run. */
 const HISTORIES = { spec: committedIds, doctrine: doctrineHistory };
@@ -352,9 +352,9 @@ if (!isMainThread && workerData?.rowAges?.kind in HISTORIES) {
   parentPort.postMessage([...computeRowAges(root, file, head, kind)]);
 }
 
-/** @type {Map<string, { ages: Map<string, number>, at: string | null }>} */
+/** @type {Map<string, { spec: Map<string, number>, doctrine: Map<string, number>, at: string | null }>} */
 const agesKept = new Map();
-/** The files whose ages a worker thread is reading now, so one read at a time runs for each. */
+/** The file pairs whose ages worker threads are reading now, so one read at a time runs for each. */
 const agesRefreshing = new Set();
 
 let keptViewReleaseNotes;
@@ -404,10 +404,10 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
     // Both row lists and their cached ages name this commit even if HEAD moves between Git reads.
     const head = resolveCommit(info.root, 'HEAD');
-    const specAges = rowAges(info.root, config.spec, head, 'spec', { later: rowAgesLater });
     const doctrine = loadDoctrine(info.root, config);
     // A standard rule was never added to this repo, so it has no age here; the repo's own rows have.
-    const doctrineAges = rowAges(info.root, doctrine.name, head, 'doctrine', { later: rowAgesLater });
+    const ages = rowAges(info.root, { spec: config.spec, doctrine: doctrine.name }, head, { later: rowAgesLater });
+    const specAges = { ages: ages.spec, at: ages.at }, doctrineAges = { ages: ages.doctrine, at: ages.at };
     const now = board.clock.now().getTime();
     const marker = derivedMarker(board, info.root, [config.spec, doctrine.name], [head, specAges.at, doctrineAges.at, Math.floor(now / 60_000), JSON.stringify(config)]);
     const kept = derivedKept.get(info.root);
@@ -432,7 +432,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       asked: fields.asked,
       events: fields.events,
       dashboardNext: fields.dashboardNext,
-      dashboardPace: fields.dashboardPace,
+      // Pace windows end on exact milliseconds, so they are read at this clock and never kept with the minute-marked fields.
+      dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
       dashboardLanded: fields.dashboardLanded,
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
@@ -487,7 +488,6 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), now, store),
     dashboardLanded: all.filter(item => item.item_merged_commit)
       .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))

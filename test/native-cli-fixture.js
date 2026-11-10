@@ -1,9 +1,10 @@
 /** Compose the real native board for in-process CLI tests [C7]. */
 import { fileURLToPath } from 'node:url';
-import { main as cliMain } from '../apps/cli/index.js';
-import { HOOK_WORKER, nativeBoardPorts } from '../apps/lib/index.js';
+import { main as cliMain, nativeBoardOpeners } from '../apps/cli/index.js';
+import { nativeBoardPorts } from '../apps/lib/index.js';
+import { HOOK_WORKER } from '../apps/cli/index.js';
 import * as nativeBoard from '../apps/lib/src/core/native-board.js';
-import { launchRelaySender } from '../apps/lib/index.js';
+import { launchRelaySender } from '../apps/cli/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';
 const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
@@ -16,5 +17,10 @@ import { relayOrdering } from '../packages/outbox/index.js';
 
 /** Run the production CLI with the same explicit native capability as its process entry. */
 export function main(argv, streams) {
-  return cliMain(argv, { ...streams, nativeBoardPorts: streams?.nativeBoardPorts ?? nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: streams?.loadNativeBoard ?? (() => Promise.resolve(nativeBoard)) });
+  return cliMain(argv, { ...streams, nativeBoardPorts: streams?.nativeBoardPorts ?? nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../apps/cli/src/shell/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: streams?.loadNativeBoard ?? (() => Promise.resolve(nativeBoard)) });
+}
+
+/** The board and outbox ports the production process entry composes, as a relay setup flow receives them in its output object [C7]. */
+export function nativeRelayPorts() {
+  return nativeBoardOpeners({ nativeBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
 }

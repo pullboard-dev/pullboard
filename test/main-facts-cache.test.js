@@ -19,7 +19,7 @@ import { foreignNodeOptions } from '../packages/gate/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { fixtureAdd } from './testkit-fixture.js';

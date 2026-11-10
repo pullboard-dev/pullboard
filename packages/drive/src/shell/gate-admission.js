@@ -60,6 +60,10 @@ export function createGateAdmission(opener) {
    */
   admit(launch, { owner, relaunches }) {
     onBoard(opener, launch.commonDir, board => {
+      // A launch whose item moved on (withdrawn, reopened, replaced) is never admitted; it ends unstarted (#4072).
+      if (typeof opener.serving === 'function' && opener.serving(board, launch) === false) {
+        throw Object.assign(new Error(`gate ${launch.job} no longer serves its item; it is not started`), { code: 'GATE_STALE' });
+      }
       const previous = readGateDrive(board.db, launch.job);
       if (previous?.owner && processGone(previous.pid)) releaseLease(board.db, gateDriveJobId(launch.job), previous.owner);
       admitGateDrive(board.db, launch.job, { owner, relaunches });

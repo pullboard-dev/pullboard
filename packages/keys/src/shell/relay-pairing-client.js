@@ -15,7 +15,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   exportBoard,
   importBoard,
@@ -30,7 +30,7 @@ import {
   readBoardKey,
   storeBoardKey,
 } from './relay-key.js';
-import { encodeBoardKey } from '../../../kernel/src/core/seal.js';
+import { encodeBoardKey } from '../../../kernel/index.js';
 import {
   createPairingCode,
   openPairingBundle,

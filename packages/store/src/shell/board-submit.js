@@ -20,10 +20,10 @@ import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../state/core.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../state/core.js";
 
 import { committedItemAuthors } from "../../../verify/index.js";
-import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
-import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
+import { sealItemPatchSubmit } from "../../../items/index.js";
+import { checkItemPatchSubmit } from "../../../items/index.js";
 import { startItemPatchObjectionWindow } from "../../../items/index.js";
-import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { requireStrictBuilderFamily } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { submissionItemValues } from "./submission-record.js";
 import { submissionChildrenProblem } from "./submission-record.js";
@@ -48,10 +48,10 @@ import { Refused } from "../../../kernel/index.js";
 import { retainedVerifierIdentityProblem } from "../../../items/index.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../state/core.js";
 import { requireKnownMainReworks } from "../core/known-main-reworks.js";
-import { submissionProof } from "../../../state/src/core/submission-proof.js";
+import { submissionProof } from "../../../state/core.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.js";
 import { FLOW_SIZE_ENGINE } from "../../../state/core.js";
-import { submissionSize } from "../../../state/src/core/submission-size.js";
+import { submissionSize } from "../../../state/core.js";
 import { moveItem } from "./board.js";
 import { sealClauseInspection } from './board-repository.js';
 export { sealClauseInspection };
@@ -152,7 +152,7 @@ export function submit(board, id, options) {
     }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE && options.machineReceipts !== undefined
       && (!Array.isArray(options.machineReceipts) || options.machineReceipts.some(receipt => !receiptFields(receipt)))) throw new Refused('MACHINE_PROOF', 'machine evidence must contain valid native receipts');
-    reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    requireStrictBuilderFamily(board, id, agentId);
     const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
     if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });

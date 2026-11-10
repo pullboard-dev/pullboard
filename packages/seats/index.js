@@ -4,6 +4,9 @@ export { registerSeatWake } from './src/shell/seat-wake.js';
 export { wakeRoutedSeat } from './src/shell/seat-wake.js';
 export { hasSeatWake } from './src/shell/seat-wake.js';
 export {
+  timingSeat,
+  appendSeatTiming,
+  beginSeatTiming,
   laneLeads,
   routeLaneMessage,
   leadOwnsDecision,
@@ -178,3 +181,5 @@ export {
   planClaimWatchdog,
   runClaimWatchdog,
 } from './src/shell/claim-watchdog.js';
+export { claimWorktreeSnapshot } from './src/shell/untouched-claim-observation.js';
+export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/shell/seat-ledger.js';

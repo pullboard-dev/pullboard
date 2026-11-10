@@ -26,6 +26,10 @@ function acceptedProject({ separate = false } = {}) {
   const entry = itemWorktree(box, 1);
   submitItem(box, entry);
   acceptItem(box, entry);
+  // A landing tree equal to the submit tree reuses the submit receipt and runs no gate; one commit on main first makes the landing gate run (#4259).
+  writeFileSync(join(box.repo, 'before-landing.md'), 'before\n');
+  box.git(box.repo, 'add', 'before-landing.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: main moves before the landing');
   return { box, entry };
 }
 
@@ -41,7 +45,7 @@ function href(path) {
  */
 function landRuns(box, entry, { mode, runs }) {
   const source = [
-    `import * as store from ${href('../src/board.js')};`,
+    `import * as store from ${href('../packages/store/index.js')};`,
     `import { openBoard } from ${href('../apps/lib/index.js')};`,
     `import { loadConfig } from ${href('../packages/config/index.js')};`,
     `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,
@@ -89,7 +93,7 @@ test('clause 2: an adopted batch refused RUNNER_SOURCE three times stops blocked
   const result = landRuns(box, entry, { mode: 'source', runs: 5 });
   const id = '00000000-0000-4000-8000-000000000002';
   assert.deepEqual(result.adopted, [id, null, null, null, null], `the first run adopts the fixture batch; d614aab905 returns a refused one-item batch to its item, so later runs start fresh batches: ${JSON.stringify({ errors: result.errors, lines: result.lines, batch: result.batch })}`);
-  assert.equal(result.errors.filter(code => code === 'RUNNER_SOURCE').length, 3, `exactly three attempts, then no loop: ${result.errors}`);
+  assert.equal(result.errors.filter(code => code === 'RUNNER_SOURCE').length, 3, `exactly three attempts, then no loop: ${JSON.stringify({ errors: result.errors, lines: result.lines, others: result.others, merged: result.merged, batch: result.batch?.state })}`);
   assert.equal(result.batch.refusals.length, 1, 'each refused one-item batch keeps its own refusal');
   assert.ok(result.batch.refusals.every(refusal => refusal.code === 'RUNNER_SOURCE' && refusal.message === 'the runner checkout is not the queued candidate'), JSON.stringify(result.batch.refusals));
   assert.equal(result.batch.state, 'blocked', 'nothing adopts it again');
@@ -130,7 +134,7 @@ test('an adopted batch carrying a held verified item is retired, the item keeps 
  */
 function trunkCrashRuns(box, entry) {
   const source = [
-    `import * as store from ${href('../src/board.js')};`,
+    `import * as store from ${href('../packages/store/index.js')};`,
     `import { openBoard } from ${href('../apps/lib/index.js')};`,
     `import { loadConfig } from ${href('../packages/config/index.js')};`,
     `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cellProject } from '../../../test/cell-fixture.js';
 import { runFixtureChildAsync } from '../../../test/fixture-child.js';
 
 const index = JSON.stringify(new URL('../index.js', import.meta.url).href);
@@ -28,11 +28,8 @@ ${body}`;
 
 /** A private project whose machine pool no other test shares. */
 function project(t) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project();
+  const box = cellProject(t);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   return box;
 }
 

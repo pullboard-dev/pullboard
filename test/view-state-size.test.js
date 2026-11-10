@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { addMilestone } from '../packages/store/index.js';
 import { atomic } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';

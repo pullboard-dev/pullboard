@@ -1104,20 +1104,21 @@ async function readRoadmap(chrome) {
         return {
           name: card.querySelector('h2').innerText,
           count: card.querySelector('.roadmap-left [aria-label]')?.getAttribute('aria-label') ?? card.querySelector('.milestone-count')?.innerText ?? null,
-          filled: bar ? Math.round(1000 * bar.querySelector('rect').getBoundingClientRect().width / bar.getBoundingClientRect().width) / 1000 : null,
+          filled: bar ? Math.round(1000 * bar.querySelector(':scope > rect').getBoundingClientRect().width / bar.getBoundingClientRect().width) / 1000 : null,
           progress: bar?.matches('.roadmap-summary-bar') ? [Number(bar.querySelector('[data-summary-segment=landed]').dataset.count), Number(bar.dataset.total)] : bar ? [Number(bar.getAttribute('aria-valuenow')), Number(bar.getAttribute('aria-valuemax'))] : null,
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), style = getComputedStyle(title), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = chip.getBoundingClientRect();
             return {
               id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
               seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
-              button: row.matches('button,[role="button"]'), tip: row.title, title: [...title.childNodes].slice(1).map((node) => node.textContent).join(''),
+              button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
-              cut: title.scrollWidth > title.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
+              // Since b83469ff53 the title's ellipsis is set on .milestone-title, inside .t beside the after-chips.
+              cut: clip.scrollWidth > clip.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
             };
           }),
         };

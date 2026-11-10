@@ -1,5 +1,5 @@
 /** Read and write job rows on the board's SQLite handle [C7]. */
-import { Refused } from "../../../kernel/index.js";
+import { Refused } from "../../../kernel/core.js";
 import { viewOf } from "../core/job-view.js";
 
 /**

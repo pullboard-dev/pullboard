@@ -1,6 +1,6 @@
 /** Build the runner-owned child environment and bind the trusted resource API and its pools [C7]. */
-import { Refused } from '../../../../packages/kernel/index.js';
-import * as resourceApi from '../../../../packages/resources/index.js';
+import { Refused } from '../../../../packages/kernel/core.js';
+import * as resourceApi from '../../../../packages/resources/core.js';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';

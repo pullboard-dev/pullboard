@@ -30,7 +30,7 @@ import {
 import {
   doctrineText,
   loadDoctrine,
-} from '../../../../src/doctrine.js';
+} from '../../../doctrine/index.js';
 import {
   contains,
   git,

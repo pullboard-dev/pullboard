@@ -5,7 +5,7 @@
  * proof is the check run on real commits: red on the bad one, green on the fix. Nothing here
  * approves or applies a row.
  */
-import { loadDoctrine } from '../../../../src/doctrine.js';
+import { loadDoctrine } from '../../../doctrine/index.js';
 import { PERSON } from '../../../store/index.js';
 import {
   historyPathMap,
@@ -15,10 +15,10 @@ import { Refused } from '../../../kernel/index.js';
 import {
   causeProblem,
   rigorReport,
-} from '../../../../src/board-rigor.js';
+} from '../../../store/index.js';
 import { draftRow } from '../../../spec/index.js';
 import { proveCauseCheck } from './rigor-proof.js';
-import { rigorSource } from '../../../../src/board-rigor-source.js';
+import { rigorSource } from '../../../store/index.js';
 import { rigorSentinelName } from '../../../sentinels/index.js';
 
 /**

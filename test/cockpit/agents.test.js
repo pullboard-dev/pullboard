@@ -245,7 +245,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
   box.run(alpha.repo, 'shout', 'all', 'A coordinator broadcast reaches everyone');
   box.run(alpha.repo, 'shout', 'person', 'A model decision', '--decision');
   box.run(alpha.repo, 'hold', 'web', '--reason', 'Wait for the model decision');
-  box.run(alpha.repo, 'milestone', 'add', 'Model release', '--items', '1,2,3');
+  box.run(alpha.repo, 'milestone', 'add', 'Model release', '--items', '1,2,3', '--reason', 'Arrange fixture release');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-model-names-chrome-'));
   let chrome;

@@ -115,10 +115,10 @@ test('relay presentation refuses before asking the view projection to open a new
 test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const result = box.probe(`
-    import { closeBoard } from './src/board.js';
+    import { closeBoard } from './packages/store/index.js';
     import { openBoard } from './apps/lib/index.js';
-    import { addMilestone, roadmap } from './src/board-milestones.js';
-    import * as store from './src/board.js';
+    import { addMilestone, roadmap } from './packages/store/index.js';
+    import * as store from './packages/store/index.js';
     import { registerProject } from './packages/seats/index.js';
     import { listApiProjects } from './packages/seats/index.js';
     import { milestoneRoadmap } from './packages/roadmap/index.js';

@@ -17,7 +17,7 @@ if (major < 22 || (major === 22 && minor < 13)) {
     const {
       commandOutput,
       versionedRefusal,
-    } = await import('../packages/config/index.js');
+    } = await import('../packages/config/pure.js');
     const output = commandOutput(args, { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
     output.refusal({ code: 'NODE_TOO_OLD', message, next });
     output.flush(1);
@@ -53,8 +53,7 @@ if (process.argv[2] === 'hook') {
 
 // Select immutable tooling before redirecting a stale worktree to today's CLI.
 // Only these two small modules load here; the dispatcher loads after the resident path declines, so a warm client stays thin [H24].
-const { selectedToolEntry } = await import('../apps/cli/src/shell/pinned-tool-build.js');
-const { asksVersion } = await import('../apps/cli/src/shell/cli-main/options.js');
+const { selectedToolEntry, asksVersion } = await import('../apps/cli/core.js');
 if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
     const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
@@ -65,7 +64,7 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
     }
   } catch (error) {
     if (process.argv.includes('--json')) {
-      const { commandOutput, versionedRefusal } = await import('../packages/config/index.js');
+      const { commandOutput, versionedRefusal } = await import('../packages/config/pure.js');
       const output = commandOutput(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
       output.refusal({ code: error.code ?? 'TOOL_BUILD_UNAVAILABLE', message: error.message,
         next: 'ask the coordinator to promote a native gated tool build' });
@@ -83,7 +82,15 @@ if (handed !== null) process.exit(handed);
 const resident = await (await import('./resident-client.js')).runResident(process.argv.slice(2));
 if (resident !== null) process.exitCode = resident;
 else {
-  const { main } = await import('../apps/cli/src/shell/cli-main.js');
+  // Mark this command as the outermost live pullboard for every child it starts, unless a live outer one already
+  // did: a pullboard test under a gate, check or landing then blocks and returns its real exit code [C7].
+  const outer = Number(process.env.PULLBOARD_CLI_PID);
+  let outerAlive = false;
+  if (Number.isSafeInteger(outer) && outer > 0 && outer !== process.pid) {
+    try { process.kill(outer, 0); outerAlive = true; } catch (error) { outerAlive = error?.code === 'EPERM'; }
+  }
+  if (!outerAlive) process.env.PULLBOARD_CLI_PID = String(process.pid);
+  const { cliMain$main: main } = await import('../apps/cli/index.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
   process.exitCode = await main(process.argv.slice(2), {
     cwd: process.cwd(),

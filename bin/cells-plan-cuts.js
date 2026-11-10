@@ -1,20 +1,20 @@
 /** Shell boundary for checking actual import cuts and filing their independent board items [C7,D3]. */
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
-import { declaredSourceLoads } from '../src/affected-tests.js';
-import { declaredSourcePatterns } from '../src/affected-tests.js';
+import { declaredSourceLoads } from '../packages/gate/index.js';
+import { declaredSourcePatterns } from '../packages/gate/index.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
-import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
+import { retiredRows } from '../packages/codemap/index.js';
 import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
 import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
-import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
+import { repositoryImport } from '../packages/codemap/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
@@ -285,7 +285,7 @@ export function frontDoorBypasses(root, plan, name, { inventory: sharedInventory
     for (const { target, acceptedWildcard } of imports) {
       if (testFile(target) || acceptedWildcard) continue;
       const lower = plan.cells.find(row => row.name === owner(target));
-      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js`) continue;
+      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js` || target === `${lower.root}/pure.js`) continue;
       rows.set(`${stable(file)}->${stable(target)}`, `${name} imports lower ${lower.name} past its front door ${lower.frontDoor}: ${file} -> ${target}`);
     }
   }

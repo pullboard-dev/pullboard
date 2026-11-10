@@ -10,13 +10,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
-import { openBoard, recordGateRun } from '../apps/lib/index.js';
+import { openBoard, recordGateRun } from '../apps/lib/src/core/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
 import { boardReceiptStore } from '../packages/gate/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
@@ -115,20 +116,23 @@ function fixture(t, required = true) {
   delete box.env.NODE_TEST_CONTEXT;
   // A root installation retains a single real package scope for the production import-closure audit.
   copyCommittedPackageFiles(box, import.meta.dirname + '/..');
+  // Remove only the copied repository's own cells plan: its rows name Pullboard's unshipped tests, so a landing here
+  // would refuse LAND_PLAN_UNPLACED before the receipt rules under test. The shipped modules stay intact.
+  rmSync(join(box.repo, 'bin/cells-plan.json'), { force: true });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/train.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config,
     landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
-  box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js');
+  box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js', 'bin/cells-plan.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare native train fixture');
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   return { ...box, base, waitFor: helpers.waitFor };
 }
 
 /** Establish synthetic lifecycle acceptance while retaining a genuine committed item source, not invented gate proof. */
-function verifiedItem(box, number) {
-  const before = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+function verifiedItem(box, number, root = box.repo) {
+  const before = box.git(root, 'rev-parse', 'HEAD').trim();
   const setup = onBoard(box, board => {
     const actor = store.register(board, { lane: 'web', path: join(box.dir, `private-builder-${number}`) });
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: `Train fixture ${number}`, criterion: 'Retain the committed item.', specIds: ['G1'] });
@@ -137,11 +141,13 @@ function verifiedItem(box, number) {
     store.claim(board, id, { agentId: actor, lane: 'web', leaseMs: 3_600_000, head: before, freeze: () => ({ text: frozen, digest }) });
     return { actor, id, digest };
   });
-  writeFileSync(join(box.repo, `web/item-${number}.txt`), `actual item ${number}\n`);
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', `feat(web): retain fixture item ${number} [G1]`);
-  const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
-  const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
+  writeFileSync(join(root, `web/item-${number}.txt`), `actual item ${number}\n`);
+  box.git(root, 'add', '-A');
+  // A side checkout is no joined seat; this synthetic setup commit skips its hooks, as the shipped-source commits do.
+  const hooks = root === box.repo ? [] : ['-c', 'core.hooksPath=/dev/null'];
+  box.git(root, ...hooks, 'commit', '-q', '-m', `feat(web): retain fixture item ${number} [G1]`);
+  const commit = box.git(root, 'rev-parse', 'HEAD').trim();
+  const tree = box.git(root, 'rev-parse', 'HEAD^{tree}').trim();
   onBoard(box, board => {
     submitFixture(board, setup.id, { agentId: setup.actor, commit, tree });
     store.verify(board, setup.id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'synthetic lifecycle setup, not a gate claim', head: commit, digest: setup.digest, policy: 'any' });
@@ -149,13 +155,30 @@ function verifiedItem(box, number) {
   return setup.id;
 }
 
+/**
+ * A linked checkout detached at a commit, for item commits off the trunk.
+ * Why: a detached primary checkout has no trunk policy, so board writes there refuse NO_POLICY by design (81e1725d67).
+ */
+function sideCheckout(box, commit, name = 'side') {
+  const path = join(box.dir, `train-${name}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, commit);
+  return path;
+}
+
 /** Produce a fresh native gate receipt through the actual public CLI. */
 function gate(box, red = false) {
   const prior = box.env.TRAIN_RED;
-  if (red) box.env.TRAIN_RED = '1';
+  if (red) {
+    box.env.TRAIN_RED = '1';
+    // The fixture body reads TRAIN_RED, which no test-cache key declares, so a red run must not reuse the green result.
+    box.env.PULLBOARD_TEST_REUSE = '0';
+  }
   let result;
   try { result = box.run(box.repo, 'gate', '--landing', '--receipt', '--json'); }
-  finally { if (prior === undefined) delete box.env.TRAIN_RED; else box.env.TRAIN_RED = prior; }
+  finally {
+    if (prior === undefined) delete box.env.TRAIN_RED; else box.env.TRAIN_RED = prior;
+    delete box.env.PULLBOARD_TEST_REUSE;
+  }
   assert.equal(result.code, red ? 1 : 0, `${result.out}${result.err}`);
   const value = JSON.parse(result.out);
   assert.ok(value.receiptId, result.out);
@@ -170,8 +193,8 @@ async function audit(box, batch) {
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
   const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
-import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
+import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};
+import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../apps/lib/src/core/native-board.js", import.meta.url).href)};
 import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
@@ -213,20 +236,22 @@ test('one real native envelope covers multiple reviewed sources and only its fir
   process.stderr.write('train envelope phase: fixture setup\n');
   const box = fixture(t);
   process.stderr.write('train envelope phase: fixture ready\n');
-  box.git(box.repo, 'checkout', '--detach', box.base);
-  const ids = [verifiedItem(box, 1), verifiedItem(box, 2)];
+  const sidePath = sideCheckout(box, box.base);
+  const ids = [verifiedItem(box, 1, sidePath), verifiedItem(box, 2, sidePath)];
   process.stderr.write('train envelope phase: reviewed sources ready\n');
-  const side = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  const side = box.git(sidePath, 'rev-parse', 'HEAD').trim();
   const options = { base: box.base, side,
     items: onBoard(box, board => ids.map(id => ({ id, commit: store.getItem(board, id).item_commit }))),
     message: `chore: retain the actual multi-item envelope\n\nPullboard-Migration: ${box.base}` };
+  // The envelope is made where a landing makes it: the primary checkout, detached at the side tip, with no board write.
+  box.git(box.repo, 'checkout', '-q', '--detach', side);
   const made = runFixtureChild(process.execPath, ['--input-type=module', '-e',
     `import {createLandingEnvelope} from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)}; console.log(JSON.stringify(createLandingEnvelope(process.cwd(),${JSON.stringify(options)})));`],
   { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(made.status, 0, `${made.stdout}${made.stderr}`);
   const envelope = JSON.parse(made.stdout);
   process.stderr.write('train envelope phase: envelope created\n');
-  box.git(box.repo, 'checkout', 'main');
+  box.git(box.repo, 'checkout', '-q', 'main');
   box.git(box.repo, 'merge', '--ff-only', envelope.tip);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD^1').trim(), box.base);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD^2').trim(), side);
@@ -257,9 +282,8 @@ test('one real native envelope covers multiple reviewed sources and only its fir
 
 test('native land retains one batch identity and records its actual envelope receipt before merged events [C7,B3]', async t => {
   const box = fixture(t);
-  box.git(box.repo, 'checkout', '--detach', box.base);
-  const ids = [verifiedItem(box, 1), verifiedItem(box, 2)];
-  box.git(box.repo, 'checkout', 'main');
+  const sidePath = sideCheckout(box, box.base);
+  const ids = [verifiedItem(box, 1, sidePath), verifiedItem(box, 2, sidePath)];
   const landed = box.run(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, `${landed.out}${landed.err}`);
   const batch = JSON.parse(landed.out).batch;
@@ -277,9 +301,7 @@ test('native land retains one batch identity and records its actual envelope rec
   assert.ok(merged.every(row => produced.event_id < row.event_id));
   await audit(box, batch.id);
   assert.deepEqual(onBoard(box, board => nativePushReceiptProblems(box.repo, board, [batch.tip])), []);
-  box.git(box.repo, 'checkout', '--detach', batch.tip);
-  const nextId = verifiedItem(box, 3);
-  box.git(box.repo, 'checkout', 'main');
+  const nextId = verifiedItem(box, 3, sideCheckout(box, batch.tip, 'next'));
   const next = box.run(box.repo, 'land', '--json');
   assert.equal(next.code, 0, `${next.out}${next.err}`);
   const following = JSON.parse(next.out).batch;

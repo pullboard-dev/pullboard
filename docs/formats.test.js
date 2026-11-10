@@ -29,7 +29,7 @@ import { reviewDefaultEventContract } from '../test/generated-doc-review-default
 import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../apps/lib/index.js';
-import { recordNextIdle } from '../src/board.js';
+import { board_recordNextIdle as recordNextIdle } from '../packages/store/index.js';
 import { addMilestone, editMilestoneItems, logEvent } from '../packages/store/index.js';
 import { proposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel } from '../packages/sentinels/index.js';
@@ -46,7 +46,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
+import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, board_ensureCoordinator as ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../packages/store/index.js';
 import {
   ID_RE,
   readSignoffs,
@@ -298,11 +298,12 @@ function recordEventContract() {
   const coordinator = ensureCoordinator(board, '/coordinator');
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
-  // A strict builder declares its vendor family when it joins; a seat that joins first without one and later names it records the family on the seat, with no separate family event.
+  // A strict builder must declare its vendor family when it joins, so the family event comes from a seat that joins without one and later names it (a join that names a family records it, #4086).
   const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'tests', path: '/family-seat' });
   register(board, { lane: 'tests', path: '/family-seat', family: 'codex' });
+  assert.deepEqual(events(board).filter(event => event.event_kind === 'family').map(event => JSON.parse(event.event_detail).family), ['codex'], 'a later join that names a family writes one family event');
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });

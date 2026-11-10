@@ -66,8 +66,6 @@
     "src/milestones.js->src/work-order-engine.js": 1,
     "src/module-import-cache.js->src/module-import-cache-state.js": 1,
     "src/module-import-cache.js->src/test-isolation.js": 1,
-    "src/module-imports.js->packages/kernel/src/core/js-lex.js": 1,
-    "src/module-imports.js->src/module-import-cache-state.js": 1,
     "src/move-registry.js->packages/kernel/src/core/discovery.js": 1,
     "src/move-registry.js->src/source-advance-engine.js": 1,
     "src/move-registry.js->src/source-advance-state.js": 1,

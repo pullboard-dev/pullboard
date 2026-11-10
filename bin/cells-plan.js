@@ -31,7 +31,7 @@ import { tryGit } from './cells-snapshot-git.js';
 import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { runnerWorkerFiles } from './cells-move-closure.js';
+import { runnerWorkerFiles } from '../packages/codemap/index.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -48,8 +48,10 @@ import {
   readMoveDataReads,
   staleDataReads,
 } from './cells-data-reads.js';
+import { lightFrontDoorProblems } from './cells-pure-front-door.js';
+import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
-import { moveDeclarationFiles } from './cells-move-closure.js';
+import { moveDeclarationFiles } from '../packages/codemap/index.js';
 
 import { createFixtureMemo } from '../packages/codemap/index.js';
 import { checkCommandDefinition } from '../packages/git/index.js';
@@ -281,12 +283,30 @@ export function stalePlanRows(root, plan) {
 }
 
 /**
+ * Cut edges that name a path with no plan row, active or retired. Why: importCuts throws on such an edge, and the
+ * submit gate turns that into CELLS_SUBMIT for every item (#4706 deleted src/serve.js and left three edges naming it).
+ */
+export function orphanCutEdges(plan) {
+  const known = new Set([...plan.cells.flatMap(cell => cell.paths.map(([from]) => from)), ...(plan.retired ?? []).map(entry => entry.row[0])]);
+  return [...new Set(plan.cells.flatMap(cell => cell.cuts.flatMap(link => link.edges)).filter(edge => edge.split('->').some(path => !known.has(path))))];
+}
+
+/**
  * Retire one stale planned path: its row moves to the plan's retired list, which keeps its provenance and refuses
  * it ever coming back or being imported, and the shim and cut edges that only existed for it leave the cell.
  */
 export function retirePath(root, file) {
   const plan = readPlan(root);
   const stale = stalePlanRows(root, plan).find(entry => entry.row[0] === file);
+  if (!stale && orphanCutEdges(plan).some(edge => edge.split('->').includes(file))) {
+    // A shim item already dropped the row by hand: only its cut edges are left, so drop those and keep the rest.
+    for (const entry of plan.cells) {
+      entry.cuts = entry.cuts.map(link => ({ ...link, edges: link.edges.filter(edge => !edge.split('->').includes(file)) }))
+        .filter(link => link.edges.length).map(link => ({ ...link, imports: link.edges.length }));
+    }
+    writePlan(root, plan);
+    return { cell: null, file: PLAN_FILE, row: [file] };
+  }
   if (!stale) {
     const active = plan.cells.some(cell => cell.paths.some(([from]) => from === file));
     throw new Refused('CELLS_PLAN_RETIRE', active
@@ -399,7 +419,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     history ??= historyShimReferences(root, acceptedBase);
     return history.has(from) ? `sealed move history ${history.get(from)}` : null;
   }
-  problems.push(...pureFrontDoorProblems(root, cell));
+  problems.push(...pureFrontDoorProblems(root, cell), ...lightFrontDoorProblems(root, cell), ...pureDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
   for (const [from, to] of cell.paths) {
@@ -414,7 +434,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
         const reason = namedLeaf && !inWorkerClosure(from, to) && !inMoveClosure(from, to) ? keptReason(from, to) : null;
         const exactLeaf = namedLeaf && (reason || inWorkerClosure(from, to) || inMoveClosure(from, to));
         if (reason) notes.push(`${from} kept: ${reason}`);
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && target !== cell.lightFrontDoor && target !== cell.pureDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
@@ -572,7 +592,12 @@ function main(argv) {
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
-    return missing.length || stale.length || entries.length ? 1 : 0;
+    const orphans = orphanCutEdges(plan);
+    for (const edge of orphans) {
+      const gone = edge.split('->').find(path => !plan.cells.some(cell => cell.paths.some(([from]) => from === path)) && !(plan.retired ?? []).some(entry => entry.row[0] === path));
+      console.error(`cut edge ${edge} names ${gone}, which has no plan row; drop its cut edges: node bin/cells-plan.js --retire ${gone}`);
+    }
+    return missing.length || stale.length || entries.length || orphans.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
@@ -612,11 +637,11 @@ function main(argv) {
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   if (mode === '--place-tests') {
-    if (rest.length) throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests (no arguments)');
+    if (rest.length && rest[0] !== '--batches') throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place-tests [--batches [--max <n>] [--dry-run --plan <file>]]');
     const listed = tryGit(root, ['ls-files', '-z']);
     if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot list tracked files for --place-tests');
     const tracked = listed.stdout.split('\0').filter(Boolean);
-    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root)).join('\n'));
+    console.log(placeTests(tracked, cellInventory(root, { importsIn, commonJsIn }), readPlan(root), rest.length ? { args: rest, root, lex, git: args => tryGit(root, args), reread: () => cellInventory(root, { importsIn, commonJsIn }) } : null).join('\n'));
     return 0;
   }
   if (mode === '--move-tests') {

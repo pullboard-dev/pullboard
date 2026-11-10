@@ -16,6 +16,7 @@ import { boardWriteIoProblems } from './board-write-io.js';
 import { relayBoundaryProblems } from './relay-boundary.js';
 import { fixtureProblems } from './test-fixtures.js';
 import { cellsEdgeProblems } from './cells-edges.js';
+import { testCellsProblems } from './test-cells.js';
 import { STATIC_CHECKS } from '../../packages/gate/index.js';
 
 /**
@@ -50,16 +51,26 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     return relayBoundaryProblems([...sources, ...relay]).map(row => `${row.file}:${row.line}: ${row.text}`);
   } },
   { name: 'cells-edges', run: root => cellsEdgeProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'test-cells', run: root => testCellsProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: (root, sources) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   { name: 'engine-folder', run: root => engineFolderProblems(root).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'view-pure', run: root => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', run: (root, sources) => boardWriteIoProblems(sources)
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
+  { name: 'worker-bundle', run: root => {
+    // The runner worker bundle's raw size may only fall; growth fails here, never silently at a runner (#4140).
+    const recorded = JSON.parse(readFileSync(join(root, 'bin/checks/worker-bundle.json'), 'utf8')).bytes;
+    const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)})));`;
+    const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8' });
+    if (child.status !== 0) return [`bin/checks/worker-bundle.json:1: the runner worker bundle could not be measured: ${child.stderr.trim().split('\n').at(-1)}`];
+    const bytes = Number(child.stdout);
+    return bytes > recorded ? [`bin/checks/worker-bundle.json:1: the runner worker bundle is ${bytes} raw bytes, over its recorded ${recorded}; cut what the worker imports, or record a lower size when it falls`] : [];
+  } },
   { name: 'prose-commands', run: root => {
     const { declared, actual } = proseCommandSets(root);
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
-    const line = readFileSync(join(root, 'src/cockpit.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
-    return [`src/cockpit.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
+    const line = readFileSync(join(root, 'apps/cli/src/core/help.js'), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
+    return [`apps/cli/src/core/help.js:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
   } },
   { name: 'wall-clock-budgets', run: root => {
     const clock = spawnSync(process.execPath, ['test/wall-clock-budgets.js'], { cwd: root, encoding: 'utf8' });

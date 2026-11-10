@@ -5,7 +5,7 @@ import {
   parseSpec,
   replaceRowGate,
 } from './spec.js';
-import { isDefaultTestFile } from '../../../codemap/index.js';
+import { isDefaultTestFile } from '../../../codemap/core.js';
 
 /** Keep exact Git object bytes, including terminal whitespace that requirement edits must not hide. */
 function rawGit(root, args) {

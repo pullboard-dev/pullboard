@@ -1,5 +1,5 @@
 /**
- * Part 4 of the hosted page's script, verbatim from src/cockpit.js lines 2886-3996 (#745): its
+ * Part 4 of the hosted page's script, verbatim from apps/cli/src/shell/cockpit.js lines 2886-3996 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
  *
  * @param {Record<string, any>} scope - The values cockpitPage passes for the names this part interpolates.
@@ -65,7 +65,7 @@ function address(push = true) {
   if (!push && routed && location.hash && !['#roadmap', '#items/pipeline'].includes(location.hash)) href += location.hash;
   try {
     if (push && href !== location.pathname + location.search + (location.hash || '')) history.pushState(state, '', href);
-    else if (transportModule && !location.hash && view.tab === 'items' && view.addressDetail === null) history.replaceState(state, '');
+    else if (transportModule && !location.hash && ['dashboard', 'items'].includes(view.tab) && view.addressDetail === null) history.replaceState(state, ''); // a transport page keeps its clean address on the landing tabs, as a snapshot does
     else history.replaceState(state, '', href);
   } catch { /* A host that refuses history changes still shows the selected place. */ }
 }

@@ -1,4 +1,5 @@
 {
+  "src/bar-corrections.js": "packages/verify/src/core/bar-corrections.js",
   "src/review-default.js": "packages/verify/src/shell/review-default.js",
   "src/bar-actor.js": "packages/verify/src/shell/bar-actor.js",
   "src/bar-check.js": "packages/verify/src/core/bar-check.js",

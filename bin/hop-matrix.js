@@ -73,8 +73,8 @@ export const HOPS = Object.freeze([
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',
     invariant: 'An accept lands through a batch: main moves to the recorded merge and is pushed.' },
-  { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'e2e',
-    invariant: `Board commands answer in under ${COMMAND_TARGET_MS} ms.`,
+  { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'board-commands',
+    invariant: `Seat commands answer in under ${COMMAND_TARGET_MS} ms, and none loads more modules than its ratcheted ceiling.`,
     live: (report, extra) => extra.statusMs === undefined ? null
       : { seen: `pullboard status ${Math.round(extra.statusMs)} ms`, agrees: extra.statusMs < COMMAND_TARGET_MS } },
   { id: 'board-write', stage: 'All', hop: 'board write never queues', harness: 'board-write', fix: '58f204a4af',

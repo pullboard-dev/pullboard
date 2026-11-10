@@ -2,7 +2,7 @@
 import { engineAtLeast } from "../../../state/core.js";
 import { FOCUS_MILESTONE_ENGINE } from "../../../state/core.js";
 import { MAIN_RED_FOCUS_ENGINE } from "../../../state/core.js";
-import { lineSettings } from "../../../state/src/core/line-settings-read.js";
+import { lineSettings } from "../../../state/core.js";
 
 /**
  * Unfinished Main red items, which count as in focus whatever milestone holds them, or none. Why: a Main red blocks

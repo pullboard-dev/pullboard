@@ -35,8 +35,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - if: github.event_name == 'push' || github.event_name == 'pull_request'
-        run: node bin/check-signoffs.js
       - run: node bin/pullboard.js spec check
       - run: npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}
 

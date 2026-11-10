@@ -1,7 +1,7 @@
 /** Source-only view test policy. Roles do not change browser admission or supply execution evidence [N26,C7]. */
 import { posix } from 'node:path';
-import { lex } from "../../../../../packages/kernel/index.js";
-import { lineAt } from "../../../../../packages/kernel/index.js";
+import { lex } from "../../../../../packages/kernel/core.js";
+import { lineAt } from "../../../../../packages/kernel/core.js";
 import { freeWindowOffsets } from "../../core/view-binding-reads.js";
 
 /** Reviewed renderer coverage; a journey never substitutes for these data-in/HTML-out witnesses. */
@@ -9,7 +9,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/core/view/needs-actions.js', names: ['agentApprovalActionsHtml', 'needsActionsHtml'], tests: ['apps/view/tests/cockpit/needs-actions-pure.test.js'] },
   { module: 'apps/view/src/shell/view/roadmap-render.js', names: ['readMilestoneModel', 'roadmapRemainingCount', 'milestoneRowHtml', 'roadmapCardsHtml'], tests: ['apps/view/tests/cockpit/roadmap-pure.test.js'] },
   { module: 'apps/view/src/core/view/verdict-render.js', names: ['verdictHtml', 'visibleVerdictNote'], tests: ['apps/view/tests/cockpit/verdict-pure.test.js'] },
-  { module: 'apps/view/src/core/view/pipeline-model.js', names: ['replayItem', 'pipelineStage', 'pipelineSince', 'itemListFields', 'withdrawnFromStatus', 'itemStagePresentation', 'itemStageKey'], tests: ['test/cockpit/pipeline-pure.test.js'] },
+  { module: 'apps/view/src/core/view/pipeline-model.js', names: ['replayItem', 'pipelineStage', 'pipelineSince', 'itemListFields', 'withdrawnFromStatus', 'itemStagePresentation', 'itemStageKey'], tests: ['apps/view/tests/cockpit/pipeline-pure.test.js'] },
   { module: 'apps/view/src/core/view/group-render.js', names: ['groupActivityModel', 'groupNeedsHtml', 'groupEventHtml'], tests: ['apps/view/tests/cockpit/group-pure.test.js'] },
   { module: 'apps/view/src/core/view/settings-render.js', names: ['settingsMarkup', 'settingsContentHtml'], tests: ['apps/view/tests/cockpit/auxiliary-pure.test.js'] },
   { module: 'apps/view/src/core/view/star-render.js', names: ['starHtml'], tests: ['apps/view/tests/cockpit/auxiliary-pure.test.js'] },
@@ -22,8 +22,8 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/core/view/items-selection.js', names: ['selectItemsView'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
   { module: 'apps/view/src/core/view/rule-list-model.js', names: ['ruleListModel'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
   { module: 'apps/view/src/core/view/row-component.js', names: ['sharedRowHtml'], tests: ['apps/view/tests/cockpit/row-component-pure.test.js'] },
-  { module: 'packages/spec/core.js', names: ['personNeeds'], tests: ['test/cockpit/needs-data.test.js'] },
-  { module: 'apps/view/src/shell/view/held-items.js', names: ['heldNote', 'heldChip'], tests: ['test/cockpit/needs-data.test.js'] },
+  { module: 'packages/spec/core.js', names: ['personNeeds'], tests: ['apps/view/tests/cockpit/needs-data.test.js'] },
+  { module: 'apps/view/src/shell/view/held-items.js', names: ['heldNote', 'heldChip'], tests: ['apps/view/tests/cockpit/needs-data.test.js'] },
   { module: 'apps/view/src/core/view/home.js', names: ['homeCapacity'], tests: ['apps/view/tests/cockpit/home-capacity-pure.test.js'] },
   { module: 'apps/view/src/core/view/record-row.js', names: ['recordRowHtml'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
   { module: 'apps/view/src/core/view/pipeline-render.js', names: ['pipelineHtml'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
@@ -31,7 +31,7 @@ export const VIEW_RENDERER_COVERAGE = Object.freeze([
   { module: 'apps/view/src/core/view/lifecycle-diagram.js', names: ['lifecycleDiagramHtml'], tests: ['apps/view/tests/cockpit/view-pure.test.js'] },
 
   { module: 'apps/view/src/shell/view/dashboard-model.js', names: ['dashboardModel'], tests: ['apps/view/tests/cockpit/dashboard-model.test.js'] },
-  { module: 'apps/view/src/core/view/dashboard-render.js', names: ['dashboardHtml'], tests: ['test/cockpit/dashboard-render.test.js'] },
+  { module: 'apps/view/src/core/view/dashboard-render.js', names: ['dashboardHtml'], tests: ['apps/view/tests/cockpit/dashboard-render.test.js'] },
   { module: 'apps/view/src/core/view/activity-model.js', names: ['activityModel'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },
   { module: 'apps/view/src/core/view/activity-render.js', names: ['activityHtml', 'activityFilters'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },
   { module: 'apps/view/src/core/view/activity-words.js', names: ['activityWords'], tests: ['apps/view/tests/cockpit/activity-sentences.test.js'] },

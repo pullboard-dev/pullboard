@@ -60,7 +60,7 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
     build(box, alpha, 1, 'greeting-fix.html');
     accept(box, alpha, 1);
     build(box, alpha, 2, 'farewell.html');
-    box.run(alpha.repo, 'milestone', 'add', 'Launch', '--items', '1,2');
+    box.run(alpha.repo, 'milestone', 'add', 'Launch', '--items', '1,2', '--reason', 'Arrange fixture release');
 
     const view = await startView(box);
     let chrome, host;

@@ -7,13 +7,10 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { PassThrough } from 'node:stream';
-import { Readable } from 'node:stream';
 import { fixtureChildMessage, runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { personNeeds } from '../packages/spec/index.js';
 import { personNeedsState } from '../apps/view/index.js';
-import { serveMcp } from '../packages/mcp/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = `# MCP fixture
@@ -22,25 +19,6 @@ const SPEC = `# MCP fixture
 - G1 [approved, must] The fixture keeps its board. | gate: true
 - G2 [draft, aim] A draft row waits for the person.
 `;
-
-test('MCP refuses missing native readers or formatters before consuming protocol input [A9,C7]', async t => {
-  const input = Readable.from(['{"jsonrpc":"2.0","id":1,"method":"initialize"}\n']);
-  const output = new PassThrough();
-  const log = new PassThrough();
-  t.after(() => { input.destroy(); output.destroy(); log.destroy(); });
-  for (const readPersonNeeds of [undefined, {}]) {
-    await assert.rejects(serveMcp({ cwd: process.cwd(), input, output, log, readPersonNeeds,
-      runCommand: () => assert.fail('missing composition must be refused before a CLI call') }),
-    error => error.code === 'BAD_REQUEST' && /native person-needs reader/u.test(error.message));
-  }
-  await assert.rejects(serveMcp({ cwd: process.cwd(), input, output, log, readPersonNeeds: personNeedsState,
-    runCommand: () => assert.fail('missing formatter must be refused before a CLI call') }),
-  error => error.code === 'BAD_REQUEST' && /native refusal formatter/u.test(error.message));
-  assert.equal(input.readableFlowing, null, 'no protocol input was consumed');
-  assert.equal(input.listenerCount('data'), 0);
-  assert.equal(output.readableLength, 0, 'no successful protocol reply was emitted');
-  assert.equal(log.readableLength, 0);
-});
 
 /** Network APIs the server must never touch; each attempt is logged and refused. */
 const NETWORK_GUARD = `

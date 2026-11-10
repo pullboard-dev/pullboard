@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { closeBoard, agentById, boardId, heartbeatSeat, exportBoard, importBoard, importSeatObservations, mainRedBuildRouting, SEAT_LIVE_WINDOW_MS } from '../packages/store/index.js';
 import { wakeRoutedSeat } from '../packages/seats/index.js';
 import { repoInfo } from '../packages/git/index.js';

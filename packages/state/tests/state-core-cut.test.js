@@ -48,3 +48,13 @@ test('engineAtLeast matches the engine-folder comparison for every declared engi
   }
   assert.equal(engineAtLeast({ executionEngineVersion: 33 }, MILESTONE_RANK_ENGINE), false, 'an older recorded move keeps the older rule');
 });
+
+test('the light door carries the readers moves, roadmap and seats use [C7]', async () => {
+  const core = await import('../core.js');
+  for (const name of ['itemHandoff', 'handoffMoveProblem', 'requireHandoffActive', 'submissionProof', 'boundedProofReason', 'submissionSize',
+    'lineSettings', 'carriesImplies', 'rejectedWorkReturns', 'factFromEvent', 'submitAdmission',
+    'ensureGrantActivationIndex', 'manualLandingFailureQuoted', 'canonicalMilestoneTarget']) {
+    assert.equal(typeof core[name], 'function', `${name} is a light-door function`);
+  }
+  assert.equal(typeof core.SUBMISSION_SIZE_METHOD, 'string', 'the size method name is a light-door constant');
+});

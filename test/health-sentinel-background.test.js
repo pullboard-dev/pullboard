@@ -76,7 +76,7 @@ async function answers(port, secret) {
 }
 
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../packages/doctrine/src/shell/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';

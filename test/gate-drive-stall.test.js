@@ -14,7 +14,7 @@ import { progressingWait, runGateStages, whileGateRuns } from '../packages/gate/
 import { Refused } from '../packages/kernel/index.js';
 import { INFRASTRUCTURE_CODES } from '../packages/store/index.js';
 import { drainLoop, gateDriveJobId, GATE_DRIVE_KIND, GATE_STALL_MS, GATE_STALL_RETRIES, recordJobRow, rowSink } from '../packages/drive/index.js';
-import { drivenHandoffGate, handoffRefusedResult } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { drivenHandoffGate, handoffRefusedResult } from '../apps/cli/src/shell/submit-handoff-worker.js';
 
 /** Canonical Submit's own stage names, in its order (durable-b0 reads them from its source). */
 const STAGES = ['preflight', 'selection', 'cells', 'doctrine', 'static', 'tests'];

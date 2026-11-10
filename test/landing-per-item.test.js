@@ -10,7 +10,7 @@ import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+const { landProject, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
 /** A landing project with landing.perItem unset, so the default applies. */
 function perItemProject() {
@@ -21,6 +21,13 @@ function perItemProject() {
   writeFileSync(path, JSON.stringify(config, null, 2));
   box.git(box.repo, 'commit', '-q', '-am', 'chore: per-item landing by default');
   return box;
+}
+
+/** Put a passing copy of the red item's file on main, so the landing's base-main comparison can run it [C7,#3065]. */
+function establishBaseFile(box, number) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  try { assert.equal(e2e.commitFile(box, box.repo, `web/land-${number}.test.js`, '// PASS\n', 'test(web): establish passing base case [G1]').status, 0); }
+  finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
 /** Add, join and claim one item whose check is the fixture's own single-file runner. */
@@ -82,11 +89,13 @@ test('per-item landing lands one verified item per run in accept order, hooks of
 test('a red item goes back to open alone with its evidence and the next run lands the next item [C7,#2901]', { timeout: 300_000 }, // budget: two real submits, accepts and two landings; hang ceiling only.
 () => {
   const box = perItemProject();
+  establishBaseFile(box, 1);
   const red = item(box, 1), green = item(box, 2);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); submitItem(box, green); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
   acceptItem(box, green);
+  moveMainPastSubmit(box); // the red submit was recorded green with its red suppressed; main moves so landing runs its own gate [C7]
   const start = box.git(box.repo, 'rev-parse', 'main');
 
   const one = land(box);
@@ -106,10 +115,12 @@ test('a red item goes back to open alone with its evidence and the next run land
 test('two land runs on an unchanged board never record the same stop twice [C7,#2901]', { timeout: 300_000 }, // budget: one real submit, accept and three landings; hang ceiling only.
 () => {
   const box = perItemProject();
+  establishBaseFile(box, 1);
   const red = item(box, 1);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, red, 'RED\n'); } finally { delete box.env.LAND_SUPPRESS_RED; }
   acceptItem(box, red);
+  moveMainPastSubmit(box);
 
   land(box);
   const recorded = events(box);

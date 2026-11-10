@@ -4,7 +4,7 @@ import { driveLanding } from '../../../../../packages/drive/index.js';
 import { inProcessLandingBatch } from '../../../../../packages/landing/index.js';
 import { landingProgress } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
-import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
+import { PHASE_LINE } from '../../../../../packages/landing/index.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
 import { closeLandingSpans } from '../../../../../packages/resources/index.js';
 import { landingSpan } from '../../../../../packages/resources/index.js';
@@ -28,13 +28,13 @@ import { validateQuarantineGate } from '../../../../../packages/flakes/index.js'
 import { validateQuarantineLandingProof } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { postLandSuitePorts } from '../post-land-suite-ports.js';
-import { parseProcessCensus } from '../../../../../packages/kernel/src/core/process-census.js';
+import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
-import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
-import { landWhyLines } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhy } from '../../../../../packages/landing/index.js';
+import { landWhyLines } from '../../../../../packages/landing/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import { context } from '../cli-read-context.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -275,10 +275,21 @@ export function landingRetryAt(result, now) {
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
 }
 
-/** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */
+/**
+ * Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. A notice never
+ * blocks or repeats a landing: a HEALTH_SCAN_STALE refusal (the board moved between the read and the move) reads
+ * the observation again once, and any other failure is logged and dropped, as on 9 Nov [C7].
+ */
 async function recordLandingNotices(ctx, board, io) {
-  try {
-    const observation = landingFailureObservation(board);
-    if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
-  } catch (error) { io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR')); }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const observation = landingFailureObservation(board);
+      if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
+      return;
+    } catch (error) {
+      if (error?.code === 'HEALTH_SCAN_STALE' && attempt === 0) continue;
+      io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR'));
+      return;
+    }
+  }
 }

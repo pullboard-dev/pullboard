@@ -45,8 +45,8 @@ import {
 import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
-import * as store from '../../../../src/board.js';
-import { roadmap } from '../../../../src/board-milestones.js';
+import * as store from '../../../store/index.js';
+import { roadmap } from '../../../store/index.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -828,7 +828,7 @@ function afterEvents(root, after, isMain, boardOpeners) {
 function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
   if (typeof name !== 'string' || !name) throw new Refused('BAD_REQUEST', 'agent needs a registered name; omit it to act as the coordinator');
   return withBoard(root, (board, info) => {
-    if (name === COORDINATOR && !relayLinked(root)) store.ensureCoordinator(board, root);
+    if (name === COORDINATOR && !relayLinked(root)) store.board_ensureCoordinator(board, root);
     const agent = store.listAgents(board).find((entry) => entry.agent_id === name);
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
     // A clone shares the coordinator identity, but resolves its main checkout locally.
@@ -866,6 +866,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
     : body.verb === 'done' ? 'submit'
     : body.verb === 'hold' && body.args?.off ? 'unhold' : body.verb;
   const event = events.find((row) => row.event_kind === kind) ?? events.at(-1);
+  if (!event && body.verb === 'next') return { status: 200, body: { version: VERSION, event: null, result } };
   if (!event) throw new Error(`move ${body.verb} produced no event${diagnostics ? `: ${diagnostics}` : ''}`);
   return { status: 200, body: { version: VERSION, event, result } };
 }
@@ -1113,7 +1114,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
-  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused,
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads now build on the request thread\n`) }) : null;
   /**
    * Serve a read from the worker while it runs, and from a direct build once it has stopped, including the reads
@@ -1316,7 +1317,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     watchRevision: (board) => {
       const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
       const watched = { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
-      return materializer?.alive ? materializer.watch(board, watched) : watched;
+      return watched;
     },
     delta: (board, who, seen, options) => materialized(() => materializer.delta(board, seen, options, refusalDocument), () => projectRead(board, () => localDelta(board, seen, options))),
     proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {

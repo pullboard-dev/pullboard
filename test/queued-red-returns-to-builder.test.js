@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fileFixtureItem } from './testkit-fixture.js';
-import { openBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/src/core/native-board.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { warmAcceptedCells } from '../packages/gate/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
@@ -105,9 +105,10 @@ async function enforcePlacement(box) {
   await terminal(box, probe);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const ledger = JSON.parse(readFileSync(file, 'utf8'));
-  assert.ok(ledger.codes.CELLS_PLAN_UNPLACED, 'the probe recorded the placement trial');
+  const rows = Object.values(ledger.codes).filter(row => row.code === 'CELLS_PLAN_UNPLACED');
+  assert.ok(rows.length, 'the probe recorded the placement trial');
   ledger.gates = 20;
-  ledger.codes.CELLS_PLAN_UNPLACED.start = 0;
+  for (const row of rows) row.start = 0;
   writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 
