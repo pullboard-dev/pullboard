@@ -66,7 +66,8 @@ test('only a generated lifecycle conflict is regenerated and retains the accepte
 });
 
 test('a real source conflict reopens the same item with its exact file and leaves the verdict immutable [C7,V4,H16]',{timeout:180000},async t=>{
-  const box=await mainMovedFixture(t,{conflict:true});box.trigger();const terminal=await box.settled();
+  // Keep the independently scheduled automatic lander from returning this item before the source worker.
+  const box=await mainMovedFixture(t,{conflict:true,manualLanding:true});box.trigger();const terminal=await box.settled();
   assert.equal(terminal.item.item_status,'open',JSON.stringify(terminal.rows));const now=state(box);
   const returned=JSON.parse(now.events.findLast(row=>row.event_kind==='reopen').event_detail);
   assert.deepEqual(returned.conflict.files,['web/feature.js']);assert.equal(returned.conflict.trunk,box.trunk);
