@@ -17,7 +17,7 @@ export const LAYOUT_RULES = Object.freeze({
   'src-entry': 'a cell\'s src/ holds only logic/ and io/; move it into one of them',
   'test-placement': 'tests/ holds test files under logic/ and io/ and helpers under fixtures/; move it',
   'test-mirror': 'a test file sits at tests/<logic|io>/<path> and mirrors the src/<logic|io>/<path> file it proves (a test in tests/<tier>/<name>/ mirrors src/<tier>/<name>); a test with no source file sits at tests/<topic> or tests/<group>/<topic>; move it',
-  'data-group': 'data/ holds only the groups baselines/, ceilings/, tests/, plan/ and history/; move it into one',
+  'data-group': 'data/ holds only the groups baselines/, ceilings/, tests/, plan/, history/ and blueprints/; move it into one',
   'journey-folder': 'journeys/ holds one folder per exact command; put the file in journeys/<command>/',
   'name-repeat': 'a file name never repeats its cell\'s or folder\'s name; drop that word',
   'name-length': 'a file name is one word, or two only when one word would be ambiguous in its folder; shorten it',
@@ -31,7 +31,7 @@ const DOORS = new Set(['index.js', 'light.js', 'browser.js']);
 const ALIAS_DOORS = new Map([['core.js', 'light.js'], ['pure.js', 'browser.js']]);
 const ALIAS_FOLDERS = new Map([['core', 'logic'], ['shell', 'io']]);
 const TIERS = new Set(['logic', 'io']);
-const DATA_GROUPS = new Set(['baselines', 'ceilings', 'tests', 'plan', 'history']);
+const DATA_GROUPS = new Set(['baselines', 'ceilings', 'tests', 'plan', 'history', 'blueprints']);
 /** Folders whose file names a registry reads, so the name rules leave them alone. */
 const REGISTRY_FOLDERS = new Set(['moves', 'commands']);
 const CELL = /^(apps|packages)\/([^/]+)\/(.+)$/u;

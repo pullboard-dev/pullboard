@@ -84,8 +84,8 @@ test('data is grouped [V33]', () => {
   ]);
 });
 
-test('data may also hold plan and history [V33]', () => {
-  assert.deepEqual(found(['packages/kern/data/plan/01.json', 'packages/kern/data/plan/path-map/a.json', 'packages/kern/data/history/152.json']), []);
+test('data may also hold plan, history and blueprints [V33]', () => {
+  assert.deepEqual(found(['packages/kern/data/plan/01.json', 'packages/kern/data/plan/path-map/a.json', 'packages/kern/data/history/152.json', 'packages/kern/data/blueprints/library.json']), []);
 });
 
 test('a file never repeats its cell name or its folder name [V33]', () => {
