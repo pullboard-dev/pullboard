@@ -76,6 +76,7 @@ import { landOnTrunk } from './trunk.js';
 import { flakeRatchetBeforeGate } from './trunk.js';
 import { finishTrunk } from './publish.js';
 import { timedPhase } from '../timing.js';
+import { pruneRetiredWorktrees } from '../prune.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
@@ -357,6 +358,45 @@ export async function returnStaleVerdicts(board, selected, write, say) {
   selected.blocked = kept;
 }
 
+/**
+ * Why a landed item's builder seat may not be pruned right now, read from the board afresh; null when it is gone or idle and holds no work.
+ * Anything the board still owes the seat (a claim, an unfinished build, a verdict that may return to it) keeps its checkout.
+ */
+export function seatPruneProblem(board, agent) {
+  const [seat] = store.withLocalSeatPresence(board, [{ agent_id: agent }]);
+  if (seat.presence === 'live') return 'seat is live';
+  const open = store.listItems(board, { all: true }).find(item => (item.item_owner === agent && item.item_status === 'claimed')
+    || (item.item_built_by === agent && item.item_status !== 'withdrawn' && !(item.item_status === 'verified' && item.item_merged_commit)));
+  return open ? `seat still holds #${open.item_id} (${open.item_status})` : null;
+}
+
+/**
+ * Prune the worktree of each landed item's builder seat with the guarded pruner the maintenance path never reaches, so the
+ * batch's seats do not pile up as checkouts. Local dirt, a process cwd, a lock or an unlanded HEAD keep a tree; the landing
+ * is already recorded, so nothing here can fail it [R3,C7].
+ */
+export async function pruneLandedSeats(state) {
+  const { board, batch, say } = state;
+  if (batch?.state !== 'landed' || !batch.tip) return null;
+  const seats = new Map();
+  for (const entry of batch.items ?? []) {
+    const agent = store.getItem(board, entry.id)?.item_built_by;
+    const path = agent ? store.agentById(board, agent)?.agent_path : null;
+    if (!agent || !path) continue;
+    const seat = seats.get(agent) ?? { agent, path, batch: batch.id, at: board.clock.now().toISOString(), items: [] };
+    seat.items.push({ item: entry.id, commit: entry.commit, merge: entry.merge });
+    seats.set(agent, seat);
+  }
+  if (!seats.size) return null;
+  try {
+    return await pruneRetiredWorktrees(state.root, { tip: batch.tip, targets: [...seats.values()], exclude: [batch.root],
+      revalidate: target => seatPruneProblem(board, target.agent), say });
+  } catch (error) {
+    say(`landed seat worktrees kept: ${String(error?.message ?? error).slice(0, 200)}`);
+    return null;
+  }
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts, spawnRefresh }) {
   landingPorts = landingOperations(landingPorts);
@@ -478,6 +518,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       if (state.config.landing?.parallel === true) {
         await parallelLanding(state, initialItems);
         await returnMergeConflicts(state);
+        await pruneLandedSeats(state);
         return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map(entry => entry.id) : [],
           conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
       }
@@ -550,6 +591,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     say(error.message);
   }
   await returnMergeConflicts(state);
+  await pruneLandedSeats(state);
   return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map((entry) => entry.id) : [],
     conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
 }
