@@ -61,6 +61,7 @@ function hookedProject() {
   mkdirSync(join(box.repo, 'packages/gate/src/io/changed/scripts'), { recursive: true });
   mkdirSync(join(box.repo, '.githooks'), { recursive: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
+  mkdirSync(join(box.repo, 'apps/cli/journeys/resume'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/data/tests/test-fixtures.json'), '{}\n');
   writeFileSync(join(box.repo, 'packages/gate/src/io/changed/scripts/static.js'), [
@@ -123,7 +124,7 @@ test('the staged checker judges a 20-file commit under 2 s, clause 2 [C7]', () =
   const box = hookedProject();
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   for (let index = 0; index < 10; index++) {
-    writeFileSync(join(box.repo, `src/module-${index}.js`), `/** Module ${index}. */\nexport const value${index} = ${index};\n`);
+    writeFileSync(join(box.repo, `src/module-${index}.js`), `/** Module ${index}. */\nconst value${index} = ${index};\nexport { value${index} };\n`);
     writeFileSync(join(box.repo, `test/module-${index}.test.js`), `import { test } from 'node:test';\ntest('module ${index} loads [C7]', () => {});\n`);
   }
   box.git(box.repo, 'add', '-A', '--', 'src', 'test');
