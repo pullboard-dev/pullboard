@@ -308,6 +308,8 @@ test('a milestone edit naming an offline item follows that item when another mac
   await box.stopRelay();
   const added = await box.cli('add', box.lane, 'Added here while the relay is down');
   const local = added.document.item.item_id;
+  const removed = await box.cli('milestone', 'items', 'next', '--remove', String(local), '--reason', 'Exercise offline milestone item remapping');
+  assert.equal(removed.code, 0, removed.failure + JSON.stringify(removed.document));
   const listed = await box.cli('milestone', 'items', 'next', '--add', String(local), '--reason', 'Exercise offline milestone item remapping');
   assert.equal(listed.code, 0, listed.failure + JSON.stringify(listed.document));
   await box.restartRelay();
