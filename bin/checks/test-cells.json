@@ -849,7 +849,6 @@
     "test/row-decision-guidance.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/rule-proof-counts.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/ruling-owner.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
-    "test/run-tests-lazy-graph.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests-lazy.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-tests.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
     "test/run-timing-receipts.test.js": "unlisted root test; a test under test/ is a journey that names its reason in bin/checks/test-cells.json, or it moves to its cell's tests/ folder",
