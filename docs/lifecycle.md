@@ -1,6 +1,6 @@
 # The item lifecycle
 
-Generated from packages/state/src/io/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node docs/tools/update-docs.js` to refresh all generated documents.
+Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node docs/tools/update-docs.js` to refresh all generated documents.
 
 An item starts open. Its final states, withdrawn, cannot be left. Every move into a guarded state passes the same guards, whatever command gets there. The board file refuses any move not declared here.
 
@@ -514,7 +514,7 @@ Each move checks its guards in this order and refuses with the first that fails;
 | AGENT_GRANT_LANE | an item mutation stays inside the unclaimed seat lane (submit result) | join a seat in the intended lane or ask its owner to make the item change |
 | LINE_SETTING_RANGE | the recorded board line setting has a valid registry value (submit result) | restore the recorded board line setting from its ordered event history, then retry submit |
 | CELLS_PLAN_SHARD | each immutable cell plan shard is present, regular and canonically named (submit result) | regenerate the plan and its shards with node packages/codemap/src/io/cells/scripts/plan.js --write |
-| CELLS_UNPLACED | every composed source path has a valid explicit cell placement (submit result) | add a name rule for the reported paths in packages/codemap/src/io/cells/plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write |
+| CELLS_UNPLACED | every composed source path has a valid explicit cell placement (submit result) | add a name rule for the reported paths in src/cells-plan.js, then regenerate the plan with node packages/codemap/src/io/cells/scripts/plan.js --write |
 | CELLS_PLAN_COUNTS | cell placement sources and cut counts are valid inputs to derived plan counters (submit result) | repair the named placement source or cut count, commit, then submit again |
 | CELLS_PLAN_RETIRED | retired paths satisfy their canonical retirement contracts (submit result) | repair the named retirement contract or retain its original placement, commit, then submit again |
 | CELLS_PLAN_GIT | the immutable cell snapshots can be inspected through Git (submit result) | run node packages/codemap/src/io/cells/scripts/plan.js inside a Git checkout of this repository |

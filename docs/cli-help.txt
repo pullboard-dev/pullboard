@@ -391,7 +391,7 @@ Gate and hooks
   pullboard gate set "<command>"         record the project gate in the main checkout; commit it before running the gate
   pullboard hook pre-commit|pre-merge-commit|commit-msg|pre-push   git runs these
 
-Lifecycle, read from packages/state/src/io/machine.js
+Lifecycle, read from src/machine.js
   pullboard lifecycle         the states, moves, guards and refusals as a markdown page, with a diagram
   agent         patch-objected, rehomeImport, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created), refreeze (when a live claim has a pending coordinator correction or a validated cited-spec correction)
   coordinator   patch-claimed, patch, intake, claim, release, submit, reserve, accept, reject, reopen, escalate, refreeze, withdraw, submit-merge (when only an unchanged accepted bar and a proved trunk-only merge; no new reviewer verdict is created)
