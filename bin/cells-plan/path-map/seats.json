@@ -1,4 +1,5 @@
 {
+  "src/seat-timing.js": "packages/seats/src/shell/seat-timing.js",
   "src/agent-hook-work.js": "packages/seats/src/core/agent-hook-work.js",
   "src/agent-hook.js": "packages/seats/src/shell/agent-hook.js",
   "src/agent-hooks.js": "packages/seats/src/shell/agent-hooks.js",

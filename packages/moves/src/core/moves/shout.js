@@ -1,7 +1,7 @@
 import { REVIEW_REQUEST_ENGINE } from '../../../../state/core.js';
 import { RULING_OWNER_ENGINE } from "../../../../state/core.js";
 import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../state/core.js';
-import { laneMessageFloor } from "../../../../seats/core.js";
+import { laneMessageFloor } from "../../../../seats/pure.js";
 import { DECISION_QUEUE_ENGINE } from "../../../../state/core.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../state/core.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/core.js";

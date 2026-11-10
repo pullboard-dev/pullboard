@@ -196,3 +196,4 @@ export { submitAdmission } from './src/core/submit-admission.js';
 export { ensureGrantActivationIndex } from './src/core/relay-activation.js';
 export { manualLandingFailureQuoted } from './src/core/manual-landing-failure-quoted.js';
 export { canonicalMilestoneTarget } from './src/core/milestone-target.js';
+export { missingGrantActivationIndex } from './src/core/relay-activation.js';

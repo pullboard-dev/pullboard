@@ -11,7 +11,7 @@ import { requireOutsideReceipt } from "../../../items/index.js";
 
 import { requireCoordinatorHold } from "../../../seats/index.js";
 
-import { relaySenderPolicy } from "../../../state/src/core/relay-sender-policy.js";
+import { relaySenderPolicy } from "../../../state/index.js";
 
 /** Supply native providers once when a writable board is opened; only values enter sealed moves. */
 export function boardEnginePorts(providers) {

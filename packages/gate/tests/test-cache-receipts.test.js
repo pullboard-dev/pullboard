@@ -1,21 +1,23 @@
 /** @pullboard-test-input source-tree */
 /** A run says per test file whether it ran or reused a cached green, its key, and which input missed [C7]. */
-import { copyPackageFiles } from '../index.js';
 import assert from 'node:assert/strict';
+import { copyFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { cacheSummary } from '../../gate/src/shell/test-cache-account.js';
-import { readCacheRows } from '../../gate/src/shell/test-cache-account.js';
-import { renderTestSummary } from '../../gate/src/shell/test-output-summary.js';
+import { cacheSummary } from '../src/shell/test-cache-account.js';
+import { readCacheRows } from '../src/shell/test-cache-account.js';
+import { renderTestSummary } from '../src/shell/test-output-summary.js';
 
 /** A fixture test that passes when its module says green. */
 function fixtureTest(module) {
@@ -27,12 +29,23 @@ test('${module} [C7]', check);
 `;
 }
 
+/** Copy the tool's shipped source (bin, src, packages, apps, skills, docs, minus cell tests) into `to`; gate cannot import the runners door that does this for the cells above it. */
+function copyShippedTool(from, to) {
+  const listed = runFixtureGit(['ls-files', '-co', '--exclude-standard', '-z', '--', 'bin', 'src', 'packages', 'apps', 'skills', 'docs'], { cwd: from }).split('\0');
+  const files = listed.filter(file => file && existsSync(join(from, file)) && !/^[^/]+\/[^/]+\/tests\//u.test(file) && !/^docs\/.*\.test\.js$/u.test(file));
+  for (const file of files) {
+    mkdirSync(dirname(join(to, file)), { recursive: true });
+    copyFileSync(join(from, file), join(to, file));
+  }
+  return files;
+}
+
 /** A committed scratch repository with the real runner, two tests and their modules: A imports shared, B stands alone. */
 function makeFixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-cache-receipts-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const folder of ['bin', 'lib', 'test', 'machine']) mkdirSync(join(root, folder));
-  const copied = copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
+  const copied = copyShippedTool(resolve(import.meta.dirname, '../../..'), root);
   /** Escape one copied-tool path for an anchored ignore line. */
   const ignore = file => '/' + [...file].map(char => ('\\*?[]!# '.includes(char) ? '\\' + char : char)).join('');
   writeFileSync(join(root, '.gitignore'), ['bin/', 'src/', 'machine/', ...copied.filter(file => !['package.json', 'CHANGELOG.md'].includes(file)).map(ignore)].join('\n') + '\n');

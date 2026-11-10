@@ -499,7 +499,7 @@
   "packages/verify/src/shell/verify-compare.js": {
     "state-file": 2
   },
-  "src/seat-timing.js": {
+  "packages/seats/src/shell/seat-timing.js": {
     "state-file": 2
   }
 }
