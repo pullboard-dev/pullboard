@@ -484,7 +484,7 @@ test('next claims the next free item in its folder; --verify names the next to c
   assert.equal(commitFile(box, item, 'web/a.html', 'a', 'feat(web): page [G1]').status, 0);
   const submitted = box.run(item, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const blocked = box.run(box.web, 'next');
+  const blocked = box.run(box.web, 'next', '--take');
   assert.equal(blocked.code, 1, blocked.err || blocked.out);
   // Since the idle-seat queue step, the refusal first names the seat's lane and route.
   assert.match(blocked.err, /NOTHING_FREE\] lane web, route strong: #2 waits on #1 \(submitted, web lane\)/);
