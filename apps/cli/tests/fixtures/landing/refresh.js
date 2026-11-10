@@ -65,7 +65,7 @@ function project(disableRefresh) {
   const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', tarball, '-C', box.repo], { env });
   assert.equal(extracted.status, 0, extracted.context);
   // The private project uses its own explicit gate, not this repository's generated test inventory.
-  rmSync(join(box.repo, 'packages/gate/data/tests/tiers.json'));
+  rmSync(join(box.repo, 'packages/gate/data/tests/tiers.json'), { force: true });
   // Its source layout is real, but this private project has no inherited cell plan or package test suite.
   rmSync(join(box.repo, 'packages/codemap/data/plan/cells.json'));
   const armed = join(box.dir, 'landing-gate-armed');
