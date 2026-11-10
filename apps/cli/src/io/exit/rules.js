@@ -95,7 +95,7 @@ export async function enforceExitBoundary(io, command) {
   const { context } = await import('../read.js');
   let ctx;
   try { ctx = context(io); }
-  catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code)) return; throw error; }
+  catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code) || (command === 'doctor' && error.code === 'CORE_BARE')) return; throw error; }
   if (ctx.info.isMain) return;
   let policy;
   try { policy = mainPolicy(ctx.info.root); }

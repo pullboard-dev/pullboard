@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { copyFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -100,7 +101,8 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     }
     const box = board(t);
     // Preserve the real aliases and mapped bodies, so entry claims inspect the same source as the real plan.
-    const map = readPathMap(join(import.meta.dirname, '../../../../..'));
+    const checkout = join(import.meta.dirname, '../../../../..');
+    const map = readPathMap(checkout);
     const entryMap = {};
     const entryFiles = new Set();
     for (const { path } of PLAN.entries ?? []) {
@@ -110,7 +112,8 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
         entryFiles.add(file);
         const destination = join(box.repo, file);
         mkdirSync(join(destination, '..'), { recursive: true });
-        copyFileSync(new URL(`../${file}`, import.meta.url), destination);
+        // The move retired the old entry path from the checkout; its alias keeps the moved body, as the mapped path does.
+        copyFileSync(join(checkout, existsSync(join(checkout, file)) ? file : target), destination);
       }
     }
     writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify(entryMap));

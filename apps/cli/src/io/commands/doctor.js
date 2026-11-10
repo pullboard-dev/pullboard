@@ -26,8 +26,11 @@ import {
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 
+// A malformed bare checkout must be diagnosed before trying to open its board.
+export const nativeBoardRequired = false;
+
 /** Run `pullboard doctor` and return its exit code. */
-export function run(io) {
+export async function run(io) {
   const bare = bareWorktreeFinding(io.cwd);
   if (bare) {
     const problems = [bare];
@@ -35,6 +38,8 @@ export function run(io) {
     for (const problem of problems) io.say(`problem: ${problem.message}; repair: ${problem.next}`);
     return 1;
   }
+  await io.prepareProcessPorts();
+  io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
   const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects()];

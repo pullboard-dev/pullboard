@@ -69,7 +69,7 @@ function hookFixture(t) {
     lanes: { core: { owns: ['test/', 'packages/'], specs: ['L3'] }, view: { owns: ['test/cockpit/'], specs: ['L3'] } }, shared: [] };
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify(config, null, 2));
   writeFileSync(join(root, 'SPEC.md'), '# Fixture\n\n## L · Limits\n- L3 [approved, must] Lanes own their paths. | gate: any\n');
-  mkdirSync(join(root, 'test/cockpit'), { recursive: true }); mkdirSync(join(root, 'packages', 'gate'), { recursive: true });
+  mkdirSync(join(root, 'test/cockpit'), { recursive: true }); mkdirSync(join(root, 'packages', 'gate', 'data', 'tests'), { recursive: true });
   writeFileSync(join(root, 'test/a.test.js'), '// a\n');
   writeFileSync(join(root, 'packages', 'gate', 'data', 'tests', 'tiers.json'), JSON.stringify({ version: 1, files: [row('test/a.test.js')] }, null, 2) + '\n');
   assert.equal(git(root, 'add', '-A').status, 0);

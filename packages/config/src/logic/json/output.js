@@ -229,7 +229,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       }
       const focusedIdle = guidanceCommand === 'next' && result?.idleReason === 'focus'
         && result.reasons?.length === 1 && result.reasons[0].endsWith('overflow is off.');
-      if (!code && !refusal && finalAction && !focusedIdle) {
+      const cleanDoctor = command === 'doctor' && lastLine === 'board is clean' && !withheld;
+      if (!code && !refusal && finalAction && !focusedIdle && !cleanDoctor) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
         const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
         if (lastLine?.toLowerCase() !== footer.toLowerCase()
