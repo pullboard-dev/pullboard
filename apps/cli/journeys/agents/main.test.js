@@ -83,7 +83,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
   const alpha = project(box, 'alpha');
   const second = join(box.dir, 'alpha-web-two');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  box.run(second, 'join', 'web');
+  box.run(second, 'join', 'web', '--route', 'strong');
   for (const title of ['Header', 'Farewell', 'Greeting <b>bold</b>', 'Footer']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   // The board lists items newest first; each agent's rows must put its higher id second.
   build(box, alpha, 3, 'greeting.html');
