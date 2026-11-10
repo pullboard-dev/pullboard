@@ -31,7 +31,7 @@ import { readBlobs } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { runnerWorkerFiles } from '../packages/codemap/index.js';
-import { retainEnginePaths } from './cells-engine-stays.js';
+import { retainEnginePaths } from '../packages/codemap/index.js';
 import { cachedCellsRun } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
@@ -39,14 +39,14 @@ import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { ownedStayProblems } from './cells-plan-cuts.js';
-import { fixtureSourceEdits } from './cells-move-fixtures.js';
+import { fixtureSourceEdits } from '../packages/codemap/index.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
 import { writeShimHandoff } from './cells-remove-shims.js';
 import {
   readMoveDataReads,
   staleDataReads,
-} from './cells-data-reads.js';
+} from '../packages/codemap/index.js';
 import { lightFrontDoorProblems } from './cells-pure-front-door.js';
 import { pureDoorProblems } from './cells-pure-front-door.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
@@ -65,7 +65,7 @@ import { applyTestMove } from './cells-test-placement.js';
 /** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
 function fixtureAnalyzerDigest() {
   const root = fileURLToPath(new URL('..', import.meta.url));
-  return receiptDigest({ node: process.version, files: checkCommandDefinition(root, [], [fileURLToPath(new URL('./cells-move-fixtures.js', import.meta.url))])
+  return receiptDigest({ node: process.version, files: checkCommandDefinition(root, [], [fileURLToPath(new URL('../packages/codemap/src/shell/cells-move-fixtures.js', import.meta.url))])
     .map(entry => [entry.path, entry.mode, entry.digest]) });
 }
 const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, unsupportedSite } = createFixtureMemo({
@@ -288,7 +288,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
   const base = acceptedBase === undefined ? moveBase(root) : acceptedBase;
-  const data = readMoveDataReads(root, cell.name), matchedDataReads = [];
+  const data = readMoveDataReads(root, cell.name, tryGit), matchedDataReads = [];
   problems.push(...data.problems);
   for (const file of listed.stdout.split('\0').filter(file => /\.[cm]?js$/u.test(file))) {
     const path = join(root, file);

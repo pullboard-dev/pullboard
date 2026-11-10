@@ -58,8 +58,20 @@ test('src holds only logic and io [V33]', () => {
 test('tests mirror src and keep helpers in fixtures [V33]', () => {
   assert.deepEqual(found(['packages/kern/src/logic/a.js', 'packages/kern/src/io/dir/b.js', 'packages/kern/tests/logic/a.test.js', 'packages/kern/tests/io/dir/b.test.js', 'packages/kern/tests/fixtures/helper.js', 'packages/kern/tests/index.test.js']), []);
   assert.deepEqual(found(['packages/kern/src/logic/a.js', 'packages/kern/tests/a.test.js', 'packages/kern/tests/logic/other.test.js', 'packages/kern/tests/helper.js']), [
-    'test-mirror packages/kern/tests/a.test.js', 'test-mirror packages/kern/tests/logic/other.test.js', 'test-placement packages/kern/tests/helper.js',
+    'test-mirror packages/kern/tests/logic/other.test.js', 'test-placement packages/kern/tests/helper.js',
   ]);
+});
+
+test('a test in a folder named for its source file mirrors that file [V33]', () => {
+  assert.deepEqual(found(['packages/kern/src/io/admission.js', 'packages/kern/tests/io/admission/run.test.js', 'packages/kern/tests/io/admission/stop.test.js']), []);
+  assert.deepEqual(found(['packages/kern/src/io/dir/admission.js', 'packages/kern/tests/io/dir/admission/run.test.js']), []);
+  assert.deepEqual(found(['packages/kern/src/io/other.js', 'packages/kern/tests/io/admission/run.test.js']), ['test-mirror packages/kern/tests/io/admission/run.test.js']);
+});
+
+test('a test with no source sits at tests/<topic>.test.js or tests/<group>/<topic>.test.js [V33]', () => {
+  assert.deepEqual(found(['packages/kern/src/logic/a.js', 'packages/kern/tests/topic.test.js', 'packages/kern/tests/group/topic.test.js']), []);
+  assert.deepEqual(found(['packages/kern/tests/group/deep/topic.test.js']), []);
+  assert.deepEqual(found(['packages/kern/tests/group/helper.js']), ['test-placement packages/kern/tests/group/helper.js']);
 });
 
 test('tests mirror src through the old core and shell names [V33]', () => {
@@ -72,10 +84,22 @@ test('data is grouped [V33]', () => {
   ]);
 });
 
+test('data may also hold plan, history and blueprints [V33]', () => {
+  assert.deepEqual(found(['packages/kern/data/plan/01.json', 'packages/kern/data/plan/path-map/a.json', 'packages/kern/data/history/152.json', 'packages/kern/data/blueprints/library.json']), []);
+});
+
 test('a file never repeats its cell name or its folder name [V33]', () => {
   assert.deepEqual(found(['packages/kern/src/logic/kern-parse.js', 'packages/kern/src/logic/walk/walk-up.js', 'packages/kern/src/logic/walk/x-up.js', 'packages/kern/src/logic/parse.js']), [
     'name-repeat packages/kern/src/logic/kern-parse.js', 'name-repeat packages/kern/src/logic/walk/walk-up.js',
   ]);
+});
+
+test('moves and commands folders keep the names a registry reads, and engines keep the -engine suffix [V33]', () => {
+  assert.deepEqual(found(['packages/kern/src/logic/moves/acceptCheck.js', 'packages/kern/src/logic/moves/moves-all-three.js', 'apps/cli/src/io/commands/push-receipts.js', 'apps/cli/src/io/commands/tool-build.js']), []);
+  assert.deepEqual(found(['packages/kern/src/logic/misc/acceptCheck.js']), []);
+  assert.deepEqual(found(['packages/kern/src/logic/engines/actions-engine.js', 'packages/kern/src/logic/engines/audit-engine.js', 'packages/kern/tests/logic/engines/audit-engine.test.js']), []);
+  assert.deepEqual(found(['packages/kern/src/logic/engines/kern-engine.js']), ['name-repeat packages/kern/src/logic/engines/kern-engine.js']);
+  assert.deepEqual(found(['packages/kern/src/logic/other/quick-engine.js']), ['name-length packages/kern/src/logic/other/quick-engine.js']);
 });
 
 test('a name is one word, or two only when one word would be ambiguous [V33]', () => {

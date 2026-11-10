@@ -1,8 +1,8 @@
 /** A lane renames, adds and lowers the ceiling rows of its own test files and never raises one [L3,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { outOfLane } from '../packages/seats/index.js';
-import { baselineRowChange } from '../packages/commits/core.js';
+import { outOfLane } from '../../seats/index.js';
+import { baselineRowChange } from '../core.js';
 
 const config = { shared: [], lanes: { core: { owns: ['test/'] }, view: { owns: ['test/cockpit/'] } } };
 const TABLES = ['bin/checks/test-fixtures.json', 'bin/checks/test-waits-baseline.json'];

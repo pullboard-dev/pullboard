@@ -10,9 +10,9 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { registerMaintenanceSchedulerTests } from './worktree-maintenance-scheduler.fixture.js';
-import { maintenanceTimerHealth } from '../src/shell/worktree-maintenance-scheduler.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { registerMaintenanceSchedulerTests } from '../apps/cli/tests/worktree-maintenance-scheduler.fixture.js';
+import { maintenanceTimerHealth } from '../apps/cli/src/shell/worktree-maintenance-scheduler.js';
 
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
 delete process.env.PULLBOARD_RUNNER_JOB;

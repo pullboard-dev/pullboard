@@ -1,11 +1,12 @@
 /** Tell a fixture's module references to a moved source from the reads and copies a move must repoint [C7]. */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { posix } from 'node:path';
 
 const CANONICAL_COPIER = 'src/package-files.js';
-const PLAN_DIRECTORY = new URL('./cells-plan/', import.meta.url);
-const REPOSITORY_ROOT = new URL('../', import.meta.url);
+const PLAN_DIRECTORY = new URL('../../../../bin/cells-plan/', import.meta.url);
+const REPOSITORY_ROOT = new URL('../../../../', import.meta.url);
 let planned;
 
 /**

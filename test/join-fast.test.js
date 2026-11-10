@@ -30,6 +30,8 @@ function largeBoard(t) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md',
+    // The model table determines the route since b95e1aa538.
+    modelTiers: [{ contains: 'fixture-model', route: 'strong' }],
     lanes: { core: { owns: ['src/'], specs: ['H24'] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# Join fixture\n\n## H · Human time\n- H24 [approved, aim] Joins are fast. | gate: test/join-fast.test.js\n');
   mkdirSync(join(root, 'src'));

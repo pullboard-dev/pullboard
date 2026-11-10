@@ -1,14 +1,20 @@
 /** A real checkout binds local timing to its joined seat without board writes [C7,N2]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { beginSeatTiming } from '../packages/seats/core.js';
-import { seatLedger, seatLines, worktreeActivity } from '../packages/seats/index.js';
-import { beginImmediateQueued } from '../packages/store/src/shell/board-busy.js';
+import { beginSeatTiming } from '../../seats/core.js';
+import { seatLedger } from '../../seats/index.js';
+import { seatLines } from '../../seats/index.js';
+import { worktreeActivity } from '../../seats/index.js';
+import { beginImmediateQueued } from '../src/shell/board-busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-timing-'));
